@@ -1,0 +1,800 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://SoumyaSudhirNayak.github.io/STATATHON_2025/api/">
+      
+      
+        <link rel="prev" href="..">
+      
+      
+        <link rel="next" href="../auth/">
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.16">
+    
+    
+      
+        <title>API Reference - Statathon Docs</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.7e37652d.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#api-reference" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Statathon Docs" class="md-header__button md-logo" aria-label="Statathon Docs" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Statathon Docs
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              API Reference
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Statathon Docs" class="md-nav__button md-logo" aria-label="Statathon Docs" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Statathon Docs
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Home
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    API Reference
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    API Reference
+    
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#query-a-dataset" class="md-nav__link">
+    <span class="md-ellipsis">
+      Query a Dataset
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Query a Dataset">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      🔹 Parameters:
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#auth-required" class="md-nav__link">
+    <span class="md-ellipsis">
+      🔐 Auth Required:
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example-1-admin-full-json-response" class="md-nav__link">
+    <span class="md-ellipsis">
+      Example 1: Admin (Full JSON Response)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example-2-csv-download" class="md-nav__link">
+    <span class="md-ellipsis">
+      Example 2: CSV Download
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example-3-non-admin-suppression-triggered" class="md-nav__link">
+    <span class="md-ellipsis">
+      Example 3: Non-Admin (Suppression Triggered)
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#upload-dataset" class="md-nav__link">
+    <span class="md-ellipsis">
+      📄 Upload Dataset
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="📄 Upload Dataset">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#form-data" class="md-nav__link">
+    <span class="md-ellipsis">
+      🔹 Form Data:
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#auth-required_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      🔐 Auth Required:
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#view-current-user-debug" class="md-nav__link">
+    <span class="md-ellipsis">
+      🔍 View Current User (Debug)
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#test-suppression-logic-debug" class="md-nav__link">
+    <span class="md-ellipsis">
+      🔎 Test Suppression Logic (Debug)
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../auth/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Authentication
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../usage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Usage Metering
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#query-a-dataset" class="md-nav__link">
+    <span class="md-ellipsis">
+      Query a Dataset
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Query a Dataset">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      🔹 Parameters:
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#auth-required" class="md-nav__link">
+    <span class="md-ellipsis">
+      🔐 Auth Required:
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example-1-admin-full-json-response" class="md-nav__link">
+    <span class="md-ellipsis">
+      Example 1: Admin (Full JSON Response)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example-2-csv-download" class="md-nav__link">
+    <span class="md-ellipsis">
+      Example 2: CSV Download
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example-3-non-admin-suppression-triggered" class="md-nav__link">
+    <span class="md-ellipsis">
+      Example 3: Non-Admin (Suppression Triggered)
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#upload-dataset" class="md-nav__link">
+    <span class="md-ellipsis">
+      📄 Upload Dataset
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="📄 Upload Dataset">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#form-data" class="md-nav__link">
+    <span class="md-ellipsis">
+      🔹 Form Data:
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#auth-required_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      🔐 Auth Required:
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#view-current-user-debug" class="md-nav__link">
+    <span class="md-ellipsis">
+      🔍 View Current User (Debug)
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#test-suppression-logic-debug" class="md-nav__link">
+    <span class="md-ellipsis">
+      🔎 Test Suppression Logic (Debug)
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="api-reference">API Reference</h1>
+<p>This section documents the core APIs of  <strong>Statathon Dataset Gateway</strong>.</p>
+<hr />
+<h2 id="query-a-dataset">Query a Dataset</h2>
+<p><strong>GET</strong> <code>/datasets/{table_name}/query</code></p>
+<p>Use this endpoint to query any dataset table with filters, column selection, and pagination.</p>
+<h3 id="parameters">🔹 Parameters:</h3>
+<table>
+<thead>
+<tr>
+<th>Param</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>columns</code></td>
+<td>string</td>
+<td>Comma-separated list of columns to return</td>
+</tr>
+<tr>
+<td><code>filters</code></td>
+<td>string</td>
+<td>Filter expression using SQL operators (<code>=</code>, <code>&gt;</code>, <code>&lt;</code>, <code>IN</code>)</td>
+</tr>
+<tr>
+<td><code>limit</code></td>
+<td>integer</td>
+<td>Number of rows to return (default: 100)</td>
+</tr>
+<tr>
+<td><code>offset</code></td>
+<td>integer</td>
+<td>Number of rows to skip (default: 0)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="auth-required">🔐 Auth Required:</h3>
+<ul>
+<li>Bearer token (admin or user)</li>
+</ul>
+<hr />
+<h3 id="example-1-admin-full-json-response">Example 1: Admin (Full JSON Response)</h3>
+<p><strong>Request:</strong></p>
+<pre><code>GET /datasets/block_5_2_usual_subsidiary_economic_activity_particulars_of_hou/query?limit=10&amp;offset=0&amp;columns=Round_Centre_Code,FSU_Serial_No,Round,Sch_No
+</code></pre>
+<p><strong>Headers:</strong></p>
+<pre><code>Authorization: Bearer &lt;ADMIN_JWT&gt;
+Accept: application/json
+</code></pre>
+<p><strong>Response:</strong></p>
+<pre><code class="language-json">[
+  {
+    &quot;Round_Centre_Code&quot;: 12,
+    &quot;FSU_Serial_No&quot;: 71558,
+    &quot;Round&quot;: 68,
+    &quot;Sch_No&quot;: 100
+  },
+  {
+    &quot;Round_Centre_Code&quot;: 6,
+    &quot;FSU_Serial_No&quot;: 71560,
+    &quot;Round&quot;: 68,
+    &quot;Sch_No&quot;: 101
+  }
+]
+</code></pre>
+<hr />
+<h3 id="example-2-csv-download">Example 2: CSV Download</h3>
+<p><strong>Request:</strong></p>
+<pre><code>GET /datasets/block_5_2_usual_subsidiary_economic_activity_particulars_of_hou/query?limit=10&amp;columns=Round_Centre_Code,FSU_Serial_No,Round,Sch_No
+</code></pre>
+<p><strong>Headers:</strong></p>
+<pre><code>Authorization: Bearer &lt;JWT&gt;
+Accept: text/csv
+</code></pre>
+<p><strong>Response (CSV):</strong></p>
+<pre><code>Round_Centre_Code,FSU_Serial_No,Round,Sch_No
+12,71558,68,100
+6,71560,68,101
+</code></pre>
+<hr />
+<h3 id="example-3-non-admin-suppression-triggered">Example 3: Non-Admin (Suppression Triggered)</h3>
+<p><strong>Request:</strong></p>
+<pre><code>GET /datasets/block_5_2_usual_subsidiary_economic_activity_particulars_of_hou/query?filters=FSU_Serial_No=71238;Round_Centre_Code=4&amp;limit=10
+</code></pre>
+<p><strong>Headers:</strong></p>
+<pre><code>Authorization: Bearer &lt;USER_JWT&gt;
+Accept: application/json
+</code></pre>
+<p><strong>Response (403 Forbidden):</strong></p>
+<pre><code class="language-json">{
+  &quot;detail&quot;: {
+    &quot;error&quot;: &quot;Data Access Restricted&quot;,
+    &quot;detail&quot;: &quot;Data suppressed: Result contains 1 rows, which is below the minimum threshold of 5 rows required for privacy protection.&quot;,
+    &quot;code&quot;: &quot;CELL_SUPPRESSION_APPLIED&quot;,
+    &quot;minimum_rows_required&quot;: 5,
+    &quot;actual_rows&quot;: 1
+  }
+}
+</code></pre>
+<hr />
+<h2 id="upload-dataset">📄 Upload Dataset</h2>
+<p><strong>POST</strong> <code>/upload/</code></p>
+<p>Upload a ZIP file containing <code>.csv</code>, <code>.txt</code>, and <code>.xml</code> (DDI) files.</p>
+<h3 id="form-data">🔹 Form Data:</h3>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>file</code></td>
+<td>file</td>
+<td>ZIP file with dataset + DDI</td>
+</tr>
+<tr>
+<td><code>schema</code></td>
+<td>string</td>
+<td>Target schema (e.g., <code>public</code>, <code>plfs</code>)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="auth-required_1">🔐 Auth Required:</h3>
+<ul>
+<li>Admin only</li>
+</ul>
+<p><strong>Response:</strong></p>
+<pre><code class="language-html">&lt;h3&gt;✅ Upload successful!&lt;/h3&gt;
+</code></pre>
+<hr />
+<h2 id="view-current-user-debug">🔍 View Current User (Debug)</h2>
+<p><strong>GET</strong> <code>/debug/user-info</code></p>
+<p>Returns current user’s email, role, and debug info.</p>
+<p><strong>Response:</strong></p>
+<pre><code class="language-json">{
+  &quot;username&quot;: &quot;statathon12@gmail.com&quot;,
+  &quot;role&quot;: 1,
+  &quot;is_admin&quot;: true
+}
+</code></pre>
+<hr />
+<h2 id="test-suppression-logic-debug">🔎 Test Suppression Logic (Debug)</h2>
+<p><strong>GET</strong> <code>/debug/test-suppression</code></p>
+<p>Simulates a query returning &lt;5 rows and checks suppression logic.</p>
+<p><strong>Response (for users):</strong></p>
+<pre><code class="language-json">{
+  &quot;message&quot;: &quot;✅ Cell suppression is working correctly!&quot;,
+  &quot;suppressed&quot;: true,
+  &quot;user_role&quot;: &quot;3&quot;,
+  &quot;row_count&quot;: 3
+}
+</code></pre>
+<hr />
+<p>Continue to <a href="../auth/">Authentication</a> →</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.d50fe291.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.50899def.min.js"></script>
+      
+    
+  </body>
+</html>
