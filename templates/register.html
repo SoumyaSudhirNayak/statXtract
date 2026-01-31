@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register - Data Analytics Platform</title>
+
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+
+    <style>
+        :root {
+            /* Purple Color Scheme */
+            --primary-color: #64748b;
+            --primary-gradient: linear-gradient(135deg, #64748b 0%, #475569 100%);
+            --secondary-color: #f59e0b;
+            --secondary-gradient: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            --success-color: #f59e0b;
+            --warning-color: #f59e0b;
+            --danger-color: #ef4444;
+            --dark-color: #2d3748;
+            --light-color: #f7fafc;
+            --text-light: #ffffff;
+            --text-dark: #2d3748;
+
+            /* Glass morphism with purple colors */
+            --glass-bg: rgba(15, 23, 42, 0.7);
+            --glass-border: rgba(100, 116, 139, 0.25);
+            --shadow-light: 0 8px 32px rgba(15, 23, 42, 0.3);
+            --shadow-heavy: 0 20px 40px rgba(0, 0, 0, 0.4);
+            --border-radius: 20px;
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        [data-theme="dark"] {
+            --dark-color: #f7fafc;
+            --light-color: #1a202c;
+            --text-light: #f7fafc;
+            --text-dark: #1a202c;
+            --glass-bg: rgba(0, 0, 0, 0.15);
+            --glass-border: rgba(255, 255, 255, 0.1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%);
+            min-height: 100vh;
+            color: var(--text-light);
+            transition: var(--transition);
+            overflow-x: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        /* Theme Toggle */
+        .theme-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: 50px;
+            padding: 12px 20px;
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-light);
+            font-weight: 500;
+        }
+
+        .theme-toggle:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-light);
+        }
+
+        /* Main Container */
+        .main-container {
+            max-width: 450px;
+            width: 100%;
+        }
+
+        /* Header */
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--border-radius);
+            padding: 40px 30px;
+            color: var(--text-light);
+            box-shadow: var(--shadow-light);
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #fff 0%, #f0f0f0 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            color: rgba(255, 255, 255, 0.8);
+            font-weight: 400;
+        }
+
+        /* Glass Morphism Cards */
+        .glass-card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--border-radius);
+            padding: 40px;
+            margin-bottom: 30px;
+            box-shadow: var(--shadow-light);
+            transition: var(--transition);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .glass-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+        }
+
+        .glass-card:hover {
+            transform: translateY(-5px);
+            box-shadow: var(--shadow-heavy);
+        }
+
+        /* Form Elements */
+        .form-group {
+            margin-bottom: 25px;
+            position: relative;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 12px;
+            font-weight: 600;
+            color: var(--text-light);
+            font-size: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .form-input,
+        .form-select {
+            width: 100%;
+            padding: 18px 24px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 15px;
+            color: var(--text-light);
+            font-size: 1.1rem;
+            transition: var(--transition);
+            backdrop-filter: blur(10px);
+            font-family: 'Inter', sans-serif;
+        }
+
+        .form-input::placeholder {
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .form-select option {
+            background: var(--dark-color);
+            color: var(--text-light);
+            padding: 15px;
+            font-size: 1rem;
+        }
+
+        [data-theme="dark"] .form-select option {
+            background: var(--light-color);
+            color: var(--text-dark);
+        }
+
+        .form-input:focus,
+        .form-select:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.3);
+            transform: translateY(-2px);
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        /* Advanced Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 18px 32px;
+            background: var(--primary-gradient);
+            color: var(--text-light);
+            border: none;
+            border-radius: 15px;
+            font-weight: 600;
+            text-decoration: none;
+            cursor: pointer;
+            transition: var(--transition);
+            position: relative;
+            overflow: hidden;
+            font-size: 1.1rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            width: 100%;
+            justify-content: center;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: var(--transition);
+        }
+
+        .btn:hover::before {
+            left: 100%;
+        }
+
+        .btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 30px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Error Message */
+        .error {
+            background: rgba(255, 107, 107, 0.2);
+            border: 1px solid var(--danger-color);
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+            color: var(--text-light);
+            text-align: center;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            backdrop-filter: blur(10px);
+        }
+
+        /* Login Link */
+        .login-link {
+            text-align: center;
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--border-radius);
+            padding: 25px;
+            box-shadow: var(--shadow-light);
+            transition: var(--transition);
+        }
+
+        .login-link:hover {
+            transform: translateY(-2px);
+        }
+
+        .login-link p {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 1rem;
+            margin: 0;
+        }
+
+        .login-link a {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 600;
+            transition: var(--transition);
+        }
+
+        .login-link a:hover {
+            color: var(--secondary-color);
+            text-shadow: 0 0 10px rgba(240, 147, 251, 0.5);
+        }
+
+        /* Toast Notifications */
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1001;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .toast {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: 15px;
+            padding: 15px 25px;
+            color: var(--text-light);
+            min-width: 300px;
+            transform: translateY(-100px);
+            opacity: 0;
+            animation: slideDown 0.3s ease-out forwards;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-weight: 500;
+        }
+
+        .toast.success {
+            border-left: 4px solid var(--success-color);
+        }
+
+        .toast.error {
+            border-left: 4px solid var(--danger-color);
+        }
+
+        /* Animations */
+        @keyframes slideDown {
+            from {
+                transform: translateY(-100px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .main-container {
+                max-width: 100%;
+                padding: 0 10px;
+            }
+
+            .header h1 {
+                font-size: 2rem;
+            }
+
+            .glass-card {
+                padding: 25px;
+            }
+
+            .btn {
+                padding: 15px 25px;
+                font-size: 1rem;
+            }
+
+            .toast {
+                min-width: 250px;
+                margin: 0 20px;
+            }
+        }
+
+        /* Selection Highlight */
+        ::selection {
+            background: rgba(102, 126, 234, 0.3);
+        }
+
+        /* Scrollbar Styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.5);
+        }
+    
+        
+        /* Enhanced subtle theme with golden touch */
+        .glass-card {
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(20px) saturate(120%);
+            border: 1px solid rgba(100, 116, 139, 0.25);
+        }
+
+        .glass-card:hover {
+            background: rgba(15, 23, 42, 0.85);
+            border-color: rgba(245, 158, 11, 0.3);
+            transform: translateY(-3px);
+            box-shadow: 0 12px 30px rgba(245, 158, 11, 0.1);
+        }
+
+        .btn {
+            background: var(--primary-gradient);
+            border: 1px solid rgba(100, 116, 139, 0.3);
+            box-shadow: 0 4px 12px rgba(15, 23, 42, 0.2);
+        }
+
+        .btn:hover {
+            box-shadow: 0 8px 20px rgba(15, 23, 42, 0.3);
+            transform: translateY(-2px);
+        }
+
+        /* Golden accent buttons */
+        .btn-secondary,
+        .btn.secondary {
+            background: var(--secondary-gradient);
+            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.2);
+        }
+
+        .btn-secondary:hover,
+        .btn.secondary:hover {
+            box-shadow: 0 8px 20px rgba(245, 158, 11, 0.3);
+        }
+
+        .form-input {
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(100, 116, 139, 0.3);
+        }
+
+        .form-input:focus {
+            background: rgba(15, 23, 42, 0.8);
+            border-color: #f59e0b;
+            box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2);
+        }
+
+        /* Golden success states */
+        .success-message,
+        .toast.success {
+            background: rgba(245, 158, 11, 0.2);
+            border-color: var(--secondary-color);
+            color: #fbbf24;
+        }
+
+        /* Golden badges and highlights */
+        .stat-badge {
+            background: rgba(245, 158, 11, 0.2);
+            border: 1px solid var(--secondary-color);
+            color: #fbbf24;
+        }
+
+        /* Golden icon accents */
+        .card-icon,
+        .schema-icon,
+        .table-icon {
+            color: var(--secondary-color);
+        }
+
+        /* Subtle golden highlights */
+        .user-role {
+            background: rgba(245, 158, 11, 0.2);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            color: #fbbf24;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Theme Toggle -->
+    <div class="theme-toggle" onclick="toggleTheme()">
+        <i class="fas fa-moon"></i>
+        <span>Dark Mode</span>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- Main Container -->
+    <div class="main-container">
+        <!-- Header -->
+        <div class="header">
+            <h1><i class="fas fa-user-plus"></i> Register</h1>
+            <p>Create your account for the Data Analytics Platform</p>
+        </div>
+
+        <!-- Error Message -->
+        {% if error %}
+        <div class="error">
+            <i class="fas fa-exclamation-triangle"></i>
+            {{ error }}
+        </div>
+        {% endif %}
+
+        <!-- Registration Form -->
+        <div class="glass-card">
+            <form action="/register" method="post" id="registerForm">
+                <div class="form-group">
+                    <label class="form-label">
+                        <i class="fas fa-user"></i> Username
+                    </label>
+                    <input type="text" name="username" class="form-input" placeholder="Enter your username" required>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">
+                        <i class="fas fa-envelope"></i> Email Address
+                    </label>
+                    <input type="email" name="email" class="form-input" placeholder="Enter your email" required>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">
+                        <i class="fas fa-lock"></i> Password
+                    </label>
+                    <input type="password" name="password" class="form-input" placeholder="Enter your password"
+                        required>
+                </div>
+
+                <!-- In your register.html, update the role selection -->
+                <div class="form-group">
+                    <label class="form-label">
+                        <i class="fas fa-user-tag"></i> Account Type
+                    </label>
+                    <select name="role" class="form-select">
+                        <option value="user">User Account</option>
+                        <!-- Admin option removed for security -->
+                    </select>
+                </div>
+
+
+                <button type="submit" class="btn">
+                    <i class="fas fa-user-plus"></i> Create Account
+                </button>
+            </form>
+        </div>
+
+        <!-- Login Link -->
+        <div class="login-link">
+            <p>Already have an account? <a href="/login">Sign In Here</a></p>
+        </div>
+    </div>
+
+    <script>
+        // Theme Toggle Functionality
+        function toggleTheme() {
+            const body = document.body;
+            const themeToggle = document.querySelector('.theme-toggle span');
+            const themeIcon = document.querySelector('.theme-toggle i');
+
+            if (body.getAttribute('data-theme') === 'dark') {
+                body.removeAttribute('data-theme');
+                themeToggle.textContent = 'Dark Mode';
+                themeIcon.className = 'fas fa-moon';
+                localStorage.setItem('theme', 'light');
+            } else {
+                body.setAttribute('data-theme', 'dark');
+                themeToggle.textContent = 'Light Mode';
+                themeIcon.className = 'fas fa-sun';
+                localStorage.setItem('theme', 'dark');
+            }
+        }
+
+        // Load saved theme
+        document.addEventListener('DOMContentLoaded', function () {
+            const savedTheme = localStorage.getItem('theme');
+            if (savedTheme === 'dark') {
+                toggleTheme();
+            }
+        });
+
+        // Form validation and enhancement
+        document.getElementById('registerForm').addEventListener('submit', function (e) {
+            const username = document.querySelector('input[name="username"]').value;
+            const email = document.querySelector('input[name="email"]').value;
+            const password = document.querySelector('input[name="password"]').value;
+
+            // Basic validation
+            if (username.length < 3) {
+                e.preventDefault();
+                showToast('Username must be at least 3 characters long.', 'error');
+                return;
+            }
+
+            if (password.length < 6) {
+                e.preventDefault();
+                showToast('Password must be at least 6 characters long.', 'error');
+                return;
+            }
+
+            // Show loading state
+            const submitBtn = document.querySelector('.btn');
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating Account...';
+            submitBtn.disabled = true;
+        });
+
+        // Toast Notification Function
+        function showToast(message, type = 'success') {
+            const toastContainer = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+
+            const icon = type === 'success' ? 'fa-check-circle' :
+                type === 'error' ? 'fa-exclamation-circle' :
+                    'fa-exclamation-triangle';
+
+            toast.innerHTML = `
+                <i class="fas ${icon}"></i>
+                <span>${message}</span>
+            `;
+
+            toastContainer.appendChild(toast);
+
+            // Remove toast after 4 seconds
+            setTimeout(() => {
+                toast.style.animation = 'slideDown 0.3s ease-out reverse';
+                setTimeout(() => {
+                    if (toast.parentNode) {
+                        toast.parentNode.removeChild(toast);
+                    }
+                }, 300);
+            }, 4000);
+        }
+
+        // Add input focus effects
+        document.querySelectorAll('.form-input, .form-select').forEach(input => {
+            input.addEventListener('focus', function () {
+                this.parentElement.style.transform = 'translateY(-2px)';
+            });
+
+            input.addEventListener('blur', function () {
+                this.parentElement.style.transform = 'translateY(0)';
+            });
+        });
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Supabase Dataset Query UI</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 30px;
+            background: #f7f7f7;
+        }
+        select, input, button {
+            padding: 8px;
+            margin: 5px 0;
+            width: 100%;
+        }
+        pre {
+            background: #eee;
+            padding: 15px;
+            border: 1px solid #ccc;
+            overflow: auto;
+            max-height: 400px;
+        }
+        label {
+            font-weight: bold;
+        }
+    
+        
+        /* Enhanced subtle theme with golden touch */
+        .glass-card {
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(20px) saturate(120%);
+            border: 1px solid rgba(100, 116, 139, 0.25);
+        }
+
+        .glass-card:hover {
+            background: rgba(15, 23, 42, 0.85);
+            border-color: rgba(245, 158, 11, 0.3);
+            transform: translateY(-3px);
+            box-shadow: 0 12px 30px rgba(245, 158, 11, 0.1);
+        }
+
+        .btn {
+            background: var(--primary-gradient);
+            border: 1px solid rgba(100, 116, 139, 0.3);
+            box-shadow: 0 4px 12px rgba(15, 23, 42, 0.2);
+        }
+
+        .btn:hover {
+            box-shadow: 0 8px 20px rgba(15, 23, 42, 0.3);
+            transform: translateY(-2px);
+        }
+
+        /* Golden accent buttons */
+        .btn-secondary,
+        .btn.secondary {
+            background: var(--secondary-gradient);
+            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.2);
+        }
+
+        .btn-secondary:hover,
+        .btn.secondary:hover {
+            box-shadow: 0 8px 20px rgba(245, 158, 11, 0.3);
+        }
+
+        .form-input {
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(100, 116, 139, 0.3);
+        }
+
+        .form-input:focus {
+            background: rgba(15, 23, 42, 0.8);
+            border-color: #f59e0b;
+            box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2);
+        }
+
+        /* Golden success states */
+        .success-message,
+        .toast.success {
+            background: rgba(245, 158, 11, 0.2);
+            border-color: var(--secondary-color);
+            color: #fbbf24;
+        }
+
+        /* Golden badges and highlights */
+        .stat-badge {
+            background: rgba(245, 158, 11, 0.2);
+            border: 1px solid var(--secondary-color);
+            color: #fbbf24;
+        }
+
+        /* Golden icon accents */
+        .card-icon,
+        .schema-icon,
+        .table-icon {
+            color: var(--secondary-color);
+        }
+
+        /* Subtle golden highlights */
+        .user-role {
+            background: rgba(245, 158, 11, 0.2);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            color: #fbbf24;
+        }
+    </style>
+</head>
+<body>
+    <h2>🧠 Supabase Dataset Query Interface</h2>
+
+    <label for="table">Select Table:</label>
+    <select id="table"></select>
+
+    <label for="columns">Columns (comma-separated):</label>
+    <input type="text" id="columns" placeholder="e.g., id,name,age">
+
+    <label for="filters">Filters (e.g., age > 30; state = 'Telangana'):</label>
+    <input type="text" id="filters" placeholder="e.g., age >= 30; gender = 'M'">
+
+    <label for="limit">Limit:</label>
+    <input type="number" id="limit" value="100" min="1">
+
+    <label for="offset">Offset:</label>
+    <input type="number" id="offset" value="0" min="0">
+
+    <button onclick="runQuery()">Run Query</button>
+    <button onclick="downloadCSV()">⬇ Download CSV</button>
+
+    <h3>Results</h3>
+    <pre id="results">No data loaded yet.</pre>
+
+    <script>
+        async function loadTables() {
+            const res = await fetch('/datasets');
+            const tables = await res.json();
+            const tableSelect = document.getElementById('table');
+            tableSelect.innerHTML = tables.map(t =>
+                `<option value="${t.table_name}">${t.table_name} (${t.row_count} rows)</option>`
+            ).join('');
+        }
+
+        async function runQuery() {
+            const table = document.getElementById('table').value;
+            const columns = document.getElementById('columns').value;
+            const filters = document.getElementById('filters').value;
+            const limit = document.getElementById('limit').value;
+            const offset = document.getElementById('offset').value;
+
+            const params = new URLSearchParams();
+            if (columns) params.append("columns", columns);
+            if (filters) params.append("filters", filters);
+            if (limit) params.append("limit", limit);
+            if (offset) params.append("offset", offset);
+
+            const res = await fetch(`/datasets/${table}/query?${params.toString()}`);
+            const data = await res.json();
+            document.getElementById('results').textContent = JSON.stringify(data, null, 2);
+        }
+
+        async function downloadCSV() {
+            const table = document.getElementById('table').value;
+            const columns = document.getElementById('columns').value;
+            const filters = document.getElementById('filters').value;
+            const limit = document.getElementById('limit').value;
+            const offset = document.getElementById('offset').value;
+
+            const params = new URLSearchParams();
+            if (columns) params.append("columns", columns);
+            if (filters) params.append("filters", filters);
+            if (limit) params.append("limit", limit);
+            if (offset) params.append("offset", offset);
+
+            const url = `/datasets/${table}/query?${params.toString()}`;
+            window.open(url, '_blank').focus();  // trigger download
+        }
+
+        // Load tables on page load
+        loadTables();
+    </script>
+</body>
+</html>

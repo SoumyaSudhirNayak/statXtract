@@ -1,0 +1,53 @@
+# --- FastAPI & Web ---
+fastapi
+uvicorn
+jinja2
+python-multipart
+starlette
+
+# --- Data Handling ---
+pandas
+pyreadstat
+sqlalchemy
+psycopg2-binary
+openpyxl
+python-dateutil
+
+# --- File Parsing ---
+lxml
+aiofiles
+
+# --- Asynchronous I/O ---
+asyncpg
+aiohttp
+
+# --- Authentication & Security ---
+bcrypt
+passlib
+itsdangerous
+python-jose
+pydantic[email]  # includes email validation
+
+# --- Utilities ---
+python-dotenv
+watchgod
+typing-extensions
+
+# --- HTTP ---
+requests
+httpx
+
+# --- Packaging (Optional) ---
+setuptools
+wheel
+
+# --- Testing ---
+pytest
+pytest-asyncio
+
+# --- Documentation (Optional) ---
+sphinx
+sphinx-autodoc-typehints
+mkdocs 
+mkdocs-material
+

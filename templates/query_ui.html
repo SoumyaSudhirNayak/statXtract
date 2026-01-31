@@ -1,0 +1,2229 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Data Analytics Platform</title>
+
+    <!-- CDN Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-zoom/2.0.1/chartjs-plugin-zoom.min.js"></script>
+
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+
+    <style>
+        :root {
+            /* Purple Color Scheme */
+            --primary-color: #64748b;
+            --primary-gradient: linear-gradient(135deg, #64748b 0%, #475569 100%);
+            --secondary-color: #f59e0b;
+            --secondary-gradient: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            --success-color: #f59e0b;
+            --warning-color: #f59e0b;
+            --danger-color: #ef4444;
+            --dark-color: #2d3748;
+            --light-color: #f7fafc;
+            --text-light: #ffffff;
+            --text-dark: #2d3748;
+
+            /* Glass morphism with purple colors */
+            --glass-bg: rgba(15, 23, 42, 0.7);
+            --glass-border: rgba(100, 116, 139, 0.25);
+            --shadow-light: 0 8px 32px rgba(15, 23, 42, 0.3);
+            --shadow-heavy: 0 20px 40px rgba(0, 0, 0, 0.4);
+            --border-radius: 20px;
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        [data-theme="dark"] {
+            --dark-color: #f7fafc;
+            --light-color: #1a202c;
+            --text-light: #f7fafc;
+            --text-dark: #1a202c;
+            --glass-bg: rgba(0, 0, 0, 0.15);
+            --glass-border: rgba(255, 255, 255, 0.1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%);
+            min-height: 100vh;
+            color: var(--text-light);
+            transition: var(--transition);
+            overflow-x: hidden;
+        }
+
+        /* Theme Toggle */
+        .theme-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: 50px;
+            padding: 12px 20px;
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-light);
+            font-weight: 500;
+        }
+
+        .theme-toggle:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-light);
+        }
+
+        /* Sidebar Navigation */
+        .sidebar {
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: 280px;
+            height: 100vh;
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border-right: 1px solid var(--glass-border);
+            padding: 30px 20px;
+            z-index: 999;
+            transform: translateX(-100%);
+            transition: var(--transition);
+            overflow-y: auto;
+        }
+
+        .sidebar.active {
+            transform: translateX(0);
+        }
+
+        .sidebar-header {
+            text-align: center;
+            margin-bottom: 40px;
+            color: var(--text-light);
+        }
+
+        .sidebar-header h2 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 5px;
+            background: var(--primary-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .sidebar-nav {
+            list-style: none;
+        }
+
+        .sidebar-nav li {
+            margin-bottom: 10px;
+        }
+
+        .sidebar-nav a {
+            display: flex;
+            align-items: center;
+            padding: 15px 20px;
+            color: rgba(255, 255, 255, 0.8);
+            text-decoration: none;
+            border-radius: 15px;
+            transition: var(--transition);
+            gap: 15px;
+        }
+
+        .sidebar-nav a:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-light);
+            transform: translateX(5px);
+        }
+
+        /* Main Container */
+        .main-container {
+            margin-left: 0;
+            padding: 30px;
+            min-height: 100vh;
+            transition: var(--transition);
+        }
+
+        .main-container.sidebar-open {
+            margin-left: 280px;
+        }
+
+        /* Header */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 40px;
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--border-radius);
+            padding: 25px 30px;
+            color: var(--text-light);
+        }
+
+        .header h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #fff 0%, #f0f0f0 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hamburger {
+            display: none;
+            background: none;
+            border: none;
+            color: var(--text-light);
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 10px;
+            border-radius: 10px;
+            transition: var(--transition);
+        }
+
+        .hamburger:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        /* Glass Morphism Cards */
+        .glass-card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--border-radius);
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: var(--shadow-light);
+            transition: var(--transition);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .glass-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+        }
+
+        .glass-card:hover {
+            transform: translateY(-5px);
+            box-shadow: var(--shadow-heavy);
+        }
+
+        /* Form Elements */
+        .form-group {
+            margin-bottom: 25px;
+            position: relative;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: var(--text-light);
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .form-input,
+        .form-select {
+            width: 100%;
+            padding: 15px 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 15px;
+            color: var(--text-light);
+            font-size: 1rem;
+            transition: var(--transition);
+            backdrop-filter: blur(10px);
+        }
+
+        /* FIXED: Better visibility for form elements */
+        .form-select option {
+            background: var(--dark-color);
+            color: var(--text-light);
+            padding: 10px;
+        }
+
+        [data-theme="dark"] .form-select option {
+            background: var(--light-color);
+            color: var(--text-dark);
+        }
+
+        .form-input::placeholder {
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .form-input:focus,
+        .form-select:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.3);
+            transform: translateY(-2px);
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        /* Advanced Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 24px;
+            background: var(--primary-gradient);
+            color: var(--text-light);
+            border: none;
+            border-radius: 15px;
+            font-weight: 600;
+            text-decoration: none;
+            cursor: pointer;
+            transition: var(--transition);
+            position: relative;
+            overflow: hidden;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: var(--transition);
+        }
+
+        .btn:hover::before {
+            left: 100%;
+        }
+
+        .btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: var(--secondary-gradient);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        }
+
+        .btn-warning {
+            background: linear-gradient(135deg, #ffd93d 0%, #ffb300 100%);
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #ff6b6b 0%, #ff5252 100%);
+        }
+
+        /* FIXED: Column Selection Grid */
+        .columns-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+            max-height: 400px;
+            overflow-y: auto;
+            padding: 10px;
+        }
+
+        .column-item {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            padding: 15px;
+            transition: var(--transition);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            overflow: hidden;
+            word-wrap: break-word;
+            min-height: 50px;
+        }
+
+        .column-item:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: scale(1.02);
+        }
+
+        .column-item input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: var(--primary-color);
+            flex-shrink: 0;
+        }
+
+        .column-item label {
+            color: var(--text-light);
+            cursor: pointer;
+            font-weight: 500;
+            flex: 1;
+            word-break: break-word;
+            overflow-wrap: break-word;
+            line-height: 1.4;
+            font-size: 0.9rem;
+        }
+
+        /* Results Container */
+        .results-container {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--border-radius);
+            overflow: hidden;
+            box-shadow: var(--shadow-light);
+        }
+
+        .results-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 25px 30px;
+            background: rgba(255, 255, 255, 0.05);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .results-header h3 {
+            color: var(--text-light);
+            font-size: 1.3rem;
+            font-weight: 600;
+        }
+
+        .view-toggle {
+            display: flex;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 5px;
+            gap: 5px;
+        }
+
+        .view-toggle button {
+            padding: 10px 20px;
+            background: transparent;
+            border: none;
+            color: rgba(255, 255, 255, 0.7);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: var(--transition);
+            font-weight: 500;
+        }
+
+        .view-toggle button.active {
+            background: var(--primary-gradient);
+            color: var(--text-light);
+            transform: scale(1.05);
+        }
+
+        /* Chart Controls */
+        .chart-controls {
+            display: none;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 20px 30px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            flex-wrap: wrap;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .chart-controls.active {
+            display: flex;
+        }
+
+        .chart-control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .chart-control-group label {
+            color: var(--text-light);
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .chart-control-group select {
+            min-width: 150px;
+            padding: 10px 15px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            color: var(--text-light);
+            font-size: 0.9rem;
+        }
+
+        .chart-control-group select option {
+            background: var(--dark-color);
+            color: var(--text-light);
+        }
+
+        [data-theme="dark"] .chart-control-group select option {
+            background: var(--light-color);
+            color: var(--text-dark);
+        }
+
+        /* Table Styles */
+        .table-container {
+            max-height: 600px;
+            overflow: auto;
+            padding: 30px;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            overflow: hidden;
+        }
+
+        .data-table th {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-light);
+            padding: 15px 20px;
+            text-align: left;
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+            z-index: 5;
+            word-break: break-word;
+            max-width: 200px;
+            overflow-wrap: break-word;
+        }
+
+        .data-table td {
+            padding: 12px 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--text-light);
+            transition: var(--transition);
+            word-break: break-word;
+            max-width: 200px;
+            overflow-wrap: break-word;
+        }
+
+        .data-table tbody tr:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        /* Chart Container */
+        .chart-container {
+            padding: 30px;
+            display: none;
+        }
+
+        .chart-container.active {
+            display: block;
+            animation: fadeIn 0.5s ease-in-out;
+        }
+
+        .chart-canvas-wrapper {
+            position: relative;
+            height: 500px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            padding: 20px;
+        }
+
+        /* Loading Animation */
+        .loading-spinner {
+            display: none;
+            justify-content: center;
+            align-items: center;
+            padding: 40px;
+        }
+
+        .loading-spinner.active {
+            display: flex;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid var(--primary-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        /* Toast Notifications */
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1001;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .toast {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: 15px;
+            padding: 15px 20px;
+            color: var(--text-light);
+            min-width: 300px;
+            transform: translateX(100%);
+            animation: slideIn 0.3s ease-out forwards;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .toast.success {
+            border-left: 4px solid var(--success-color);
+        }
+
+        .toast.error {
+            border-left: 4px solid var(--danger-color);
+        }
+
+        .toast.warning {
+            border-left: 4px solid var(--warning-color);
+        }
+
+        /* Floating Action Button */
+        .fab {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 60px;
+            height: 60px;
+            background: var(--primary-gradient);
+            border: none;
+            border-radius: 50%;
+            color: var(--text-light);
+            font-size: 1.5rem;
+            cursor: pointer;
+            box-shadow: var(--shadow-heavy);
+            transition: var(--transition);
+            z-index: 1000;
+        }
+
+        .fab:hover {
+            transform: scale(1.1) translateY(-3px);
+            box-shadow: 0 15px 35px rgba(102, 126, 234, 0.4);
+        }
+
+        /* Animations */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+            }
+
+            to {
+                transform: translateX(0);
+            }
+        }
+
+        @keyframes spin {
+            from {
+                transform: rotate(0deg);
+            }
+
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Progress Bar */
+        .progress-bar {
+            width: 100%;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 2px;
+            overflow: hidden;
+            margin: 20px 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--primary-gradient);
+            width: 0%;
+            transition: width 0.3s ease;
+            border-radius: 2px;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 1024px) {
+            .main-container {
+                margin-left: 0;
+                padding: 20px;
+            }
+
+            .hamburger {
+                display: block;
+            }
+
+            .columns-grid {
+                grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            }
+        }
+
+        @media (max-width: 768px) {
+            .header {
+                flex-direction: column;
+                gap: 20px;
+                text-align: center;
+            }
+
+            .results-header {
+                flex-direction: column;
+                gap: 15px;
+            }
+
+            .chart-controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .view-toggle {
+                width: 100%;
+                justify-content: center;
+            }
+
+            .theme-toggle {
+                position: static;
+                margin-bottom: 20px;
+            }
+
+            .columns-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .data-table th,
+            .data-table td {
+                max-width: 150px;
+                font-size: 0.8rem;
+            }
+        }
+
+        /* Hover Effects */
+        .hover-lift {
+            transition: var(--transition);
+        }
+
+        .hover-lift:hover {
+            transform: translateY(-3px);
+        }
+
+        /* Selection Highlight */
+        ::selection {
+            background: rgba(102, 126, 234, 0.3);
+        }
+
+        /* Scrollbar Styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.5);
+        }
+
+        /* User Controls Styling */
+        .user-controls {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        /* Logout Button */
+        .logout-btn {
+            background: rgba(255, 107, 107, 0.2);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--danger-color, #ff6b6b);
+            border-radius: 50px;
+            padding: 12px 20px;
+            color: var(--text-light, #ffffff);
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .logout-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(255, 107, 107, 0.4);
+            background: rgba(255, 107, 107, 0.3);
+            color: var(--text-light, #ffffff);
+        }
+
+        .logout-btn:active {
+            transform: translateY(0);
+        }
+
+        /* Theme Toggle for Users */
+        .theme-toggle {
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 50px;
+            padding: 12px 20px;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-light, #ffffff);
+            font-weight: 500;
+        }
+
+        .theme-toggle:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 32px rgba(102, 126, 234, 0.37);
+        }
+
+        /* Mobile Responsive */
+        @media (max-width: 768px) {
+            .user-controls {
+                top: 10px;
+                right: 10px;
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .logout-btn,
+            .theme-toggle {
+                padding: 10px 15px;
+                font-size: 0.9rem;
+            }
+        }
+
+        /* Logout Button Styling */
+        .logout-btn {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+            background: rgba(255, 107, 107, 0.2);
+            backdrop-filter: blur(20px);
+            border: 1px solid #ff6b6b;
+            border-radius: 50px;
+            padding: 12px 20px;
+            color: #ffffff;
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .logout-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(255, 107, 107, 0.4);
+            background: rgba(255, 107, 107, 0.3);
+            color: #ffffff;
+        }
+
+        .logout-btn:active {
+            transform: translateY(0);
+        }
+
+        /* Mobile responsive */
+        @media (max-width: 768px) {
+            .logout-btn {
+                top: 10px;
+                left: 10px;
+                padding: 10px 15px;
+                font-size: 0.9rem;
+            }
+        }
+    
+        
+        /* Enhanced subtle theme with golden touch */
+        .glass-card {
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(20px) saturate(120%);
+            border: 1px solid rgba(100, 116, 139, 0.25);
+        }
+
+        .glass-card:hover {
+            background: rgba(15, 23, 42, 0.85);
+            border-color: rgba(245, 158, 11, 0.3);
+            transform: translateY(-3px);
+            box-shadow: 0 12px 30px rgba(245, 158, 11, 0.1);
+        }
+
+        .btn {
+            background: var(--primary-gradient);
+            border: 1px solid rgba(100, 116, 139, 0.3);
+            box-shadow: 0 4px 12px rgba(15, 23, 42, 0.2);
+        }
+
+        .btn:hover {
+            box-shadow: 0 8px 20px rgba(15, 23, 42, 0.3);
+            transform: translateY(-2px);
+        }
+
+        /* Golden accent buttons */
+        .btn-secondary,
+        .btn.secondary {
+            background: var(--secondary-gradient);
+            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.2);
+        }
+
+        .btn-secondary:hover,
+        .btn.secondary:hover {
+            box-shadow: 0 8px 20px rgba(245, 158, 11, 0.3);
+        }
+
+        .form-input {
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(100, 116, 139, 0.3);
+        }
+
+        .form-input:focus {
+            background: rgba(15, 23, 42, 0.8);
+            border-color: #f59e0b;
+            box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2);
+        }
+
+        /* Golden success states */
+        .success-message,
+        .toast.success {
+            background: rgba(245, 158, 11, 0.2);
+            border-color: var(--secondary-color);
+            color: #fbbf24;
+        }
+
+        /* Golden badges and highlights */
+        .stat-badge {
+            background: rgba(245, 158, 11, 0.2);
+            border: 1px solid var(--secondary-color);
+            color: #fbbf24;
+        }
+
+        /* Golden icon accents */
+        .card-icon,
+        .schema-icon,
+        .table-icon {
+            color: var(--secondary-color);
+        }
+
+        /* Subtle golden highlights */
+        .user-role {
+            background: rgba(245, 158, 11, 0.2);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            color: #fbbf24;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Add this logout button to your query_ui.html -->
+    <!-- You can place it in the top-right corner or wherever appropriate -->
+
+    <!-- Add this to your query_ui.html -->
+    <div class="user-controls">
+        <a href="#" class="logout-btn" onclick="handleLogout(); return false;">
+            <i class="fas fa-sign-out-alt"></i>
+            <span>Logout</span>
+        </a>
+    </div>
+
+
+    <!-- Theme Toggle (if you want) -->
+    <div class="theme-toggle" onclick="toggleTheme()">
+        <i class="fas fa-moon"></i>
+        <span>Dark Mode</span>
+    </div>
+    </div>
+
+    <!-- Theme Toggle -->
+    <div class="theme-toggle" onclick="toggleTheme()">
+        <i class="fas fa-moon"></i>
+        <span>Dark Mode</span>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- Sidebar -->
+    <nav class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <h2>🧠 Analytics</h2>
+            <p>Data Intelligence Platform</p>
+        </div>
+        <ul class="sidebar-nav">
+            <li><a href="#dashboard"><i class="fas fa-chart-pie"></i> Dashboard</a></li>
+            <li><a href="#query"><i class="fas fa-search"></i> Query Builder</a></li>
+            <li><a href="#visualize"><i class="fas fa-chart-bar"></i> Visualizations</a></li>
+            <li><a href="#export"><i class="fas fa-download"></i> Export Data</a></li>
+            <li><a href="#settings"><i class="fas fa-cog"></i> Settings</a></li>
+        </ul>
+    </nav>
+
+    <!-- Main Container -->
+    <div class="main-container" id="mainContainer">
+        <!-- Header -->
+        <header class="header">
+            <div style="display: flex; align-items: center; gap: 20px;">
+                <button class="hamburger" onclick="toggleSidebar()">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <h1>Advanced Data Analytics Platform</h1>
+            </div>
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <div style="color: rgba(255,255,255,0.8); font-size: 0.9rem;">
+                    <i class="fas fa-database"></i> Connected
+                </div>
+            </div>
+            <!-- User Info Section (add this to your query page header) -->
+            <div class="user-info">
+                <div class="user-details">
+                    <div class="user-avatar">
+                        <i class="fas fa-user-circle"></i>
+                    </div>
+                    <div class="user-text">
+                        <span class="username">{{ username or "User" }}</span>
+                        <span class="user-email">{{ email or "user@example.com" }}</span>
+                        <span class="user-role">{{ (role or "user")|title }} Access</span>
+                    </div>
+                </div>
+            </div>
+
+        </header>
+
+        <!-- Schema Selection -->
+        <div class="glass-card hover-lift">
+            <div class="form-group">
+                <label class="form-label">
+                    <i class="fas fa-layer-group"></i> Select Schema
+                </label>
+                <select class="form-select" id="schema">
+                    <option selected disabled>Loading schemas...</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Table Selection -->
+        <div class="glass-card hover-lift">
+            <div class="form-group">
+                <label class="form-label">
+                    <i class="fas fa-table"></i> Select Table
+                </label>
+                <select class="form-select" id="table"></select>
+            </div>
+        </div>
+
+        <!-- Column Selection -->
+        <div class="glass-card hover-lift">
+            <div class="form-group">
+                <label class="form-label">
+                    <i class="fas fa-columns"></i> Select Columns
+                </label>
+                <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+                    <button class="btn btn-sm" onclick="toggleAllColumns(true)">
+                        <i class="fas fa-check-double"></i> Select All
+                    </button>
+                    <button class="btn btn-secondary btn-sm" onclick="toggleAllColumns(false)">
+                        <i class="fas fa-times"></i> Deselect All
+                    </button>
+                </div>
+                <div class="columns-grid" id="columns-grid"></div>
+            </div>
+        </div>
+
+        <!-- Query Parameters -->
+        <div class="glass-card hover-lift">
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px;">
+                <div class="form-group">
+                    <label class="form-label">
+                        <i class="fas fa-filter"></i> Filters
+                    </label>
+                    <input type="text" class="form-input" id="filters"
+                        placeholder="e.g., age > 30 AND status = 'active'">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">
+                        <i class="fas fa-sort-numeric-up"></i> Limit
+                    </label>
+                    <input type="number" class="form-input" id="limit" value="100" min="1">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">
+                        <i class="fas fa-step-forward"></i> Offset
+                    </label>
+                    <input type="number" class="form-input" id="offset" value="0" min="0">
+                </div>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="glass-card hover-lift">
+            <div style="display: flex; flex-wrap: wrap; gap: 15px; justify-content: center;">
+                <button class="btn" onclick="runQuery()">
+                    <i class="fas fa-play"></i> Execute Query
+                </button>
+                <button class="btn btn-success" onclick="downloadCSV()">
+                    <i class="fas fa-file-csv"></i> Download CSV
+                </button>
+                <button class="btn btn-warning" onclick="downloadJSON()">
+                    <i class="fas fa-file-code"></i> Download JSON
+                </button>
+            </div>
+        </div>
+
+        <!-- Progress Bar -->
+        <div class="progress-bar" id="progressBar" style="display: none;">
+            <div class="progress-fill" id="progressFill"></div>
+        </div>
+
+        <!-- Results Container -->
+        <div class="results-container">
+            <div class="results-header">
+                <h3><i class="fas fa-chart-area"></i> Results</h3>
+                <div class="view-toggle">
+                    <button id="tableViewBtn" class="active" onclick="switchView('table')">
+                        <i class="fas fa-table"></i> Table
+                    </button>
+                    <button id="chartViewBtn" onclick="switchView('chart')">
+                        <i class="fas fa-chart-bar"></i> Chart
+                    </button>
+                </div>
+            </div>
+
+            <!-- Chart Controls -->
+            <div class="chart-controls" id="chartControls">
+                <div class="chart-control-group">
+                    <label>Chart Type</label>
+                    <select id="chartType" onchange="updateChart()">
+                        <option value="bar">Bar Chart</option>
+                        <option value="line">Line Chart</option>
+                        <option value="pie">Pie Chart</option>
+                        <option value="doughnut">Doughnut Chart</option>
+                        <option value="scatter">Scatter Plot</option>
+                    </select>
+                </div>
+                <div class="chart-control-group">
+                    <label>X-Axis</label>
+                    <select id="xAxis" onchange="updateChart()"></select>
+                </div>
+                <div class="chart-control-group">
+                    <label>Y-Axis</label>
+                    <select id="yAxis" onchange="updateChart()"></select>
+                </div>
+                <button class="btn btn-success" onclick="updateChart()">
+                    <i class="fas fa-sync-alt"></i> Update Chart
+                </button>
+                <div style="margin-left: auto; display: flex; gap: 10px;">
+                    <button class="btn btn-secondary" onclick="downloadChartPNG()">
+                        <i class="fas fa-image"></i> PNG
+                    </button>
+                    <button class="btn btn-secondary" onclick="downloadChartJPEG()">
+                        <i class="fas fa-file-image"></i> JPEG
+                    </button>
+                    <button class="btn btn-secondary" onclick="downloadChartSVG()">
+                        <i class="fas fa-vector-square"></i> SVG
+                    </button>
+                    <button class="btn btn-danger" onclick="downloadChartPDF()">
+                        <i class="fas fa-file-pdf"></i> PDF
+                    </button>
+                </div>
+            </div>
+
+            <!-- Loading Spinner -->
+            <div class="loading-spinner" id="loadingSpinner">
+                <div class="spinner"></div>
+            </div>
+
+            <!-- Table View -->
+            <div class="table-container" id="tableView">
+                <table class="data-table">
+                    <thead id="tableHead"></thead>
+                    <tbody id="tableBody"></tbody>
+                </table>
+            </div>
+
+            <!-- Chart View -->
+            <div class="chart-container" id="chartView">
+                <div class="chart-canvas-wrapper">
+                    <canvas id="myChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Floating Action Button -->
+    <button class="fab" onclick="scrollToTop()" title="Back to Top">
+        <i class="fas fa-arrow-up"></i>
+    </button>
+
+    <script>
+        // Global Variables
+        let tableDataBySchema = {};
+        let latestResults = [];
+        let currentChart = null;
+        let currentView = 'table';
+        let isDarkTheme = false;
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function () {
+            loadSchemas();
+            initializeChartDefaults();
+        });
+
+        // Theme Toggle
+        function toggleTheme() {
+            isDarkTheme = !isDarkTheme;
+            document.body.setAttribute('data-theme', isDarkTheme ? 'dark' : 'light');
+            const themeToggle = document.querySelector('.theme-toggle span');
+            const themeIcon = document.querySelector('.theme-toggle i');
+
+            if (isDarkTheme) {
+                themeToggle.textContent = 'Light Mode';
+                themeIcon.className = 'fas fa-sun';
+            } else {
+                themeToggle.textContent = 'Dark Mode';
+                themeIcon.className = 'fas fa-moon';
+            }
+
+            showToast('Theme changed successfully!', 'success');
+        }
+
+        // Sidebar Toggle
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const mainContainer = document.getElementById('mainContainer');
+
+            sidebar.classList.toggle('active');
+            mainContainer.classList.toggle('sidebar-open');
+        }
+
+        // Toast Notifications
+        function showToast(message, type = 'success') {
+            const toastContainer = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+
+            const icon = type === 'success' ? 'check-circle' :
+                type === 'error' ? 'exclamation-circle' :
+                    'info-circle';
+
+            toast.innerHTML = `
+                <i class="fas fa-${icon}"></i>
+                <span>${message}</span>
+            `;
+
+            toastContainer.appendChild(toast);
+
+            setTimeout(() => {
+                toast.style.animation = 'slideIn 0.3s ease-out reverse';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // Progress Bar
+        function showProgress(show = true, progress = 0) {
+            const progressBar = document.getElementById('progressBar');
+            const progressFill = document.getElementById('progressFill');
+
+            if (show) {
+                progressBar.style.display = 'block';
+                progressFill.style.width = progress + '%';
+            } else {
+                progressBar.style.display = 'none';
+            }
+        }
+
+        // Loading Spinner
+        function showLoading(show = true) {
+            const spinner = document.getElementById('loadingSpinner');
+            spinner.classList.toggle('active', show);
+        }
+
+        // Load Schemas with Animation
+        async function loadSchemas() {
+            showLoading(true);
+            showProgress(true, 10);
+
+            try {
+                const response = await fetch("/datasets");
+                showProgress(true, 50);
+                const data = await response.json();
+
+                tableDataBySchema = data;
+                const schemaSelect = document.getElementById("schema");
+                schemaSelect.innerHTML = "";
+
+                const defaultOption = document.createElement("option");
+                defaultOption.value = "";
+                defaultOption.textContent = "Select a schema...";
+                defaultOption.selected = true;
+                defaultOption.disabled = true;
+                schemaSelect.appendChild(defaultOption);
+
+                showProgress(true, 80);
+
+                for (const schemaName of Object.keys(data)) {
+                    const option = document.createElement("option");
+                    option.value = schemaName;
+                    option.textContent = schemaName;
+                    schemaSelect.appendChild(option);
+                }
+
+                schemaSelect.onchange = function (e) {
+                    const selectedSchema = e.target.value;
+                    if (selectedSchema) {
+                        loadTables(selectedSchema);
+                    } else {
+                        document.getElementById("table").innerHTML = "";
+                        document.getElementById("columns-grid").innerHTML = "";
+                    }
+                };
+
+                showProgress(true, 100);
+                setTimeout(() => showProgress(false), 500);
+                showToast(`Loaded ${Object.keys(data).length} schemas successfully!`, 'success');
+
+            } catch (error) {
+                console.error("Error loading schemas:", error);
+                showToast('Failed to load schemas', 'error');
+                const schemaSelect = document.getElementById("schema");
+                schemaSelect.innerHTML = "<option disabled>Error loading schemas</option>";
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // Load Tables
+        function loadTables(schema) {
+            const tableSelect = document.getElementById('table');
+            const tables = tableDataBySchema[schema];
+
+            tableSelect.innerHTML = "";
+
+            if (!Array.isArray(tables)) {
+                console.warn("Schema tables not an array:", schema, tables);
+                return;
+            }
+
+            const defaultOption = document.createElement("option");
+            defaultOption.value = "";
+            defaultOption.textContent = "Select a table...";
+            defaultOption.selected = true;
+            defaultOption.disabled = true;
+            tableSelect.appendChild(defaultOption);
+
+            tables.forEach(t => {
+                const option = document.createElement("option");
+                option.value = t.table_name;
+                option.textContent = `${t.table_name} (${t.row_count ?? "?"} rows)`;
+                tableSelect.appendChild(option);
+            });
+
+            tableSelect.onchange = async (e) => {
+                const selectedTable = e.target.value;
+                if (selectedTable) {
+                    await loadColumns(schema, selectedTable);
+                } else {
+                    document.getElementById("columns-grid").innerHTML = "";
+                }
+            };
+
+            showToast(`Loaded ${tables.length} tables for ${schema}`, 'success');
+        }
+
+        // Load Columns with Animation
+        async function loadColumns(schema, tableName) {
+            showLoading(true);
+
+            try {
+                const res = await fetch(`/datasets/${schema}/${tableName}/columns`);
+                const columns = await res.json();
+
+                const grid = document.getElementById('columns-grid');
+                grid.innerHTML = "";
+
+                columns.forEach((col, index) => {
+                    const columnItem = document.createElement("div");
+                    columnItem.className = "column-item";
+                    columnItem.style.animationDelay = `${index * 50}ms`;
+
+                    const checkbox = document.createElement("input");
+                    checkbox.type = "checkbox";
+                    checkbox.name = "columns";
+                    checkbox.value = col;
+                    checkbox.checked = true;
+                    checkbox.id = `col-${col}`;
+
+                    const label = document.createElement("label");
+                    label.htmlFor = `col-${col}`;
+                    label.textContent = col;
+
+                    columnItem.appendChild(checkbox);
+                    columnItem.appendChild(label);
+                    grid.appendChild(columnItem);
+                });
+
+                updateAxisOptions(columns);
+                showToast(`Loaded ${columns.length} columns successfully!`, 'success');
+
+            } catch (error) {
+                console.error("Error loading columns:", error);
+                showToast('Failed to load columns', 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // Update Axis Options
+        function updateAxisOptions(columns) {
+            const xAxis = document.getElementById('xAxis');
+            const yAxis = document.getElementById('yAxis');
+
+            xAxis.innerHTML = "";
+            yAxis.innerHTML = "";
+
+            columns.forEach(col => {
+                const xOption = document.createElement("option");
+                xOption.value = col;
+                xOption.textContent = col;
+                xAxis.appendChild(xOption);
+
+                const yOption = document.createElement("option");
+                yOption.value = col;
+                yOption.textContent = col;
+                yAxis.appendChild(yOption);
+            });
+        }
+
+        // Get Selected Columns
+        function getSelectedColumns() {
+            const checkboxes = document.querySelectorAll('#columns-grid input[name="columns"]:checked');
+            return Array.from(checkboxes).map(cb => cb.value);
+        }
+
+        // Toggle All Columns
+        function toggleAllColumns(selectAll) {
+            const checkboxes = document.querySelectorAll('#columns-grid input[name="columns"]');
+            checkboxes.forEach((cb, index) => {
+                setTimeout(() => {
+                    cb.checked = selectAll;
+                    cb.parentElement.style.transform = 'scale(1.1)';
+                    setTimeout(() => {
+                        cb.parentElement.style.transform = 'scale(1)';
+                    }, 100);
+                }, index * 20);
+            });
+
+            showToast(selectAll ? 'All columns selected' : 'All columns deselected', 'success');
+        }
+
+        // Switch View with Animation
+        function switchView(view) {
+            currentView = view;
+
+            // Update button states
+            document.getElementById('tableViewBtn').classList.toggle('active', view === 'table');
+            document.getElementById('chartViewBtn').classList.toggle('active', view === 'chart');
+
+            // Update view visibility with animation
+            const tableView = document.getElementById('tableView');
+            const chartView = document.getElementById('chartView');
+            const chartControls = document.getElementById('chartControls');
+
+            if (view === 'table') {
+                chartView.classList.remove('active');
+                chartControls.classList.remove('active');
+                setTimeout(() => {
+                    tableView.style.display = 'block';
+                    tableView.style.animation = 'fadeIn 0.5s ease-in-out';
+                }, 100);
+            } else {
+                tableView.style.display = 'none';
+                chartControls.classList.add('active');
+                chartView.classList.add('active');
+                if (latestResults.length > 0) {
+                    setTimeout(() => updateChart(), 200);
+                }
+            }
+
+            showToast(`Switched to ${view} view`, 'success');
+        }
+
+        // Run Query with Progress
+        async function runQuery() {
+            const schema = document.getElementById('schema').value;
+            const table = document.getElementById('table').value;
+            const columns = getSelectedColumns().join(',');
+            const filters = document.getElementById('filters').value;
+            const limit = document.getElementById('limit').value;
+            const offset = document.getElementById('offset').value;
+
+            if (!schema || !table) {
+                showToast("Please select both schema and table.", 'error');
+                return;
+            }
+
+            showLoading(true);
+            showProgress(true, 0);
+
+            const params = new URLSearchParams();
+            if (columns) params.append("columns", columns);
+            if (filters) params.append("filters", filters);
+            if (limit) params.append("limit", limit);
+            if (offset) params.append("offset", offset);
+
+            try {
+                showProgress(true, 30);
+                const res = await fetch(`/datasets/${schema}/${table}/query?${params.toString()}`);
+                showProgress(true, 60);
+                const data = await res.json();
+
+                if (Array.isArray(data)) {
+                    showProgress(true, 80);
+                    latestResults = data;
+                    renderTable(data);
+                    if (currentView === 'chart') {
+                        updateChart();
+                    }
+                    showProgress(true, 100);
+                    setTimeout(() => showProgress(false), 500);
+                    showToast(`Query executed successfully! ${data.length} rows returned.`, 'success');
+                } else if (data.error) {
+                    showToast("Query error: " + data.error, 'error');
+                } else {
+                    showToast("Unexpected response format.", 'error');
+                }
+            } catch (error) {
+                console.error("Query error:", error);
+                showToast("Failed to execute query.", 'error');
+            } finally {
+                showLoading(false);
+                showProgress(false);
+            }
+        }
+
+        // Render Table with Animation
+        function renderTable(data) {
+            const tableHead = document.getElementById('tableHead');
+            const tableBody = document.getElementById('tableBody');
+            tableHead.innerHTML = "";
+            tableBody.innerHTML = "";
+
+            if (data.length === 0) {
+                tableBody.innerHTML = "<tr><td colspan='100%' style='text-align: center; padding: 40px; color: rgba(255,255,255,0.6);'>No data found.</td></tr>";
+                return;
+            }
+
+            const columns = Object.keys(data[0]);
+            tableHead.innerHTML = "<tr>" + columns.map(col => `<th>${col}</th>`).join("") + "</tr>";
+
+            // Animate table rows
+            data.forEach((row, index) => {
+                setTimeout(() => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = columns.map(col => `<td>${row[col] ?? ''}</td>`).join("");
+                    tr.style.opacity = '0';
+                    tr.style.transform = 'translateY(20px)';
+                    tableBody.appendChild(tr);
+
+                    setTimeout(() => {
+                        tr.style.transition = 'all 0.3s ease';
+                        tr.style.opacity = '1';
+                        tr.style.transform = 'translateY(0)';
+                    }, 50);
+                }, index * 10);
+            });
+        }
+
+        // Initialize Chart with Enhanced Options
+        function initializeChartDefaults() {
+            if (typeof ChartZoom !== 'undefined') {
+                Chart.register(ChartZoom);
+            }
+            Chart.defaults.font.family = "'Inter', sans-serif";
+            Chart.defaults.color = 'rgba(255, 255, 255, 0.8)';
+        }
+
+        // Global map to store category indices for chart axes
+        let categoryMaps = {};
+        let categoricalIndexCols = new Set();
+
+        // Helper to handle categorical data on axes
+        function isNumericValue(value) {
+            if (value === null || value === "") return false;
+            const num = Number(value);
+            return !isNaN(num) && isFinite(num);
+        }
+
+        function parseChartValue(value, colName) {
+             if (isNumericValue(value)) return Number(value);
+             if (value === null || value === "") return 0;
+
+             if (!categoryMaps[colName]) categoryMaps[colName] = [];
+             let idx = categoryMaps[colName].indexOf(value);
+             if (idx === -1) {
+                 idx = categoryMaps[colName].length;
+                 categoryMaps[colName].push(value);
+             }
+             categoricalIndexCols.add(colName);
+             return idx; // Return 0-based index
+        }
+
+        // Update Chart with Animations
+        function updateChart() {
+            if (latestResults.length === 0) {
+                document.getElementById('myChart').style.display = 'none';
+                document.querySelector('.chart-canvas-wrapper').innerHTML =
+                    '<div style="display: flex; justify-content: center; align-items: center; height: 100%; color: rgba(255,255,255,0.6);">' +
+                    '<i class="fas fa-chart-bar" style="font-size: 3rem; margin-right: 20px;"></i>' +
+                    '<div><h3>No data to visualize</h3><p>Run a query first to see your data visualization</p></div></div>';
+                return;
+            }
+
+            const chartType = document.getElementById('chartType').value;
+            const xAxisCol = document.getElementById('xAxis').value;
+            const yAxisCol = document.getElementById('yAxis').value;
+
+            // Reset category maps on new chart render
+            categoryMaps = {};
+            categoricalIndexCols = new Set();
+
+            if (!xAxisCol || !yAxisCol) {
+                document.querySelector('.chart-canvas-wrapper').innerHTML =
+                    '<div style="display: flex; justify-content: center; align-items: center; height: 100%; color: rgba(255,255,255,0.6);">' +
+                    '<i class="fas fa-exclamation-triangle" style="font-size: 3rem; margin-right: 20px;"></i>' +
+                    '<div><h3>Select axes</h3><p>Please select both X and Y axis columns</p></div></div>';
+                return;
+            }
+
+            // Show canvas
+            document.getElementById('myChart').style.display = 'block';
+
+            // Destroy existing chart
+            if (currentChart) {
+                currentChart.destroy();
+            }
+
+            // Prepare data
+            const chartData = prepareChartData(latestResults, xAxisCol, yAxisCol, chartType);
+
+            // Create new chart with enhanced options
+            const ctx = document.getElementById('myChart');
+            currentChart = new Chart(ctx, {
+                type: chartType,
+                data: chartData,
+                options: getEnhancedChartOptions(chartType, xAxisCol, yAxisCol)
+            });
+
+            showToast('Chart updated successfully!', 'success');
+        }
+
+        // Enhanced Chart Options
+        function getEnhancedChartOptions(chartType, xCol, yCol) {
+            const baseOptions = {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    intersect: false,
+                    mode: 'index'
+                },
+                plugins: {
+                    title: {
+                        display: true,
+                        text: `${yCol} by ${xCol}`,
+                        font: {
+                            size: 18,
+                            weight: 'bold'
+                        },
+                        color: 'rgba(255, 255, 255, 0.9)'
+                    },
+                    legend: {
+                        labels: {
+                            color: 'rgba(255, 255, 255, 0.8)',
+                            usePointStyle: true,
+                            padding: 20
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        titleColor: 'white',
+                        bodyColor: 'rgba(255, 255, 255, 0.9)',
+                        borderColor: 'rgba(102, 126, 234, 0.5)',
+                        borderWidth: 1,
+                        cornerRadius: 10,
+                        displayColors: true,
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.dataset.label || '';
+                                if (label) {
+                                    label += ': ';
+                                }
+                                if (context.parsed.y !== null) {
+                                    if (categoricalIndexCols.has(yCol) && categoryMaps[yCol] && categoryMaps[yCol][context.parsed.y]) {
+                                        label += categoryMaps[yCol][context.parsed.y];
+                                    } else {
+                                        label += context.parsed.y;
+                                    }
+                                }
+                                return label;
+                            }
+                        }
+                    }
+                },
+                animation: {
+                    duration: 1000,
+                    easing: 'easeOutQuart'
+                }
+            };
+
+            if (chartType !== 'pie' && chartType !== 'doughnut') {
+                baseOptions.scales = {
+                    x: {
+                        title: {
+                            display: true,
+                            text: xCol,
+                            color: 'rgba(255, 255, 255, 0.8)',
+                            font: {
+                                size: 14,
+                                weight: 'bold'
+                            }
+                        },
+                        ticks: {
+                            color: 'rgba(255, 255, 255, 0.7)',
+                            callback: function(value, index, values) {
+                                if (categoryMaps[xCol] && categoryMaps[xCol][value]) {
+                                    return categoryMaps[xCol][value];
+                                }
+                                return this.getLabelForValue(value);
+                            }
+                        },
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)'
+                        }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: yCol,
+                            color: 'rgba(255, 255, 255, 0.8)',
+                            font: {
+                                size: 14,
+                                weight: 'bold'
+                            }
+                        },
+                        ticks: {
+                            color: 'rgba(255, 255, 255, 0.7)',
+                            callback: function(value, index, values) {
+                                if (categoricalIndexCols.has(yCol) && categoryMaps[yCol] && categoryMaps[yCol][value]) {
+                                    return categoryMaps[yCol][value];
+                                }
+                                return value;
+                            }
+                        },
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)'
+                        }
+                    }
+                };
+            }
+
+            return baseOptions;
+        }
+
+        // Prepare Chart Data with Purple Colors
+        function prepareChartData(data, xCol, yCol, chartType) {
+            if (chartType === 'pie' || chartType === 'doughnut') {
+                const aggregated = {};
+                const yIsNumeric = data.some(row => isNumericValue(row[yCol]));
+                data.forEach(row => {
+                    const key = row[xCol];
+                    if (yIsNumeric) {
+                        const value = Number(row[yCol]) || 0;
+                        aggregated[key] = (aggregated[key] || 0) + value;
+                    } else {
+                        aggregated[key] = (aggregated[key] || 0) + 1;
+                    }
+                });
+
+                return {
+                    labels: Object.keys(aggregated),
+                    datasets: [{
+                        data: Object.values(aggregated),
+                        backgroundColor: generatePurpleColors(Object.keys(aggregated).length),
+                        borderWidth: 2,
+                        borderColor: 'rgba(255, 255, 255, 0.3)'
+                    }]
+                };
+            } else if (chartType === 'scatter') {
+                return {
+                    datasets: [{
+                        label: `${yCol} vs ${xCol}`,
+                        data: data.map(row => ({
+                            x: parseChartValue(row[xCol], xCol),
+                            y: parseChartValue(row[yCol], yCol)
+                        })),
+                        backgroundColor: 'rgba(102, 126, 234, 0.6)',
+                        borderColor: 'rgba(102, 126, 234, 1)',
+                        borderWidth: 2,
+                        pointRadius: 6,
+                        pointHoverRadius: 8
+                    }]
+                };
+            } else {
+                const yIsNumeric = data.some(row => isNumericValue(row[yCol]));
+                if (!yIsNumeric) {
+                    const aggregated = {};
+                    data.forEach(row => {
+                        const key = row[xCol];
+                        aggregated[key] = (aggregated[key] || 0) + 1;
+                    });
+                    const labels = Object.keys(aggregated);
+                    const values = Object.values(aggregated);
+                    return {
+                        labels: labels,
+                        datasets: [{
+                            label: `Count`,
+                            data: values,
+                            backgroundColor: chartType === 'line' ? 'rgba(102, 126, 234, 0.2)' : 'rgba(102, 126, 234, 0.7)',
+                            borderColor: 'rgba(102, 126, 234, 1)',
+                            borderWidth: 3,
+                            fill: chartType === 'line',
+                            tension: chartType === 'line' ? 0.4 : 0,
+                            pointBackgroundColor: 'rgba(118, 75, 162, 1)',
+                            pointBorderColor: 'white',
+                            pointBorderWidth: 2,
+                            pointRadius: chartType === 'line' ? 5 : 0,
+                            pointHoverRadius: 8
+                        }]
+                    };
+                }
+
+                const labels = data.map(row => row[xCol]);
+                const values = data.map(row => Number(row[yCol]) || 0);
+
+                return {
+                    labels: labels,
+                    datasets: [{
+                        label: yCol,
+                        data: values,
+                        backgroundColor: chartType === 'line' ? 'rgba(102, 126, 234, 0.2)' : 'rgba(102, 126, 234, 0.7)',
+                        borderColor: 'rgba(102, 126, 234, 1)',
+                        borderWidth: 3,
+                        fill: chartType === 'line',
+                        tension: chartType === 'line' ? 0.4 : 0,
+                        pointBackgroundColor: 'rgba(118, 75, 162, 1)',
+                        pointBorderColor: 'white',
+                        pointBorderWidth: 2,
+                        pointRadius: chartType === 'line' ? 5 : 0,
+                        pointHoverRadius: 8
+                    }]
+                };
+            }
+        }
+
+        // Generate Purple Colors
+        function generatePurpleColors(count) {
+            const baseColors = [
+                'rgba(102, 126, 234, 0.8)',
+                'rgba(118, 75, 162, 0.8)',
+                'rgba(240, 147, 251, 0.8)',
+                'rgba(245, 87, 108, 0.8)',
+                'rgba(79, 172, 254, 0.8)',
+                'rgba(255, 217, 61, 0.8)',
+                'rgba(255, 107, 107, 0.8)',
+                'rgba(67, 233, 123, 0.8)'
+            ];
+
+            const result = [];
+            for (let i = 0; i < count; i++) {
+                result.push(baseColors[i % baseColors.length]);
+            }
+            return result;
+        }
+
+        // Chart Download Functions
+        function downloadChartPNG() {
+            if (!currentChart) {
+                showToast("No chart to download. Please create a chart first.", 'error');
+                return;
+            }
+
+            const link = document.createElement('a');
+            link.download = `chart_${getCurrentTimestamp()}.png`;
+            link.href = currentChart.toBase64Image('image/png', 1);
+            link.click();
+            showToast('Chart downloaded as PNG!', 'success');
+        }
+
+        function downloadChartJPEG() {
+            if (!currentChart) {
+                showToast("No chart to download. Please create a chart first.", 'error');
+                return;
+            }
+
+            const link = document.createElement('a');
+            link.download = `chart_${getCurrentTimestamp()}.jpg`;
+            link.href = currentChart.toBase64Image('image/jpeg', 0.9);
+            link.click();
+            showToast('Chart downloaded as JPEG!', 'success');
+        }
+
+        function downloadChartSVG() {
+            if (!currentChart) {
+                showToast("No chart to download. Please create a chart first.", 'error');
+                return;
+            }
+
+            const canvas = document.getElementById('myChart');
+            const svgString = canvasToSVG(canvas);
+            const blob = new Blob([svgString], { type: 'image/svg+xml' });
+            const link = document.createElement('a');
+            link.download = `chart_${getCurrentTimestamp()}.svg`;
+            link.href = URL.createObjectURL(blob);
+            link.click();
+            showToast('Chart downloaded as SVG!', 'success');
+        }
+
+        function downloadChartPDF() {
+            if (!currentChart) {
+                showToast("No chart to download. Please create a chart first.", 'error');
+                return;
+            }
+
+            try {
+                const { jsPDF } = window.jspdf;
+
+                if (!jsPDF) {
+                    showToast("PDF library not loaded. Please refresh the page and try again.", 'error');
+                    return;
+                }
+
+                const pdf = new jsPDF({
+                    orientation: 'landscape',
+                    unit: 'mm',
+                    format: 'a4'
+                });
+
+                const chartType = document.getElementById('chartType').value;
+                const xAxisCol = document.getElementById('xAxis').value;
+                const yAxisCol = document.getElementById('yAxis').value;
+                const schema = document.getElementById('schema').value;
+                const table = document.getElementById('table').value;
+
+                pdf.setFontSize(16);
+                pdf.text(`Chart Report: ${yAxisCol} by ${xAxisCol}`, 20, 20);
+
+                pdf.setFontSize(10);
+                pdf.text(`Chart Type: ${chartType.toUpperCase()}`, 20, 30);
+                pdf.text(`Data Source: ${schema}.${table}`, 20, 35);
+                pdf.text(`Generated: ${new Date().toLocaleString()}`, 20, 40);
+                pdf.text(`Records: ${latestResults.length}`, 20, 45);
+
+                const canvas = document.getElementById('myChart');
+                const canvasImg = canvas.toDataURL('image/png', 1.0);
+                const imgWidth = 250;
+                const imgHeight = 150;
+
+                pdf.addImage(canvasImg, 'PNG', 20, 55, imgWidth, imgHeight);
+
+                if (latestResults.length > 0) {
+                    let yPos = 220;
+
+                    pdf.setFontSize(12);
+                    pdf.text("Data Summary:", 20, yPos);
+                    yPos += 10;
+
+                    pdf.setFontSize(8);
+                    const sampleData = latestResults.slice(0, 5);
+                    const columns = Object.keys(sampleData[0]);
+
+                    let xPos = 20;
+                    columns.forEach(col => {
+                        pdf.text(col, xPos, yPos);
+                        xPos += 40;
+                    });
+                    yPos += 5;
+
+                    sampleData.forEach(row => {
+                        xPos = 20;
+                        columns.forEach(col => {
+                            const value = String(row[col] || '').substring(0, 15);
+                            pdf.text(value, xPos, yPos);
+                            xPos += 40;
+                        });
+                        yPos += 5;
+                    });
+
+                    if (latestResults.length > 5) {
+                        pdf.text(`... and ${latestResults.length - 5} more rows`, 20, yPos + 5);
+                    }
+                }
+
+                pdf.save(`chart_report_${getCurrentTimestamp()}.pdf`);
+                showToast('Chart report downloaded as PDF!', 'success');
+
+            } catch (error) {
+                console.error('PDF generation error:', error);
+                showToast('Error generating PDF. Please try again or use PNG download instead.', 'error');
+            }
+        }
+
+        // Utility Functions
+        function canvasToSVG(canvas) {
+            const width = canvas.width;
+            const height = canvas.height;
+            const dataURL = canvas.toDataURL();
+
+            return `<?xml version="1.0" encoding="UTF-8"?>
+                    <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" 
+                         width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+                        <title>Chart Export</title>
+                        <image x="0" y="0" width="${width}" height="${height}" xlink:href="${dataURL}"/>
+                    </svg>`;
+        }
+
+        function getCurrentTimestamp() {
+            return new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+        }
+
+        function downloadCSV() {
+            if (latestResults.length === 0) {
+                showToast("No results to download.", 'error');
+                return;
+            }
+
+            const columns = Object.keys(latestResults[0]);
+            let csv = columns.join(",") + "\n";
+            latestResults.forEach(row => {
+                csv += columns.map(col => JSON.stringify(row[col] ?? "")).join(",") + "\n";
+            });
+            const blob = new Blob([csv], { type: "text/csv" });
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(blob);
+            a.download = `query_results_${getCurrentTimestamp()}.csv`;
+            a.click();
+            showToast('Data exported as CSV!', 'success');
+        }
+
+        function downloadJSON() {
+            if (latestResults.length === 0) {
+                showToast("No results to download.", 'error');
+                return;
+            }
+
+            const blob = new Blob([JSON.stringify(latestResults, null, 2)], { type: "application/json" });
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(blob);
+            a.download = `query_results_${getCurrentTimestamp()}.json`;
+            a.click();
+            showToast('Data exported as JSON!', 'success');
+        }
+
+        function scrollToTop() {
+            window.scrollTo({
+                top: 0,
+                behavior: 'smooth'
+            });
+        }
+
+        // Keyboard Shortcuts
+        document.addEventListener('keydown', function (e) {
+            if (e.ctrlKey || e.metaKey) {
+                switch (e.key) {
+                    case 'Enter':
+                        e.preventDefault();
+                        runQuery();
+                        break;
+                    case 's':
+                        e.preventDefault();
+                        downloadCSV();
+                        break;
+                    case 'd':
+                        e.preventDefault();
+                        toggleTheme();
+                        break;
+                }
+            }
+        });
+
+        // Auto-save preferences
+        window.addEventListener('beforeunload', function () {
+            localStorage.setItem('analytics_theme', isDarkTheme);
+            localStorage.setItem('analytics_view', currentView);
+        });
+
+        // Load preferences
+        window.addEventListener('load', function () {
+            const savedTheme = localStorage.getItem('analytics_theme');
+            const savedView = localStorage.getItem('analytics_view');
+
+            if (savedTheme === 'true') {
+                toggleTheme();
+            }
+
+            if (savedView && savedView !== currentView) {
+                switchView(savedView);
+            }
+        });
+
+        // User Logout Functionality
+        async function handleLogout() {
+            try {
+                // Show logout loading state
+                const logoutBtn = document.querySelector('.logout-btn');
+                const originalContent = logoutBtn.innerHTML;
+
+                // Update button to show loading
+                logoutBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>Logging out...</span>';
+                logoutBtn.style.pointerEvents = 'none'; // Disable clicking
+
+                // Show toast notification (if you have toast function)
+                if (typeof showToast === 'function') {
+                    showToast('Signing out...', 'info');
+                } else {
+                    console.log('Signing out...');
+                }
+
+                // Call logout endpoint
+                const response = await fetch('/auth/logout', {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+
+                if (response.ok) {
+                    // Show success message
+                    if (typeof showToast === 'function') {
+                        showToast('Logged out successfully!', 'success');
+                    } else {
+                        alert('Logged out successfully!');
+                    }
+
+                    // Clear any local storage (keep theme preference)
+                    const theme = localStorage.getItem('theme');
+                    localStorage.clear();
+                    if (theme) localStorage.setItem('theme', theme);
+
+                    // Redirect to login page after a short delay
+                    setTimeout(() => {
+                        window.location.href = '/login';
+                    }, 1500);
+                } else {
+                    throw new Error('Logout request failed');
+                }
+            } catch (error) {
+                console.error('Logout error:', error);
+
+                // Show error message
+                if (typeof showToast === 'function') {
+                    showToast('Logout failed. Please try again.', 'error');
+                } else {
+                    alert('Logout failed. Please try again.');
+                }
+
+                // Restore button state on error
+                const logoutBtn = document.querySelector('.logout-btn');
+                logoutBtn.innerHTML = '<i class="fas fa-sign-out-alt"></i><span>Logout</span>';
+                logoutBtn.style.pointerEvents = 'auto';
+            }
+        }
+
+        // Alternative: Force logout if API fails
+        async function forceLogout() {
+            try {
+                if (typeof showToast === 'function') {
+                    showToast('Forcing logout...', 'warning');
+                }
+
+                // Clear all cookies
+                document.cookie.split(";").forEach(function (c) {
+                    document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+                });
+
+                // Clear local storage (except theme)
+                const theme = localStorage.getItem('theme');
+                localStorage.clear();
+                if (theme) localStorage.setItem('theme', theme);
+
+                // Redirect to login
+                window.location.href = '/login';
+            } catch (error) {
+                console.error('Force logout error:', error);
+                window.location.href = '/login';
+            }
+        }
+
+        // Handle session expiry
+        window.addEventListener('unhandledrejection', function (event) {
+            if (event.reason && event.reason.status === 401) {
+                if (typeof showToast === 'function') {
+                    showToast('Session expired. Please login again.', 'warning');
+                } else {
+                    alert('Session expired. Please login again.');
+                }
+                setTimeout(() => {
+                    window.location.href = '/login';
+                }, 2000);
+            }
+        });
+    </script>
+    </script>
+</body>
+
+</html>

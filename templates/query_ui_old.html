@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Dataset Query Tool</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; }
+    label { display: block; margin-top: 10px; }
+    textarea, input, select { width: 100%; padding: 6px; }
+    button { padding: 10px 20px; margin-top: 15px; }
+    #results { margin-top: 20px; white-space: pre-wrap; background: #f0f0f0; padding: 10px; border: 1px solid #ccc; }
+  
+        
+        /* Enhanced subtle theme with golden touch */
+        .glass-card {
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(20px) saturate(120%);
+            border: 1px solid rgba(100, 116, 139, 0.25);
+        }
+
+        .glass-card:hover {
+            background: rgba(15, 23, 42, 0.85);
+            border-color: rgba(245, 158, 11, 0.3);
+            transform: translateY(-3px);
+            box-shadow: 0 12px 30px rgba(245, 158, 11, 0.1);
+        }
+
+        .btn {
+            background: var(--primary-gradient);
+            border: 1px solid rgba(100, 116, 139, 0.3);
+            box-shadow: 0 4px 12px rgba(15, 23, 42, 0.2);
+        }
+
+        .btn:hover {
+            box-shadow: 0 8px 20px rgba(15, 23, 42, 0.3);
+            transform: translateY(-2px);
+        }
+
+        /* Golden accent buttons */
+        .btn-secondary,
+        .btn.secondary {
+            background: var(--secondary-gradient);
+            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.2);
+        }
+
+        .btn-secondary:hover,
+        .btn.secondary:hover {
+            box-shadow: 0 8px 20px rgba(245, 158, 11, 0.3);
+        }
+
+        .form-input {
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(100, 116, 139, 0.3);
+        }
+
+        .form-input:focus {
+            background: rgba(15, 23, 42, 0.8);
+            border-color: #f59e0b;
+            box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2);
+        }
+
+        /* Golden success states */
+        .success-message,
+        .toast.success {
+            background: rgba(245, 158, 11, 0.2);
+            border-color: var(--secondary-color);
+            color: #fbbf24;
+        }
+
+        /* Golden badges and highlights */
+        .stat-badge {
+            background: rgba(245, 158, 11, 0.2);
+            border: 1px solid var(--secondary-color);
+            color: #fbbf24;
+        }
+
+        /* Golden icon accents */
+        .card-icon,
+        .schema-icon,
+        .table-icon {
+            color: var(--secondary-color);
+        }
+
+        /* Subtle golden highlights */
+        .user-role {
+            background: rgba(245, 158, 11, 0.2);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            color: #fbbf24;
+        }
+    </style>
+</head>
+<body>
+
+  <h2>🔍 Dataset Query Tool</h2>
+
+  <label>📊 Table Name:</label>
+  <input id="table" type="text" placeholder="e.g. plfs" />
+
+  <label>🧩 Columns (comma-separated):</label>
+  <input id="columns" type="text" placeholder="e.g. age,gender,state" />
+
+  <label>🔎 Filters (use ; to separate):</label>
+  <input id="filters" type="text" placeholder="e.g. age>30;state='Kerala'" />
+
+  <label>🔢 Limit:</label>
+  <input id="limit" type="number" value="100" />
+
+  <label>↪️ Offset:</label>
+  <input id="offset" type="number" value="0" />
+
+  <label>📄 Response Format:</label>
+  <select id="format">
+    <option value="json">JSON</option>
+    <option value="csv">CSV</option>
+  </select>
+
+  <button onclick="runQuery()">Run Query</button>
+
+  <div id="results"></div>
+
+  <script>
+    async function runQuery() {
+      const table = document.getElementById('table').value.trim();
+      const columns = document.getElementById('columns').value.trim();
+      const filters = document.getElementById('filters').value.trim();
+      const limit = document.getElementById('limit').value;
+      const offset = document.getElementById('offset').value;
+      const format = document.getElementById('format').value;
+
+      const params = new URLSearchParams();
+      if (columns) params.append('columns', columns);
+      if (filters) params.append('filters', filters);
+      if (limit) params.append('limit', limit);
+      if (offset) params.append('offset', offset);
+
+      const url = `/datasets/${table}/query?${params.toString()}`;
+
+      if (format === 'csv') {
+        window.open(url, '_blank');
+        document.getElementById('results').innerText = "📁 CSV download triggered.";
+        return;
+      }
+
+      const res = await fetch(url, { headers: { Accept: 'application/json' } });
+      const data = await res.json();
+      document.getElementById('results').innerText = JSON.stringify(data, null, 2);
+    }
+  </script>
+
+</body>
+</html>

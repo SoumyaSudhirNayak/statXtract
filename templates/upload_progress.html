@@ -1,0 +1,288 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload Progress - {{ filename }}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #64748b;
+            --primary-gradient: linear-gradient(135deg, #64748b 0%, #475569 100%);
+            --secondary-color: #f59e0b;
+            --success-color: #10b981;
+            --danger-color: #ef4444;
+            --text-dark: #2d3748;
+            --glass-bg: rgba(255, 255, 255, 0.9);
+            --border-radius: 12px;
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f1f5f9;
+            color: var(--text-dark);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 800px;
+            background: white;
+            padding: 2rem;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+        }
+
+        h2 {
+            margin-bottom: 1.5rem;
+            color: var(--primary-color);
+        }
+
+        .progress-container {
+            margin-bottom: 2rem;
+        }
+
+        .progress-bar-bg {
+            width: 100%;
+            height: 1.5rem;
+            background-color: #e2e8f0;
+            border-radius: 9999px;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: var(--primary-gradient);
+            width: 0%;
+            transition: width 0.5s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+
+        .status-message {
+            margin-top: 0.5rem;
+            font-size: 0.875rem;
+            color: #64748b;
+        }
+
+        .file-list {
+            margin-top: 2rem;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.875rem;
+        }
+
+        th, td {
+            padding: 0.75rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        th {
+            font-weight: 600;
+            color: #64748b;
+            background-color: #f8fafc;
+        }
+
+        .badge {
+            padding: 0.25rem 0.5rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .badge-pending { background-color: #e2e8f0; color: #64748b; }
+        .badge-processing { background-color: #dbeafe; color: #2563eb; }
+        .badge-loading_db { background-color: #fef3c7; color: #d97706; }
+        .badge-skipped { background-color: #f1f5f9; color: #475569; }
+        .badge-completed { background-color: #d1fae5; color: #059669; }
+        .badge-failed { background-color: #fee2e2; color: #dc2626; }
+
+        .back-btn {
+            display: inline-block;
+            margin-top: 2rem;
+            padding: 0.75rem 1.5rem;
+            background: var(--primary-gradient);
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 500;
+            transition: opacity 0.2s;
+        }
+        
+        .back-btn:hover { opacity: 0.9; }
+        .back-btn.disabled { pointer-events: none; opacity: 0.5; background: #94a3b8; }
+
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2><i class="fas fa-cloud-upload-alt"></i> Uploading: {{ filename }}</h2>
+    
+    <div class="progress-container">
+        <div class="progress-bar-bg">
+            <div id="progress-bar" class="progress-bar">0%</div>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem;">
+            <div id="status-message" class="status-message">Initializing...</div>
+            <div id="time-remaining" class="status-message" style="font-weight: 500;"></div>
+        </div>
+    </div>
+
+    <div class="file-list">
+        <h3>Files Status</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>File Name</th>
+                    <th>Status</th>
+                    <th>Rows</th>
+                    <th>Details</th>
+                </tr>
+            </thead>
+            <tbody id="file-table-body">
+                <!-- Rows will be populated by JS -->
+            </tbody>
+        </table>
+    </div>
+    
+    <div id="error-container" style="color: var(--danger-color); margin-top: 1rem; display: none;"></div>
+
+    <a href="/upload" id="done-btn" class="back-btn disabled">Upload Another File</a>
+</div>
+
+<script>
+    const jobId = "{{ job_id }}";
+    const statusUrl = `/admin/upload/status/${jobId}`;
+    
+    const progressBar = document.getElementById('progress-bar');
+    const statusMsg = document.getElementById('status-message');
+    const timeRemainingMsg = document.getElementById('time-remaining');
+    const fileTableBody = document.getElementById('file-table-body');
+    const doneBtn = document.getElementById('done-btn');
+    const errorContainer = document.getElementById('error-container');
+
+    let startTime = null;
+
+    function formatTime(seconds) {
+        if (seconds < 60) return `${Math.ceil(seconds)}s`;
+        const m = Math.floor(seconds / 60);
+        const s = Math.ceil(seconds % 60);
+        return `${m}m ${s}s`;
+    }
+
+    function getBadgeClass(status) {
+        switch(status) {
+            case 'pending': return 'badge-pending';
+            case 'processing': return 'badge-processing';
+            case 'parsing_ddi': return 'badge-processing';
+            case 'extracting': return 'badge-processing';
+            case 'loading_db': return 'badge-loading_db';
+            case 'skipped': return 'badge-skipped';
+            case 'completed': return 'badge-completed';
+            case 'failed': return 'badge-failed';
+            default: return 'badge-pending';
+        }
+    }
+
+    async function pollStatus() {
+        try {
+            const response = await fetch(statusUrl);
+            if (!response.ok) throw new Error("Failed to fetch status");
+            
+            const job = await response.json();
+            
+            // Update Progress
+            const progress = job.progress || 0;
+            progressBar.style.width = `${progress}%`;
+            progressBar.textContent = `${progress}%`;
+            statusMsg.textContent = job.message;
+
+            // Calculate Time Remaining
+            if (job.status === 'processing' || job.status === 'loading_db') {
+                if (!startTime) startTime = Date.now();
+                
+                if (progress > 0 && progress < 100) {
+                    const elapsed = (Date.now() - startTime) / 1000; // seconds
+                    // estimatedTotal = elapsed / (progress / 100)
+                    // remaining = estimatedTotal - elapsed
+                    const estimatedTotal = elapsed / (progress / 100);
+                    const remaining = estimatedTotal - elapsed;
+                    
+                    if (remaining > 0 && isFinite(remaining)) {
+                         timeRemainingMsg.textContent = `Est. remaining: ${formatTime(remaining)}`;
+                    } else {
+                        timeRemainingMsg.textContent = "Calculating...";
+                    }
+                }
+            } else if (job.status === 'completed') {
+                timeRemainingMsg.textContent = "Completed";
+            } else if (job.status === 'pending') {
+                 timeRemainingMsg.textContent = "Starting...";
+            }
+
+            // Update Files
+            fileTableBody.innerHTML = '';
+            if (job.files) {
+                job.files.forEach(file => {
+                    const row = document.createElement('tr');
+                    const badgeClass = getBadgeClass(file.status);
+                    row.innerHTML = `
+                        <td>${file.name}</td>
+                        <td><span class="badge ${badgeClass}">${file.status.replace('_', ' ').toUpperCase()}</span></td>
+                        <td>${file.rows || 0}</td>
+                        <td>${file.error || (file.status === 'completed' ? '✅' : '...')}</td>
+                    `;
+                    fileTableBody.appendChild(row);
+                });
+            }
+
+            // Update Errors
+            if (job.errors && job.errors.length > 0) {
+                errorContainer.style.display = 'block';
+                errorContainer.innerHTML = '<strong>Errors:</strong><br>' + job.errors.join('<br>');
+            }
+
+            // Check if done
+            if (job.status === 'completed' || job.status === 'failed') {
+                doneBtn.classList.remove('disabled');
+                doneBtn.textContent = job.status === 'completed' ? "Upload Another File" : "Back to Upload";
+                if (job.status === 'completed') {
+                    progressBar.style.background = 'var(--success-color)';
+                } else {
+                    progressBar.style.background = 'var(--danger-color)';
+                }
+                return; // Stop polling
+            }
+
+            // Continue polling
+            setTimeout(pollStatus, 1000);
+
+        } catch (e) {
+            console.error(e);
+            statusMsg.textContent = "Error polling status";
+            statusMsg.style.color = "red";
+        }
+    }
+
+    // Start polling
+    pollStatus();
+</script>
+
+</body>
+</html>

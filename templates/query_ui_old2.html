@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Supabase Dataset Query UI</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 30px;
+            background: #f7f7f7;
+        }
+        select, input, button {
+            padding: 8px;
+            margin: 5px 0;
+            width: 100%;
+        }
+        label {
+            font-weight: bold;
+        }
+        #columns-container {
+            border: 1px solid #ccc;
+            padding: 10px;
+            background: #fff;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        table, th, td {
+            border: 1px solid #ccc;
+        }
+        th, td {
+            padding: 8px;
+            text-align: left;
+        }
+        #resultTableContainer {
+            overflow-x: auto;
+            max-height: 500px;
+        }
+    
+        
+        /* Enhanced subtle theme with golden touch */
+        .glass-card {
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(20px) saturate(120%);
+            border: 1px solid rgba(100, 116, 139, 0.25);
+        }
+
+        .glass-card:hover {
+            background: rgba(15, 23, 42, 0.85);
+            border-color: rgba(245, 158, 11, 0.3);
+            transform: translateY(-3px);
+            box-shadow: 0 12px 30px rgba(245, 158, 11, 0.1);
+        }
+
+        .btn {
+            background: var(--primary-gradient);
+            border: 1px solid rgba(100, 116, 139, 0.3);
+            box-shadow: 0 4px 12px rgba(15, 23, 42, 0.2);
+        }
+
+        .btn:hover {
+            box-shadow: 0 8px 20px rgba(15, 23, 42, 0.3);
+            transform: translateY(-2px);
+        }
+
+        /* Golden accent buttons */
+        .btn-secondary,
+        .btn.secondary {
+            background: var(--secondary-gradient);
+            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.2);
+        }
+
+        .btn-secondary:hover,
+        .btn.secondary:hover {
+            box-shadow: 0 8px 20px rgba(245, 158, 11, 0.3);
+        }
+
+        .form-input {
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(100, 116, 139, 0.3);
+        }
+
+        .form-input:focus {
+            background: rgba(15, 23, 42, 0.8);
+            border-color: #f59e0b;
+            box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2);
+        }
+
+        /* Golden success states */
+        .success-message,
+        .toast.success {
+            background: rgba(245, 158, 11, 0.2);
+            border-color: var(--secondary-color);
+            color: #fbbf24;
+        }
+
+        /* Golden badges and highlights */
+        .stat-badge {
+            background: rgba(245, 158, 11, 0.2);
+            border: 1px solid var(--secondary-color);
+            color: #fbbf24;
+        }
+
+        /* Golden icon accents */
+        .card-icon,
+        .schema-icon,
+        .table-icon {
+            color: var(--secondary-color);
+        }
+
+        /* Subtle golden highlights */
+        .user-role {
+            background: rgba(245, 158, 11, 0.2);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            color: #fbbf24;
+        }
+    </style>
+</head>
+<body>
+    <h2>🧠 Supabase Dataset Query Interface</h2>
+
+    <label for="table">Select Table:</label>
+    <select id="table"></select>
+
+    <label>Select Columns:</label>
+    <button type="button" onclick="toggleAllColumns(true)">Select All</button>
+    <button type="button" onclick="toggleAllColumns(false)">Deselect All</button>
+    <div id="columns-container"></div>
+
+    <label for="filters">Filters (e.g., age > 30; state = 'Telangana'):</label>
+    <input type="text" id="filters" placeholder="e.g., age >= 30; gender = 'M'">
+
+    <label for="limit">Limit:</label>
+    <input type="number" id="limit" value="100" min="1">
+
+    <label for="offset">Offset:</label>
+    <input type="number" id="offset" value="0" min="0">
+
+    <button onclick="runQuery()">▶ Run Query</button>
+    <button onclick="downloadCSV()">⬇ Download CSV</button>
+    <button onclick="downloadJSON()">⬇ Download JSON</button>
+
+    <h3>Results</h3>
+    <div id="resultTableContainer">
+        <table id="resultsTable">
+            <thead id="tableHead"></thead>
+            <tbody id="tableBody"></tbody>
+        </table>
+    </div>
+
+    <script>
+        let latestResults = [];
+
+        async function loadTables() {
+            const res = await fetch('/datasets');
+            const tables = await res.json();
+            const tableSelect = document.getElementById('table');
+            tableSelect.innerHTML = tables.map(t =>
+                `<option value="${t.table_name}">${t.table_name} (${t.row_count} rows)</option>`
+            ).join('');
+
+            if (tables.length > 0) {
+                await loadColumns(tables[0].table_name);
+            }
+
+            tableSelect.addEventListener("change", async (e) => {
+                await loadColumns(e.target.value);
+            });
+        }
+
+        async function loadColumns(tableName) {
+            const res = await fetch(`/datasets/${tableName}/columns`);
+            const columns = await res.json();
+
+            const container = document.getElementById('columns-container');
+            container.innerHTML = "";
+
+            columns.forEach(col => {
+                const checkbox = document.createElement("input");
+                checkbox.type = "checkbox";
+                checkbox.name = "columns";
+                checkbox.value = col;
+                checkbox.checked = true;
+
+                const label = document.createElement("label");
+                label.style.display = "block";
+                label.appendChild(checkbox);
+                label.appendChild(document.createTextNode(" " + col));
+
+                container.appendChild(label);
+            });
+        }
+
+        function getSelectedColumns() {
+            const checkboxes = document.querySelectorAll('#columns-container input[name="columns"]:checked');
+            return Array.from(checkboxes).map(cb => cb.value);
+        }
+
+        function toggleAllColumns(selectAll) {
+            const checkboxes = document.querySelectorAll('#columns-container input[name="columns"]');
+            checkboxes.forEach(cb => cb.checked = selectAll);
+        }
+
+        async function runQuery() {
+            const table = document.getElementById('table').value;
+            const columns = getSelectedColumns().join(',');
+            const filters = document.getElementById('filters').value;
+            const limit = document.getElementById('limit').value;
+            const offset = document.getElementById('offset').value;
+
+            const params = new URLSearchParams();
+            if (columns) params.append("columns", columns);
+            if (filters) params.append("filters", filters);
+            if (limit) params.append("limit", limit);
+            if (offset) params.append("offset", offset);
+
+            const res = await fetch(`/datasets/${table}/query?${params.toString()}`);
+            const data = await res.json();
+
+            if (Array.isArray(data)) {
+                latestResults = data;
+                renderTable(data);
+            } else {
+                alert("Unexpected response format.");
+            }
+        }
+
+        function renderTable(data) {
+            const tableHead = document.getElementById('tableHead');
+            const tableBody = document.getElementById('tableBody');
+            tableHead.innerHTML = "";
+            tableBody.innerHTML = "";
+
+            if (data.length === 0) {
+                tableBody.innerHTML = "<tr><td colspan='100%'>No data found.</td></tr>";
+                return;
+            }
+
+            const columns = Object.keys(data[0]);
+
+            tableHead.innerHTML = "<tr>" + columns.map(col => `<th>${col}</th>`).join("") + "</tr>";
+            tableBody.innerHTML = data.map(row =>
+                "<tr>" + columns.map(col => `<td>${row[col]}</td>`).join("") + "</tr>"
+            ).join("");
+        }
+
+        function downloadCSV() {
+            if (latestResults.length === 0) return alert("No results to download.");
+            const columns = Object.keys(latestResults[0]);
+            let csv = columns.join(",") + "\n";
+            latestResults.forEach(row => {
+                csv += columns.map(col => JSON.stringify(row[col] ?? "")).join(",") + "\n";
+            });
+            const blob = new Blob([csv], { type: "text/csv" });
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(blob);
+            a.download = "query_results.csv";
+            a.click();
+        }
+
+        function downloadJSON() {
+            if (latestResults.length === 0) return alert("No results to download.");
+            const blob = new Blob([JSON.stringify(latestResults, null, 2)], { type: "application/json" });
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(blob);
+            a.download = "query_results.json";
+            a.click();
+        }
+
+        loadTables();
+    </script>
+</body>
+</html>

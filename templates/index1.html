@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Upload Nesstar ZIP</title>
+</head>
+<body>
+  <h2>Upload Dataset (.zip)</h2>
+
+  <form action="/upload_form/" method="post" enctype="multipart/form-data">
+    <label for="schema">Select Data Category:</label>
+    <select name="schema" id="schema" required>
+      <option value="asi">Annual Survey of Industries</option>
+      <option value="iip">Index of Industrial Production</option>
+      <option value="hce">Household Consumption Expenditure</option>
+      <option value="ec">Economic Census</option>
+      <option value="es">Enterprises Surveys</option>
+      <option value="plfs">Periodic Labour Force Survey</option>
+      <option value="eu">Employment and Unemployment</option>
+      <option value="llhs">Land and Livestock Holding Surveys</option>
+      <option value="others">Other Surveys</option>
+    </select>
+    <br><br>
+
+    <input type="file" name="file" required>
+    <br><br>
+
+    <button type="submit">Upload</button>
+  </form>
+</body>
+</html>

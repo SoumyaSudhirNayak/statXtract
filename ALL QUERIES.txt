@@ -1,0 +1,64 @@
+CREATE TABLE roles (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(50) UNIQUE NOT NULL
+);
+
+CREATE TABLE users (
+    id SERIAL PRIMARY KEY,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    hashed_password TEXT NOT NULL,
+    role_id INTEGER REFERENCES roles(id),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+DROP table users
+
+CREATE TABLE users (
+    id SERIAL PRIMARY KEY,
+    username TEXT UNIQUE NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    hashed_password TEXT NOT NULL,
+    role_id INTEGER REFERENCES roles(id),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+INSERT INTO roles (name) VALUES ('admin'), ('analyst'), ('user')
+ON CONFLICT (name) DO NOTHING;
+
+select * from users
+
+
+CREATE SCHEMA asi;         -- Annual Survey of Industries
+CREATE SCHEMA ec;          -- Economic Census
+CREATE SCHEMA es;          -- Employment Survey
+CREATE SCHEMA eu;          -- Enterprise Survey
+CREATE SCHEMA hce;         -- Household Consumption Expenditure
+CREATE SCHEMA iip;         -- Index of Industrial Production
+CREATE SCHEMA llhs;        -- Labour & Landholding Survey
+CREATE SCHEMA plfs;        -- Periodic Labour Force Survey
+CREATE SCHEMA others;      -- Other Datasets
+
+DROP SCHEMA asi
+
+CREATE TABLE IF NOT EXISTS variable_configs (
+    id SERIAL PRIMARY KEY,
+    schema_name TEXT NOT NULL,
+    variable_name TEXT NOT NULL,
+    label TEXT,
+    include_in_api BOOLEAN DEFAULT TRUE,
+    filterable BOOLEAN DEFAULT FALSE,
+    UNIQUE(schema_name, variable_name)
+);
+
+
+
+CREATE TABLE IF NOT EXISTS usage_logs (
+    id SERIAL PRIMARY KEY,
+    user_email TEXT NOT NULL,
+    endpoint TEXT NOT NULL,
+    schema_name TEXT,
+    table_name TEXT,
+    rows_returned INTEGER,
+    bytes_sent BIGINT,
+    queried_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
