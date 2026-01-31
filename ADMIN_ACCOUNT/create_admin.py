@@ -13,8 +13,8 @@ async def create_fixed_admin():
     
     # Admin credentials - CHANGE THESE!
     ADMIN_USERNAME = "admin"
-    ADMIN_EMAIL = "sudheernayak122006@gmail.com"  # Change this
-    ADMIN_PASSWORD = "123456788"      # Change this to a strong password
+    ADMIN_EMAIL = ""  # Change this
+    ADMIN_PASSWORD = ""      # Change this to a strong password
     
     try:
         conn = await asyncpg.connect(DB_URL)
