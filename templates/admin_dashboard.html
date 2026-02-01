@@ -894,6 +894,13 @@
                 <i class="fas fa-arrow-right card-arrow"></i>
             </a>
 
+            <a href="#" onclick="showNesstarUpload(); return false;" class="glass-card fade-in">
+                <i class="fas fa-box-open card-icon"></i>
+                <h3 class="card-title">Nesstar Upload</h3>
+                <p class="card-description">Upload Nesstar studies (.nesstar) or packages (.zip) with embedded metadata and data</p>
+                <i class="fas fa-arrow-right card-arrow"></i>
+            </a>
+
             <a href="#" onclick="showNadaIngest(); return false;" class="glass-card fade-in">
                 <i class="fas fa-cloud-download-alt card-icon"></i>
                 <h3 class="card-title">NADA Import</h3>
@@ -1008,6 +1015,50 @@
                         </button>
                     </div>
                 </form>
+            </div>
+        </div>
+
+        <div class="config-section" id="nesstarSection">
+            <h2><i class="fas fa-box-open"></i> Nesstar Upload</h2>
+
+            <div class="schema-selector">
+                <label for="nesstarSchema"><i class="fas fa-layer-group"></i> Target Schema:</label>
+                <input id="nesstarSchema" class="form-select" value="public" />
+            </div>
+
+            <div class="schema-selector">
+                <label for="nesstarFile"><i class="fas fa-file-archive"></i> Nesstar Study / Package (.nesstar or .zip):</label>
+                <input id="nesstarFile" type="file" class="form-select" accept=".nesstar,.zip" />
+                <div style="color: rgba(255,255,255,0.75); font-size: 0.9rem; margin-top: 6px;">
+                    No Nesstar application needed. The system detects and ingests metadata and data automatically.
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button type="button" class="btn btn-cancel" onclick="hideNesstarUpload()">
+                    <i class="fas fa-times"></i> Cancel
+                </button>
+                <button type="button" class="btn btn-secondary" id="nesstarUploadBtn" onclick="startNesstarUpload()">
+                    <i class="fas fa-upload"></i> Start Upload
+                </button>
+            </div>
+
+            <div id="nesstarUploadStatus" style="display:none; margin-top: 20px;">
+                <div id="nesstarBanner" style="display:none; padding: 12px 14px; border-radius: 10px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); margin-bottom: 12px;">
+                    <div id="nesstarBannerText" style="color: rgba(255,255,255,0.9); font-weight: 600;">Converting dataset using Nesstar…</div>
+                    <div style="margin-top: 10px;">
+                        <div style="height: 10px; background: rgba(255,255,255,0.12); border-radius: 999px; overflow: hidden;">
+                            <div id="nesstarProgressFill" style="height: 100%; width: 0%; background: linear-gradient(135deg, #64748b 0%, #475569 100%);"></div>
+                        </div>
+                        <div style="display:flex; justify-content: space-between; margin-top: 8px; color: rgba(255,255,255,0.8); font-size: 0.9rem;">
+                            <div id="nesstarStageText">QUEUED</div>
+                            <div id="nesstarPctText">0%</div>
+                        </div>
+                        <div id="nesstarFileText" style="margin-top: 6px; color: rgba(255,255,255,0.75); font-size: 0.9rem;"></div>
+                        <a id="nesstarDetailsLink" href="#" style="display:none; margin-top: 8px; color: rgba(255,255,255,0.9); text-decoration: underline;">Open detailed progress</a>
+                    </div>
+                </div>
+                <pre id="nesstarUploadStatusText" style="white-space: pre-wrap; color: rgba(255,255,255,0.85); margin: 0;"></pre>
             </div>
         </div>
 
@@ -1242,8 +1293,121 @@
         let nadaFilesCache = [];
         let nadaSelectedFileNos = new Set();
 
+        function showNesstarUpload() {
+            hideConfigureVariables();
+            hideNadaIngest();
+            const section = document.getElementById('nesstarSection');
+            section.classList.add('active');
+            section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function hideNesstarUpload() {
+            const section = document.getElementById('nesstarSection');
+            section.classList.remove('active');
+            const statusBox = document.getElementById('nesstarUploadStatus');
+            statusBox.style.display = 'none';
+            document.getElementById('nesstarUploadStatusText').textContent = '';
+            const btn = document.getElementById('nesstarUploadBtn');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-upload"></i> Start Upload';
+            const fileInput = document.getElementById('nesstarFile');
+            fileInput.value = '';
+        }
+
+        function startNesstarUpload() {
+            const schema = (document.getElementById('nesstarSchema').value || '').trim() || 'public';
+            const fileInput = document.getElementById('nesstarFile');
+            const file = fileInput.files && fileInput.files[0];
+            const btn = document.getElementById('nesstarUploadBtn');
+            const statusBox = document.getElementById('nesstarUploadStatus');
+            const statusText = document.getElementById('nesstarUploadStatusText');
+
+            if (!file) {
+                showToast('Please select a .nesstar or .zip file', 'error');
+                return;
+            }
+            const lower = file.name.toLowerCase();
+            if (!(lower.endsWith('.zip') || lower.endsWith('.nesstar'))) {
+                showToast('Please select a valid .nesstar or .zip file', 'error');
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading...';
+            statusBox.style.display = 'block';
+            statusText.textContent = 'Uploading...';
+
+            const formData = new FormData();
+            formData.append('schema', schema);
+            formData.append('file', file);
+
+            const xhr = new XMLHttpRequest();
+            xhr.upload.addEventListener('progress', function (e) {
+                if (!e.lengthComputable) return;
+                const pct = Math.floor((e.loaded / e.total) * 100);
+                statusText.textContent = `Uploading... ${pct}%`;
+            });
+
+            xhr.addEventListener('load', function () {
+                if (xhr.status === 200) {
+                    const contentType = (xhr.getResponseHeader('Content-Type') || '').toLowerCase();
+                    if (!contentType.includes('application/json')) {
+                        const txt = (xhr.responseText || '').slice(0, 2000).toLowerCase();
+                        if (txt.includes('<html') || txt.includes('login')) {
+                            showToast('Session expired. Redirecting to login...', 'warning');
+                            window.location.href = '/login';
+                            return;
+                        }
+                        showToast('Upload started, but server did not return JSON.', 'error');
+                        btn.disabled = false;
+                        btn.innerHTML = '<i class="fas fa-upload"></i> Start Upload';
+                        return;
+                    }
+
+                    try {
+                        const resp = JSON.parse(xhr.responseText);
+                        if (resp && resp.progress_url) {
+                            window.location.href = resp.progress_url;
+                            return;
+                        }
+                        statusText.textContent = JSON.stringify(resp, null, 2);
+                        showToast('Upload started, but no progress URL returned.', 'warning');
+                    } catch (e) {
+                        showToast('Upload started, but response was not JSON.', 'error');
+                        btn.disabled = false;
+                        btn.innerHTML = '<i class="fas fa-upload"></i> Start Upload';
+                    }
+                    return;
+                }
+
+                let msg = 'Upload failed. Please try again.';
+                try {
+                    const data = JSON.parse(xhr.responseText);
+                    if (data && data.error) msg = data.error;
+                    else if (data && data.detail) msg = typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail);
+                } catch (e) { }
+                statusText.textContent = msg;
+                showToast(msg, 'error');
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-upload"></i> Start Upload';
+            });
+
+            xhr.addEventListener('error', function () {
+                statusText.textContent = 'Upload failed. Please check your connection.';
+                showToast('Upload failed. Please check your connection.', 'error');
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-upload"></i> Start Upload';
+            });
+
+            xhr.open('POST', '/upload/?response=json');
+            xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+            xhr.setRequestHeader('Accept', 'application/json');
+            xhr.send(formData);
+        }
+
         function showNadaIngest() {
             hideConfigureVariables();
+            hideNesstarUpload();
             const nadaSection = document.getElementById('nadaSection');
             nadaSection.classList.add('active');
             nadaSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
