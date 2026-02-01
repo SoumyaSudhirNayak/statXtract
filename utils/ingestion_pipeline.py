@@ -2,6 +2,10 @@ import os
 import shutil
 import zipfile
 import tempfile
+import subprocess
+import json
+import asyncio
+import time
 import logging
 import pandas as pd
 import pyreadstat
@@ -20,6 +24,144 @@ from utils.job_manager import update_job
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+def _clean_windows_path_candidate(value: str) -> str:
+    s = (value or "").strip()
+    if not s:
+        return ""
+    if (s.startswith('"') and s.endswith('"')) or (s.startswith("'") and s.endswith("'")):
+        s = s[1:-1].strip()
+    if "," in s:
+        left, right = s.rsplit(",", 1)
+        if right.strip().lstrip("-").isdigit():
+            s = left.strip()
+            if (s.startswith('"') and s.endswith('"')) or (s.startswith("'") and s.endswith("'")):
+                s = s[1:-1].strip()
+    return s
+
+
+def _extract_exe_from_windows_command(command: str) -> str:
+    s = (command or "").strip()
+    if not s:
+        return ""
+    if s.startswith('"'):
+        end = s.find('"', 1)
+        if end > 1:
+            return s[1:end]
+        return ""
+    head = s.split(" ", 1)[0].strip()
+    return head
+
+
+def discover_nesstar_converter_exe() -> str:
+    env = (os.getenv("NESSTAR_CONVERTER_EXE") or "").strip()
+    if env and os.path.exists(env):
+        return env
+
+    if os.name != "nt":
+        return ""
+
+    try:
+        import winreg  # type: ignore
+    except Exception:
+        return ""
+
+    exe_names = [
+        "Nesstar Explorer.exe",
+        "NesstarExplorer.exe",
+        "Nesstar Publisher.exe",
+        "NesstarPublisher.exe",
+    ]
+
+    candidates: List[str] = []
+
+    for root_env in (os.environ.get("ProgramFiles"), os.environ.get("ProgramFiles(x86)"), os.environ.get("ProgramW6432")):
+        if not root_env:
+            continue
+        for folder in ("Nesstar Explorer", "NesstarExplorer", "Nesstar Publisher", "NesstarPublisher", "Nesstar"):
+            for exe_name in exe_names:
+                candidates.append(os.path.join(root_env, folder, exe_name))
+
+    def _reg_query_str(key, name: str) -> str:
+        try:
+            v, _t = winreg.QueryValueEx(key, name)
+            return str(v)
+        except Exception:
+            return ""
+
+    def _try_add_path(s: str):
+        p = _clean_windows_path_candidate(s)
+        if p:
+            candidates.append(p)
+
+    for hive in (winreg.HKEY_LOCAL_MACHINE, winreg.HKEY_CURRENT_USER):
+        for exe_name in exe_names:
+            subkey = r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\{}".format(exe_name)
+            try:
+                with winreg.OpenKey(hive, subkey) as k:
+                    _try_add_path(_reg_query_str(k, ""))
+                    _try_add_path(_reg_query_str(k, "Path"))
+            except Exception:
+                pass
+
+    for hive in (winreg.HKEY_LOCAL_MACHINE, winreg.HKEY_CURRENT_USER):
+        for base in (
+            r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+            r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall",
+        ):
+            try:
+                with winreg.OpenKey(hive, base) as uninstall:
+                    i = 0
+                    while True:
+                        try:
+                            sub = winreg.EnumKey(uninstall, i)
+                        except OSError:
+                            break
+                        i += 1
+                        try:
+                            with winreg.OpenKey(uninstall, sub) as appkey:
+                                name = (_reg_query_str(appkey, "DisplayName") or "").strip()
+                                if "nesstar" not in name.lower():
+                                    continue
+                                install_loc = (_reg_query_str(appkey, "InstallLocation") or "").strip()
+                                display_icon = (_reg_query_str(appkey, "DisplayIcon") or "").strip()
+                                if display_icon:
+                                    _try_add_path(_extract_exe_from_windows_command(display_icon))
+                                    _try_add_path(display_icon)
+                                if install_loc:
+                                    for exe_name in exe_names:
+                                        candidates.append(os.path.join(install_loc, exe_name))
+                        except Exception:
+                            continue
+            except Exception:
+                pass
+
+    for exe_name in exe_names:
+        for hkcr_path in (
+            rf"Applications\{exe_name}\shell\open\command",
+            rf"Applications\{exe_name}\shell\Open\command",
+        ):
+            try:
+                with winreg.OpenKey(winreg.HKEY_CLASSES_ROOT, hkcr_path) as k:
+                    cmd = _reg_query_str(k, "")
+                    _try_add_path(_extract_exe_from_windows_command(cmd))
+            except Exception:
+                pass
+
+    seen = set()
+    for c in candidates:
+        p = _clean_windows_path_candidate(c)
+        if not p:
+            continue
+        lp = p.lower()
+        if lp in seen:
+            continue
+        seen.add(lp)
+        if os.path.exists(p) and os.path.isfile(p):
+            return p
+
+    return ""
+
+
 def _hash_file_sha1(file_path: str, chunk_size: int = 1024 * 1024) -> str:
     h = hashlib.sha1()
     with open(file_path, "rb") as f:
@@ -29,6 +171,343 @@ def _hash_file_sha1(file_path: str, chunk_size: int = 1024 * 1024) -> str:
                 break
             h.update(chunk)
     return h.hexdigest()
+
+_NESSTAR_STAGE_PROGRESS: Dict[str, int] = {
+    "QUEUED": 0,
+    "CONVERTING_WITH_NESSTAR": 15,
+    "EXPORTING_METADATA": 35,
+    "EXPORT_DIALOG_OPENED": 40,
+    "EXPORTING_ALL_DATASETS": 45,
+    "SAVING_DATASETS": 55,
+    "VALIDATING_EXPORTED_FILES": 75,
+    "INGESTING": 85,
+    "COMPLETED": 100,
+    "FAILED": 100,
+}
+
+_NESSTAR_STAGE_MESSAGE: Dict[str, str] = {
+    "QUEUED": "Queued for conversion",
+    "CONVERTING_WITH_NESSTAR": "Opening Nesstar study…",
+    "EXPORT_DIALOG_OPENED": "Export dialog opened — waiting for Save confirmation…",
+    "SAVING_DATASETS": "Saving exported dataset to workspace…",
+    "EXPORTING_METADATA": "Exporting metadata (DDI)…",
+    "EXPORTING_ALL_DATASETS": "Exporting ALL datasets (Shift+Ctrl+E)…",
+    "VALIDATING_EXPORTED_FILES": "Export confirmed — validating file…",
+    "INGESTING": "Loading into PostgreSQL…",
+    "COMPLETED": "Dataset ready for querying",
+}
+
+def _set_nesstar_stage(job_id: str, stage: str, message: Optional[str] = None):
+    stg = (stage or "").strip().upper()
+    pct = _NESSTAR_STAGE_PROGRESS.get(stg, None)
+    msg = message or _NESSTAR_STAGE_MESSAGE.get(stg) or stg
+    if stg == "COMPLETED":
+        update_job(job_id, status="completed", current_state=stg, progress=100, message=msg)
+        return
+    if stg == "FAILED":
+        update_job(job_id, status="failed", current_state=stg, progress=100, message=msg)
+        return
+    if pct is None:
+        update_job(job_id, status="processing", current_state=stg, message=msg)
+        return
+    update_job(job_id, status="processing", current_state=stg, progress=pct, message=msg)
+
+def _run_nesstar_converter_streaming(job_id: str, input_path: str, output_dir: str, timeout_sec: int) -> Dict[str, Any]:
+    exe = (os.getenv("NESSTAR_CONVERTER_EXE") or "").strip()
+    if exe and not os.path.exists(exe):
+        exe = ""
+    if not exe:
+        exe = discover_nesstar_converter_exe()
+        if exe:
+            os.environ.setdefault("NESSTAR_CONVERTER_EXE", exe)
+    this_file = Path(__file__).resolve()
+    project_root = this_file.parent.parent
+    default_script = str((project_root / "utils" / "nesstar_convert.ps1").resolve())
+    script = (os.getenv("NESSTAR_CONVERTER_SCRIPT") or default_script).strip()
+    if not exe:
+        raise ValueError("NESSTAR_CONVERTER_EXE not configured")
+    if not script:
+        raise ValueError("NESSTAR_CONVERTER_SCRIPT not configured")
+    if not os.path.exists(exe):
+        raise ValueError(f"NESSTAR_CONVERTER_EXE does not exist: {exe}")
+    if not os.path.exists(script):
+        raise ValueError(f"NESSTAR_CONVERTER_SCRIPT does not exist: {script}")
+
+    system_root = os.environ.get("SystemRoot") or r"C:\Windows"
+    pwsh_candidates = [
+        os.path.join(system_root, "System32", "WindowsPowerShell", "v1.0", "powershell.exe"),
+        shutil.which("powershell.exe"),
+        shutil.which("powershell"),
+    ]
+    pwsh = next((p for p in pwsh_candidates if p and os.path.exists(p)), None)
+    if not pwsh:
+        raise ValueError("PowerShell not found on PATH (expected powershell.exe)")
+
+    ver = subprocess.run(
+        [pwsh, "-NoProfile", "-Command", "(Get-Variable -Name PSVersionTable -ValueOnly).PSVersion.ToString()"],
+        capture_output=True,
+        text=True,
+    )
+    if ver.returncode != 0:
+        raise ValueError(f"PowerShell preflight failed: {ver.stderr.strip() or ver.stdout.strip()}")
+    update_job(job_id, log=f"PowerShell path: {pwsh}")
+    update_job(job_id, log=f"PowerShell version: {(ver.stdout or '').strip()}")
+
+    step_timeout = int(os.getenv("NESSTAR_STEP_TIMEOUT_SEC") or "900")
+    autoit_exe = (os.getenv("NESSTAR_AUTOIT_EXE") or "").strip()
+    autoit_script = (os.getenv("NESSTAR_AUTOIT_SCRIPT") or str((project_root / "utils" / "nesstar_export.au3").resolve())).strip()
+
+    cmd = [
+        pwsh,
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        script,
+        "-NesstarExe",
+        exe,
+        "-InputStudy",
+        input_path,
+        "-OutputDir",
+        output_dir,
+        "-StepTimeoutSec",
+        str(step_timeout),
+        "-JobId",
+        job_id,
+    ]
+    if autoit_exe:
+        cmd.extend(["-AutoItExe", autoit_exe])
+    if autoit_script:
+        cmd.extend(["-AutoItScript", autoit_script])
+    update_job(job_id, log=f"Running command: {json.dumps(cmd)}")
+
+    p = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        cwd=output_dir,
+        creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
+    )
+
+    stdout_lines: List[str] = []
+    stderr_lines: List[str] = []
+
+    def _handle_line(line: str):
+        line2 = (line or "").rstrip("\r\n")
+        if not line2:
+            return
+        stdout_lines.append(line2)
+        update_job(job_id, log=line2)
+        parts = line2.split()
+        if "STAGE" in parts:
+            i = parts.index("STAGE")
+            if i + 1 < len(parts):
+                _set_nesstar_stage(job_id, parts[i + 1])
+
+    start = datetime.now()
+    try:
+        if p.stdout:
+            while True:
+                if (datetime.now() - start).total_seconds() > timeout_sec:
+                    raise subprocess.TimeoutExpired(cmd=cmd, timeout=timeout_sec)
+
+                line = p.stdout.readline()
+                if line:
+                    _handle_line(line)
+                    continue
+                if p.poll() is not None:
+                    break
+                awaitable_sleep = os.getenv("NESSTAR_STREAM_SLEEP_MS")
+                try:
+                    ms = int(awaitable_sleep) if awaitable_sleep else 100
+                except Exception:
+                    ms = 100
+                time.sleep(ms / 1000.0)
+
+        out_rest = p.stdout.read() if p.stdout else ""
+        if out_rest:
+            for ln in out_rest.splitlines():
+                _handle_line(ln)
+
+        err_rest = p.stderr.read() if p.stderr else ""
+        if err_rest:
+            stderr_lines.extend(err_rest.splitlines())
+            for ln in err_rest.splitlines()[-200:]:
+                update_job(job_id, log=ln)
+
+        rc = p.returncode if p.returncode is not None else p.wait(timeout=5)
+        return {"returncode": rc, "stdout": "\n".join(stdout_lines), "stderr": "\n".join(stderr_lines), "pid": p.pid}
+    except subprocess.TimeoutExpired:
+        try:
+            subprocess.run(["taskkill", "/F", "/T", "/PID", str(p.pid)], check=False, capture_output=True, text=True)
+        except Exception:
+            pass
+        _set_nesstar_stage(job_id, "FAILED", message="Conversion timed out")
+        return {"returncode": 124, "stdout": "\n".join(stdout_lines), "stderr": "Conversion timed out", "pid": p.pid}
+
+def _pick_exported_files(output_dir: Path) -> Dict[str, Optional[Path]]:
+    savs = list(output_dir.rglob("*.sav"))
+    pors = list(output_dir.rglob("*.por"))
+    csvs = list(output_dir.rglob("*.csv"))
+    xmls = list(output_dir.rglob("*.xml"))
+
+    data_candidates = savs or pors or csvs
+    data = None
+    if data_candidates:
+        data = max(data_candidates, key=lambda p: p.stat().st_size if p.exists() else 0)
+
+    ddi = None
+    ddi_candidates = [p for p in xmls if "ddi" in p.name.lower() or "nsd" in p.name.lower()]
+    if ddi_candidates:
+        ddi = max(ddi_candidates, key=lambda p: p.stat().st_size if p.exists() else 0)
+    elif xmls:
+        ddi = max(xmls, key=lambda p: p.stat().st_size if p.exists() else 0)
+
+    return {"data": data, "ddi": ddi}
+
+def _count_csv_columns(file_path: Path, max_lines: int = 2000) -> Optional[int]:
+    try:
+        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+            for _ in range(max_lines):
+                line = f.readline()
+                if line == "":
+                    break
+                stripped = line.strip()
+                if stripped == "":
+                    continue
+                stripped2 = stripped.replace(",", "").replace("\t", "").replace(";", "")
+                if stripped2 == "":
+                    continue
+                delimiter = "," if line.count(",") >= line.count(";") else ";"
+                return len(line.rstrip("\r\n").split(delimiter))
+    except Exception:
+        return None
+    return None
+
+def _validate_converted_outputs(data_path: Path, ddi_path: Optional[Path]) -> Dict[str, Any]:
+    if not data_path or not data_path.exists() or data_path.stat().st_size <= 2048:
+        raise ValueError("Converted data file missing or empty")
+
+    data_cols = None
+    data_suffix = (data_path.suffix or "").lower()
+    if data_suffix == ".csv":
+        data_cols = _count_csv_columns(data_path)
+    else:
+        try:
+            _, meta = pyreadstat.read_sav(str(data_path), metadataonly=True)
+            data_cols = len(getattr(meta, "column_names", []) or [])
+        except Exception:
+            try:
+                _, meta = pyreadstat.read_por(str(data_path), metadataonly=True)
+                data_cols = len(getattr(meta, "column_names", []) or [])
+            except Exception:
+                data_cols = None
+
+    if not ddi_path or not ddi_path.exists() or ddi_path.stat().st_size <= 0:
+        return {"ddi_variables": None, "data_columns": data_cols}
+
+    ddi_meta = parse_ddi_xml(str(ddi_path))
+    ddi_vars = ddi_meta.get("variables") or []
+    if len(ddi_vars) == 0:
+        raise ValueError("Converted DDI metadata contains no variables")
+
+    if data_cols is not None:
+        ddi_count = len(ddi_vars)
+        mismatch = abs(data_cols - ddi_count)
+        allowed = max(5, int(0.1 * max(ddi_count, data_cols)))
+        if mismatch > allowed:
+            raise ValueError(f"Variable count mismatch (DDI={ddi_count}, DATA={data_cols})")
+
+    return {"ddi_variables": len(ddi_vars), "data_columns": data_cols}
+
+async def convert_and_ingest_nesstar_binary_study(
+    input_path: str,
+    db_url: str,
+    schema: str,
+    job_id: str,
+    dataset_id: Optional[str] = None,
+) -> List[str]:
+    input_abs = str(Path(input_path).resolve())
+    this_file = Path(__file__).resolve()
+    project_root = this_file.parent.parent
+    out_root = Path(os.getenv("NESSTAR_CONVERSION_OUTPUT_DIR") or str((project_root / "uploads").resolve())).resolve()
+    out_root.mkdir(parents=True, exist_ok=True)
+
+    timeout_sec = int(os.getenv("NESSTAR_CONVERSION_TIMEOUT_SEC") or "3600")
+    max_attempts = int(os.getenv("NESSTAR_MAX_ATTEMPTS") or "1")
+
+    update_job(job_id, job_type="nesstar_conversion", input_file_path=input_abs)
+    _set_nesstar_stage(job_id, "QUEUED")
+
+    last_err = None
+    run_info = None
+    for attempt in range(1, max_attempts + 1):
+        _set_nesstar_stage(job_id, "CONVERTING_WITH_NESSTAR")
+        run_info = await asyncio.to_thread(_run_nesstar_converter_streaming, job_id, input_abs, str(out_root), timeout_sec)
+
+        if int(run_info.get("returncode") or 1) != 0:
+            rc = int(run_info.get("returncode") or 1)
+            diag = "\n".join([str(run_info.get("stderr") or ""), str(run_info.get("stdout") or "")]).lower()
+            if "autoit export failed" in diag and "(exit=11)" in diag:
+                last_err = "Waiting for Nesstar file-open dialog…"
+            elif "autoit export failed" in diag and "(exit=20)" in diag:
+                last_err = "Export failed — Save dialog not completed"
+            elif "autoit export failed" in diag and "(exit=21)" in diag:
+                last_err = "Dataset file missing"
+            elif "autoit export failed" in diag and "(exit=22)" in diag:
+                last_err = "Metadata missing"
+            elif "nesstar export did not generate dataset" in diag:
+                last_err = "Dataset file missing"
+            elif "nesstar export did not generate metadata" in diag:
+                last_err = "Metadata missing"
+            else:
+                last_err = f"Nesstar conversion failed (code={rc})"
+            continue
+
+        picked = _pick_exported_files(out_root)
+        data_path = picked.get("data")
+        ddi_path = picked.get("ddi")
+
+        try:
+            meta_check = await asyncio.to_thread(_validate_converted_outputs, data_path, ddi_path)
+            out_paths: Dict[str, Any] = {"data": str(data_path), "output_dir": str(out_root), "meta": meta_check}
+            if ddi_path:
+                out_paths["ddi"] = str(ddi_path)
+            update_job(
+                job_id,
+                status="processing",
+                output_paths=out_paths,
+            )
+            break
+        except Exception as e:
+            last_err = str(e)
+            continue
+
+    if not run_info or int(run_info.get("returncode") or 1) != 0:
+        msg = last_err or "Nesstar conversion failed"
+        _set_nesstar_stage(job_id, "FAILED", message=msg)
+        update_job(job_id, error=msg)
+        raise ValueError(msg)
+
+    picked = _pick_exported_files(out_root)
+    data_path = picked.get("data")
+    ddi_path = picked.get("ddi")
+    if not data_path:
+        msg = last_err or "Converted outputs not found"
+        _set_nesstar_stage(job_id, "FAILED", message=msg)
+        update_job(job_id, error=msg)
+        raise ValueError(msg)
+
+    _set_nesstar_stage(job_id, "INGESTING")
+    try:
+        tables = await process_directory(out_root, db_url, schema, job_id, dataset_id, require_metadata=False)
+    except Exception as e:
+        _set_nesstar_stage(job_id, "FAILED", message="Ingestion failed")
+        update_job(job_id, error=str(e))
+        raise
+    _set_nesstar_stage(job_id, "COMPLETED")
+    return tables
 
 def _normalize_col_name(name: Any) -> str:
     return str(name).strip().lower()
@@ -156,11 +635,26 @@ def _maybe_format_month_year_columns(df: pd.DataFrame) -> pd.DataFrame:
 
 async def process_dataset_zip(zip_path: str, db_url: str, schema: str = "public", current_user_email: str = "system", job_id: str = None):
     """
-    Main entry point for processing a dataset ZIP file.
+    Main entry point for processing an uploaded dataset package (.zip or .nesstar).
     """
-    logger.info(f"Processing ZIP: {zip_path}")
+    package_ext = Path(zip_path).suffix.lower()
+    logger.info(f"Processing package: {zip_path}")
+
+    # FIX: Handle standalone files directly to bypass Nesstar/Zip logic
+    if package_ext in [".sav", ".por", ".csv", ".xlsx", ".txt"]:
+        if job_id:
+            update_job(job_id, status="processing", progress=5, message=f"Processing standalone file: {os.path.basename(zip_path)}")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            dest_file = temp_path / os.path.basename(zip_path)
+            shutil.copy2(zip_path, dest_file)
+            return await process_directory(temp_path, db_url, schema, job_id, require_metadata=False)
+
     if job_id:
-        update_job(job_id, status="processing", progress=2, message="Reading ZIP and checking for duplicates...")
+        if package_ext == ".nesstar":
+            update_job(job_id, status="processing", progress=2, message="Detected Nesstar Study upload. Reading package...")
+        else:
+            update_job(job_id, status="processing", progress=2, message="Reading ZIP and checking for duplicates...")
 
     zip_sha1 = _hash_file_sha1(zip_path)
     dataset_id = f"{schema}_{zip_sha1[:12]}"
@@ -169,18 +663,33 @@ async def process_dataset_zip(zip_path: str, db_url: str, schema: str = "public"
             pass
     except zipfile.BadZipFile:
         if job_id:
-            update_job(job_id, status="failed", progress=100, message="Invalid ZIP file", error="Invalid ZIP file")
+            if package_ext == ".nesstar":
+                update_job(
+                    job_id,
+                    status="failed",
+                    progress=100,
+                    message="Invalid .nesstar file (expected a zipped study package)",
+                    error="Invalid .nesstar file (expected a zipped study package)",
+                )
+            else:
+                update_job(job_id, status="failed", progress=100, message="Invalid ZIP file", error="Invalid ZIP file")
+        if package_ext == ".nesstar":
+            raise ValueError("Invalid .nesstar file (expected a zipped study package)")
         raise ValueError("Invalid ZIP file")
 
     if job_id:
         try:
             with zipfile.ZipFile(zip_path, 'r') as zf:
                 names = [n for n in zf.namelist() if n and not n.endswith('/')]
-            visible = [Path(n).name for n in names if Path(n).suffix.lower() in ['.xml', '.txt', '.csv', '.sav', '.xlsx']]
+            visible = [
+                Path(n).name
+                for n in names
+                if Path(n).suffix.lower() in [".xml", ".nsdstat", ".nesstar", ".txt", ".csv", ".sav", ".por", ".xlsx"]
+            ]
             file_status_list = [{"name": n, "status": "pending", "rows": 0} for n in sorted(set(visible))]
-            update_job(job_id, progress=5, message="ZIP opened. Preparing extraction...", files=file_status_list)
+            update_job(job_id, progress=5, message="Package opened. Preparing extraction...", files=file_status_list)
         except Exception:
-            update_job(job_id, progress=5, message="ZIP opened. Preparing extraction...")
+            update_job(job_id, progress=5, message="Package opened. Preparing extraction...")
     
     with tempfile.TemporaryDirectory() as extract_dir:
         extract_path = Path(extract_dir)
@@ -191,27 +700,102 @@ async def process_dataset_zip(zip_path: str, db_url: str, schema: str = "public"
                 zf.extractall(extract_path)
         except zipfile.BadZipFile:
             if job_id:
-                update_job(job_id, status="failed", progress=100, message="Invalid ZIP file", error="Invalid ZIP file")
+                if package_ext == ".nesstar":
+                    update_job(
+                        job_id,
+                        status="failed",
+                        progress=100,
+                        message="Invalid .nesstar file (expected a zipped study package)",
+                        error="Invalid .nesstar file (expected a zipped study package)",
+                    )
+                else:
+                    update_job(job_id, status="failed", progress=100, message="Invalid ZIP file", error="Invalid ZIP file")
+            if package_ext == ".nesstar":
+                raise ValueError("Invalid .nesstar file (expected a zipped study package)")
             raise ValueError("Invalid ZIP file")
 
         if job_id:
-            update_job(job_id, progress=8, message="ZIP extracted. Scanning contents...")
+            update_job(job_id, progress=8, message="Package extracted. Scanning contents...")
 
-        return await process_directory(extract_path, db_url, schema, job_id, dataset_id)
+        require_metadata = package_ext == ".nesstar"
+        return await process_directory(
+            extract_path,
+            db_url,
+            schema,
+            job_id,
+            dataset_id,
+            require_metadata=require_metadata,
+        )
 
-async def process_directory(directory: Path, db_url: str, schema: str = "public", job_id: str = None, dataset_id: Optional[str] = None):
+async def process_directory(
+    directory: Path,
+    db_url: str,
+    schema: str = "public",
+    job_id: str = None,
+    dataset_id: Optional[str] = None,
+    require_metadata: bool = False,
+):
     """
     Processes a directory containing dataset files (DDI + Data).
     """
     # 2. Identify Files
     files = [f for f in directory.rglob("*") if f.is_file()]
-    ddi_file = next((f for f in files if f.suffix.lower() == '.xml'), None)
-    data_files = [f for f in files if f.suffix.lower() in ['.txt', '.csv', '.sav', '.xlsx']]
+    nesstar_studies = [f for f in files if f.suffix.lower() == ".nesstar"]
+    ddi_candidates = [f for f in files if f.suffix.lower() in [".nsdstat", ".xml"]]
+    ddi_candidates.sort(key=lambda p: 0 if p.suffix.lower() == ".nsdstat" else 1)
+    has_nesstar_metadata = any(f.suffix.lower() == ".nsdstat" for f in ddi_candidates)
+    data_files = [f for f in files if f.suffix.lower() in [".txt", ".csv", ".sav", ".por", ".xlsx"]]
+
+    if nesstar_studies and (not ddi_candidates) and (not data_files):
+        if len(nesstar_studies) > 1:
+            if job_id:
+                update_job(
+                    job_id,
+                    status="failed",
+                    progress=100,
+                    message="Multiple .nesstar studies found in ZIP; upload a single study",
+                    error="Multiple .nesstar studies found in ZIP; upload a single study",
+                )
+            raise ValueError("Multiple .nesstar studies found in ZIP; upload a single study")
+
+        nested = nesstar_studies[0]
+        if job_id:
+            update_job(job_id, progress=10, message=f"Found Nesstar Study: {nested.name}. Extracting...")
+
+        try:
+            with zipfile.ZipFile(nested, "r") as zf:
+                with tempfile.TemporaryDirectory() as nested_dir:
+                    nested_path = Path(nested_dir)
+                    zf.extractall(nested_path)
+                    return await process_directory(
+                        nested_path,
+                        db_url,
+                        schema,
+                        job_id,
+                        dataset_id,
+                        require_metadata=True,
+                    )
+        except zipfile.BadZipFile:
+            if job_id:
+                update_job(
+                    job_id,
+                    status="failed",
+                    progress=100,
+                    message="Invalid .nesstar file (expected a zipped study package)",
+                    error="Invalid .nesstar file (expected a zipped study package)",
+                )
+            raise ValueError("Invalid .nesstar file (expected a zipped study package)")
     
     if not data_files:
         if job_id:
-            update_job(job_id, status="failed", progress=100, message="No data files (.txt, .csv, .sav, .xlsx) found", error="No data files (.txt, .csv, .sav, .xlsx) found")
-        raise ValueError("No data files (.txt, .csv, .sav, .xlsx) found")
+            update_job(
+                job_id,
+                status="failed",
+                progress=100,
+                message="No data files (.txt, .csv, .sav, .por, .xlsx) found",
+                error="No data files (.txt, .csv, .sav, .por, .xlsx) found",
+            )
+        raise ValueError("No data files (.txt, .csv, .sav, .por, .xlsx) found")
 
     # Initialize file status in job
     if job_id:
@@ -220,13 +804,70 @@ async def process_directory(directory: Path, db_url: str, schema: str = "public"
 
     # 3. Parse DDI (if present)
     ddi_metadata = None
-    if ddi_file:
+    ddi_file = None
+    for cand in ddi_candidates:
+        try:
+            if job_id:
+                update_job(job_id, progress=12, message=f"Parsing metadata: {cand.name}")
+            ddi_metadata = parse_ddi_xml(str(cand))
+            ddi_file = cand
+            break
+        except Exception as e:
+            logger.warning(f"Failed to parse metadata file {cand.name}: {e}")
+            continue
+
+    if require_metadata and not ddi_file:
         if job_id:
-            update_job(job_id, progress=12, message=f"Parsing DDI: {ddi_file.name}")
+            update_job(
+                job_id,
+                status="failed",
+                progress=100,
+                message="No metadata found in Nesstar Study package",
+                error="No metadata found in Nesstar Study package",
+            )
+        raise ValueError("No metadata found in Nesstar Study package")
+
+    if require_metadata and (not ddi_metadata or not ddi_metadata.get("variables")):
+        if job_id:
+            update_job(
+                job_id,
+                status="failed",
+                progress=100,
+                message="Metadata parsed but contains no variables",
+                error="Metadata parsed but contains no variables",
+            )
+        raise ValueError("Metadata parsed but contains no variables")
+
+    if has_nesstar_metadata and (not ddi_file or ddi_file.suffix.lower() != ".nsdstat"):
+        if job_id:
+            update_job(
+                job_id,
+                status="failed",
+                progress=100,
+                message="Nesstar metadata (.nsdstat) found but could not be parsed",
+                error="Nesstar metadata (.nsdstat) found but could not be parsed",
+            )
+        raise ValueError("Nesstar metadata (.nsdstat) found but could not be parsed")
+
+    if has_nesstar_metadata and (not ddi_metadata or not ddi_metadata.get("variables")):
+        if job_id:
+            update_job(
+                job_id,
+                status="failed",
+                progress=100,
+                message="Nesstar metadata parsed but contains no variables",
+                error="Nesstar metadata parsed but contains no variables",
+            )
+        raise ValueError("Nesstar metadata parsed but contains no variables")
+
+    if ddi_file and ddi_file.suffix.lower() == ".nsdstat":
+        logger.info(f"Detected Nesstar metadata: {ddi_file.name}")
+        if job_id:
+            update_job(job_id, progress=14, message="Detected Nesstar dataset metadata")
+    elif ddi_file:
         logger.info(f"Found DDI XML: {ddi_file.name}")
-        ddi_metadata = parse_ddi_xml(str(ddi_file))
     else:
-        logger.warning("No DDI XML found. Metadata will be limited.")
+        logger.warning("No DDI/Nesstar metadata found. Metadata will be limited.")
     
     if job_id:
         update_job(job_id, progress=20, message="Starting file processing...")
@@ -341,6 +982,17 @@ async def process_directory(directory: Path, db_url: str, schema: str = "public"
                             logger.warning(f"File {data_file.name} has {len(extra_in_data)} columns not in DDI.")
 
                     df = _enforce_ddi_types(df, ddi_metadata['variables'])
+
+                    if has_nesstar_metadata:
+                        ddi_norm = set(ddi_name_map.keys())
+                        df_norm = set(_normalize_col_name(c) for c in df.columns)
+                        matched = len(ddi_norm.intersection(df_norm))
+                        denom = max(len(ddi_norm), 1)
+                        match_ratio = matched / denom
+                        if match_ratio < 0.5:
+                            raise ValueError(
+                                f"Loaded data columns do not match Nesstar metadata (match_ratio={match_ratio:.2f})"
+                            )
 
                 # Upload to DB
                 if job_id:
@@ -486,6 +1138,10 @@ def _load_data_file(file_path: Path, ddi_metadata: Optional[Dict]) -> Optional[p
     
     elif ext == '.sav':
         df, meta = pyreadstat.read_sav(str(file_path))
+        return df
+
+    elif ext == ".por":
+        df, meta = pyreadstat.read_por(str(file_path))
         return df
     
     elif ext == '.csv':

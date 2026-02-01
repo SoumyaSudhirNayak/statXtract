@@ -717,7 +717,7 @@
                         <i class="fas fa-file-archive"></i> Dataset File (.zip)
                     </label>
                     <div class="file-input-wrapper" id="fileInputWrapper">
-                        <input type="file" name="file" id="fileInput" class="file-input" accept=".zip" required>
+                        <input type="file" name="file" id="fileInput" class="file-input" accept=".zip,.nesstar" required>
                         <div class="file-input-content">
                             <i class="fas fa-cloud-upload-alt file-input-icon"></i>
                             <div class="file-input-text">Drag & Drop your ZIP file here</div>
@@ -837,8 +837,9 @@
                 return;
             }
 
-            if (!file.name.endsWith('.zip')) {
-                showToast('Please select a valid ZIP file.', 'error');
+            const lower = file.name.toLowerCase();
+            if (!(lower.endsWith('.zip') || lower.endsWith('.nesstar'))) {
+                showToast('Please select a valid ZIP or Nesstar Study (.nesstar) file.', 'error');
                 return;
             }
 

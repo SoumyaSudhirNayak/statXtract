@@ -17,7 +17,7 @@ from dotenv import load_dotenv
 
 
 # Import your custom modules
-from utils.ingestion_pipeline import process_dataset_zip
+from utils.ingestion_pipeline import process_dataset_zip, convert_and_ingest_nesstar_binary_study, discover_nesstar_converter_exe
 from utils.db_init import ensure_core_tables
 from utils.metadata_helper import get_column_labels, apply_labels
 from utils.job_manager import create_job, get_job, update_job
@@ -61,6 +61,27 @@ async def lifespan(app: FastAPI):
     app.state.db = await asyncpg.create_pool(dsn=DB_URL, min_size=1, max_size=5)
     async with app.state.db.acquire() as conn:
         await ensure_core_tables(conn)
+
+    nesstar_exe = (os.getenv("NESSTAR_CONVERTER_EXE") or "").strip()
+    if not nesstar_exe or not os.path.exists(nesstar_exe):
+        nesstar_exe = discover_nesstar_converter_exe()
+        if nesstar_exe:
+            os.environ["NESSTAR_CONVERTER_EXE"] = nesstar_exe
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    default_nesstar_script = os.path.join(base_dir, "utils", "nesstar_convert.ps1")
+    nesstar_script = (os.getenv("NESSTAR_CONVERTER_SCRIPT") or default_nesstar_script).strip()
+    enabled = True
+    if not nesstar_exe or not os.path.exists(nesstar_exe):
+        print("❌ NESSTAR: NESSTAR_CONVERTER_EXE not set or path does not exist. .nesstar conversion is disabled.")
+        enabled = False
+    if not nesstar_script or not os.path.exists(nesstar_script):
+        print("❌ NESSTAR: NESSTAR_CONVERTER_SCRIPT not found. .nesstar conversion is disabled.")
+        enabled = False
+
+    app.state.nesstar_enabled = enabled
+    app.state.nesstar_exe = nesstar_exe
+    app.state.nesstar_script = nesstar_script
+
     yield
     print("🔻 Shutting down...")
     await app.state.db.close()
@@ -671,7 +692,24 @@ async def query_table(
 async def run_ingestion_job(job_id: str, zip_path: str, db_url: str, schema: str):
     """Background task wrapper for ingestion pipeline."""
     try:
-        await process_dataset_zip(zip_path, db_url, schema=schema, job_id=job_id)
+        ext = os.path.splitext(zip_path)[1].lower()
+        size = None
+        try:
+            size = os.path.getsize(zip_path)
+        except Exception:
+            size = None
+
+        threshold = int(os.getenv("NESSTAR_BINARY_THRESHOLD_BYTES") or str(100 * 1024 * 1024))
+        if ext == ".nesstar" and size is not None and size > threshold:
+            await convert_and_ingest_nesstar_binary_study(zip_path, db_url, schema=schema, job_id=job_id)
+        else:
+            try:
+                await process_dataset_zip(zip_path, db_url, schema=schema, job_id=job_id)
+            except Exception as e:
+                if ext == ".nesstar":
+                    await convert_and_ingest_nesstar_binary_study(zip_path, db_url, schema=schema, job_id=job_id)
+                else:
+                    raise e
     except Exception as e:
         print(f"❌ Job {job_id} failed: {e}")
         job = get_job(job_id)
@@ -691,6 +729,13 @@ async def run_ingestion_job(job_id: str, zip_path: str, db_url: str, schema: str
 
 @app.get("/admin/upload/status/{job_id}")
 async def get_upload_status(job_id: str, current_user=Depends(get_current_active_user_with_role(["1", "2"]))):
+    job = get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return job
+
+@app.get("/admin/nesstar/jobs/{job_id}")
+async def get_nesstar_job_status(job_id: str, current_user=Depends(get_current_active_user_with_role(["1"]))):
     job = get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -727,6 +772,12 @@ async def upload_dataset(
     ) or ("application/json" in (request.headers.get("accept") or "").lower())
 
     try:
+        if (file.filename or "").lower().endswith(".nesstar") and not getattr(request.app.state, "nesstar_enabled", False):
+            msg = "Nesstar conversion is disabled: configure NESSTAR_CONVERTER_EXE and NESSTAR_CONVERTER_SCRIPT"
+            if wants_json:
+                return JSONResponse({"error": msg}, status_code=400)
+            return f"<h3>❌ Upload failed: {msg}</h3>"
+
         # Create Job
         job_id = create_job(filename=file.filename)
         

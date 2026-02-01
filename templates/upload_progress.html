@@ -126,6 +126,9 @@
         
         .back-btn:hover { opacity: 0.9; }
         .back-btn.disabled { pointer-events: none; opacity: 0.5; background: #94a3b8; }
+        .step { padding: 8px 10px; border-radius: 10px; background: #f8fafc; border: 1px solid #e2e8f0; color: #64748b; }
+        .step.active { background: #dbeafe; border-color: #93c5fd; color: #1d4ed8; font-weight: 600; }
+        .step.done { background: #d1fae5; border-color: #6ee7b7; color: #065f46; }
 
     </style>
 </head>
@@ -141,6 +144,19 @@
         <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem;">
             <div id="status-message" class="status-message">Initializing...</div>
             <div id="time-remaining" class="status-message" style="font-weight: 500;"></div>
+        </div>
+        <div id="stage-row" class="status-message" style="margin-top: 0.25rem; display: none;">
+            Stage: <span id="current-stage" style="font-weight: 600;"></span>
+        </div>
+        <div id="steps" style="margin-top: 0.75rem; display: grid; gap: 6px;">
+            <div class="step" data-stage="QUEUED">Queued for conversion</div>
+            <div class="step" data-stage="CONVERTING_WITH_NESSTAR">Opening Nesstar study…</div>
+            <div class="step" data-stage="EXPORTING_ALL_DATASETS">Exporting ALL datasets (Shift+Ctrl+E)…</div>
+            <div class="step" data-stage="EXPORT_DIALOG_OPENED">Export dialog opened — waiting for Save confirmation…</div>
+            <div class="step" data-stage="SAVING_DATASETS">Saving exported dataset to workspace…</div>
+            <div class="step" data-stage="VALIDATING_EXPORTED_FILES">Export confirmed — validating file…</div>
+            <div class="step" data-stage="INGESTING">Loading into PostgreSQL…</div>
+            <div class="step" data-stage="COMPLETED">Dataset ready for querying</div>
         </div>
     </div>
 
@@ -162,6 +178,7 @@
     </div>
     
     <div id="error-container" style="color: var(--danger-color); margin-top: 1rem; display: none;"></div>
+    <pre id="log-container" style="margin-top: 1rem; white-space: pre-wrap; display: none;"></pre>
 
     <a href="/upload" id="done-btn" class="back-btn disabled">Upload Another File</a>
 </div>
@@ -176,6 +193,10 @@
     const fileTableBody = document.getElementById('file-table-body');
     const doneBtn = document.getElementById('done-btn');
     const errorContainer = document.getElementById('error-container');
+    const stageRow = document.getElementById('stage-row');
+    const currentStage = document.getElementById('current-stage');
+    const logContainer = document.getElementById('log-container');
+    const steps = Array.from(document.querySelectorAll('#steps .step'));
 
     let startTime = null;
 
@@ -189,9 +210,13 @@
     function getBadgeClass(status) {
         switch(status) {
             case 'pending': return 'badge-pending';
+            case 'queued': return 'badge-pending';
             case 'processing': return 'badge-processing';
             case 'parsing_ddi': return 'badge-processing';
             case 'extracting': return 'badge-processing';
+            case 'converting': return 'badge-loading_db';
+            case 'converted': return 'badge-completed';
+            case 'ingesting': return 'badge-processing';
             case 'loading_db': return 'badge-loading_db';
             case 'skipped': return 'badge-skipped';
             case 'completed': return 'badge-completed';
@@ -213,8 +238,27 @@
             progressBar.textContent = `${progress}%`;
             statusMsg.textContent = job.message;
 
+            const stage = job.current_state || '';
+            if (stage) {
+                stageRow.style.display = 'block';
+                currentStage.textContent = stage;
+            } else {
+                stageRow.style.display = 'none';
+                currentStage.textContent = '';
+            }
+
+            const idx = steps.findIndex(s => (s.getAttribute('data-stage') || '') === stage);
+            steps.forEach((el, i) => {
+                el.classList.remove('active');
+                el.classList.remove('done');
+                if (idx >= 0) {
+                    if (i < idx) el.classList.add('done');
+                    else if (i === idx) el.classList.add('active');
+                }
+            });
+
             // Calculate Time Remaining
-            if (job.status === 'processing' || job.status === 'loading_db') {
+            if (job.status === 'processing' || job.status === 'loading_db' || job.status === 'converting' || job.status === 'ingesting') {
                 if (!startTime) startTime = Date.now();
                 
                 if (progress > 0 && progress < 100) {
@@ -256,6 +300,16 @@
             if (job.errors && job.errors.length > 0) {
                 errorContainer.style.display = 'block';
                 errorContainer.innerHTML = '<strong>Errors:</strong><br>' + job.errors.join('<br>');
+            }
+            
+            const logs = job.log_messages || job.logs || [];
+            if (logs && logs.length > 0) {
+                logContainer.style.display = 'block';
+                const tail = logs.slice(-30);
+                logContainer.textContent = tail.join('\n');
+            } else {
+                logContainer.style.display = 'none';
+                logContainer.textContent = '';
             }
 
             // Check if done
