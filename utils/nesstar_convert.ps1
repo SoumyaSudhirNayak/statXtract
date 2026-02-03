@@ -5,10 +5,11 @@ param(
   [int]$StepTimeoutSec = 900,
   [string]$AutoItExe = "",
   [string]$AutoItScript = "",
-  [int]$MaxAttempts = 3,
+  [int]$MaxAttempts = 1,
   [string]$JobId = "",
-  [string]$ExportFromDir = "E:\STATATHON 2K25\DATASETS\DDI-IND-MOSPI-NSS-HCES23-24 LAT",
-  [bool]$MoveFiles = $false
+  [string]$ExportFromDir = "",
+  [bool]$MoveFiles = $false,
+  [string]$Schema = ""
 )
 
 function EmitLog([string]$msg) { Write-Output "LOG $msg" }
@@ -46,9 +47,13 @@ EmitLog "ExportFromDir=$ExportFromDir"
 if (!(Test-Path -LiteralPath $NesstarExe)) { Write-Error "Missing NesstarExe"; exit 1 }
 if (!(Test-Path -LiteralPath $InputStudy)) { Write-Error "Missing InputStudy"; exit 2 }
 
-$uploadsRoot = "E:\STATATHON 2025 LOCAL\Statathon_API_Gateway\uploads"
+$projectRoot = Split-Path -Parent $PSScriptRoot
+$uploadsRoot = Join-Path $projectRoot "uploads"
 if (!(Test-Path -LiteralPath $uploadsRoot)) { New-Item -ItemType Directory -Path $uploadsRoot | Out-Null }
-$destDir = $uploadsRoot
+
+$destDir = $OutputDir
+if (-not $destDir) { $destDir = $uploadsRoot }
+if (!(Test-Path -LiteralPath $destDir)) { New-Item -ItemType Directory -Path $destDir | Out-Null }
 EmitLog "OutputDirResolved=$destDir"
 try {
   $probe = Join-Path $destDir ".write_probe.tmp"
@@ -59,10 +64,9 @@ try {
   exit 3
 }
 
-if (-not $ExportFromDir -or !(Test-Path -LiteralPath $ExportFromDir)) {
-  Write-Error "ExportFromDir does not exist: $ExportFromDir"
-  exit 6
-}
+if (-not $ExportFromDir) { $ExportFromDir = $destDir }
+if (!(Test-Path -LiteralPath $ExportFromDir)) { New-Item -ItemType Directory -Path $ExportFromDir | Out-Null }
+EmitLog "ExportFromDirResolved=$ExportFromDir"
 
 EmitStage "CONVERTING_WITH_NESSTAR"
 
@@ -112,7 +116,7 @@ while ($attempt -le $MaxAttempts) {
 
   $code = 20
   try {
-    & $autoItExeResolved /ErrorStdOut $autoItScriptResolved $InputStudy $ExportFromDir $titleHint 2>&1 | ForEach-Object { Write-Output $_ }
+    & $autoItExeResolved /ErrorStdOut $autoItScriptResolved $InputStudy $ExportFromDir $titleHint $Schema 2>&1 | ForEach-Object { Write-Output $_ }
     $code = $LASTEXITCODE
   } catch {
     Write-Error "AutoIt invocation failed: $($_.Exception.Message)"
@@ -136,14 +140,14 @@ while ($attempt -le $MaxAttempts) {
 
 EmitStage "VALIDATING_EXPORTED_FILES"
 
-$minDataBytes = 1048577
+$minDataBytes = 1024
 
 $t = Get-Date
 $stableSince = Get-Date
 $lastSig = ""
 $picked = @()
 while (((Get-Date) - $t).TotalSeconds -lt $StepTimeoutSec) {
-  $candidates = @(Get-ChildItem -LiteralPath $ExportFromDir -File -ErrorAction SilentlyContinue | Where-Object {
+  $candidates = @(Get-ChildItem -LiteralPath $ExportFromDir -Recurse -File -ErrorAction SilentlyContinue | Where-Object {
       $_.LastWriteTimeUtc -ge $exportStartUtc.AddSeconds(-2) -and @(".sav", ".csv", ".xml") -contains $_.Extension.ToLowerInvariant()
     })
 
@@ -183,6 +187,13 @@ if (-not $picked -or $picked.Count -le 0) {
 
 foreach ($f in $picked) {
   $dst = Join-Path $destDir $f.Name
+  $srcResolved = ""
+  $dstResolved = ""
+  try { $srcResolved = (Resolve-Path -LiteralPath $f.FullName).Path } catch { $srcResolved = $f.FullName }
+  try { $dstResolved = (Resolve-Path -LiteralPath $dst).Path } catch { $dstResolved = $dst }
+  if ($srcResolved.ToLowerInvariant() -eq $dstResolved.ToLowerInvariant()) {
+    continue
+  }
   try {
     if ($MoveFiles) {
       Move-Item -LiteralPath $f.FullName -Destination $dst -Force

@@ -186,6 +186,7 @@
 <script>
     const jobId = "{{ job_id }}";
     const statusUrl = `/admin/upload/status/${jobId}`;
+    const eventsUrl = `/admin/upload/events/${jobId}`;
     
     const progressBar = document.getElementById('progress-bar');
     const statusMsg = document.getElementById('status-message');
@@ -199,6 +200,8 @@
     const steps = Array.from(document.querySelectorAll('#steps .step'));
 
     let startTime = null;
+    let isDone = false;
+    let eventSource = null;
 
     function formatTime(seconds) {
         if (seconds < 60) return `${Math.ceil(seconds)}s`;
@@ -208,7 +211,8 @@
     }
 
     function getBadgeClass(status) {
-        switch(status) {
+        const s = String(status || '').toLowerCase();
+        switch(s) {
             case 'pending': return 'badge-pending';
             case 'queued': return 'badge-pending';
             case 'processing': return 'badge-processing';
@@ -225,108 +229,139 @@
         }
     }
 
+    function applyJob(job) {
+        const jobStatus = String(job.status || '').toLowerCase();
+        const jobState = String(job.current_state || '').toLowerCase();
+        const isCompleted = jobStatus === 'completed' || jobState === 'completed';
+        const isFailed = jobStatus === 'failed' || jobState === 'failed';
+        let progress = job.progress || 0;
+
+        if (isCompleted) progress = 100;
+
+        progressBar.style.width = `${progress}%`;
+        progressBar.textContent = `${progress}%`;
+        statusMsg.textContent = job.message || job.error || "Processing...";
+
+        let stage = String(job.current_state || '').toUpperCase();
+        if (isCompleted) {
+            stage = 'COMPLETED';
+            statusMsg.textContent = 'Ingestion complete';
+        }
+
+        if (stage) {
+            stageRow.style.display = 'block';
+            currentStage.textContent = stage;
+        } else {
+            stageRow.style.display = 'none';
+            currentStage.textContent = '';
+        }
+
+        const idx = steps.findIndex(s => (s.getAttribute('data-stage') || '') === stage);
+        steps.forEach((el, i) => {
+            el.classList.remove('active');
+            el.classList.remove('done');
+            if (idx >= 0) {
+                if (i < idx) el.classList.add('done');
+                else if (i === idx) el.classList.add('active');
+            }
+        });
+
+        if (jobStatus === 'processing' || jobStatus === 'loading_db' || jobStatus === 'converting' || jobStatus === 'ingesting') {
+            if (!startTime) startTime = Date.now();
+
+            if (progress > 0 && progress < 100) {
+                const elapsed = (Date.now() - startTime) / 1000;
+                const estimatedTotal = elapsed / (progress / 100);
+                const remaining = estimatedTotal - elapsed;
+
+                if (remaining > 0 && isFinite(remaining)) {
+                    timeRemainingMsg.textContent = `Est. remaining: ${formatTime(remaining)}`;
+                } else {
+                    timeRemainingMsg.textContent = "Calculating...";
+                }
+            }
+        } else if (isCompleted) {
+            timeRemainingMsg.textContent = "Completed";
+        } else if (jobStatus === 'pending' || jobStatus === 'initialized' || jobStatus === 'queued') {
+            timeRemainingMsg.textContent = "Starting...";
+        }
+
+        fileTableBody.innerHTML = '';
+        if (job.files) {
+            job.files.forEach(file => {
+                const row = document.createElement('tr');
+                const fileStatus = String(file.status || '').toLowerCase();
+                const badgeClass = getBadgeClass(fileStatus);
+                row.innerHTML = `
+                    <td>${file.name}</td>
+                    <td><span class="badge ${badgeClass}">${fileStatus.replace('_', ' ').toUpperCase()}</span></td>
+                    <td>${file.rows || 0}</td>
+                    <td>${file.error || (fileStatus === 'completed' ? '✅' : '...')}</td>
+                `;
+                fileTableBody.appendChild(row);
+            });
+        }
+
+        if (job.errors && job.errors.length > 0) {
+            errorContainer.style.display = 'block';
+            errorContainer.innerHTML = '<strong>Errors:</strong><br>' + job.errors.join('<br>');
+        }
+
+        const logs = job.log_messages || job.logs || [];
+        if (logs && logs.length > 0) {
+            logContainer.style.display = 'block';
+            const tail = logs.slice(-30);
+            logContainer.textContent = tail.join('\n');
+        } else {
+            logContainer.style.display = 'none';
+            logContainer.textContent = '';
+        }
+
+        if (isCompleted || isFailed) {
+            isDone = true;
+            doneBtn.classList.remove('disabled');
+            doneBtn.textContent = isCompleted ? "Upload Another File" : "Back to Upload";
+            if (isCompleted) {
+                progressBar.style.background = 'var(--success-color)';
+            } else {
+                progressBar.style.background = 'var(--danger-color)';
+            }
+            if (eventSource) {
+                try { eventSource.close(); } catch (e) {}
+                eventSource = null;
+            }
+        }
+    }
+
+    function startSse() {
+        try {
+            eventSource = new EventSource(eventsUrl);
+            eventSource.onmessage = function (event) {
+                if (!event || !event.data) return;
+                try {
+                    const job = JSON.parse(event.data);
+                    if (job && job.error) return;
+                    applyJob(job);
+                } catch (e) {}
+            };
+            eventSource.onerror = function () {
+                try { eventSource.close(); } catch (e) {}
+                eventSource = null;
+            };
+        } catch (e) {}
+    }
+
     async function pollStatus() {
+        if (isDone) return;
         try {
             const response = await fetch(statusUrl);
             if (!response.ok) throw new Error("Failed to fetch status");
-            
+
             const job = await response.json();
-            
-            // Update Progress
-            const progress = job.progress || 0;
-            progressBar.style.width = `${progress}%`;
-            progressBar.textContent = `${progress}%`;
-            statusMsg.textContent = job.message;
+            applyJob(job);
 
-            const stage = job.current_state || '';
-            if (stage) {
-                stageRow.style.display = 'block';
-                currentStage.textContent = stage;
-            } else {
-                stageRow.style.display = 'none';
-                currentStage.textContent = '';
-            }
-
-            const idx = steps.findIndex(s => (s.getAttribute('data-stage') || '') === stage);
-            steps.forEach((el, i) => {
-                el.classList.remove('active');
-                el.classList.remove('done');
-                if (idx >= 0) {
-                    if (i < idx) el.classList.add('done');
-                    else if (i === idx) el.classList.add('active');
-                }
-            });
-
-            // Calculate Time Remaining
-            if (job.status === 'processing' || job.status === 'loading_db' || job.status === 'converting' || job.status === 'ingesting') {
-                if (!startTime) startTime = Date.now();
-                
-                if (progress > 0 && progress < 100) {
-                    const elapsed = (Date.now() - startTime) / 1000; // seconds
-                    // estimatedTotal = elapsed / (progress / 100)
-                    // remaining = estimatedTotal - elapsed
-                    const estimatedTotal = elapsed / (progress / 100);
-                    const remaining = estimatedTotal - elapsed;
-                    
-                    if (remaining > 0 && isFinite(remaining)) {
-                         timeRemainingMsg.textContent = `Est. remaining: ${formatTime(remaining)}`;
-                    } else {
-                        timeRemainingMsg.textContent = "Calculating...";
-                    }
-                }
-            } else if (job.status === 'completed') {
-                timeRemainingMsg.textContent = "Completed";
-            } else if (job.status === 'pending') {
-                 timeRemainingMsg.textContent = "Starting...";
-            }
-
-            // Update Files
-            fileTableBody.innerHTML = '';
-            if (job.files) {
-                job.files.forEach(file => {
-                    const row = document.createElement('tr');
-                    const badgeClass = getBadgeClass(file.status);
-                    row.innerHTML = `
-                        <td>${file.name}</td>
-                        <td><span class="badge ${badgeClass}">${file.status.replace('_', ' ').toUpperCase()}</span></td>
-                        <td>${file.rows || 0}</td>
-                        <td>${file.error || (file.status === 'completed' ? '✅' : '...')}</td>
-                    `;
-                    fileTableBody.appendChild(row);
-                });
-            }
-
-            // Update Errors
-            if (job.errors && job.errors.length > 0) {
-                errorContainer.style.display = 'block';
-                errorContainer.innerHTML = '<strong>Errors:</strong><br>' + job.errors.join('<br>');
-            }
-            
-            const logs = job.log_messages || job.logs || [];
-            if (logs && logs.length > 0) {
-                logContainer.style.display = 'block';
-                const tail = logs.slice(-30);
-                logContainer.textContent = tail.join('\n');
-            } else {
-                logContainer.style.display = 'none';
-                logContainer.textContent = '';
-            }
-
-            // Check if done
-            if (job.status === 'completed' || job.status === 'failed') {
-                doneBtn.classList.remove('disabled');
-                doneBtn.textContent = job.status === 'completed' ? "Upload Another File" : "Back to Upload";
-                if (job.status === 'completed') {
-                    progressBar.style.background = 'var(--success-color)';
-                } else {
-                    progressBar.style.background = 'var(--danger-color)';
-                }
-                return; // Stop polling
-            }
-
-            // Continue polling
+            if (isDone) return;
             setTimeout(pollStatus, 1000);
-
         } catch (e) {
             console.error(e);
             statusMsg.textContent = "Error polling status";
@@ -334,7 +369,7 @@
         }
     }
 
-    // Start polling
+    startSse();
     pollStatus();
 </script>
 

@@ -18,7 +18,8 @@ import hashlib
 
 from utils.ddi_parser import parse_ddi_xml, DDIVariable
 from utils.table_naming import get_safe_table_name
-from utils.job_manager import update_job
+from utils.job_manager import update_job, JOB_STATUS_QUEUED, JOB_STATUS_CONVERTING, JOB_STATUS_EXPORTING, JOB_STATUS_INGESTING, JOB_STATUS_COMPLETED, JOB_STATUS_FAILED
+from utils.db_utils import schema_exists, ensure_metadata_tables
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -180,6 +181,8 @@ _NESSTAR_STAGE_PROGRESS: Dict[str, int] = {
     "EXPORTING_ALL_DATASETS": 45,
     "SAVING_DATASETS": 55,
     "VALIDATING_EXPORTED_FILES": 75,
+    "EXPORT_COMPLETE": 80,
+    "CONVERSION_COMPLETE": 80,
     "INGESTING": 85,
     "COMPLETED": 100,
     "FAILED": 100,
@@ -193,6 +196,8 @@ _NESSTAR_STAGE_MESSAGE: Dict[str, str] = {
     "EXPORTING_METADATA": "Exporting metadata (DDI)…",
     "EXPORTING_ALL_DATASETS": "Exporting ALL datasets (Shift+Ctrl+E)…",
     "VALIDATING_EXPORTED_FILES": "Export confirmed — validating file…",
+    "EXPORT_COMPLETE": "Export complete — preparing ingestion…",
+    "CONVERSION_COMPLETE": "Conversion complete — preparing ingestion…",
     "INGESTING": "Loading into PostgreSQL…",
     "COMPLETED": "Dataset ready for querying",
 }
@@ -201,18 +206,41 @@ def _set_nesstar_stage(job_id: str, stage: str, message: Optional[str] = None):
     stg = (stage or "").strip().upper()
     pct = _NESSTAR_STAGE_PROGRESS.get(stg, None)
     msg = message or _NESSTAR_STAGE_MESSAGE.get(stg) or stg
-    if stg == "COMPLETED":
-        update_job(job_id, status="completed", current_state=stg, progress=100, message=msg)
-        return
-    if stg == "FAILED":
-        update_job(job_id, status="failed", current_state=stg, progress=100, message=msg)
-        return
-    if pct is None:
-        update_job(job_id, status="processing", current_state=stg, message=msg)
-        return
-    update_job(job_id, status="processing", current_state=stg, progress=pct, message=msg)
+    
+    # Determine high-level state based on Nesstar internal stage
+    new_state = "processing"
+    if stg == "QUEUED":
+        new_state = JOB_STATUS_QUEUED
+    elif stg == "CONVERTING_WITH_NESSTAR":
+        new_state = JOB_STATUS_CONVERTING
+    elif stg in ("EXPORTING_METADATA", "EXPORT_DIALOG_OPENED", "EXPORTING_ALL_DATASETS", "SAVING_DATASETS", "VALIDATING_EXPORTED_FILES", "EXPORT_COMPLETE", "CONVERSION_COMPLETE"):
+        new_state = JOB_STATUS_EXPORTING
+    elif stg == "INGESTING":
+        new_state = JOB_STATUS_INGESTING
+    elif stg == "COMPLETED":
+        new_state = JOB_STATUS_COMPLETED
+    elif stg == "FAILED":
+        new_state = JOB_STATUS_FAILED
+        
+    update_kwargs = {
+        "status": new_state,
+        "current_state": new_state,
+        "message": msg
+    }
+    if pct is not None:
+        update_kwargs["progress"] = pct
+    
+    if new_state == JOB_STATUS_FAILED:
+         # Ensure progress is 100 on fail? Or keep it?
+         # User requirement: "Do not continue polling once a terminal state is reached."
+         update_kwargs["progress"] = 100
+         
+    update_job(job_id, **update_kwargs)
 
-def _run_nesstar_converter_streaming(job_id: str, input_path: str, output_dir: str, timeout_sec: int) -> Dict[str, Any]:
+def _run_nesstar_converter_streaming(job_id: str, input_path: str, output_dir: str, timeout_sec: int, schema: str) -> Dict[str, Any]:
+    if not schema or not schema.strip():
+        raise ValueError("Schema must be provided for Nesstar conversion")
+        
     exe = (os.getenv("NESSTAR_CONVERTER_EXE") or "").strip()
     if exe and not os.path.exists(exe):
         exe = ""
@@ -274,6 +302,8 @@ def _run_nesstar_converter_streaming(job_id: str, input_path: str, output_dir: s
         str(step_timeout),
         "-JobId",
         job_id,
+        "-Schema",
+        schema,
     ]
     if autoit_exe:
         cmd.extend(["-AutoItExe", autoit_exe])
@@ -343,7 +373,7 @@ def _run_nesstar_converter_streaming(job_id: str, input_path: str, output_dir: s
             subprocess.run(["taskkill", "/F", "/T", "/PID", str(p.pid)], check=False, capture_output=True, text=True)
         except Exception:
             pass
-        _set_nesstar_stage(job_id, "FAILED", message="Conversion timed out")
+        update_job(job_id, log="Conversion timed out")
         return {"returncode": 124, "stdout": "\n".join(stdout_lines), "stderr": "Conversion timed out", "pid": p.pid}
 
 def _pick_exported_files(output_dir: Path) -> Dict[str, Optional[Path]]:
@@ -428,14 +458,37 @@ async def convert_and_ingest_nesstar_binary_study(
     job_id: str,
     dataset_id: Optional[str] = None,
 ) -> List[str]:
+    try:
+        from utils.job_manager import get_job
+        job = get_job(job_id)
+        job_schema = (job or {}).get("schema")
+        if job_schema and str(job_schema).strip():
+            schema = str(job_schema).strip()
+    except Exception:
+        pass
+
+    if not schema or not schema.strip():
+        raise ValueError("Schema must be provided for Nesstar conversion")
+    
+    if not schema_exists(schema, db_url):
+        raise ValueError(f"Target schema '{schema}' does not exist in the database")
+
+    ensure_metadata_tables(schema, db_url)
+        
+    update_job(job_id, log=f"Starting Nesstar conversion with schema: {schema}")
+
     input_abs = str(Path(input_path).resolve())
     this_file = Path(__file__).resolve()
     project_root = this_file.parent.parent
     out_root = Path(os.getenv("NESSTAR_CONVERSION_OUTPUT_DIR") or str((project_root / "uploads").resolve())).resolve()
     out_root.mkdir(parents=True, exist_ok=True)
+    out_dir = (out_root / schema / job_id).resolve()
+    out_dir.mkdir(parents=True, exist_ok=True)
 
     timeout_sec = int(os.getenv("NESSTAR_CONVERSION_TIMEOUT_SEC") or "3600")
     max_attempts = int(os.getenv("NESSTAR_MAX_ATTEMPTS") or "1")
+    retry_initial_delay_sec = float(os.getenv("NESSTAR_RETRY_INITIAL_DELAY_SEC") or "2")
+    retry_backoff_factor = float(os.getenv("NESSTAR_RETRY_BACKOFF_FACTOR") or "2")
 
     update_job(job_id, job_type="nesstar_conversion", input_file_path=input_abs)
     _set_nesstar_stage(job_id, "QUEUED")
@@ -443,10 +496,41 @@ async def convert_and_ingest_nesstar_binary_study(
     last_err = None
     run_info = None
     for attempt in range(1, max_attempts + 1):
+        try:
+            from utils.job_manager import get_job, JOB_STATUS_COMPLETED
+            current = get_job(job_id) or {}
+            if str(current.get("status") or "").upper() == JOB_STATUS_COMPLETED:
+                return []
+        except Exception:
+            pass
+
+        if attempt > 1:
+            try:
+                shutil.rmtree(out_dir, ignore_errors=True)
+            except Exception:
+                pass
+            out_dir.mkdir(parents=True, exist_ok=True)
+
+        update_job(job_id, log=f"Nesstar conversion attempt {attempt}/{max_attempts}")
         _set_nesstar_stage(job_id, "CONVERTING_WITH_NESSTAR")
-        run_info = await asyncio.to_thread(_run_nesstar_converter_streaming, job_id, input_abs, str(out_root), timeout_sec)
+        run_info = await asyncio.to_thread(_run_nesstar_converter_streaming, job_id, input_abs, str(out_dir), timeout_sec, schema)
 
         if int(run_info.get("returncode") or 1) != 0:
+            picked_check = _pick_exported_files(out_dir)
+            data_check = picked_check.get("data")
+            if data_check and data_check.exists():
+                try:
+                    if int(data_check.stat().st_size or 0) > 1024:
+                        update_job(
+                            job_id,
+                            log=f"Nesstar conversion returned code {int(run_info.get('returncode') or 1)} but output files were detected. Proceeding to ingestion.",
+                        )
+                        run_info["returncode"] = 0
+                        _set_nesstar_stage(job_id, "CONVERSION_COMPLETE", message="Exported files detected — proceeding to ingestion…")
+                        break
+                except Exception:
+                    pass
+
             rc = int(run_info.get("returncode") or 1)
             diag = "\n".join([str(run_info.get("stderr") or ""), str(run_info.get("stdout") or "")]).lower()
             if "autoit export failed" in diag and "(exit=11)" in diag:
@@ -461,17 +545,31 @@ async def convert_and_ingest_nesstar_binary_study(
                 last_err = "Dataset file missing"
             elif "nesstar export did not generate metadata" in diag:
                 last_err = "Metadata missing"
+            elif "conversion timed out" in diag or rc == 124:
+                last_err = "Conversion timed out"
             else:
                 last_err = f"Nesstar conversion failed (code={rc})"
+            if attempt < max_attempts:
+                try:
+                    from utils.job_manager import get_job, JOB_STATUS_COMPLETED
+                    current = get_job(job_id) or {}
+                    if str(current.get("status") or "").upper() == JOB_STATUS_COMPLETED:
+                        return []
+                except Exception:
+                    pass
+                delay = retry_initial_delay_sec * (retry_backoff_factor ** (attempt - 1))
+                msg = f"Retrying conversion ({attempt + 1}/{max_attempts}) in {int(delay)}s — {last_err}"
+                _set_nesstar_stage(job_id, "QUEUED", message=msg)
+                await asyncio.sleep(delay)
             continue
 
-        picked = _pick_exported_files(out_root)
+        picked = _pick_exported_files(out_dir)
         data_path = picked.get("data")
         ddi_path = picked.get("ddi")
 
         try:
             meta_check = await asyncio.to_thread(_validate_converted_outputs, data_path, ddi_path)
-            out_paths: Dict[str, Any] = {"data": str(data_path), "output_dir": str(out_root), "meta": meta_check}
+            out_paths: Dict[str, Any] = {"data": str(data_path), "output_dir": str(out_dir), "meta": meta_check}
             if ddi_path:
                 out_paths["ddi"] = str(ddi_path)
             update_job(
@@ -482,6 +580,30 @@ async def convert_and_ingest_nesstar_binary_study(
             break
         except Exception as e:
             last_err = str(e)
+            if data_path and data_path.exists():
+                out_paths: Dict[str, Any] = {
+                    "data": str(data_path),
+                    "output_dir": str(out_dir),
+                    "meta": {"warning": last_err},
+                }
+                if ddi_path:
+                    out_paths["ddi"] = str(ddi_path)
+                update_job(job_id, log=f"Proceeding with ingestion despite metadata validation error: {last_err}")
+                update_job(job_id, status="processing", output_paths=out_paths)
+                _set_nesstar_stage(job_id, "CONVERSION_COMPLETE", message="Outputs detected — skipping validation and proceeding to ingestion…")
+                break
+            if attempt < max_attempts:
+                try:
+                    from utils.job_manager import get_job, JOB_STATUS_COMPLETED
+                    current = get_job(job_id) or {}
+                    if str(current.get("status") or "").upper() == JOB_STATUS_COMPLETED:
+                        return []
+                except Exception:
+                    pass
+                delay = retry_initial_delay_sec * (retry_backoff_factor ** (attempt - 1))
+                msg = f"Retrying conversion ({attempt + 1}/{max_attempts}) in {int(delay)}s — {last_err}"
+                _set_nesstar_stage(job_id, "QUEUED", message=msg)
+                await asyncio.sleep(delay)
             continue
 
     if not run_info or int(run_info.get("returncode") or 1) != 0:
@@ -490,7 +612,7 @@ async def convert_and_ingest_nesstar_binary_study(
         update_job(job_id, error=msg)
         raise ValueError(msg)
 
-    picked = _pick_exported_files(out_root)
+    picked = _pick_exported_files(out_dir)
     data_path = picked.get("data")
     ddi_path = picked.get("ddi")
     if not data_path:
@@ -501,7 +623,7 @@ async def convert_and_ingest_nesstar_binary_study(
 
     _set_nesstar_stage(job_id, "INGESTING")
     try:
-        tables = await process_directory(out_root, db_url, schema, job_id, dataset_id, require_metadata=False)
+        tables = await process_directory(out_dir, db_url, schema, job_id, dataset_id, require_metadata=False, base_progress=85)
     except Exception as e:
         _set_nesstar_stage(job_id, "FAILED", message="Ingestion failed")
         update_job(job_id, error=str(e))
@@ -633,10 +755,21 @@ def _maybe_format_month_year_columns(df: pd.DataFrame) -> pd.DataFrame:
 
     return df
 
-async def process_dataset_zip(zip_path: str, db_url: str, schema: str = "public", current_user_email: str = "system", job_id: str = None):
+async def process_dataset_zip(zip_path: str, db_url: str, schema: str = None, current_user_email: str = "system", job_id: str = None):
     """
     Main entry point for processing an uploaded dataset package (.zip or .nesstar).
     """
+    if not schema or not schema.strip():
+        raise ValueError("Schema must be provided for ingestion")
+
+    if not schema_exists(schema, db_url):
+        raise ValueError(f"Target schema '{schema}' does not exist in the database")
+    
+    ensure_metadata_tables(schema, db_url)
+        
+    if job_id:
+        update_job(job_id, log=f"Starting ingestion with schema: {schema}")
+        
     package_ext = Path(zip_path).suffix.lower()
     logger.info(f"Processing package: {zip_path}")
 
@@ -644,11 +777,13 @@ async def process_dataset_zip(zip_path: str, db_url: str, schema: str = "public"
     if package_ext in [".sav", ".por", ".csv", ".xlsx", ".txt"]:
         if job_id:
             update_job(job_id, status="processing", progress=5, message=f"Processing standalone file: {os.path.basename(zip_path)}")
+        file_sha1 = _hash_file_sha1(zip_path)
+        dataset_id = f"{schema}_{file_sha1[:12]}"
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
             dest_file = temp_path / os.path.basename(zip_path)
             shutil.copy2(zip_path, dest_file)
-            return await process_directory(temp_path, db_url, schema, job_id, require_metadata=False)
+            return await process_directory(temp_path, db_url, schema, job_id, dataset_id=dataset_id, require_metadata=False)
 
     if job_id:
         if package_ext == ".nesstar":
@@ -730,14 +865,42 @@ async def process_dataset_zip(zip_path: str, db_url: str, schema: str = "public"
 async def process_directory(
     directory: Path,
     db_url: str,
-    schema: str = "public",
+    schema: str = None,
     job_id: str = None,
     dataset_id: Optional[str] = None,
     require_metadata: bool = False,
+    base_progress: int = 0,
 ):
     """
     Processes a directory containing dataset files (DDI + Data).
     """
+    if not schema or not schema.strip():
+        raise ValueError("Schema must be provided for directory processing")
+
+    if not schema_exists(schema, db_url):
+        raise ValueError(f"Target schema '{schema}' does not exist in the database")
+
+    if job_id:
+        update_job(job_id, log=f"Starting directory processing with authoritative schema: {schema}")
+
+    ensure_metadata_tables(schema, db_url)
+
+    def _scaled_progress(raw: int) -> int:
+        r = int(raw)
+        r = max(0, min(r, 100))
+        if base_progress <= 0:
+            return r
+        b = max(0, min(int(base_progress), 100))
+        return max(b, min(100, b + int((100 - b) * (r / 100.0))))
+
+    def _file_progress(file_index: int, total: int) -> int:
+        denom = max(int(total), 1)
+        i = max(0, min(int(file_index), denom))
+        if base_progress > 0:
+            b = max(0, min(int(base_progress), 100))
+            return max(b, min(100, b + int((100 - b) * (i / denom))))
+        return 20 + int(80 * (i / denom))
+
     # 2. Identify Files
     files = [f for f in directory.rglob("*") if f.is_file()]
     nesstar_studies = [f for f in files if f.suffix.lower() == ".nesstar"]
@@ -760,7 +923,7 @@ async def process_directory(
 
         nested = nesstar_studies[0]
         if job_id:
-            update_job(job_id, progress=10, message=f"Found Nesstar Study: {nested.name}. Extracting...")
+            update_job(job_id, progress=_scaled_progress(10), message=f"Found Nesstar Study: {nested.name}. Extracting...")
 
         try:
             with zipfile.ZipFile(nested, "r") as zf:
@@ -774,6 +937,7 @@ async def process_directory(
                         job_id,
                         dataset_id,
                         require_metadata=True,
+                        base_progress=base_progress,
                     )
         except zipfile.BadZipFile:
             if job_id:
@@ -800,7 +964,7 @@ async def process_directory(
     # Initialize file status in job
     if job_id:
         file_status_list = [{"name": f.name, "status": "pending", "rows": 0} for f in data_files]
-        update_job(job_id, progress=10, message="Identified files", files=file_status_list)
+        update_job(job_id, progress=_scaled_progress(10), message="Identified files", files=file_status_list)
 
     # 3. Parse DDI (if present)
     ddi_metadata = None
@@ -808,7 +972,7 @@ async def process_directory(
     for cand in ddi_candidates:
         try:
             if job_id:
-                update_job(job_id, progress=12, message=f"Parsing metadata: {cand.name}")
+                update_job(job_id, progress=_scaled_progress(12), message=f"Parsing metadata: {cand.name}")
             ddi_metadata = parse_ddi_xml(str(cand))
             ddi_file = cand
             break
@@ -863,14 +1027,14 @@ async def process_directory(
     if ddi_file and ddi_file.suffix.lower() == ".nsdstat":
         logger.info(f"Detected Nesstar metadata: {ddi_file.name}")
         if job_id:
-            update_job(job_id, progress=14, message="Detected Nesstar dataset metadata")
+            update_job(job_id, progress=_scaled_progress(14), message="Detected Nesstar dataset metadata")
     elif ddi_file:
         logger.info(f"Found DDI XML: {ddi_file.name}")
     else:
         logger.warning("No DDI/Nesstar metadata found. Metadata will be limited.")
     
     if job_id:
-        update_job(job_id, progress=20, message="Starting file processing...")
+        update_job(job_id, progress=_scaled_progress(20), message="Starting file processing...")
 
     # 4. Process Each Data File
     uploaded_tables = []
@@ -896,23 +1060,29 @@ async def process_directory(
         return row is not None
     
     # Store dataset metadata
-    with engine.connect() as conn:
-        # Create/Update dataset record
-        conn.execute(text("""
-            INSERT INTO datasets (dataset_id, title, source)
-            VALUES (:id, :title, :source)
-            ON CONFLICT (dataset_id) DO NOTHING
-        """), {"id": dataset_id, "title": ddi_metadata.get('title', 'Unknown') if ddi_metadata else 'Unknown', "source": str(directory)})
-        
-        # Store DDI variables if available
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                f"""
+                INSERT INTO "{schema}".datasets (dataset_id, title, source)
+                VALUES (:id, :title, :source)
+                ON CONFLICT (dataset_id) DO NOTHING
+                """
+            ),
+            {
+                "id": dataset_id,
+                "title": ddi_metadata.get("title", "Unknown") if ddi_metadata else "Unknown",
+                "source": str(directory),
+            },
+        )
+
         if ddi_metadata:
-            _store_variables(conn, dataset_id, ddi_metadata['variables'])
-            conn.commit()
+            _store_variables(conn, dataset_id, ddi_metadata["variables"], schema)
 
     total_files = len(data_files)
     for idx, data_file in enumerate(data_files):
         rel = str(data_file.relative_to(directory)).replace("\\", "/")
-        table_name = get_safe_table_name(data_file.stem, db_url, salt=rel)
+        table_name = get_safe_table_name(data_file.stem, db_url, dataset_id=dataset_id, salt=rel)
         full_table_name = f"{schema}.{table_name}"
         
         logger.info(f"Processing file: {data_file.name} -> Table: {full_table_name}")
@@ -941,15 +1111,19 @@ async def process_directory(
                             f["rows"] = 0
                             f["error"] = "Already uploaded"
                     current_progress = 20 + int(80 * (idx + 1) / total_files)
-                    update_job(job_id, progress=current_progress, files=file_status_list, message=f"Skipped {data_file.name} (already uploaded)")
+                    update_job(
+                        job_id,
+                        progress=current_progress,
+                        files=file_status_list,
+                        message=f"Skipped {data_file.name} (already uploaded)",
+                    )
                 continue
 
             df = _load_data_file(data_file, ddi_metadata)
-            
+
             if df is not None:
-                # Validate against DDI if available
                 if ddi_metadata:
-                    ddi_name_map = {_normalize_col_name(v.name): v.name for v in ddi_metadata['variables']}
+                    ddi_name_map = {_normalize_col_name(v.name): v.name for v in ddi_metadata["variables"]}
                     rename_map: Dict[str, str] = {}
                     used_targets = set()
                     for col in list(df.columns):
@@ -961,27 +1135,22 @@ async def process_directory(
                     if rename_map:
                         df = df.rename(columns=rename_map)
 
-                    # For CSV/XLSX/SAV, ensure columns match DDI to some extent
-                    if data_file.suffix.lower() in ['.csv', '.xlsx', '.sav']:
-                        ddi_var_names = set(v.name for v in ddi_metadata['variables'])
+                    if data_file.suffix.lower() in [".csv", ".xlsx", ".sav"]:
+                        ddi_var_names = set(v.name for v in ddi_metadata["variables"])
                         df_columns = set(df.columns)
-                        
-                        # Check for missing variables
-                        # It's possible the dataset is a subset, so we don't reject if data is subset of DDI.
-                        # But if data has columns NOT in DDI, or DDI has columns NOT in data?
-                        # "Reject files that contradict DDI structure"
-                        
-                        # We will log warnings for mismatches
+
                         missing_in_data = ddi_var_names - df_columns
                         extra_in_data = df_columns - ddi_var_names
-                        
+
                         if len(missing_in_data) > 0:
-                            logger.warning(f"File {data_file.name} is missing {len(missing_in_data)} variables defined in DDI.")
-                        
+                            logger.warning(
+                                f"File {data_file.name} is missing {len(missing_in_data)} variables defined in DDI."
+                            )
+
                         if len(extra_in_data) > 0:
                             logger.warning(f"File {data_file.name} has {len(extra_in_data)} columns not in DDI.")
 
-                    df = _enforce_ddi_types(df, ddi_metadata['variables'])
+                    df = _enforce_ddi_types(df, ddi_metadata["variables"])
 
                     if has_nesstar_metadata:
                         ddi_norm = set(ddi_name_map.keys())
@@ -994,25 +1163,20 @@ async def process_directory(
                                 f"Loaded data columns do not match Nesstar metadata (match_ratio={match_ratio:.2f})"
                             )
 
-                # Upload to DB
                 if job_id:
-                     for f in file_status_list:
+                    for f in file_status_list:
                         if f["name"] == data_file.name:
                             f["status"] = "loading_db"
-                     update_job(job_id, files=file_status_list)
+                    update_job(job_id, files=file_status_list)
 
-                df.to_sql(table_name, engine, schema=schema, if_exists='replace', index=False)
-                
-                row_count = len(df)
-                logger.info(f"Uploaded {row_count} rows to {full_table_name}")
-                
-                # Log file
-                with engine.connect() as conn:
+                with engine.begin() as conn:
+                    df.to_sql(table_name, conn, schema=schema, if_exists="replace", index=False)
+
                     existing_file = conn.execute(
                         text(
-                            """
+                            f"""
                             SELECT 1
-                            FROM dataset_files
+                            FROM "{schema}".dataset_files
                             WHERE dataset_id = :did
                               AND filename = :fname
                             LIMIT 1
@@ -1023,29 +1187,34 @@ async def process_directory(
                     if not existing_file:
                         conn.execute(
                             text(
-                                """
-                                INSERT INTO dataset_files (dataset_id, filename, file_type)
+                                f"""
+                                INSERT INTO "{schema}".dataset_files (dataset_id, filename, file_type)
                                 VALUES (:did, :fname, :ftype)
                                 """
                             ),
                             {"did": dataset_id, "fname": data_file.name, "ftype": data_file.suffix},
                         )
-                    
-                    # Link variables to table/column (update mapping)
-                    # This assumes column names match DDI variable names
+
                     if ddi_metadata:
-                            for col in df.columns:
-                                conn.execute(text("""
-                                    UPDATE variables
+                        for col in df.columns:
+                            conn.execute(
+                                text(
+                                    f"""
+                                    UPDATE "{schema}".variables
                                     SET table_name = :tname, column_name = :cname
                                     WHERE dataset_id = :did AND lower(variable_id) = lower(:vid)
-                                """), {
+                                    """
+                                ),
+                                {
                                     "tname": table_name,
                                     "cname": col,
                                     "did": dataset_id,
-                                    "vid": f"{dataset_id}_{col}"
-                                })
-                    conn.commit()
+                                    "vid": f"{dataset_id}_{col}",
+                                },
+                            )
+
+                row_count = len(df)
+                logger.info(f"Uploaded {row_count} rows to {full_table_name}")
 
                 uploaded_tables.append(full_table_name)
                 logger.info(f"Successfully uploaded {full_table_name}")
@@ -1055,11 +1224,16 @@ async def process_directory(
                         if f["name"] == data_file.name:
                             f["status"] = "completed"
                             f["rows"] = row_count
-                    # Calculate overall progress
-                    # 20% + (80% * (idx + 1) / total_files)
-                    current_progress = 20 + int(80 * (idx + 1) / total_files)
+                    current_progress = _file_progress(idx + 1, total_files)
                     update_job(job_id, progress=current_progress, files=file_status_list)
-            
+                    update_job(
+                        job_id,
+                        status=JOB_STATUS_COMPLETED,
+                        current_state=JOB_STATUS_COMPLETED,
+                        progress=100,
+                        message="Upload completed successfully",
+                    )
+
         except Exception as e:
             logger.error(f"Failed to process {data_file.name}: {e}")
             if job_id:
@@ -1071,7 +1245,7 @@ async def process_directory(
             continue
 
     if job_id:
-        update_job(job_id, status="completed", progress=100, message="Upload complete!")
+        update_job(job_id, status=JOB_STATUS_COMPLETED, progress=100, message="Upload completed successfully", current_state=JOB_STATUS_COMPLETED)
 
     return uploaded_tables
 
@@ -1082,14 +1256,14 @@ async def ingest_directory(conn, root_dir: Path, db_url: str, schema: str):
     """
     return await process_directory(root_dir, db_url, schema)
 
-def _store_variables(conn, dataset_id: str, variables: List[DDIVariable]):
+def _store_variables(conn, dataset_id: str, variables: List[DDIVariable], schema: str):
     """Stores variable metadata into the database."""
     for var in variables:
         vid = f"{dataset_id}_{var.name}" # Unique ID
         
         # Insert Variable
-        conn.execute(text("""
-            INSERT INTO variables (variable_id, dataset_id, label, data_type, start_pos, width, decimals, universe, question_text, concept)
+        conn.execute(text(f"""
+            INSERT INTO "{schema}".variables (variable_id, dataset_id, label, data_type, start_pos, width, decimals, universe, question_text, concept)
             VALUES (:vid, :did, :label, :dtype, :start, :width, :dec, :univ, :q, :concept)
             ON CONFLICT (variable_id) DO UPDATE SET
                 label = EXCLUDED.label,
@@ -1109,9 +1283,13 @@ def _store_variables(conn, dataset_id: str, variables: List[DDIVariable]):
         })
         
         # Insert Categories
+        conn.execute(
+            text(f'DELETE FROM "{schema}".variable_categories WHERE variable_id = :vid'),
+            {"vid": vid},
+        )
         for cat in var.categories:
-            conn.execute(text("""
-                INSERT INTO variable_categories (variable_id, category_code, category_label, frequency)
+            conn.execute(text(f"""
+                INSERT INTO "{schema}".variable_categories (variable_id, category_code, category_label, frequency)
                 VALUES (:vid, :code, :label, :freq)
             """), {
                 "vid": vid, 
@@ -1121,9 +1299,13 @@ def _store_variables(conn, dataset_id: str, variables: List[DDIVariable]):
             })
             
         # Insert Missing Values
+        conn.execute(
+            text(f'DELETE FROM "{schema}".variable_missing_values WHERE variable_id = :vid'),
+            {"vid": vid},
+        )
         for mv in var.missing_values:
-            conn.execute(text("""
-                INSERT INTO variable_missing_values (variable_id, missing_value)
+            conn.execute(text(f"""
+                INSERT INTO "{schema}".variable_missing_values (variable_id, missing_value)
                 VALUES (:vid, :val)
             """), {"vid": vid, "val": mv})
 

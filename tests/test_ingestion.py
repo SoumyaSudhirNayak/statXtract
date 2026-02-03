@@ -10,7 +10,9 @@ import sys
 # Add project root to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from main import run_ingestion_job
+from main import run_ingestion_job, _wait_for_stable_file, _schema_exists
+from utils.job_manager import create_job, get_job, update_job
+from utils.watcher import IngestionWatcher
 
 @pytest.mark.asyncio
 async def test_standalone_sav_bypasses_nesstar():
@@ -19,6 +21,8 @@ async def test_standalone_sav_bypasses_nesstar():
     # We patch 'utils.ingestion_pipeline.process_directory' because 'process_dataset_zip' (which is real) calls it.
     
     with patch("utils.ingestion_pipeline.process_directory", new_callable=AsyncMock) as mock_process_dir, \
+         patch("utils.ingestion_pipeline.schema_exists", return_value=True), \
+         patch("utils.ingestion_pipeline.ensure_metadata_tables"), \
          patch("main.convert_and_ingest_nesstar_binary_study", new_callable=AsyncMock) as mock_nesstar, \
          patch("utils.ingestion_pipeline.update_job") as mock_update_job:
         
@@ -28,7 +32,7 @@ async def test_standalone_sav_bypasses_nesstar():
             tmp_path = tmp.name
             
         try:
-            job_id = "test_job_sav"
+            job_id = create_job(filename=os.path.basename(tmp_path), schema="public")
             db_url = "postgresql://user:pass@localhost/db"
             schema = "public"
             
@@ -59,10 +63,39 @@ async def test_standalone_sav_bypasses_nesstar():
             if os.path.exists(tmp_path):
                 os.remove(tmp_path)
 
+
+@pytest.mark.asyncio
+async def test_run_ingestion_job_uses_job_schema_over_argument():
+    with patch("utils.ingestion_pipeline.process_directory", new_callable=AsyncMock) as mock_process_dir, \
+         patch("utils.ingestion_pipeline.schema_exists", return_value=True), \
+         patch("utils.ingestion_pipeline.ensure_metadata_tables"), \
+         patch("main.convert_and_ingest_nesstar_binary_study", new_callable=AsyncMock) as mock_nesstar, \
+         patch("utils.ingestion_pipeline.update_job"):
+
+        with tempfile.NamedTemporaryFile(suffix=".sav", delete=False) as tmp:
+            tmp.write(b"dummy content")
+            tmp_path = tmp.name
+
+        try:
+            job_id = create_job(filename="x.sav", schema="asi")
+            db_url = "postgresql://user:pass@localhost/db"
+
+            await run_ingestion_job(job_id, tmp_path, db_url, schema="public")
+
+            assert mock_process_dir.called
+            assert not mock_nesstar.called
+            args, _ = mock_process_dir.call_args
+            assert args[2] == "asi"
+        finally:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+
 @pytest.mark.asyncio
 async def test_zip_with_sav_works():
     """Test that a zip containing .sav is processed via extraction."""
     with patch("utils.ingestion_pipeline.process_directory", new_callable=AsyncMock) as mock_process_dir, \
+         patch("utils.ingestion_pipeline.schema_exists", return_value=True), \
+         patch("utils.ingestion_pipeline.ensure_metadata_tables"), \
          patch("main.convert_and_ingest_nesstar_binary_study", new_callable=AsyncMock) as mock_nesstar, \
          patch("utils.ingestion_pipeline.update_job") as mock_update_job:
         
@@ -74,7 +107,7 @@ async def test_zip_with_sav_works():
             tmp_zip_path = tmp_zip.name
 
         try:
-            job_id = "test_job_zip"
+            job_id = create_job(filename=os.path.basename(tmp_zip_path), schema="public")
             db_url = "postgresql://user:pass@localhost/db"
             schema = "public"
             
@@ -129,3 +162,57 @@ async def test_nesstar_large_file_trigger():
         finally:
             if os.path.exists(tmp_path):
                 os.remove(tmp_path)
+
+
+@pytest.mark.asyncio
+async def test_wait_for_stable_file_detects_ready_file():
+    with tempfile.NamedTemporaryFile(suffix=".sav", delete=False) as tmp:
+        tmp.write(b"A" * 2048)
+        tmp_path = tmp.name
+
+    try:
+        ready = await _wait_for_stable_file(
+            tmp_path,
+            min_bytes=1024,
+            stable_checks=1,
+            interval_sec=0.01,
+            timeout_sec=1,
+        )
+        assert ready is True
+    finally:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+
+
+def test_completion_watcher_closes_stuck_job_at_45_percent():
+    job_id = create_job(filename="stuck.zip", schema="public")
+    update_job(job_id, status="processing", progress=45, message="Exporting ALL datasets")
+    update_job(job_id, log="successfully deleted and process complete")
+
+    watcher = IngestionWatcher()
+    n = watcher.tick()
+    assert n == 1
+
+    job = get_job(job_id)
+    assert job is not None
+    assert job.get("status") == "COMPLETED"
+    assert job.get("progress") == 100
+    assert job.get("current_state") == "COMPLETED"
+
+
+@pytest.mark.asyncio
+async def test_schema_exists_uses_information_schema():
+    conn = AsyncMock()
+    conn.fetchval = AsyncMock(return_value=1)
+    ok = await _schema_exists(conn, "public")
+    assert ok is True
+    assert conn.fetchval.called
+
+
+@pytest.mark.asyncio
+async def test_schema_exists_empty_returns_false():
+    conn = AsyncMock()
+    conn.fetchval = AsyncMock(return_value=1)
+    ok = await _schema_exists(conn, "")
+    assert ok is False
+    assert not conn.fetchval.called

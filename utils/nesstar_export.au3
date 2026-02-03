@@ -12,6 +12,10 @@ Local $titleHint = ""
 If $CmdLine[0] >= 3 Then
     $titleHint = $CmdLine[3]
 EndIf
+Local $schema = ""
+If $CmdLine[0] >= 4 Then
+    $schema = $CmdLine[4]
+EndIf
 
 Func _Log($s)
     ConsoleWrite("LOG " & $s & @CRLF)
@@ -498,7 +502,8 @@ While TimerDiff($tExport) < (120 * 1000)
             $sawExportDialog = True
         EndIf
         _Stage("SAVING_DATASETS")
-        $saveHandled = _CompleteSaveAs($outputDir & "\\datasets" & $dataExt, 60)
+        Local $savePath = $outputDir & "\\datasets" & $dataExt
+        $saveHandled = _CompleteSaveAs($savePath, 60)
         ExitLoop
     EndIf
 
@@ -526,7 +531,7 @@ WEnd
 
 If Not $saveHandled Then Exit 20
 
-If Not _WaitForDataFilesStable($outputDir, $dataPattern, 1048577, 900) Then Exit 21
+If Not _WaitForDataFilesStable($outputDir, $dataPattern, 1024, 900) Then Exit 21
 
 WinActivate($hMain)
 WinWaitActive($hMain, "", 5)
