@@ -1,7 +1,7 @@
 import pandas as pd
 from sqlalchemy import create_engine
 
-def load_csv_to_postgres(csv_path, table_name, db_url, schema="public"):
+def load_csv_to_postgres(csv_path, table_name, db_url, schema):
     df = pd.read_csv(csv_path, low_memory=False)  # prevents DtypeWarning
 
     if "?sslmode=" not in db_url:

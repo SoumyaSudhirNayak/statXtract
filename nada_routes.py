@@ -111,7 +111,7 @@ async def download_dataset_files(
         None,
         description="Comma-separated file numbers to download. If omitted, downloads all.",
     ),
-    schema: str = Query("public"),
+    schema: str = Query(..., description="Target schema for ingestion"),
     ingest: bool = Query(True),
     current_user=Depends(get_current_active_user_with_role(["1"])),
 ) -> dict[str, Any]:
@@ -341,7 +341,7 @@ async def ingest_dataset(
     request: Request,
     background_tasks: BackgroundTasks,
     dataset_id: str,
-    schema: str = Query("public"),
+    schema: str = Query(..., description="Target schema for ingestion"),
     file_nos: Optional[str] = Query(None),
     x_api_key: str | None = Header(None, alias="X-API-KEY"),
     current_user=Depends(get_current_active_user_with_role(["1"])),

@@ -1,12 +1,14 @@
 from fastapi import FastAPI, UploadFile, File, Request, Form, Depends
-from fastapi.responses import HTMLResponse, RedirectResponse, Response, JSONResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from fastapi.openapi.utils import get_openapi
 from contextlib import asynccontextmanager
 from starlette.middleware.sessions import SessionMiddleware
+import asyncio
 import asyncpg
+import json
 import os
 import zipfile
 import difflib
@@ -14,13 +16,16 @@ import re
 import bcrypt
 from datetime import timedelta, datetime
 from dotenv import load_dotenv
+from pathlib import Path
+from watchgod import awatch, Change
 
 
 # Import your custom modules
 from utils.ingestion_pipeline import process_dataset_zip, convert_and_ingest_nesstar_binary_study, discover_nesstar_converter_exe
 from utils.db_init import ensure_core_tables
 from utils.metadata_helper import get_column_labels, apply_labels
-from utils.job_manager import create_job, get_job, update_job
+from utils.job_manager import create_job, get_job, update_job, list_jobs, JOB_STATUS_INITIALIZED, JOB_STATUS_QUEUED, JOB_STATUS_COMPLETED, JOB_STATUS_FAILED, JOB_STATUS_INGESTING, JOB_STATUS_CONVERTING
+from utils.watcher import IngestionWatcher
 from fastapi import BackgroundTasks
 
 
@@ -40,6 +45,7 @@ from fastapi import HTTPException  # Add this for HTTPException
 from datetime import date
 
 today = date.today().isoformat()
+START_TIME = datetime.now()
 
 
 # Load environment variables
@@ -82,8 +88,45 @@ async def lifespan(app: FastAPI):
     app.state.nesstar_exe = nesstar_exe
     app.state.nesstar_script = nesstar_script
 
+    watcher_enabled = (os.getenv("UPLOADS_SAV_WATCHER_ENABLED") or "1").strip().lower() not in {"0", "false", "no", "off"}
+    app.state.uploads_sav_watcher_task = None
+    if watcher_enabled:
+        app.state.uploads_sav_watcher_task = asyncio.create_task(_uploads_sav_watcher_loop())
+
+    completion_watcher_enabled = (os.getenv("UPLOAD_COMPLETION_WATCHER_ENABLED") or "1").strip().lower() not in {"0", "false", "no", "off"}
+    app.state.ingestion_watcher = None
+    app.state.upload_completion_watcher_task = None
+    if completion_watcher_enabled:
+        watcher = IngestionWatcher()
+        app.state.ingestion_watcher = watcher
+        app.state.upload_completion_watcher_task = asyncio.create_task(watcher.start())
+
     yield
     print("🔻 Shutting down...")
+    watcher_task = getattr(app.state, "uploads_sav_watcher_task", None)
+    if watcher_task:
+        watcher_task.cancel()
+        try:
+            await watcher_task
+        except asyncio.CancelledError:
+            pass
+        except Exception:
+            pass
+
+    # Stop Ingestion Watcher
+    ingestion_watcher = getattr(app.state, "ingestion_watcher", None)
+    if ingestion_watcher:
+        ingestion_watcher.stop()
+
+    completion_task = getattr(app.state, "upload_completion_watcher_task", None)
+    if completion_task:
+        completion_task.cancel()
+        try:
+            await completion_task
+        except asyncio.CancelledError:
+            pass
+        except Exception:
+            pass
     await app.state.db.close()
 
 
@@ -240,6 +283,44 @@ async def admin_dashboard(
         f"DEBUG: Current user - Username: {current_user.username}, Role: {current_user.role}"
     )
 
+    # Calculate uptime
+    uptime_delta = datetime.now() - START_TIME
+    days = uptime_delta.days
+    hours, remainder = divmod(uptime_delta.seconds, 3600)
+    minutes, _ = divmod(remainder, 60)
+    
+    uptime_str = f"{days}d {hours}h {minutes}m"
+    if days == 0:
+        uptime_str = f"{hours}h {minutes}m"
+
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        # 1. Total Datasets (Sum of all {schema}.datasets)
+        # First get schemas that have a 'datasets' table
+        schemas_rows = await conn.fetch("""
+            SELECT table_schema 
+            FROM information_schema.tables 
+            WHERE table_name = 'datasets' 
+            AND table_schema NOT IN ('information_schema', 'pg_catalog')
+        """)
+        
+        total_datasets = 0
+        for row in schemas_rows:
+            schema = row['table_schema']
+            try:
+                # Use double quotes for schema name to handle special characters/case sensitivity
+                count = await conn.fetchval(f'SELECT COUNT(*) FROM "{schema}".datasets')
+                total_datasets += (count or 0)
+            except Exception as e:
+                print(f"Error counting datasets in {schema}: {e}")
+                pass
+
+        # 2. Active Users
+        active_users = await conn.fetchval("SELECT COUNT(*) FROM users")
+
+        # 3. Data Schemas (Count of schemas with 'datasets' table)
+        data_schemas = len(schemas_rows)
+
     return templates.TemplateResponse(
         "admin_dashboard.html",
         {
@@ -247,6 +328,10 @@ async def admin_dashboard(
             "username": current_user.username,
             "email": current_user.username,  # Since username is email in your case
             "role": current_user.role,
+            "total_datasets": total_datasets,
+            "active_users": active_users,
+            "data_schemas": data_schemas,
+            "uptime": uptime_str,
         },
     )
 
@@ -463,7 +548,7 @@ async def list_schemas_and_tables(request: Request):
 
 
 @app.get("/datasets/{schema}/{table}/columns")
-async def get_columns(request: Request, schema: str, table: str):
+async def get_columns(request: Request, schema: str, table: str, details: bool = False):
     """Returns list of columns for the given table with enhanced debugging and validation."""
     try:
         pool = request.app.state.db
@@ -530,6 +615,11 @@ async def get_columns(request: Request, schema: str, table: str):
                         print(
                             f"DEBUG: Using direct query method, found columns: {columns}"
                         )
+                        if details:
+                            return [
+                                {"name": c, "type": None, "position": i + 1}
+                                for i, c in enumerate(columns)
+                            ]
                         return columns
                     else:
                         print(f"DEBUG: Table {schema}.{table} exists but has no data")
@@ -552,7 +642,7 @@ async def get_columns(request: Request, schema: str, table: str):
             print(f"DEBUG: Columns: {columns}")
             print(f"DEBUG: Column details: {column_details}")
 
-            return columns
+            return column_details if details else columns
 
     except Exception as e:
         print(f"ERROR in get_columns for {schema}.{table}: {e}")
@@ -578,6 +668,62 @@ def fix_filter_case_sensitivity(filters: str, column_map: dict) -> str:
         )
 
     return fixed_filters
+
+
+def smart_quote_filters(filters: str, col_type_map: dict = None) -> str:
+    """
+    Auto-quote unquoted string values in filter expressions.
+    e.g. "status = active" -> "status = 'active'"
+    Also quotes numbers if the target column is a text type.
+    """
+    if col_type_map is None:
+        col_type_map = {}
+        
+    # Normalize map keys to lowercase
+    col_type_map = {k.lower(): v.lower() for k, v in col_type_map.items()}
+
+    SQL_KEYWORDS = {
+        "AND", "OR", "NOT", "NULL", "TRUE", "FALSE", 
+        "IS", "IN", "LIKE", "BETWEEN", "ASC", "DESC"
+    }
+    
+    TEXT_TYPES = {"text", "character varying", "varchar", "char", "character", "bpchar", "string"}
+
+    def replace_func(match):
+        col = match.group(1)
+        op = match.group(2)
+        val = match.group(3)
+        
+        # Clean column name (remove quotes if present)
+        clean_col = col.replace('"', '').lower()
+        col_type = col_type_map.get(clean_col, "")
+        
+        is_text_col = any(t in col_type for t in TEXT_TYPES)
+        
+        # Check if it's a number
+        is_number = val.replace('.', '', 1).isdigit()
+        
+        # If it's a text column and value is number, FORCE QUOTES
+        if is_text_col and is_number:
+            return f"{col}{op}'{val}'"
+            
+        # Check if it's a number (and not a text column)
+        if is_number:
+            return match.group(0)
+            
+        # Check if it's a keyword
+        if val.upper() in SQL_KEYWORDS:
+            return match.group(0)
+            
+        return f"{col}{op}'{val}'"
+
+    # Pattern: 
+    # Group 1: Column (alphanumeric + underscore + optional quotes)
+    # Group 2: Operator (=, !=, <>, >=, <=, <, >, LIKE) with surrounding spaces included
+    # Group 3: Value (alphanumeric + dots)
+    pattern = r'([a-zA-Z0-9_"]+)(\s*(?:=|!=|<>|>=|<=|<|>|LIKE)\s*)([a-zA-Z0-9_\.]+)(?=\s|$|;|AND|OR|\))'
+    
+    return re.sub(pattern, replace_func, filters, flags=re.IGNORECASE)
 
 
 @app.get("/datasets/{schema}/{table}/query")
@@ -610,7 +756,7 @@ async def query_table(
             # Get actual column names for case-insensitive filter handling
             actual_columns = await conn.fetch(
                 """
-                SELECT column_name
+                SELECT column_name, data_type
                 FROM information_schema.columns
                 WHERE table_schema = $1 AND table_name = $2
                 ORDER BY ordinal_position;
@@ -622,7 +768,11 @@ async def query_table(
             column_map = {
                 col["column_name"].lower(): col["column_name"] for col in actual_columns
             }
+            column_type_map = {
+                col["column_name"].lower(): col["data_type"] for col in actual_columns
+            }
             print(f"DEBUG: Column map for case sensitivity: {column_map}")
+            print(f"DEBUG: Column type map: {column_type_map}")
 
             selected_cols = columns or "*"
 
@@ -642,6 +792,10 @@ async def query_table(
                 # Fix case sensitivity in filters
                 print(f"DEBUG: Original filters: {filters}")
                 fixed_filters = fix_filter_case_sensitivity(filters, column_map)
+                
+                # Auto-quote string values if missing quotes
+                fixed_filters = smart_quote_filters(fixed_filters, column_type_map)
+                
                 print(f"DEBUG: Fixed filters: {fixed_filters}")
                 query += f" WHERE {fixed_filters}"
 
@@ -689,9 +843,180 @@ async def query_table(
 
 # =================== UPLOAD HANDLING ===================
 
+async def _wait_for_stable_file(
+    file_path: str,
+    *,
+    min_bytes: int,
+    stable_checks: int,
+    interval_sec: float,
+    timeout_sec: float,
+) -> bool:
+    loop = asyncio.get_running_loop()
+    start = loop.time()
+    stable = 0
+    last_sig = None
+
+    while (loop.time() - start) < timeout_sec:
+        try:
+            st = os.stat(file_path)
+        except FileNotFoundError:
+            stable = 0
+            last_sig = None
+            await asyncio.sleep(interval_sec)
+            continue
+        except Exception:
+            stable = 0
+            last_sig = None
+            await asyncio.sleep(interval_sec)
+            continue
+
+        if st.st_size < min_bytes:
+            stable = 0
+            last_sig = None
+            await asyncio.sleep(interval_sec)
+            continue
+
+        try:
+            with open(file_path, "rb") as f:
+                f.read(8)
+        except Exception:
+            stable = 0
+            last_sig = None
+            await asyncio.sleep(interval_sec)
+            continue
+
+        sig = (st.st_size, st.st_mtime_ns)
+        if sig == last_sig:
+            stable += 1
+        else:
+            stable = 0
+            last_sig = sig
+
+        if stable >= stable_checks:
+            return True
+
+        await asyncio.sleep(interval_sec)
+
+    return False
+
+
+async def _uploads_sav_watcher_loop() -> None:
+    watch_dir = Path((os.getenv("UPLOADS_SAV_WATCHER_DIR") or UPLOAD_DIR)).resolve()
+    watch_dir.mkdir(parents=True, exist_ok=True)
+
+    schema = (os.getenv("UPLOADS_SAV_WATCHER_SCHEMA") or "public").strip() or "public"
+    max_concurrency = int((os.getenv("UPLOADS_SAV_WATCHER_MAX_CONCURRENCY") or "1").strip() or "1")
+    min_bytes = int((os.getenv("UPLOADS_SAV_MIN_BYTES") or "1024").strip() or "1024")
+    stable_checks = int((os.getenv("UPLOADS_SAV_STABLE_CHECKS") or "3").strip() or "3")
+    interval_sec = float((os.getenv("UPLOADS_SAV_STABLE_INTERVAL_SEC") or "1").strip() or "1")
+    timeout_sec = float((os.getenv("UPLOADS_SAV_READY_TIMEOUT_SEC") or "300").strip() or "300")
+
+    sem = asyncio.Semaphore(max_concurrency)
+    inflight: set[str] = set()
+    tasks: set[asyncio.Task] = set()
+
+    def _track_task(t: asyncio.Task) -> None:
+        tasks.add(t)
+        t.add_done_callback(lambda done: tasks.discard(done))
+
+    async def _handle_path(path_str: str) -> None:
+        p = Path(path_str)
+        if p.suffix.lower() != ".sav":
+            return
+        try:
+            resolved = str(p.resolve())
+        except Exception:
+            resolved = str(p)
+
+        if resolved in inflight:
+            return
+
+        inflight.add(resolved)
+        job_id = None
+        try:
+            job_id = create_job(filename=p.name, schema=schema)
+            print(f"📥 SAV watcher: detected {p.name} -> job {job_id}")
+            update_job(
+                job_id,
+                status="pending",
+                progress=0,
+                message=f"Detected .sav file: {p.name}",
+                log=f"Detected file: {p}",
+                schema=schema,
+                job_type="sav_watcher",
+                input_file_path=str(p),
+            )
+
+            ready = await _wait_for_stable_file(
+                str(p),
+                min_bytes=min_bytes,
+                stable_checks=stable_checks,
+                interval_sec=interval_sec,
+                timeout_sec=timeout_sec,
+            )
+            if not ready:
+                update_job(
+                    job_id,
+                    status="failed",
+                    progress=100,
+                    message=f"File not ready: {p.name}",
+                    error="File did not become stable",
+                    log="File did not become stable before timeout",
+                )
+                return
+
+            update_job(job_id, status="processing", progress=1, message="Starting ingestion...", log="Starting ingestion")
+            async with sem:
+                await run_ingestion_job(job_id, str(p), DB_URL, schema)
+        except asyncio.CancelledError:
+            if job_id:
+                update_job(job_id, status="failed", progress=100, message="Watcher cancelled", error="Watcher cancelled")
+            raise
+        except Exception as e:
+            if job_id:
+                update_job(job_id, status="failed", progress=100, message=str(e), error=str(e))
+        finally:
+            inflight.discard(resolved)
+
+    for p in watch_dir.glob("*.sav"):
+        t = asyncio.create_task(_handle_path(str(p)))
+        _track_task(t)
+
+    try:
+        async for changes in awatch(str(watch_dir)):
+            for change, fpath in changes:
+                if change not in (Change.added, Change.modified):
+                    continue
+                if str(fpath).lower().endswith(".sav"):
+                    t = asyncio.create_task(_handle_path(str(fpath)))
+                    _track_task(t)
+    except asyncio.CancelledError:
+        for t in list(tasks):
+            t.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+        raise
+
+
+
+
+
 async def run_ingestion_job(job_id: str, zip_path: str, db_url: str, schema: str):
     """Background task wrapper for ingestion pipeline."""
     try:
+        # Initial status update
+        update_job(job_id, status=JOB_STATUS_QUEUED, current_state=JOB_STATUS_QUEUED, message="Job queued")
+        
+        job = get_job(job_id)
+        # Ensure we use the schema from the job if available, as it's authoritative
+        job_schema = (job or {}).get("schema")
+        if job_schema and str(job_schema).strip():
+            schema = str(job_schema).strip()
+        
+        # Fail fast if schema is invalid
+        if not schema:
+             raise ValueError("Schema is required for ingestion")
+
         ext = os.path.splitext(zip_path)[1].lower()
         size = None
         try:
@@ -704,20 +1029,36 @@ async def run_ingestion_job(job_id: str, zip_path: str, db_url: str, schema: str
             await convert_and_ingest_nesstar_binary_study(zip_path, db_url, schema=schema, job_id=job_id)
         else:
             try:
+                # Direct ingestion
+                update_job(job_id, status=JOB_STATUS_INGESTING, current_state=JOB_STATUS_INGESTING, message="Ingesting dataset...")
                 await process_dataset_zip(zip_path, db_url, schema=schema, job_id=job_id)
             except Exception as e:
                 if ext == ".nesstar":
+                    job_after = get_job(job_id) or {}
+                    if str(job_after.get("status") or "").upper() == JOB_STATUS_COMPLETED:
+                        return
                     await convert_and_ingest_nesstar_binary_study(zip_path, db_url, schema=schema, job_id=job_id)
                 else:
                     raise e
+        
+        # Authoritative completion: if ingestion returned without error, job is COMPLETED
+        job = get_job(job_id)
+        if job and job.get("status") != JOB_STATUS_FAILED:
+            update_job(
+                job_id, 
+                status=JOB_STATUS_COMPLETED, 
+                progress=100, 
+                message="Upload completed successfully",
+                current_state=JOB_STATUS_COMPLETED
+            )
+            print(f"✅ Job {job_id} completed successfully")
+
     except Exception as e:
         print(f"❌ Job {job_id} failed: {e}")
         job = get_job(job_id)
         if job:
-            if job.get("status") != "failed":
-                update_job(job_id, status="failed")
-            if str(e) and str(e) not in (job.get("errors") or []):
-                update_job(job_id, message=str(e), error=str(e))
+            # Always mark as FAILED
+            update_job(job_id, status=JOB_STATUS_FAILED, current_state=JOB_STATUS_FAILED, message=str(e), error=str(e))
     finally:
         # Clean up
         if os.path.exists(zip_path):
@@ -727,12 +1068,61 @@ async def run_ingestion_job(job_id: str, zip_path: str, db_url: str, schema: str
             except Exception as e:
                 print(f"⚠️ Failed to delete ZIP {zip_path}: {e}")
 
+async def _schema_exists(conn, schema: str) -> bool:
+    s = (schema or "").strip()
+    if not s:
+        return False
+    row = await conn.fetchval(
+        """
+        SELECT 1
+        FROM information_schema.schemata
+        WHERE schema_name = $1
+        LIMIT 1
+        """,
+        s,
+    )
+    return bool(row)
+
 @app.get("/admin/upload/status/{job_id}")
 async def get_upload_status(job_id: str, current_user=Depends(get_current_active_user_with_role(["1", "2"]))):
     job = get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     return job
+
+@app.get("/admin/upload/events/{job_id}")
+async def upload_events(
+    request: Request,
+    job_id: str,
+    current_user=Depends(get_current_active_user_with_role(["1", "2"])),
+):
+    async def event_gen():
+        last_payload = None
+        while True:
+            if await request.is_disconnected():
+                break
+            job = get_job(job_id)
+            if not job:
+                payload = json.dumps({"error": "Job not found", "job_id": job_id})
+                yield f"data: {payload}\n\n"
+                break
+
+            payload = json.dumps(job, default=str)
+            if payload != last_payload:
+                yield f"data: {payload}\n\n"
+                last_payload = payload
+
+            status = str(job.get("status") or "").strip().lower()
+            if status in {"completed", "failed"}:
+                break
+
+            await asyncio.sleep(1)
+
+    return StreamingResponse(
+        event_gen(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 @app.get("/admin/nesstar/jobs/{job_id}")
 async def get_nesstar_job_status(job_id: str, current_user=Depends(get_current_active_user_with_role(["1"]))):
@@ -764,7 +1154,7 @@ async def upload_dataset(
     request: Request,
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
-    schema: str = Form("public"),
+    schema: str = Form(...),
     current_user=Depends(get_current_active_user_with_role(["1", "2"])),
 ):
     wants_json = request.query_params.get("response") == "json" or (
@@ -772,6 +1162,28 @@ async def upload_dataset(
     ) or ("application/json" in (request.headers.get("accept") or "").lower())
 
     try:
+        schema = (schema or "").strip()
+        if not schema:
+            msg = "Schema is required"
+            if wants_json:
+                return JSONResponse({"error": msg}, status_code=400)
+            return f"<h3>❌ Upload failed: {msg}</h3>"
+
+        if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", schema):
+            msg = "Invalid schema name"
+            if wants_json:
+                return JSONResponse({"error": msg}, status_code=400)
+            return f"<h3>❌ Upload failed: {msg}</h3>"
+
+        pool = request.app.state.db
+        async with pool.acquire() as conn:
+            ok = await _schema_exists(conn, schema)
+        if not ok:
+            msg = f"Schema '{schema}' does not exist"
+            if wants_json:
+                return JSONResponse({"error": msg}, status_code=400)
+            return f"<h3>❌ Upload failed: {msg}</h3>"
+
         if (file.filename or "").lower().endswith(".nesstar") and not getattr(request.app.state, "nesstar_enabled", False):
             msg = "Nesstar conversion is disabled: configure NESSTAR_CONVERTER_EXE and NESSTAR_CONVERTER_SCRIPT"
             if wants_json:
@@ -779,7 +1191,8 @@ async def upload_dataset(
             return f"<h3>❌ Upload failed: {msg}</h3>"
 
         # Create Job
-        job_id = create_job(filename=file.filename)
+        job_id = create_job(filename=file.filename, schema=schema)
+        update_job(job_id, schema=schema)
         
         # Save file
         zip_filename = f"{job_id}_{file.filename}"

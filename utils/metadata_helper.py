@@ -3,7 +3,7 @@ from typing import Dict, Any, List
 import asyncpg
 from collections import defaultdict
 
-async def get_column_labels(conn: asyncpg.Connection, table_name: str, schema: str = "public") -> Dict[str, Dict[str, str]]:
+async def get_column_labels(conn: asyncpg.Connection, table_name: str, schema: str) -> Dict[str, Dict[str, str]]:
     """
     Fetches category labels for a given table.
     Returns a dict: { "column_name": { "code": "label", ... } }

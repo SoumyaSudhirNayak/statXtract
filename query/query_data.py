@@ -158,7 +158,7 @@ async def query_data(
         
         # Apply metadata labels
         try:
-            label_map = await get_column_labels(conn, table_name)
+            label_map = await get_column_labels(conn, table_name, schema="public")
             data = apply_labels(data, label_map)
         except Exception as e:
             print(f"⚠️ Failed to apply labels: {e}")

@@ -866,19 +866,19 @@
         <!-- Quick Stats -->
         <div class="stats-container fade-in">
             <div class="stat-card">
-                <span class="stat-number">247</span>
+                <span class="stat-number">{{ total_datasets }}</span>
                 <span class="stat-label">Total Datasets</span>
             </div>
             <div class="stat-card">
-                <span class="stat-number">1,432</span>
+                <span class="stat-number">{{ active_users }}</span>
                 <span class="stat-label">Active Users</span>
             </div>
             <div class="stat-card">
-                <span class="stat-number">9</span>
+                <span class="stat-number">{{ data_schemas }}</span>
                 <span class="stat-label">Data Schemas</span>
             </div>
             <div class="stat-card">
-                <span class="stat-number">98.7%</span>
+                <span class="stat-number">{{ uptime }}</span>
                 <span class="stat-label">Uptime</span>
             </div>
         </div>
@@ -1023,7 +1023,9 @@
 
             <div class="schema-selector">
                 <label for="nesstarSchema"><i class="fas fa-layer-group"></i> Target Schema:</label>
-                <input id="nesstarSchema" class="form-select" value="public" />
+                <select id="nesstarSchema" class="form-select">
+                    <option value="">Loading schemas...</option>
+                </select>
             </div>
 
             <div class="schema-selector">
@@ -1107,7 +1109,9 @@
 
             <div class="schema-selector">
                 <label for="nadaSchema"><i class="fas fa-layer-group"></i> Target Schema:</label>
-                <input id="nadaSchema" class="form-select" value="public" />
+                <select id="nadaSchema" class="form-select">
+                    <option value="">Loading schemas...</option>
+                </select>
             </div>
 
             <div class="schema-selector">
@@ -1256,15 +1260,23 @@
                 const response = await fetch('/schemas');
                 const schemas = await response.json();
 
-                const schemaSelect = document.getElementById('schemaSelect');
-                schemaSelect.innerHTML = '<option value="">Choose a schema...</option>';
+                const populate = (id, placeholder) => {
+                    const el = document.getElementById(id);
+                    if (!el) return;
+                    el.innerHTML = `<option value="">${placeholder}</option>`;
+                    schemas.forEach(s => {
+                        const val = s.schema || s.name || s;
+                        const opt = document.createElement('option');
+                        opt.value = val;
+                        opt.textContent = s.name || val;
+                        el.appendChild(opt);
+                    });
+                };
 
-                schemas.forEach(schema => {
-                    const option = document.createElement('option');
-                    option.value = schema.schema || schema.name || schema;
-                    option.textContent = schema.name || schema.schema || schema;
-                    schemaSelect.appendChild(option);
-                });
+                populate('schemaSelect', 'Choose a schema...');
+                populate('nesstarSchema', 'Select target schema...');
+                populate('nadaSchema', 'Select target schema...');
+
             } catch (error) {
                 console.error('Error loading schemas:', error);
                 showToast('Failed to load schemas', 'error');
@@ -1287,6 +1299,7 @@
         }
 
         let nadaJobPoller = null;
+        let nesstarJobPoller = null;
         let nadaDatasetOffset = 0;
         let nadaDatasetLimit = 50;
         let nadaDatasetsCache = [];
@@ -1312,15 +1325,91 @@
             btn.innerHTML = '<i class="fas fa-upload"></i> Start Upload';
             const fileInput = document.getElementById('nesstarFile');
             fileInput.value = '';
+            
+            if (nesstarJobPoller) {
+                clearInterval(nesstarJobPoller);
+                nesstarJobPoller = null;
+            }
+        }
+        
+        async function pollNesstarJob(jobId) {
+            try {
+                const response = await fetch(`/admin/upload/status/${encodeURIComponent(jobId)}`);
+                if (!response.ok) return;
+                
+                const job = await response.json();
+                
+                const status = (job.status || '').toUpperCase();
+                const state = (job.current_state || '').toUpperCase();
+                const isCompleted = status === 'COMPLETED' || state === 'COMPLETED';
+                const isFailed = status === 'FAILED' || state === 'FAILED';
+
+                // Update Progress UI
+                let pct = job.progress || 0;
+                
+                if (isCompleted) pct = 100;
+
+                document.getElementById('nesstarProgressFill').style.width = `${pct}%`;
+                document.getElementById('nesstarPctText').textContent = `${pct}%`;
+                
+                // Update Stage/Status Text
+                // Map job status/message to UI
+                let stage = (job.current_state || job.status || 'PROCESSING').toUpperCase();
+                let message = job.message || job.error || stage;
+                
+                if (isCompleted) {
+                    stage = 'COMPLETED';
+                    message = 'Ingestion complete';
+                    document.getElementById('nesstarProgressFill').style.background = 'var(--success-color)';
+                } else if (isFailed) {
+                    document.getElementById('nesstarProgressFill').style.background = 'var(--danger-color)';
+                } else {
+                     // Reset to default gradient if running
+                     document.getElementById('nesstarProgressFill').style.background = 'linear-gradient(135deg, #64748b 0%, #475569 100%)';
+                }
+
+                document.getElementById('nesstarStageText').textContent = stage;
+                document.getElementById('nesstarFileText').textContent = message;
+                
+                // Show raw logs if available (optional)
+                if (job.logs && job.logs.length) {
+                    // Just show last few logs or keep it simple
+                }
+
+                if (isCompleted || isFailed) {
+                    if (nesstarJobPoller) {
+                        clearInterval(nesstarJobPoller);
+                        nesstarJobPoller = null;
+                    }
+                    
+                    const btn = document.getElementById('nesstarUploadBtn');
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-upload"></i> Start Upload';
+                    
+                    if (isCompleted) {
+                        showToast('Upload and ingestion completed successfully!', 'success');
+                    } else {
+                        showToast(`Upload failed: ${job.error || 'Unknown error'}`, 'error');
+                    }
+                }
+            } catch (e) {
+                console.error("Polling error:", e);
+            }
         }
 
         function startNesstarUpload() {
-            const schema = (document.getElementById('nesstarSchema').value || '').trim() || 'public';
+            const schema = (document.getElementById('nesstarSchema').value || '').trim();
             const fileInput = document.getElementById('nesstarFile');
             const file = fileInput.files && fileInput.files[0];
             const btn = document.getElementById('nesstarUploadBtn');
             const statusBox = document.getElementById('nesstarUploadStatus');
+            const banner = document.getElementById('nesstarBanner');
             const statusText = document.getElementById('nesstarUploadStatusText');
+
+            if (!schema) {
+                showToast('Please select a target schema', 'error');
+                return;
+            }
 
             if (!file) {
                 showToast('Please select a .nesstar or .zip file', 'error');
@@ -1335,7 +1424,15 @@
             btn.disabled = true;
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading...';
             statusBox.style.display = 'block';
-            statusText.textContent = 'Uploading...';
+            banner.style.display = 'block';
+            statusText.textContent = '';
+            
+            // Reset UI
+            document.getElementById('nesstarProgressFill').style.width = '0%';
+            document.getElementById('nesstarProgressFill').style.background = 'linear-gradient(135deg, #64748b 0%, #475569 100%)';
+            document.getElementById('nesstarStageText').textContent = 'UPLOADING';
+            document.getElementById('nesstarPctText').textContent = '0%';
+            document.getElementById('nesstarFileText').textContent = 'Uploading file...';
 
             const formData = new FormData();
             formData.append('schema', schema);
@@ -1345,39 +1442,35 @@
             xhr.upload.addEventListener('progress', function (e) {
                 if (!e.lengthComputable) return;
                 const pct = Math.floor((e.loaded / e.total) * 100);
-                statusText.textContent = `Uploading... ${pct}%`;
+                // Only go up to 99% during upload, wait for job to confirm
+                const displayPct = Math.min(pct, 99); 
+                document.getElementById('nesstarProgressFill').style.width = `${displayPct}%`;
+                document.getElementById('nesstarPctText').textContent = `${displayPct}%`;
             });
 
             xhr.addEventListener('load', function () {
                 if (xhr.status === 200) {
-                    const contentType = (xhr.getResponseHeader('Content-Type') || '').toLowerCase();
-                    if (!contentType.includes('application/json')) {
-                        const txt = (xhr.responseText || '').slice(0, 2000).toLowerCase();
-                        if (txt.includes('<html') || txt.includes('login')) {
-                            showToast('Session expired. Redirecting to login...', 'warning');
-                            window.location.href = '/login';
-                            return;
-                        }
-                        showToast('Upload started, but server did not return JSON.', 'error');
-                        btn.disabled = false;
-                        btn.innerHTML = '<i class="fas fa-upload"></i> Start Upload';
-                        return;
-                    }
-
                     try {
                         const resp = JSON.parse(xhr.responseText);
-                        if (resp && resp.progress_url) {
+                        if (resp && resp.job_id) {
+                            showToast('Upload successful. Processing started...', 'info');
+                            document.getElementById('nesstarStageText').textContent = 'QUEUED';
+                            document.getElementById('nesstarFileText').textContent = 'Job queued for processing...';
+                            
+                            // Start polling
+                            if (nesstarJobPoller) clearInterval(nesstarJobPoller);
+                            nesstarJobPoller = setInterval(() => pollNesstarJob(resp.job_id), 2000);
+                            pollNesstarJob(resp.job_id); // Immediate check
+                            return;
+                        } else if (resp && resp.progress_url) {
+                             // Fallback for legacy behavior if any
                             window.location.href = resp.progress_url;
                             return;
                         }
-                        statusText.textContent = JSON.stringify(resp, null, 2);
-                        showToast('Upload started, but no progress URL returned.', 'warning');
                     } catch (e) {
-                        showToast('Upload started, but response was not JSON.', 'error');
-                        btn.disabled = false;
-                        btn.innerHTML = '<i class="fas fa-upload"></i> Start Upload';
+                        console.error(e);
                     }
-                    return;
+                    // Fallthrough to error handling if JSON parse fails or no job_id
                 }
 
                 let msg = 'Upload failed. Please try again.';
@@ -1386,15 +1479,17 @@
                     if (data && data.error) msg = data.error;
                     else if (data && data.detail) msg = typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail);
                 } catch (e) { }
-                statusText.textContent = msg;
+                
+                document.getElementById('nesstarFileText').textContent = msg;
                 showToast(msg, 'error');
                 btn.disabled = false;
                 btn.innerHTML = '<i class="fas fa-upload"></i> Start Upload';
             });
 
             xhr.addEventListener('error', function () {
-                statusText.textContent = 'Upload failed. Please check your connection.';
-                showToast('Upload failed. Please check your connection.', 'error');
+                const msg = 'Upload failed. Please check your connection.';
+                document.getElementById('nesstarFileText').textContent = msg;
+                showToast(msg, 'error');
                 btn.disabled = false;
                 btn.innerHTML = '<i class="fas fa-upload"></i> Start Upload';
             });
@@ -1446,11 +1541,16 @@
 
         async function startNadaImport() {
             const datasetId = document.getElementById('nadaDatasetId').value.trim();
-            const schema = document.getElementById('nadaSchema').value.trim() || 'public';
+            const schema = document.getElementById('nadaSchema').value.trim();
             const fileNos = document.getElementById('nadaFileNos').value.trim();
 
             if (!datasetId) {
                 showToast('Please enter a dataset ID', 'error');
+                return;
+            }
+
+            if (!schema) {
+                showToast('Please select a target schema', 'error');
                 return;
             }
 
@@ -1507,12 +1607,13 @@
                 document.getElementById('nadaJobStatusText').textContent = JSON.stringify(data, null, 2);
                 document.getElementById('nadaJobStatus').style.display = 'block';
 
-                if (data.status && (data.status === 'completed' || data.status === 'failed')) {
+                const status = (data.status || '').toUpperCase();
+                if (status && (status === 'COMPLETED' || status === 'FAILED')) {
                     if (nadaJobPoller) {
                         clearInterval(nadaJobPoller);
                         nadaJobPoller = null;
                     }
-                    showToast(`Job ${data.status}`, data.status === 'completed' ? 'success' : 'error');
+                    showToast(`Job ${status}`, status === 'COMPLETED' ? 'success' : 'error');
                 }
             } catch (e) {
                 showToast(e.message || 'Failed to fetch job status', 'error');
