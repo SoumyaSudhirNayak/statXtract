@@ -17,11 +17,26 @@ Context: National Statistics Office (MoSPI) hosts anonymized unit-level microdat
   - query datasets (filters/columns/limit/offset)
   - return JSON and (for one query endpoint) CSV output
 - Minimal “frontend” UI served by the same backend using **Jinja2 templates**.
+- Admin dashboard with real-time stats: total datasets, active users, data schemas, system uptime.
+- Rich query UI for schema/table discovery, column selection, filters, pagination, and Chart.js-based visualizations.
 - Authentication + role checks using **JWT**.
 - Daily usage tracking via a `usage_logs` table (row-count metering).
 - Basic privacy rule: suppress results for non-admin if the response would return fewer than 5 rows.
 - NADA-style admin endpoints for downloading/ingesting datasets into the DB via background jobs.
 - Swagger/OpenAPI documentation at `/docs` (FastAPI auto-generated) plus a separate MkDocs doc site under `statathon-docs-only/`.
+
+Nesstar-specific ingest path:
+
+- Supports **Nesstar binary studies** (.nesstar packages, .nsdstat metadata + .sav/.por data).
+- Uses a Windows-only pipeline combining:
+  - `NESSTAR_CONVERTER_EXE` (Nesstar Explorer / Publisher binary)
+  - `utils/nesstar_convert.ps1` (PowerShell orchestration script)
+  - `utils/nesstar_export.au3` (AutoIt script that drives the Nesstar GUI: open study, trigger “Export all datasets…”, choose SPSS/SAV export, handle Save dialogs, wait for files to stabilize).
+- Tracks internal Nesstar stages (QUEUED, CONVERTING_WITH_NESSTAR, EXPORT_DIALOG_OPENED, EXPORTING_ALL_DATASETS, SAVING_DATASETS, VALIDATING_EXPORTED_FILES, EXPORT_COMPLETE, CONVERSION_COMPLETE, INGESTING, COMPLETED, FAILED) and maps them to job states via `_set_nesstar_stage()`.
+- Validates converted outputs (`_validate_converted_outputs`) by:
+  - Checking file size and column counts from `.sav` / `.por` using `pyreadstat` or CSV header parsing.
+  - Comparing number of DDI variables vs. data columns with a configurable tolerance.
+- Handles retries and timeouts for flaky GUI automation, with exponential backoff and detailed job logs.
 
 ### Known gaps (important)
 
@@ -42,6 +57,7 @@ Core pieces:
 - Auth: `auth/local/*`
 - Query router: `query/query_data.py`
 - Ingestion utilities: `utils/*`
+- Background watchers: file-system watcher for `.sav` uploads and ingestion-completion watcher for jobs (see `utils/watcher.py` and `IngestionWatcher` usage in `main.py`).
 - NADA admin integration: `nada_routes.py`
 - HTML templates: `templates/*`
 
@@ -145,6 +161,14 @@ These are HTML templates under `templates/`:
 
 Entry routes: [main.py](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/main.py#L102-L260)
 
+Notes:
+- The admin dashboard now shows live statistics (total datasets across schemas, active users, number of data schemas, and system uptime) computed from the database and application `START_TIME`.
+- The query UI supports:
+  - dynamic schema → table → column discovery
+  - checkbox-based column selection and “select all / clear all”
+  - free-text filters that are normalized on the backend (case-insensitive column names and automatic quoting for string values)
+  - table view plus Chart.js-powered visualizations (bar/line/pie/doughnut/scatter) based on selected X/Y axes.
+
 ## 8) API endpoints by area (from code)
 
 ### A) Auth routes (`/auth/*`)
@@ -172,14 +196,17 @@ There are currently two “query styles”:
   - params: `columns`, `filters`, `limit`, `offset`
   - returns: JSON list of rows
   - privacy: suppress non-admin if row_count < 5
+  - filters support case-insensitive column names and automatic quoting of string values via helper functions `fix_filter_case_sensitivity` and `smart_quote_filters`
+  - applies metadata labels from `utils/metadata_helper` before returning rows
 
-Source: [main.py query_table](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/main.py#L566-L663)
+Source: [main.py query_table](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/main.py#L705-L809)
 
 2) Public schema query + CSV (router)
 - `GET /datasets/{table_name}/query`
   - params: `columns`, `filters`, `limit`, `offset`
   - accepts header: `Accept: text/csv` to get CSV download
   - usage: daily row cap + logging + cell suppression
+  - filters parsed by `parse_filters()` supporting `=`, `!=`, `>`, `<`, `>=`, `<=`, `IN`, `LIKE`
 
 Source: [query_data.py](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/query/query_data.py#L94-L208)
 
@@ -202,6 +229,11 @@ Supported input types:
 - `.xlsx` → converted to CSV then loaded
 - `.sav` → converted to CSV then loaded
 - `.txt` fixed-width → uses matched `.xml` DDI to parse then loads
+- `.por` (SPSS portable) → treated similarly to `.sav` for metadata checks
+- `.nesstar` study packages:
+  - Handled by `convert_and_ingest_nesstar_binary_study()` when a binary Nesstar study or `.nesstar` ZIP is detected.
+  - Uses the Nesstar GUI via PowerShell + AutoIt to export to `.sav`/`.csv`, then falls back into the normal `process_directory()` ingestion path.
+  - Respects job `schema` and ensures metadata tables (`datasets`, `dataset_files`, `variables`, `variable_categories`, `variable_missing_values`) live in the correct schema.
 
 ### E) NADA admin integration
 
@@ -280,6 +312,22 @@ Uvicorn reports:
   - [utils.py](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/auth/local/utils.py)
 - Query router: [query_data.py](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/query/query_data.py)
 - NADA admin: [nada_routes.py](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/nada_routes.py)
-- Ingestion utilities: `utils/*.py` (DDI parsing, file conversion, ingestion pipeline)
+- Ingestion utilities: `utils/*.py` (DDI parsing, file conversion, ingestion pipeline, Nesstar conversion helpers)
+  - Nesstar discovery and conversion entry points:
+    - `utils/ingestion_pipeline.py`:
+      - `discover_nesstar_converter_exe()` – finds Nesstar binaries via env and Windows registry.
+      - `_run_nesstar_converter_streaming()` – launches PowerShell + AutoIt pipeline, streams logs, tracks STAGE markers.
+      - `_set_nesstar_stage()` – maps Nesstar stages to job `status`/`current_state` (`QUEUED`, `CONVERTING`, `EXPORTING`, `INGESTING`, `COMPLETED`, `FAILED`).
+      - `convert_and_ingest_nesstar_binary_study()` – high-level orchestration for Nesstar binary studies, including retries, validation, and ingestion via `process_directory()`.
+  - Windows automation scripts:
+    - `utils/nesstar_convert.ps1` – PowerShell wrapper that:
+      - Validates `NESSTAR_CONVERTER_EXE`, `InputStudy`, output directories.
+      - Resolves AutoIt executable and script (`NESSTAR_AUTOIT_EXE`, `NESSTAR_AUTOIT_SCRIPT`, fallback to `nesstar_export.au3`).
+      - Emits `LOG` and `STAGE` lines consumed by `_run_nesstar_converter_streaming()`.
+      - Orchestrates Nesstar launch and hands control to AutoIt; waits for exported files to stabilize; copies them into the conversion output directory.
+    - `utils/nesstar_export.au3` – AutoIt script that:
+      - Waits for Nesstar main window, opens the study, drives menus (`Alt+F`, `O`, `Ctrl+Shift+E`).
+      - Navigates export dialogs, picks SPSS/SAV format, drives “Save As” flows, handles overwrite prompts.
+      - Waits until dataset files reach minimum size and are stable before exiting.
 - Commands: [COMMANDS.MD](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/COMMANDS.MD)
-
+- Commands: [COMMANDS.MD](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/COMMANDS.MD)

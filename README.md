@@ -1,4 +1,4 @@
-﻿# StatXtract – Statathon Dataset API Gateway
+﻿﻿# StatXtract – Statathon Dataset API Gateway
 
 StatXtract is a FastAPI-based gateway for exploring official survey microdata in a safe and structured way.  
 It focuses on:
