@@ -57,17 +57,9 @@ async def run_query(request: Request, query: dict, current_user=Depends(get_curr
     if not sql:
         raise HTTPException(status_code=400, detail="Missing query")
 
-    # Aggregation-only mode for normal users (role="3")
     user_role = str(current_user.role)
-    if user_role == "3" and not is_aggregation_query(sql):
-        raise HTTPException(
-            status_code=403,
-            detail={
-                "error": "Aggregation Only",
-                "reason": "Normal users can only perform aggregation queries (COUNT, SUM, AVG, MIN, MAX).",
-                "role": user_role,
-            }
-        )
+    if user_role != "1":
+        raise HTTPException(status_code=403, detail="Direct SQL execution is restricted to admins")
 
     try:
         async with pool.acquire() as conn:
@@ -103,6 +95,10 @@ async def query_data(
     current_user=Depends(get_current_user),
 ):
     pool: asyncpg.Pool = request.app.state.db
+
+    user_role = str(current_user.role)
+    if user_role != "1":
+        raise HTTPException(status_code=403, detail="This legacy query endpoint is restricted to admins")
 
     async with pool.acquire() as conn:
         if await has_exceeded_usage_limit(conn, current_user.username):

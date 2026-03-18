@@ -1,5 +1,5 @@
 from fastapi import FastAPI, UploadFile, File, Request, Form, Depends
-from fastapi.responses import HTMLResponse, RedirectResponse, Response, JSONResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response, JSONResponse, StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
@@ -11,6 +11,7 @@ import asyncpg
 import json
 import os
 import zipfile
+import tempfile
 import difflib
 import re
 import bcrypt
@@ -21,12 +22,26 @@ from watchgod import awatch, Change
 
 
 # Import your custom modules
-from utils.ingestion_pipeline import process_dataset_zip, convert_and_ingest_nesstar_binary_study, discover_nesstar_converter_exe
+from utils.ingestion_pipeline import ingest_upload_file, process_dataset_zip, convert_and_ingest_nesstar_binary_study, discover_nesstar_converter_exe
 from utils.db_init import ensure_core_tables
 from utils.metadata_helper import get_column_labels, apply_labels
-from utils.job_manager import create_job, get_job, update_job, list_jobs, JOB_STATUS_INITIALIZED, JOB_STATUS_QUEUED, JOB_STATUS_COMPLETED, JOB_STATUS_FAILED, JOB_STATUS_INGESTING, JOB_STATUS_CONVERTING
+from utils.job_manager import (
+    create_job,
+    get_job,
+    update_job,
+    list_jobs,
+    JOB_STATUS_INITIALIZED,
+    JOB_STATUS_QUEUED,
+    JOB_STATUS_PROCESSING,
+    JOB_STATUS_CONVERTING,
+    JOB_STATUS_PARSING_DDI,
+    JOB_STATUS_INGESTING,
+    JOB_STATUS_COMPLETED,
+    JOB_STATUS_FAILED,
+)
 from utils.watcher import IngestionWatcher
 from fastapi import BackgroundTasks
+from utils.db_utils import to_snake_case_identifier
 
 
 # Import authentication modules
@@ -46,6 +61,21 @@ from datetime import date
 
 today = date.today().isoformat()
 START_TIME = datetime.now()
+
+
+async def _resolve_registry_schema(conn: asyncpg.Connection, schema_value: str) -> dict | None:
+    s = (schema_value or "").strip()
+    if not s:
+        return None
+    return await conn.fetchrow(
+        """
+        SELECT display_name, db_name
+        FROM schema_registry
+        WHERE db_name = $1 OR lower(display_name) = lower($1)
+        LIMIT 1
+        """,
+        s,
+    )
 
 
 # Load environment variables
@@ -381,116 +411,515 @@ async def datasets_page(
     return templates.TemplateResponse("datasets.html", {"request": request})
 
 
+@app.get("/metadata-detail/{schema}/{dataset}", response_class=HTMLResponse)
+async def metadata_detail_page(
+    request: Request,
+    schema: str,
+    dataset: str,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
+):
+    return templates.TemplateResponse(
+        "metadata_detail.html",
+        {"request": request, "schema": schema, "dataset": dataset}
+    )
+
+
 # =================== API ROUTES ===================
 
 
 @app.get("/schemas")
 async def get_schemas(request: Request):
-    """Get list of all schemas with enhanced information"""
+    """List schemas from schema_registry only."""
     try:
         pool = request.app.state.db
         async with pool.acquire() as conn:
-            rows = await conn.fetch("""
-                SELECT schema_name
-                FROM information_schema.schemata
-                WHERE schema_name NOT IN ('pg_catalog', 'information_schema')
-                ORDER BY schema_name;
-            """)
+            rows = await conn.fetch(
+                """
+                SELECT display_name, db_name
+                FROM schema_registry
+                ORDER BY display_name;
+                """
+            )
 
-            # Schema name to full name mapping
-            schema_descriptions = {
-                "asi": {
-                    "name": "Annual Survey of Industries",
-                    "description": "Comprehensive data on industrial production, employment, and economic indicators",
-                    "icon": "fas fa-industry",
-                    "category": "Industrial Survey",
-                },
-                "ec": {
-                    "name": "Economic Census",
-                    "description": "Complete enumeration of all economic enterprises and establishments",
-                    "icon": "fas fa-chart-line",
-                    "category": "Economic Survey",
-                },
-                "es": {
-                    "name": "Employment Survey",
-                    "description": "Data on employment patterns, job market trends, and workforce statistics",
-                    "icon": "fas fa-users",
-                    "category": "Labour Survey",
-                },
-                "eu": {
-                    "name": "Enterprise Units Survey",
-                    "description": "Information about business enterprises, their structure and operations",
-                    "icon": "fas fa-building",
-                    "category": "Enterprise Survey",
-                },
-                "hce": {
-                    "name": "Household Consumption Expenditure",
-                    "description": "Consumer spending patterns and household economic behavior data",
-                    "icon": "fas fa-home",
-                    "category": "Household Survey",
-                },
-                "iip": {
-                    "name": "Index of Industrial Production",
-                    "description": "Monthly industrial production indices and manufacturing statistics",
-                    "icon": "fas fa-chart-bar",
-                    "category": "Production Index",
-                },
-                "llhs": {
-                    "name": "Land and Livestock Holding Survey",
-                    "description": "Agricultural land holdings, livestock data, and rural economic indicators",
-                    "icon": "fas fa-seedling",
-                    "category": "Agricultural Survey",
-                },
-                "others": {
-                    "name": "Other Surveys and Data",
-                    "description": "Miscellaneous surveys and supplementary statistical data",
-                    "icon": "fas fa-folder-open",
-                    "category": "General Data",
-                },
-                "pg_toast": {
-                    "name": "PostgreSQL System Tables",
-                    "description": "Database system tables for large object storage",
+            schemas_with_info = [
+                {
+                    "schema": r["db_name"],
+                    "name": r["display_name"],
+                    "description": "Database schema containing tables and data structures",
                     "icon": "fas fa-database",
-                    "category": "System",
-                },
-                "plfs": {
-                    "name": "Periodic Labour Force Survey",
-                    "description": "Quarterly employment, unemployment, and labour market statistics",
-                    "icon": "fas fa-briefcase",
-                    "category": "Labour Survey",
-                },
-            }
+                    "category": "Data Schema",
+                }
+                for r in rows
+            ]
 
-            # Return enhanced schema information
-            schemas_with_info = []
-            for row in rows:
-                schema_name = row["schema_name"]
-                info = schema_descriptions.get(
-                    schema_name,
-                    {
-                        "name": f"{schema_name.upper()} Survey",
-                        "description": "Database schema containing tables and data structures",
-                        "icon": "fas fa-database",
-                        "category": "Data Schema",
-                    },
-                )
-
-                schemas_with_info.append(
-                    {
-                        "schema": schema_name,
-                        "name": info["name"],
-                        "description": info["description"],
-                        "icon": info["icon"],
-                        "category": info["category"],
-                    }
-                )
-
-            print(f"DEBUG: Found {len(schemas_with_info)} schemas")
             return schemas_with_info
 
     except Exception as e:
         print(f"ERROR in get_schemas: {e}")
         return {"error": str(e)}
+
+
+@app.get("/schemas/{schema}/datasets")
+async def list_datasets_v2(
+    request: Request,
+    schema: str,
+    current_user=Depends(get_current_user),
+):
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        row = await _resolve_registry_schema(conn, schema)
+        if not row:
+            raise HTTPException(status_code=404, detail="Schema not found")
+        schema_db = row["db_name"]
+
+        rows = await conn.fetch(
+            """
+            SELECT dataset_schema, dataset_display_name
+            FROM dataset_registry
+            WHERE survey_schema = $1
+            ORDER BY dataset_display_name
+            """,
+            schema_db,
+        )
+
+    return [{"dataset": r["dataset_schema"], "display_name": r["dataset_display_name"]} for r in rows]
+
+
+@app.get("/schemas/{schema}/{dataset}/tables")
+async def list_tables_v2(
+    request: Request,
+    schema: str,
+    dataset: str,
+    current_user=Depends(get_current_user),
+):
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        row = await _resolve_registry_schema(conn, schema)
+        if not row:
+            raise HTTPException(status_code=404, detail="Schema not found")
+        schema_db = row["db_name"]
+
+        ds = (dataset or "").strip()
+        ds_row = await conn.fetchrow(
+            """
+            SELECT dataset_schema, dataset_display_name
+            FROM dataset_registry
+            WHERE survey_schema = $1
+              AND (dataset_schema = $2 OR lower(dataset_display_name) = lower($2))
+            LIMIT 1
+            """,
+            schema_db,
+            ds,
+        )
+        if not ds_row:
+            raise HTTPException(status_code=404, detail="Dataset not found")
+        dataset_schema = ds_row["dataset_schema"]
+
+        rows = await conn.fetch(
+            """
+            SELECT table_name,
+                   (SELECT COUNT(*) FROM information_schema.columns
+                    WHERE table_name = t.table_name AND table_schema = t.table_schema) as column_count,
+                   (SELECT reltuples::bigint FROM pg_class c
+                    JOIN pg_namespace n ON n.oid = c.relnamespace
+                    WHERE c.relname = t.table_name AND n.nspname = t.table_schema) as row_count
+            FROM information_schema.tables t
+            WHERE table_type = 'BASE TABLE'
+              AND table_schema = $1
+            ORDER BY table_name
+            """,
+            dataset_schema,
+        )
+
+    hidden = {"dataset_metadata", "variables", "variable_categories", "variable_statistics"}
+    out = []
+    for r in rows:
+        name = r["table_name"]
+        if name in hidden:
+            continue
+        out.append(
+            {
+                "table_name": name,
+                "row_count": r["row_count"] or 0,
+                "column_count": r["column_count"] or 0,
+            }
+        )
+    return out
+
+
+@app.get("/metadata/{schema}/{dataset}")
+async def get_metadata_v2(
+    request: Request,
+    schema: str,
+    dataset: str,
+    current_user=Depends(get_current_user),
+):
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        row = await _resolve_registry_schema(conn, schema)
+        if not row:
+            raise HTTPException(status_code=404, detail="Schema not found")
+        schema_db = row["db_name"]
+
+        ds = (dataset or "").strip()
+        ds_row = await conn.fetchrow(
+            """
+            SELECT dataset_schema, dataset_display_name
+            FROM dataset_registry
+            WHERE survey_schema = $1
+              AND (dataset_schema = $2 OR lower(dataset_display_name) = lower($2))
+            LIMIT 1
+            """,
+            schema_db,
+            ds,
+        )
+        if not ds_row:
+            raise HTTPException(status_code=404, detail="Dataset not found")
+        dataset_schema = ds_row["dataset_schema"]
+
+        try:
+            meta = await conn.fetchrow(f'SELECT * FROM "{dataset_schema}".dataset_metadata ORDER BY id DESC LIMIT 1')
+            variables = await conn.fetch(f'SELECT * FROM "{dataset_schema}".variables ORDER BY table_name, variable_name')
+            categories = await conn.fetch(f'SELECT * FROM "{dataset_schema}".variable_categories')
+            stats = await conn.fetch(f'SELECT * FROM "{dataset_schema}".variable_statistics')
+        except Exception:
+            # Sub-schema might not be initialized yet
+            meta = None
+            variables = []
+            categories = []
+            stats = []
+
+    dataset_folder = dataset_schema.split("__", 1)[1] if "__" in dataset_schema else dataset_schema
+    ddi_url = f"/downloads/{schema_db}/{dataset_schema}/ddi"
+    micro_url = f"/downloads/{schema_db}/{dataset_schema}/microdata.zip"
+
+    return {
+        "survey": {"db_name": schema_db, "display_name": row["display_name"]},
+        "dataset": {"schema": dataset_schema, "display_name": ds_row["dataset_display_name"], "folder": dataset_folder},
+        "downloads": {"ddi": ddi_url, "microdata": micro_url},
+        "study_description": dict(meta) if meta else None,
+        "variables": [dict(v) for v in variables],
+        "variable_categories": [dict(c) for c in categories],
+        "variable_statistics": [dict(s) for s in stats],
+    }
+
+
+@app.get("/downloads/{schema}/{dataset}/ddi")
+async def download_ddi(schema: str, dataset: str, current_user=Depends(get_current_user)):
+    survey_schema = (schema or "").strip()
+    dataset_schema = (dataset or "").strip()
+    if not survey_schema or not dataset_schema:
+        raise HTTPException(status_code=400, detail="Invalid request")
+
+    dataset_folder = dataset_schema.split("__", 1)[1] if "__" in dataset_schema else dataset_schema
+    upload_root = Path(os.getenv("UPLOAD_DIR") or "uploads").resolve()
+    ddi_path = upload_root / survey_schema / dataset_folder / "ddi.xml"
+    if not ddi_path.exists():
+        raise HTTPException(status_code=404, detail="DDI not found")
+    return FileResponse(str(ddi_path), filename="ddi.xml")
+
+
+@app.get("/downloads/{schema}/{dataset}/microdata.zip")
+async def download_microdata(schema: str, dataset: str, current_user=Depends(get_current_user)):
+    survey_schema = (schema or "").strip()
+    dataset_schema = (dataset or "").strip()
+    if not survey_schema or not dataset_schema:
+        raise HTTPException(status_code=400, detail="Invalid request")
+
+    dataset_folder = dataset_schema.split("__", 1)[1] if "__" in dataset_schema else dataset_schema
+    upload_root = Path(os.getenv("UPLOAD_DIR") or "uploads").resolve()
+    processed_dir = upload_root / survey_schema / dataset_folder / "processed"
+    if not processed_dir.exists():
+        raise HTTPException(status_code=404, detail="Processed data not found")
+
+    tmp_dir = Path(tempfile.mkdtemp(prefix="statxtract_microdata_"))
+    zip_path = tmp_dir / f"{dataset_folder}_microdata.zip"
+    with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for p in processed_dir.rglob("*"):
+            if p.is_file():
+                zf.write(p, arcname=str(p.relative_to(processed_dir)))
+
+    return FileResponse(str(zip_path), filename=zip_path.name)
+
+
+@app.get("/schemas/{schema}/years")
+async def list_years(
+    request: Request,
+    schema: str,
+    current_user=Depends(get_current_user),
+):
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        row = await _resolve_registry_schema(conn, schema)
+        if not row:
+            raise HTTPException(status_code=404, detail="Schema not found")
+        schema_db = row["db_name"]
+
+    return []
+
+
+@app.get("/schemas/{schema}/{year}/datasets")
+async def list_datasets(
+    request: Request,
+    schema: str,
+    year: str,
+    current_user=Depends(get_current_user),
+):
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        row = await _resolve_registry_schema(conn, schema)
+        if not row:
+            raise HTTPException(status_code=404, detail="Schema not found")
+        schema_db = row["db_name"]
+
+        rows = await conn.fetch(
+            f"""
+            SELECT dataset_display_name, dataset_db_name
+            FROM "{schema_db}".dataset_registry
+            WHERE year = $1
+            ORDER BY dataset_display_name
+            """,
+            (year or "").strip(),
+        )
+    return [{"display_name": r["dataset_display_name"], "db_name": r["dataset_db_name"]} for r in rows]
+
+
+@app.get("/schemas/{schema}/{year}/{dataset}/tables")
+async def list_tables(
+    request: Request,
+    schema: str,
+    year: str,
+    dataset: str,
+    current_user=Depends(get_current_user),
+):
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        row = await _resolve_registry_schema(conn, schema)
+        if not row:
+            raise HTTPException(status_code=404, detail="Schema not found")
+        schema_db = row["db_name"]
+
+        rows = await conn.fetch(
+            f"""
+            SELECT table_name, level_display_name, row_count, column_count
+            FROM "{schema_db}".dataset_tables
+            WHERE year = $1 AND dataset_db_name = $2
+            ORDER BY table_name
+            """,
+            (year or "").strip(),
+            (dataset or "").strip(),
+        )
+    return [
+        {
+            "table_name": r["table_name"],
+            "display_name": r["level_display_name"] or r["table_name"],
+            "row_count": r["row_count"] or 0,
+            "column_count": r["column_count"] or 0,
+        }
+        for r in rows
+    ]
+
+
+def _parse_filters_param(filters: str) -> list[tuple[str, str, str]]:
+    parts: list[tuple[str, str, str]] = []
+    if not filters:
+        return parts
+    for chunk in (filters or "").split(";"):
+        c = chunk.strip()
+        if not c:
+            continue
+        m = re.match(r"^([A-Za-z_][A-Za-z0-9_]*)\s*(=|!=|>=|<=|>|<|IN|LIKE)\s*(.+)$", c, re.IGNORECASE)
+        if not m:
+            raise ValueError(f"Invalid filter: {c}")
+        col, op, val = m.group(1), m.group(2).upper(), m.group(3).strip()
+        parts.append((col, op, val))
+    return parts
+
+
+@app.get("/schemas/{schema}/{year}/{dataset}/{table}/query")
+async def query_dataset_table(
+    request: Request,
+    schema: str,
+    year: str,
+    dataset: str,
+    table: str,
+    columns: str = "",
+    filters: str = "",
+    limit: int = 100,
+    offset: int = 0,
+    current_user=Depends(get_current_user),
+):
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        schema_row = await _resolve_registry_schema(conn, schema)
+        if not schema_row:
+            raise HTTPException(status_code=404, detail="Schema not found")
+        schema_db = schema_row["db_name"]
+
+        exists = await conn.fetchval(
+            f"""
+            SELECT 1
+            FROM "{schema_db}".dataset_tables
+            WHERE year = $1 AND dataset_db_name = $2 AND table_name = $3
+            LIMIT 1
+            """,
+            (year or "").strip(),
+            (dataset or "").strip(),
+            (table or "").strip(),
+        )
+        if not exists:
+            raise HTTPException(status_code=404, detail="Table not found")
+
+        allowed_cols = await conn.fetch(
+            f"""
+            SELECT variable_name, final_type
+            FROM "{schema_db}".variable_dictionary
+            WHERE year = $1 AND dataset_db_name = $2 AND table_name = $3
+            """,
+            (year or "").strip(),
+            (dataset or "").strip(),
+            (table or "").strip(),
+        )
+        allowed_set = {r["variable_name"] for r in allowed_cols}
+        type_map = {r["variable_name"]: (r["final_type"] or "").upper() for r in allowed_cols}
+
+        select_cols: list[str] = []
+        if columns and columns.strip() and columns.strip() != "*":
+            for c in columns.split(","):
+                col = c.strip()
+                if not col:
+                    continue
+                if col not in allowed_set:
+                    raise HTTPException(status_code=400, detail=f"Invalid column: {col}")
+                select_cols.append(f'"{col}"')
+        else:
+            select_cols = ["*"]
+
+        where_parts: list[str] = []
+        values: list[Any] = []
+        try:
+            parsed = _parse_filters_param(filters)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+        for col, op, val in parsed:
+            if col not in allowed_set:
+                raise HTTPException(status_code=400, detail=f"Invalid filter column: {col}")
+            ftype = type_map.get(col, "")
+            if op == "IN":
+                cleaned = val.strip().strip("()[]")
+                items = [x.strip().strip("\"'") for x in cleaned.split(",") if x.strip()]
+                if not items:
+                    raise HTTPException(status_code=400, detail=f"Empty IN list for {col}")
+                placeholders = []
+                for item in items:
+                    if ftype in {"INTEGER", "FLOAT"}:
+                        try:
+                            values.append(float(item))
+                        except Exception:
+                            values.append(None)
+                    else:
+                        values.append(item)
+                    placeholders.append(f"${len(values)}")
+                where_parts.append(f'"{col}" IN ({", ".join(placeholders)})')
+            elif op == "LIKE":
+                values.append(val.strip().strip("\"'"))
+                where_parts.append(f'"{col}" LIKE ${len(values)}')
+            else:
+                raw = val.strip().strip("\"'")
+                if ftype == "INTEGER":
+                    try:
+                        values.append(int(float(raw)))
+                    except Exception:
+                        values.append(None)
+                elif ftype == "FLOAT":
+                    try:
+                        values.append(float(raw))
+                    except Exception:
+                        values.append(None)
+                else:
+                    values.append(raw)
+                where_parts.append(f'"{col}" {op} ${len(values)}')
+
+        where_sql = "" if not where_parts else " WHERE " + " AND ".join(where_parts)
+        max_limit = 1000
+        safe_limit = max(1, min(int(limit), max_limit))
+        safe_offset = max(0, int(offset))
+        sql = f'SELECT {", ".join(select_cols)} FROM "{schema_db}"."{table}"{where_sql} LIMIT {safe_limit} OFFSET {safe_offset}'
+        rows = await conn.fetch(sql, *values)
+
+        user_role = str(getattr(current_user, "role", ""))
+        if user_role != "1" and len(rows) < 5:
+            await log_usage(conn, current_user.username, f"/schemas/{schema_db}/{year}/{dataset}/{table}/query", schema_db, table, 0, 0)
+            raise HTTPException(status_code=403, detail="Data suppressed (less than 5 rows)")
+
+        data = [dict(r) for r in rows]
+        await log_usage(conn, current_user.username, f"/schemas/{schema_db}/{year}/{dataset}/{table}/query", schema_db, table, len(data), len(json.dumps(data, default=str).encode()))
+        return data
+
+
+@app.get("/metadata/{schema}/{year}/{dataset}")
+async def get_dataset_metadata(
+    request: Request,
+    schema: str,
+    year: str,
+    dataset: str,
+    current_user=Depends(get_current_user),
+):
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        schema_row = await _resolve_registry_schema(conn, schema)
+        if not schema_row:
+            raise HTTPException(status_code=404, detail="Schema not found")
+        schema_db = schema_row["db_name"]
+
+        meta = await conn.fetchrow(
+            f"""
+            SELECT *
+            FROM "{schema_db}".dataset_metadata
+            WHERE year = $1 AND dataset_db_name = $2
+            """,
+            (year or "").strip(),
+            (dataset or "").strip(),
+        )
+        variables = await conn.fetch(
+            f"""
+            SELECT *
+            FROM "{schema_db}".variable_dictionary
+            WHERE year = $1 AND dataset_db_name = $2
+            ORDER BY table_name, variable_name
+            """,
+            (year or "").strip(),
+            (dataset or "").strip(),
+        )
+        categories = await conn.fetch(
+            f"""
+            SELECT *
+            FROM "{schema_db}".variable_categories
+            WHERE year = $1 AND dataset_db_name = $2
+            """,
+            (year or "").strip(),
+            (dataset or "").strip(),
+        )
+        stats = await conn.fetch(
+            f"""
+            SELECT *
+            FROM "{schema_db}".variable_statistics
+            WHERE year = $1 AND dataset_db_name = $2
+            """,
+            (year or "").strip(),
+            (dataset or "").strip(),
+        )
+
+    return {
+        "schema": {"display_name": schema_row["display_name"], "db_name": schema_db},
+        "year": (year or "").strip(),
+        "dataset_db_name": (dataset or "").strip(),
+        "study": dict(meta) if meta else None,
+        "variables": [dict(v) for v in variables],
+        "categories": [dict(c) for c in categories],
+        "statistics": [dict(s) for s in stats],
+    }
 
 
 @app.get("/datasets")
@@ -548,7 +977,13 @@ async def list_schemas_and_tables(request: Request):
 
 
 @app.get("/datasets/{schema}/{table}/columns")
-async def get_columns(request: Request, schema: str, table: str, details: bool = False):
+async def get_columns(
+    request: Request,
+    schema: str,
+    table: str,
+    details: bool = False,
+    current_user=Depends(get_current_user),
+):
     """Returns list of columns for the given table with enhanced debugging and validation."""
     try:
         pool = request.app.state.db
@@ -904,7 +1339,17 @@ async def _uploads_sav_watcher_loop() -> None:
     watch_dir = Path((os.getenv("UPLOADS_SAV_WATCHER_DIR") or UPLOAD_DIR)).resolve()
     watch_dir.mkdir(parents=True, exist_ok=True)
 
-    schema = (os.getenv("UPLOADS_SAV_WATCHER_SCHEMA") or "public").strip() or "public"
+    schema = (os.getenv("UPLOADS_SAV_WATCHER_SCHEMA") or "").strip()
+    if not schema:
+        print("⚠️ SAV watcher disabled: UPLOADS_SAV_WATCHER_SCHEMA is not configured")
+        return
+
+    year = (os.getenv("UPLOADS_SAV_WATCHER_YEAR") or "").strip()
+    dataset_display = (os.getenv("UPLOADS_SAV_WATCHER_DATASET") or "").strip()
+    if not year or not dataset_display:
+        print("⚠️ SAV watcher disabled: set UPLOADS_SAV_WATCHER_YEAR and UPLOADS_SAV_WATCHER_DATASET")
+        return
+    dataset_db = to_snake_case_identifier(dataset_display) or "dataset"
     max_concurrency = int((os.getenv("UPLOADS_SAV_WATCHER_MAX_CONCURRENCY") or "1").strip() or "1")
     min_bytes = int((os.getenv("UPLOADS_SAV_MIN_BYTES") or "1024").strip() or "1024")
     stable_checks = int((os.getenv("UPLOADS_SAV_STABLE_CHECKS") or "3").strip() or "3")
@@ -934,7 +1379,14 @@ async def _uploads_sav_watcher_loop() -> None:
         inflight.add(resolved)
         job_id = None
         try:
-            job_id = create_job(filename=p.name, schema=schema)
+            job_id = create_job(
+                filename=p.name,
+                schema=schema,
+                schema_display_name=schema,
+                year=year,
+                dataset_display_name=dataset_display,
+                dataset_db_name=dataset_db,
+            )
             print(f"📥 SAV watcher: detected {p.name} -> job {job_id}")
             update_job(
                 job_id,
@@ -965,9 +1417,9 @@ async def _uploads_sav_watcher_loop() -> None:
                 )
                 return
 
-            update_job(job_id, status="processing", progress=1, message="Starting ingestion...", log="Starting ingestion")
+            update_job(job_id, status=JOB_STATUS_PROCESSING, progress=1, message="Starting ingestion...", log="Starting ingestion")
             async with sem:
-                await run_ingestion_job(job_id, str(p), DB_URL, schema)
+                await run_ingestion_job(job_id, str(p), DB_URL)
         except asyncio.CancelledError:
             if job_id:
                 update_job(job_id, status="failed", progress=100, message="Watcher cancelled", error="Watcher cancelled")
@@ -1001,57 +1453,37 @@ async def _uploads_sav_watcher_loop() -> None:
 
 
 
-async def run_ingestion_job(job_id: str, zip_path: str, db_url: str, schema: str):
+async def run_ingestion_job(job_id: str, zip_path: str, db_url: str):
     """Background task wrapper for ingestion pipeline."""
     try:
-        # Initial status update
         update_job(job_id, status=JOB_STATUS_QUEUED, current_state=JOB_STATUS_QUEUED, message="Job queued")
-        
-        job = get_job(job_id)
-        # Ensure we use the schema from the job if available, as it's authoritative
-        job_schema = (job or {}).get("schema")
-        if job_schema and str(job_schema).strip():
-            schema = str(job_schema).strip()
-        
-        # Fail fast if schema is invalid
+
+        job = get_job(job_id) or {}
+        schema = str(job.get("schema") or "").strip()
+        year = str(job.get("year") or "").strip()
+        dataset_display = str(job.get("dataset_display_name") or "").strip()
+        dataset_db = str(job.get("dataset_db_name") or "").strip()
+
         if not schema:
-             raise ValueError("Schema is required for ingestion")
+            raise ValueError("Schema is required for ingestion")
+        if not year:
+            raise ValueError("Year is required for ingestion")
+        if not dataset_display:
+            raise ValueError("Dataset name is required for ingestion")
+        if not dataset_db:
+            raise ValueError("Dataset db name is required for ingestion")
 
-        ext = os.path.splitext(zip_path)[1].lower()
-        size = None
-        try:
-            size = os.path.getsize(zip_path)
-        except Exception:
-            size = None
+        update_job(job_id, status=JOB_STATUS_PROCESSING, current_state=JOB_STATUS_PROCESSING, message="Preparing ingestion...")
 
-        threshold = int(os.getenv("NESSTAR_BINARY_THRESHOLD_BYTES") or str(100 * 1024 * 1024))
-        if ext == ".nesstar" and size is not None and size > threshold:
-            await convert_and_ingest_nesstar_binary_study(zip_path, db_url, schema=schema, job_id=job_id)
-        else:
-            try:
-                # Direct ingestion
-                update_job(job_id, status=JOB_STATUS_INGESTING, current_state=JOB_STATUS_INGESTING, message="Ingesting dataset...")
-                await process_dataset_zip(zip_path, db_url, schema=schema, job_id=job_id)
-            except Exception as e:
-                if ext == ".nesstar":
-                    job_after = get_job(job_id) or {}
-                    if str(job_after.get("status") or "").upper() == JOB_STATUS_COMPLETED:
-                        return
-                    await convert_and_ingest_nesstar_binary_study(zip_path, db_url, schema=schema, job_id=job_id)
-                else:
-                    raise e
-        
-        # Authoritative completion: if ingestion returned without error, job is COMPLETED
-        job = get_job(job_id)
-        if job and job.get("status") != JOB_STATUS_FAILED:
-            update_job(
-                job_id, 
-                status=JOB_STATUS_COMPLETED, 
-                progress=100, 
-                message="Upload completed successfully",
-                current_state=JOB_STATUS_COMPLETED
-            )
-            print(f"✅ Job {job_id} completed successfully")
+        await ingest_upload_file(
+            zip_path,
+            db_url,
+            schema=schema,
+            year=year,
+            dataset_display_name=dataset_display,
+            dataset_db_name=dataset_db,
+            job_id=job_id,
+        )
 
     except Exception as e:
         print(f"❌ Job {job_id} failed: {e}")
@@ -1131,6 +1563,27 @@ async def get_nesstar_job_status(job_id: str, current_user=Depends(get_current_a
         raise HTTPException(status_code=404, detail="Job not found")
     return job
 
+@app.get("/upload/status/{job_id}")
+async def get_upload_status(
+    job_id: str,
+    current_user=Depends(get_current_active_user_with_role(["1", "2"])),
+):
+    from utils.job_manager import get_job
+    job = get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    # Return subset of job info for the UI
+    return {
+        "status": job.get("status", "unknown").lower(),
+        "progress": job.get("progress", 0),
+        "message": job.get("message", ""),
+        "error": job.get("error"),
+        "logs": job.get("logs", []),
+        "processed_files": job.get("processed_files", [])
+    }
+
+
 @app.get("/upload/progress/{job_id}", response_class=HTMLResponse)
 async def upload_progress_page(
     request: Request,
@@ -1155,6 +1608,8 @@ async def upload_dataset(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     schema: str = Form(...),
+    year: str = Form(...),
+    dataset: str = Form(...),
     current_user=Depends(get_current_active_user_with_role(["1", "2"])),
 ):
     wants_json = request.query_params.get("response") == "json" or (
@@ -1162,27 +1617,46 @@ async def upload_dataset(
     ) or ("application/json" in (request.headers.get("accept") or "").lower())
 
     try:
-        schema = (schema or "").strip()
-        if not schema:
+        raw_schema = (schema or "").strip()
+        year = (year or "").strip()
+        dataset_display = (dataset or "").strip()
+
+        if not raw_schema:
             msg = "Schema is required"
             if wants_json:
                 return JSONResponse({"error": msg}, status_code=400)
             return f"<h3>❌ Upload failed: {msg}</h3>"
 
-        if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", schema):
-            msg = "Invalid schema name"
+        if not year:
+            msg = "Year is required"
+            if wants_json:
+                return JSONResponse({"error": msg}, status_code=400)
+            return f"<h3>❌ Upload failed: {msg}</h3>"
+
+        if not dataset_display:
+            msg = "Dataset name is required"
             if wants_json:
                 return JSONResponse({"error": msg}, status_code=400)
             return f"<h3>❌ Upload failed: {msg}</h3>"
 
         pool = request.app.state.db
         async with pool.acquire() as conn:
-            ok = await _schema_exists(conn, schema)
-        if not ok:
-            msg = f"Schema '{schema}' does not exist"
+            schema_row = await conn.fetchrow(
+                """
+                SELECT display_name, db_name
+                FROM schema_registry
+                WHERE db_name = $1 OR lower(display_name) = lower($1)
+                LIMIT 1
+                """,
+                raw_schema,
+            )
+        if not schema_row:
+            msg = "Invalid schema"
             if wants_json:
                 return JSONResponse({"error": msg}, status_code=400)
             return f"<h3>❌ Upload failed: {msg}</h3>"
+        schema_display = schema_row["display_name"]
+        schema = schema_row["db_name"]
 
         if (file.filename or "").lower().endswith(".nesstar") and not getattr(request.app.state, "nesstar_enabled", False):
             msg = "Nesstar conversion is disabled: configure NESSTAR_CONVERTER_EXE and NESSTAR_CONVERTER_SCRIPT"
@@ -1190,19 +1664,43 @@ async def upload_dataset(
                 return JSONResponse({"error": msg}, status_code=400)
             return f"<h3>❌ Upload failed: {msg}</h3>"
 
-        # Create Job
-        job_id = create_job(filename=file.filename, schema=schema)
-        update_job(job_id, schema=schema)
+        dataset_db = to_snake_case_identifier(dataset_display) or "dataset"
+
+        job_id = create_job(
+            filename=file.filename,
+            schema=schema,
+            schema_display_name=schema_display,
+            year=year,
+            dataset_display_name=dataset_display,
+            dataset_db_name=dataset_db,
+        )
+        
+        from utils.ingestion_pipeline import log_terminal
+        log_terminal(f"Job initialized: {job_id} for file {file.filename}")
+
+        update_job(
+            job_id,
+            schema=schema,
+            schema_display_name=schema_display,
+            year=year,
+            dataset_display_name=dataset_display,
+            dataset_db_name=dataset_db,
+        )
         
         # Save file
         zip_filename = f"{job_id}_{file.filename}"
         zip_path = os.path.join(UPLOAD_DIR, zip_filename)
 
+        from utils.ingestion_pipeline import log_terminal
+        log_terminal(f"Receiving upload: {file.filename} for survey {schema_display}")
+
         with open(zip_path, "wb") as buffer:
             buffer.write(await file.read())
+        
+        log_terminal(f"File saved to disk: {zip_filename}", "success")
             
         # Start background task
-        background_tasks.add_task(run_ingestion_job, job_id, zip_path, DB_URL, schema)
+        background_tasks.add_task(run_ingestion_job, job_id, zip_path, DB_URL)
 
         progress_url = f"/upload/progress/{job_id}"
         if wants_json:

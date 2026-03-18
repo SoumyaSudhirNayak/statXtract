@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Database Schemas - Data Analytics Platform</title>
+
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+
+    <style>
+        :root {
+            /* Professional Color Scheme with Golden Touch */
+            --primary-color: #64748b;
+            --primary-gradient: linear-gradient(135deg, #64748b 0%, #475569 100%);
+            --secondary-color: #f59e0b;
+            --secondary-gradient: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            --success-color: #f59e0b;
+            --warning-color: #f59e0b;
+            --danger-color: #ef4444;
+            --text-light: #ffffff;
+            --text-dark: #2d3748;
+
+            /* Glass morphism */
+            --glass-bg: rgba(15, 23, 42, 0.7);
+            --glass-border: rgba(100, 116, 139, 0.25);
+            --shadow-light: 0 8px 32px rgba(15, 23, 42, 0.3);
+            --shadow-heavy: 0 20px 40px rgba(0, 0, 0, 0.4);
+            --border-radius: 20px;
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%);
+            min-height: 100vh;
+            color: var(--text-light);
+            transition: var(--transition);
+            overflow-x: hidden;
+            padding: 30px;
+        }
+
+        /* Back Button */
+        .back-btn {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: 50px;
+            padding: 12px 20px;
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-light);
+            font-weight: 500;
+            text-decoration: none;
+        }
+
+        .back-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-light);
+            color: var(--text-light);
+        }
+
+        /* Main Container */
+        .main-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding-top: 80px;
+        }
+
+        /* Header */
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--border-radius);
+            padding: 40px 30px;
+            color: var(--text-light);
+            box-shadow: var(--shadow-light);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #fff 0%, #f0f0f0 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            color: rgba(255, 255, 255, 0.8);
+            font-weight: 400;
+        }
+
+        /* Loading State */
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 200px;
+            font-size: 1.2rem;
+            color: var(--secondary-color);
+        }
+
+        .loading i {
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Schema Grid */
+        .schemas-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+
+        /* Schema Cards */
+        .schema-card {
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(20px) saturate(120%);
+            border: 1px solid rgba(100, 116, 139, 0.25);
+            border-radius: var(--border-radius);
+            padding: 35px;
+            box-shadow: var(--shadow-light);
+            transition: var(--transition);
+            position: relative;
+            overflow: hidden;
+            cursor: pointer;
+        }
+
+        .schema-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+        }
+
+        .schema-card:hover {
+            background: rgba(15, 23, 42, 0.85);
+            border-color: rgba(245, 158, 11, 0.3);
+            transform: translateY(-8px);
+            box-shadow: 0 12px 30px rgba(245, 158, 11, 0.1);
+        }
+
+        .schema-card:hover .schema-icon {
+            transform: scale(1.1);
+            color: var(--secondary-color);
+        }
+
+        /* Schema Icon */
+        .schema-icon {
+            font-size: 3rem;
+            color: var(--primary-color);
+            margin-bottom: 20px;
+            transition: var(--transition);
+            display: block;
+        }
+
+        /* Schema Info */
+        .schema-info {
+            flex: 1;
+        }
+
+        .schema-name {
+            font-size: 1.4rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+            color: var(--text-light);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .schema-full-name {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: var(--secondary-color);
+        }
+
+        .schema-description {
+            font-size: 0.95rem;
+            color: rgba(255, 255, 255, 0.8);
+            line-height: 1.6;
+            margin-bottom: 15px;
+        }
+
+        .schema-category {
+            display: inline-block;
+            background: rgba(245, 158, 11, 0.2);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            color: #fbbf24;
+            padding: 4px 12px;
+            border-radius: 15px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 60px;
+            color: rgba(255, 255, 255, 0.8);
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow-light);
+        }
+
+        .empty-state i {
+            font-size: 4rem;
+            color: var(--warning-color);
+            margin-bottom: 20px;
+        }
+
+        .empty-state h3 {
+            font-size: 1.5rem;
+            margin-bottom: 10px;
+            color: var(--text-light);
+        }
+
+        /* Error State */
+        .error-state {
+            text-align: center;
+            padding: 40px;
+            color: var(--danger-color);
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            border-radius: var(--border-radius);
+            backdrop-filter: blur(20px);
+        }
+
+        .error-state i {
+            font-size: 3rem;
+            margin-bottom: 15px;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .main-container {
+                padding: 20px;
+                padding-top: 100px;
+            }
+
+            .header h1 {
+                font-size: 2rem;
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .schemas-grid {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+
+            .schema-card {
+                padding: 25px;
+            }
+
+            .schema-icon {
+                font-size: 2.5rem;
+            }
+
+            .schema-name {
+                font-size: 1.2rem;
+            }
+
+            .schema-full-name {
+                font-size: 1rem;
+            }
+        }
+
+        /* Animations */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .fade-in {
+            animation: fadeIn 0.6s ease-out forwards;
+        }
+
+        /* Selection Highlight */
+        ::selection {
+            background: rgba(245, 158, 11, 0.3);
+        }
+
+        /* Scrollbar Styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.5);
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Back Button -->
+    <a href="/admin/dashboard" class="back-btn">
+        <i class="fas fa-arrow-left"></i>
+        <span>Back to Dashboard</span>
+    </a>
+
+    <!-- Main Container -->
+    <div class="main-container">
+        <!-- Header -->
+        <div class="header fade-in">
+            <h1><i class="fas fa-database"></i> Database Schemas</h1>
+            <p>Explore and manage your data schemas and structures</p>
+        </div>
+
+        <!-- Schemas Container -->
+        <div id="schemasContainer">
+            <div class="loading">
+                <i class="fas fa-spinner"></i>
+                Loading schemas...
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Fetch and display schemas
+        async function loadSchemas() {
+            const container = document.getElementById('schemasContainer');
+            
+            try {
+                const response = await fetch('/schemas');
+                const schemas = await response.json();
+
+                if (schemas.error) {
+                    throw new Error(schemas.error);
+                }
+
+                if (!schemas || schemas.length === 0) {
+                    container.innerHTML = `
+                        <div class="empty-state fade-in">
+                            <i class="fas fa-database"></i>
+                            <h3>No Schemas Found</h3>
+                            <p>No database schemas are currently available in the system.</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                // Create grid layout
+                const grid = document.createElement('div');
+                grid.className = 'schemas-grid fade-in';
+
+                schemas.forEach((schema, index) => {
+                    const card = document.createElement('div');
+                    card.className = 'schema-card';
+                    card.style.animationDelay = `${index * 0.1}s`;
+                    
+                    card.innerHTML = `
+                        <i class="${schema.icon || 'fas fa-database'} schema-icon"></i>
+                        <div class="schema-info">
+                            <div class="schema-name">${schema.schema}</div>
+                            <div class="schema-full-name">${schema.name}</div>
+                            <div class="schema-description">${schema.description}</div>
+                            <div class="schema-category">${schema.category}</div>
+                        </div>
+                    `;
+
+                    // Add click handler for future functionality
+                    card.addEventListener('click', () => {
+                        console.log(`Clicked on schema: ${schema.schema}`);
+                        // You can add navigation to schema details here
+                        // window.location.href = `/schema/${schema.schema}`;
+                    });
+
+                    grid.appendChild(card);
+                });
+
+                container.innerHTML = '';
+                container.appendChild(grid);
+
+            } catch (error) {
+                console.error('Error loading schemas:', error);
+                container.innerHTML = `
+                    <div class="error-state fade-in">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <h3>Error Loading Schemas</h3>
+                        <p>Failed to load database schemas: ${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        // Load schemas when page loads
+        document.addEventListener('DOMContentLoaded', loadSchemas);
+    </script>
+</body>
+
+</html>
