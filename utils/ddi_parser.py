@@ -47,6 +47,51 @@ def parse_ddi_xml(ddi_path: str) -> Dict[str, Any]:
     title_nodes = root.xpath("//*[local-name()='stdyDscr']//*[local-name()='titl']")
     if title_nodes and title_nodes[0].text:
         title = title_nodes[0].text.strip()
+
+    survey_id = ""
+    id_nodes = root.xpath("//*[local-name()='stdyDscr']//*[local-name()='citation']//*[local-name()='titlStmt']//*[local-name()='IDNo'][1]")
+    if id_nodes and id_nodes[0].text:
+        survey_id = id_nodes[0].text.strip()
+
+    abstract = ""
+    abs_nodes = root.xpath("//*[local-name()='stdyDscr']//*[local-name()='abstract']")
+    if abs_nodes and abs_nodes[0].text:
+        abstract = abs_nodes[0].text.strip()
+
+    keywords: List[str] = []
+    for kw in root.xpath("//*[local-name()='stdyDscr']//*[local-name()='keyword']"):
+        if kw.text and kw.text.strip():
+            keywords.append(kw.text.strip())
+
+    coverage: Dict[str, Any] = {}
+    geo = _get_text(root, "//*[local-name()='stdyDscr']//*[local-name()='geogCover'][1]")
+    ind = _get_text(root, "//*[local-name()='stdyDscr']//*[local-name()='indCover'][1]")
+    prod = _get_text(root, "//*[local-name()='stdyDscr']//*[local-name()='prodCover'][1]")
+    if geo:
+        coverage["geographic_coverage"] = geo
+    if ind:
+        coverage["industrial_coverage"] = ind
+    if prod:
+        coverage["product_coverage"] = prod
+
+    weighting = _get_text(root, "//*[local-name()='stdyDscr']//*[local-name()='weight'][1]")
+    frequency = _get_text(root, "//*[local-name()='stdyDscr']//*[local-name()='collFreq'][1]")
+    methodology = _get_text(root, "//*[local-name()='stdyDscr']//*[local-name()='sampProc'][1]")
+
+    collection_mode = _get_text(root, "//*[local-name()='stdyDscr']//*[local-name()='collMode'][1]")
+    time_method = _get_text(root, "//*[local-name()='stdyDscr']//*[local-name()='timeMeth'][1]")
+    procedures = _get_text(root, "//*[local-name()='stdyDscr']//*[local-name()='collProc'][1]")
+
+    producer = _get_text(root, "//*[local-name()='docDscr']//*[local-name()='prodStmt']//*[local-name()='producer'][1]")
+    ddi_id = _get_text(root, "//*[local-name()='docDscr']//*[local-name()='citation']//*[local-name()='titlStmt']//*[local-name()='IDNo'][1]")
+
+    file_description: Dict[str, Any] = {}
+    case_q = _get_text(root, "//*[local-name()='fileDscr']//*[local-name()='caseQnty'][1]")
+    var_q = _get_text(root, "//*[local-name()='fileDscr']//*[local-name()='varQnty'][1]")
+    if case_q:
+        file_description["case_count"] = case_q
+    if var_q:
+        file_description["variable_count"] = var_q
     
     variables = []
     
@@ -90,6 +135,13 @@ def parse_ddi_xml(ddi_path: str) -> Dict[str, Any]:
             var_type = fmt.get("type")
             if var_type:
                 var.data_type = var_type.lower() # numeric, character
+
+            interval = fmt.get("interval")
+            if interval:
+                try:
+                    setattr(var, "interval", interval)
+                except Exception:
+                    pass
             
             dcml = fmt.get("dcml")
             if dcml:
@@ -148,7 +200,20 @@ def parse_ddi_xml(ddi_path: str) -> Dict[str, Any]:
         variables.append(var)
 
     return {
+        "survey_id": survey_id,
         "title": title,
+        "abstract": abstract,
+        "keywords": keywords,
+        "coverage": coverage,
+        "file_description": file_description,
+        "weighting": weighting,
+        "frequency": frequency,
+        "methodology": methodology,
+        "collection_mode": collection_mode,
+        "time_method": time_method,
+        "procedures": procedures,
+        "producer": producer,
+        "ddi_id": ddi_id,
         "variables": variables
     }
 

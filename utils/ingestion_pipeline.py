@@ -18,12 +18,500 @@ import hashlib
 
 from utils.ddi_parser import parse_ddi_xml, DDIVariable
 from utils.table_naming import get_safe_table_name
-from utils.job_manager import update_job, JOB_STATUS_QUEUED, JOB_STATUS_CONVERTING, JOB_STATUS_EXPORTING, JOB_STATUS_INGESTING, JOB_STATUS_COMPLETED, JOB_STATUS_FAILED
-from utils.db_utils import schema_exists, ensure_metadata_tables
-
-# Configure logging
-logging.basicConfig(level=logging.INFO)
+from utils.job_manager import (
+    update_job,
+    JOB_STATUS_QUEUED,
+    JOB_STATUS_PROCESSING,
+    JOB_STATUS_CONVERTING,
+    JOB_STATUS_PARSING_DDI,
+    JOB_STATUS_INGESTING,
+    JOB_STATUS_COMPLETED,
+    JOB_STATUS_FAILED,
+)
+from utils.db_utils import ensure_dataset_schema_tables, make_dataset_schema_name, to_snake_case_identifier
+ 
+# Configure logging with custom format for terminal visibility
+log_format = "%(asctime)s [statXtract] %(levelname)s: %(message)s"
+logging.basicConfig(level=logging.INFO, format=log_format)
 logger = logging.getLogger(__name__)
+
+
+def _ensure_dir(p: Path) -> None:
+    p.mkdir(parents=True, exist_ok=True)
+
+
+def get_file_checksum(file_path: str) -> str:
+    """Calculate SHA256 checksum of a file."""
+    sha256_hash = hashlib.sha256()
+    with open(file_path, "rb") as f:
+        for byte_block in iter(lambda: f.read(4096), b""):
+            sha256_hash.update(byte_block)
+    return sha256_hash.hexdigest()
+
+
+def log_terminal(msg: str, level: str = "info"):
+    """Enhanced terminal logging with timestamp."""
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    formatted_msg = f"[{timestamp}] {msg}"
+    if level == "info":
+        print(f"\033[94mℹ️ {formatted_msg}\033[0m")
+        logger.info(msg)
+    elif level == "success":
+        print(f"\033[92m✅ {formatted_msg}\033[0m")
+        logger.info(msg)
+    elif level == "warning":
+        print(f"\033[93m⚠️ {formatted_msg}\033[0m")
+        logger.warning(msg)
+    elif level == "error":
+        print(f"\033[91m❌ {formatted_msg}\033[0m")
+        logger.error(msg)
+
+
+def _dataset_root(upload_root: Path, schema: str, dataset: str) -> Path:
+    return (upload_root / schema / dataset).resolve()
+
+
+def _apply_ddi_labels(df: pd.DataFrame, ddi_vars: Dict[str, DDIVariable]) -> pd.DataFrame:
+    """Applies category labels from DDI to DataFrame values."""
+    # Create a mapping of normalized column names to original column names in df
+    norm_to_orig = {str(c).strip().lower(): c for c in df.columns}
+
+    for var_name, var in ddi_vars.items():
+        norm_var_name = str(var_name).strip().lower()
+        if norm_var_name in norm_to_orig:
+            col = norm_to_orig[norm_var_name]
+            if var.categories:
+                # Create mapping: {code: label}
+                mapping = {}
+                for cat in var.categories:
+                    code = cat.get("code")
+                    label = cat.get("label")
+                    if code is not None and label:
+                        # Store multiple versions of the code for better matching
+                        c_str = str(code).strip()
+                        mapping[c_str] = label
+                        try:
+                            # If it's "01", mapping["1.0"] and mapping[1.0] should also work
+                            mapping[str(float(code))] = label
+                            mapping[float(code)] = label
+                        except (ValueError, TypeError):
+                            pass
+                        try:
+                            # mapping[1] should also work
+                            mapping[int(float(code))] = label
+                        except (ValueError, TypeError):
+                            pass
+
+                if mapping:
+                    s = df[col]
+                    # Direct mapping
+                    mapped = s.map(mapping)
+                    
+                    # Try mapping after string normalization for remaining NaNs
+                    still_na = mapped.isna() & s.notna()
+                    if still_na.any():
+                        # Try matching stripped strings
+                        mapped.update(s[still_na].astype(str).str.strip().map(mapping))
+                        
+                        # Try matching stripped strings without leading zeros (e.g. "01" -> "1")
+                        still_na = mapped.isna() & s.notna()
+                        if still_na.any():
+                            def _strip_leading_zeros(v):
+                                try:
+                                    return str(int(float(v)))
+                                except:
+                                    return str(v).strip()
+                            mapped.update(s[still_na].apply(_strip_leading_zeros).map(mapping))
+                    
+                    # Only apply if we actually mapped something
+                    if mapped.notna().any():
+                        df[col] = mapped.fillna(s)
+    return df
+
+
+def _profile_series(series: pd.Series) -> dict[str, Any]:
+    s = series
+    if s is None:
+        return {"unique_count": 0}
+    try:
+        unique_count = int(s.nunique(dropna=True))
+    except Exception:
+        unique_count = None
+
+    if pd.api.types.is_numeric_dtype(s):
+        clean = pd.to_numeric(s, errors="coerce")
+        return {
+            "mean": float(clean.mean()) if clean.notna().any() else None,
+            "min": float(clean.min()) if clean.notna().any() else None,
+            "max": float(clean.max()) if clean.notna().any() else None,
+            "stddev": float(clean.std()) if clean.notna().any() else None,
+            "unique_count": unique_count,
+        }
+
+    return {"unique_count": unique_count}
+
+
+def _infer_and_convert_column(series: pd.Series, ddi_hint: str | None) -> tuple[pd.Series, str]:
+    hint = (ddi_hint or "").strip().lower()
+    if hint in {"numeric", "integer", "float", "double"}:
+        numeric = pd.to_numeric(series, errors="coerce")
+        ratio = float(numeric.notna().mean()) if len(series) else 0.0
+        if ratio >= 0.9:
+            as_int = numeric.dropna()
+            if not as_int.empty and (as_int % 1 == 0).all():
+                return numeric.astype("Int64"), "INTEGER"
+            return numeric.astype(float), "FLOAT"
+
+    numeric = pd.to_numeric(series, errors="coerce")
+    ratio = float(numeric.notna().mean()) if len(series) else 0.0
+    if ratio >= 0.9:
+        as_int = numeric.dropna()
+        if not as_int.empty and (as_int % 1 == 0).all():
+            return numeric.astype("Int64"), "INTEGER"
+        return numeric.astype(float), "FLOAT"
+
+    return series.astype(str).where(series.notna(), None), "TEXT"
+
+
+async def ingest_upload_file(
+    input_path: str,
+    db_url: str,
+    schema: str,
+    year: str,
+    dataset_display_name: str,
+    dataset_db_name: str,
+    job_id: str,
+) -> list[str]:
+    upload_root = Path(os.getenv("UPLOAD_DIR") or "uploads").resolve()
+    dataset_db = to_snake_case_identifier(dataset_db_name or dataset_display_name) or "dataset"
+    dataset_root = _dataset_root(upload_root, schema, dataset_db)
+    raw_dir = dataset_root / "raw_files"
+    processed_dir = dataset_root / "processed"
+    _ensure_dir(raw_dir)
+    _ensure_dir(processed_dir)
+
+    dataset_schema = make_dataset_schema_name(schema, dataset_db)
+    ensure_dataset_schema_tables(dataset_schema, db_url)
+
+    src = Path(input_path).resolve()
+    raw_dest = raw_dir / src.name
+    try:
+        shutil.copy2(src, raw_dest)
+    except Exception:
+        raw_dest = src
+
+    ext = src.suffix.lower()
+
+    ddi_path: Path | None = None
+    processed_files: list[Path] = []
+
+    update_job(job_id, status=JOB_STATUS_PROCESSING, current_state=JOB_STATUS_PROCESSING, message="Preparing files...")
+    log_terminal(f"Starting ingestion for dataset: {dataset_display_name} (Job: {job_id})")
+
+    # Load manifest for duplicate detection
+    manifest_path = processed_dir / "manifest.json"
+    manifest = {}
+    if manifest_path.exists():
+        try:
+            with open(manifest_path, "r") as f:
+                manifest = json.load(f)
+        except Exception:
+            manifest = {}
+
+    if ext == ".nesstar":
+        log_terminal(f"Metadata detected: {src.name} (Nesstar Study)", "success")
+        update_job(job_id, status=JOB_STATUS_CONVERTING, current_state=JOB_STATUS_CONVERTING, message="Converting Nesstar to SPSS...")
+        timeout_sec = int(os.getenv("NESSTAR_CONVERSION_TIMEOUT_SEC") or "3600")
+        run_info = await asyncio.to_thread(_run_nesstar_converter_streaming, job_id, str(raw_dest), str(processed_dir), timeout_sec, schema)
+        if int(run_info.get("returncode") or 1) != 0:
+            log_terminal(f"Nesstar conversion failed for {src.name}", "error")
+            raise ValueError(f"Nesstar conversion failed (code={int(run_info.get('returncode') or 1)})")
+        
+        picked = _pick_exported_files(processed_dir)
+        data_path = picked.get("data")
+        ddi_path = picked.get("ddi")
+        if ddi_path:
+            log_terminal("Nesstar DDI metadata extracted", "success")
+            fixed_ddi = dataset_root / "ddi.xml"
+            shutil.copy2(ddi_path, fixed_ddi)
+            ddi_path = fixed_ddi
+        if data_path:
+            processed_files.append(Path(data_path))
+
+    elif ext == ".zip":
+        log_terminal(f"Processing ZIP archive: {src.name}")
+        extract_dir = raw_dir / "extracted"
+        _ensure_dir(extract_dir)
+        with zipfile.ZipFile(raw_dest, "r") as zf:
+            zf.extractall(extract_dir)
+
+        ddi_candidates = [p for p in extract_dir.rglob("*") if p.is_file() and p.suffix.lower() in {".xml", ".nsdstat"}]
+        ddi_candidates.sort(key=lambda p: 0 if p.suffix.lower() == ".nsdstat" else 1)
+        if ddi_candidates:
+            log_terminal(f"Metadata found in ZIP: {ddi_candidates[0].name}", "success")
+            fixed_ddi = dataset_root / "ddi.xml"
+            shutil.copy2(ddi_candidates[0], fixed_ddi)
+            ddi_path = fixed_ddi
+
+        for p in extract_dir.rglob("*"):
+            if not p.is_file():
+                continue
+            if p.suffix.lower() in {".csv", ".xlsx", ".txt", ".sav", ".por"}:
+                # Duplicate detection
+                checksum = get_file_checksum(str(p))
+                if p.name in manifest and manifest[p.name]["checksum"] == checksum:
+                    log_terminal(f"Skipping duplicate file: {p.name} (already uploaded)", "warning")
+                    update_job(job_id, processed_file={"name": p.name, "status": "duplicate", "message": "Already uploaded"})
+                    continue
+                
+                dest = processed_dir / p.name
+                shutil.copy2(p, dest)
+                processed_files.append(dest)
+                manifest[p.name] = {
+                    "checksum": checksum,
+                    "size": p.stat().st_size,
+                    "timestamp": datetime.now().isoformat()
+                }
+
+    else:
+        # Single file upload
+        checksum = get_file_checksum(str(raw_dest))
+        if src.name in manifest and manifest[src.name]["checksum"] == checksum:
+            log_terminal(f"Skipping duplicate file: {src.name} (already uploaded)", "warning")
+            # We still need to mark job as completed if it was a single file
+            update_job(job_id, status=JOB_STATUS_COMPLETED, progress=100, message="File already exists, skipped.", processed_file={"name": src.name, "status": "duplicate", "message": "Already uploaded"})
+            return []
+
+        dest = processed_dir / src.name
+        shutil.copy2(raw_dest, dest)
+        processed_files.append(dest)
+        manifest[src.name] = {
+            "checksum": checksum,
+            "size": src.stat().st_size,
+            "timestamp": datetime.now().isoformat()
+        }
+
+    # Save manifest
+    with open(manifest_path, "w") as f:
+        json.dump(manifest, f, indent=2)
+
+    processed_files = [p for p in processed_files if p.exists() and p.stat().st_size > 0]
+    if not processed_files:
+        if any(m for m in manifest):
+             log_terminal("All files were duplicates and skipped", "warning")
+             update_job(job_id, status=JOB_STATUS_COMPLETED, progress=100, message="All files skipped (duplicates)")
+             return []
+        raise ValueError("No data files found to ingest")
+
+    update_job(job_id, status=JOB_STATUS_PARSING_DDI, current_state=JOB_STATUS_PARSING_DDI, message="Parsing DDI metadata...")
+    ddi_meta: dict[str, Any] | None = None
+    ddi_vars_by_name: dict[str, DDIVariable] = {}
+    if ddi_path and ddi_path.exists() and ddi_path.stat().st_size > 0:
+        ddi_meta = parse_ddi_xml(str(ddi_path))
+        for v in ddi_meta.get("variables") or []:
+            ddi_vars_by_name[str(v.name)] = v
+
+    update_job(job_id, status=JOB_STATUS_INGESTING, current_state=JOB_STATUS_INGESTING, message="Ingesting into PostgreSQL...")
+    log_terminal(f"Starting database ingestion for {len(processed_files)} files")
+    engine = create_engine(db_url)
+
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                INSERT INTO dataset_registry (survey_schema, dataset_schema, dataset_display_name)
+                VALUES (:survey, :ds_schema, :ds_name)
+                ON CONFLICT (dataset_schema) DO UPDATE SET dataset_display_name = EXCLUDED.dataset_display_name
+                """
+            ),
+            {"survey": schema, "ds_schema": dataset_schema, "ds_name": dataset_display_name},
+        )
+
+    if ddi_meta:
+        keywords = ddi_meta.get("keywords")
+        if isinstance(keywords, list):
+            keywords = ", ".join([str(x) for x in keywords if x is not None and str(x).strip()])
+        coverage = ddi_meta.get("coverage") or {}
+        file_desc = ddi_meta.get("file_description") or {}
+        try:
+            case_count = int(file_desc.get("case_count")) if file_desc.get("case_count") is not None else None
+        except Exception:
+            case_count = None
+        try:
+            var_count = int(file_desc.get("variable_count")) if file_desc.get("variable_count") is not None else None
+        except Exception:
+            var_count = None
+
+        with engine.begin() as conn:
+            conn.execute(
+                text(f'DELETE FROM "{dataset_schema}".dataset_metadata'),
+            )
+            conn.execute(
+                text(
+                    f"""
+                    INSERT INTO "{dataset_schema}".dataset_metadata
+                        (survey_schema, dataset_display_name, survey_id, title, abstract, keywords,
+                         geographic_coverage, industrial_coverage, product_coverage,
+                         weighting, frequency, methodology,
+                         collection_mode, time_method, procedures,
+                         producer, ddi_id, file_case_count, file_variable_count)
+                    VALUES
+                        (:survey_schema, :dataset_display_name, :survey_id, :title, :abstract, :keywords,
+                         :geo, :ind, :prod,
+                         :weighting, :frequency, :methodology,
+                         :mode, :time_method, :procedures,
+                         :producer, :ddi_id, :cases, :vars)
+                    """
+                ),
+                {
+                    "survey_schema": schema,
+                    "dataset_display_name": dataset_display_name,
+                    "survey_id": ddi_meta.get("survey_id"),
+                    "title": ddi_meta.get("title"),
+                    "abstract": ddi_meta.get("abstract"),
+                    "keywords": keywords,
+                    "geo": coverage.get("geographic_coverage"),
+                    "ind": coverage.get("industrial_coverage"),
+                    "prod": coverage.get("product_coverage"),
+                    "weighting": ddi_meta.get("weighting"),
+                    "frequency": ddi_meta.get("frequency"),
+                    "methodology": ddi_meta.get("methodology"),
+                    "mode": ddi_meta.get("collection_mode"),
+                    "time_method": ddi_meta.get("time_method"),
+                    "procedures": ddi_meta.get("procedures"),
+                    "producer": ddi_meta.get("producer"),
+                    "ddi_id": ddi_meta.get("ddi_id"),
+                    "cases": case_count,
+                    "vars": var_count,
+                },
+            )
+
+    created_tables: list[str] = []
+    for i, data_file in enumerate(processed_files):
+        try:
+            level_display = data_file.stem
+            level_db = to_snake_case_identifier(level_display) or "level"
+            table_name = get_safe_table_name(level_db, db_url)
+
+            # Update progress (starts at 50% after file prep)
+            prog = 50 + int((i / len(processed_files)) * 40)
+            update_job(job_id, progress=prog, message=f"Ingesting {data_file.name}...")
+
+            df = _load_data_file(data_file, ddi_meta)
+            if df is None or df.empty:
+                log_terminal(f"Skipping empty or invalid file: {data_file.name}", "warning")
+                update_job(job_id, processed_file={"name": data_file.name, "status": "failed", "message": "Empty or invalid"})
+                continue
+
+            # Apply category labels from DDI if available
+            if ddi_vars_by_name:
+                df = _apply_ddi_labels(df, ddi_vars_by_name)
+
+            final_types: dict[str, str] = {}
+            for col in list(df.columns):
+                hint = None
+                if col in ddi_vars_by_name:
+                    hint = ddi_vars_by_name[col].data_type
+                converted, ftype = _infer_and_convert_column(df[col], hint)
+                df[col] = converted
+                final_types[col] = ftype
+
+            with engine.begin() as conn:
+                df.to_sql(table_name, conn, schema=dataset_schema, if_exists="replace", index=False)
+                log_terminal(f"File upload successful: {data_file.name} -> {dataset_schema}.{table_name} ({len(df)} rows)", "success")
+                update_job(job_id, processed_file={"name": data_file.name, "status": "success", "message": f"Ingested {len(df)} rows"})
+
+                conn.execute(text(f'DELETE FROM "{dataset_schema}".variables WHERE table_name = :t'), {"t": table_name})
+                conn.execute(text(f'DELETE FROM "{dataset_schema}".variable_statistics WHERE table_name = :t'), {"t": table_name})
+                conn.execute(text(f'DELETE FROM "{dataset_schema}".variable_categories WHERE table_name = :t'), {"t": table_name})
+
+                for col in df.columns:
+                    dv = ddi_vars_by_name.get(col)
+                    ddi_type = dv.data_type if dv else None
+                    width = dv.width if dv else None
+                    interval = getattr(dv, "interval", None) if dv else None
+
+                    stats = _profile_series(df[col])
+                    conn.execute(
+                        text(
+                            f"""
+                            INSERT INTO "{dataset_schema}".variables
+                                (table_name, variable_name, label, ddi_type, width, interval, valid_count, invalid_count, final_type)
+                            VALUES
+                                (:tname, :vname, :label, :ddi_type, :width, :interval, :valid, :invalid, :final_type)
+                            """
+                        ),
+                        {
+                            "tname": table_name,
+                            "vname": str(col),
+                            "label": getattr(dv, "label", None) if dv else None,
+                            "ddi_type": ddi_type,
+                            "width": width,
+                            "interval": interval,
+                            "valid": int(df[col].notna().sum()),
+                            "invalid": int(df[col].isna().sum()),
+                            "final_type": final_types.get(col),
+                        },
+                    )
+
+                    conn.execute(
+                        text(
+                            f"""
+                            INSERT INTO "{dataset_schema}".variable_statistics
+                                (table_name, variable_name, mean, min, max, stddev, unique_count)
+                            VALUES
+                                (:tname, :vname, :mean, :min, :max, :stddev, :uniq)
+                            ON CONFLICT (table_name, variable_name)
+                            DO UPDATE SET mean = EXCLUDED.mean,
+                                          min = EXCLUDED.min,
+                                          max = EXCLUDED.max,
+                                          stddev = EXCLUDED.stddev,
+                                          unique_count = EXCLUDED.unique_count
+                            """
+                        ),
+                        {
+                            "tname": table_name,
+                            "vname": str(col),
+                            "mean": stats.get("mean"),
+                            "min": stats.get("min"),
+                            "max": stats.get("max"),
+                            "stddev": stats.get("stddev"),
+                            "uniq": stats.get("unique_count"),
+                        },
+                    )
+
+                if ddi_meta:
+                    for dv in ddi_meta.get("variables") or []:
+                        for cat in dv.categories or []:
+                            conn.execute(
+                                text(
+                                    f"""
+                                    INSERT INTO "{dataset_schema}".variable_categories
+                                        (table_name, variable_name, value, label, frequency)
+                                    VALUES
+                                        (:tname, :vname, :val, :label, :freq)
+                                    """
+                                ),
+                                {
+                                    "tname": table_name,
+                                    "vname": dv.name,
+                                    "val": str(cat.get("code")) if cat.get("code") is not None else None,
+                                    "label": cat.get("label"),
+                                    "freq": cat.get("frequency"),
+                                },
+                            )
+
+            created_tables.append(table_name)
+        except Exception as e:
+            log_terminal(f"Failed to ingest file {data_file.name}: {e}", "error")
+            update_job(job_id, processed_file={"name": data_file.name, "status": "failed", "message": str(e)})
+            continue
+
+    if not created_tables:
+        raise ValueError("No tables were ingested")
+
+    update_job(job_id, status=JOB_STATUS_COMPLETED, current_state=JOB_STATUS_COMPLETED, progress=100, message="Upload completed successfully")
+    return created_tables
 
 def _clean_windows_path_candidate(value: str) -> str:
     s = (value or "").strip()
@@ -1151,6 +1639,10 @@ async def process_directory(
                             logger.warning(f"File {data_file.name} has {len(extra_in_data)} columns not in DDI.")
 
                     df = _enforce_ddi_types(df, ddi_metadata["variables"])
+
+                    # Apply category labels from DDI if available
+                    ddi_vars_by_name = {v.name: v for v in ddi_metadata["variables"]}
+                    df = _apply_ddi_labels(df, ddi_vars_by_name)
 
                     if has_nesstar_metadata:
                         ddi_norm = set(ddi_name_map.keys())

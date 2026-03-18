@@ -341,90 +341,19 @@
             box-shadow: none;
         }
 
-        /* Enhanced Progress UI */
-        .upload-status-container {
-            margin-top: 30px;
+        /* Progress Bar */
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 3px;
+            overflow: hidden;
+            margin: 20px 0;
             display: none;
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 15px;
-            padding: 20px;
-            border: 1px solid var(--glass-border);
         }
 
-        .upload-status-container.show {
+        .progress-bar.show {
             display: block;
-            animation: slideUp 0.4s ease-out;
-        }
-
-        .progress-stats {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 15px;
-            margin-bottom: 15px;
-            text-align: center;
-        }
-
-        .stat-item {
-            display: flex;
-            flex-direction: column;
-            gap: 5px;
-        }
-
-        .stat-label {
-            font-size: 0.8rem;
-            color: var(--text-muted);
-            text-transform: uppercase;
-        }
-
-        .stat-value {
-            font-size: 1.1rem;
-            font-weight: 700;
-            color: var(--primary);
-        }
-
-        .live-file-list {
-            margin-top: 20px;
-            max-height: 200px;
-            overflow-y: auto;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-
-        .file-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 10px 15px;
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 10px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            font-size: 0.9rem;
-        }
-
-        .file-item.duplicate {
-            border-color: var(--warning-color);
-            background: rgba(255, 193, 7, 0.1);
-        }
-
-        .file-item.success {
-            border-color: var(--success-color);
-            background: rgba(16, 185, 129, 0.1);
-        }
-
-        .file-item.failed {
-            border-color: #ef4444;
-            background: rgba(239, 68, 68, 0.1);
-        }
-
-        .file-status {
-            font-weight: 600;
-            font-size: 0.8rem;
-        }
-
-        @keyframes slideUp {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
         }
 
         .progress-fill {
@@ -809,41 +738,16 @@
                 </div>
             </div>
 
-            <!-- Submit Button & Progress -->
+            <!-- Progress Bar -->
+            <div class="progress-bar" id="progressBar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+
+            <!-- Submit Button -->
             <div class="glass-card hover-lift">
                 <button type="submit" class="btn" id="submitBtn">
-                    <i class="fas fa-cloud-upload-alt"></i> Upload & Process
+                    <i class="fas fa-upload"></i> Upload Dataset
                 </button>
-
-                <!-- Inline Progress Section -->
-                <div id="uploadStatus" class="upload-status-container">
-                    <div class="progress-stats">
-                        <div class="stat-item">
-                            <span class="stat-label">Progress</span>
-                            <span id="progressPercent" class="stat-value">0%</span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-label">Speed</span>
-                            <span id="uploadSpeed" class="stat-value">0 KB/s</span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-label">Time</span>
-                            <span id="uploadTime" class="stat-value">0s</span>
-                        </div>
-                    </div>
-                    
-                    <div class="progress-bar show" id="progressBar">
-                        <div id="progressFill" class="progress-fill" style="width: 0%;"></div>
-                    </div>
-
-                    <div id="statusMessage" style="text-align: center; margin-top: 10px; font-size: 0.9rem; color: var(--text-muted);">
-                        Initializing upload...
-                    </div>
-
-                    <div id="liveFileList" class="live-file-list">
-                        <!-- Individual files will appear here -->
-                    </div>
-                </div>
             </div>
         </form>
     </div>
@@ -957,21 +861,8 @@
                 return;
             }
 
-            document.getElementById('uploadStatus').classList.add('show');
+            // Show progress bar and disable button
             document.getElementById('progressBar').classList.add('show');
-            document.getElementById('progressFill').style.width = '0%';
-            document.getElementById('progressPercent').textContent = '0%';
-            document.getElementById('uploadSpeed').textContent = '0 KB/s';
-            document.getElementById('uploadTime').textContent = '0.0s';
-            document.getElementById('statusMessage').textContent = 'Starting upload...';
-            const liveFileList = document.getElementById('liveFileList');
-            liveFileList.innerHTML = `
-                <div class="file-item" id="upload-main-file">
-                    <span><i class="fas fa-cloud-upload-alt"></i> ${file.name}</span>
-                    <span class="file-status">UPLOADING</span>
-                </div>
-            `;
-
             submitBtn.disabled = true;
             submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading...';
 
@@ -986,272 +877,72 @@
             uploadFile(formData);
         });
 
-        let uploadUiTimer = null;
-
-        // AJAX Upload Function with real transfer progress
+        // AJAX Upload Function
         function uploadFile(formData) {
             const xhr = new XMLHttpRequest();
-            const startTime = performance.now();
-            let lastTime = startTime;
-            let lastLoaded = 0;
-            let smoothedBps = 0;
-            let phase = 'upload';
-            
-            const submitBtn = document.getElementById('submitBtn');
-            const progressFill = document.getElementById('progressFill');
-            const progressPercent = document.getElementById('progressPercent');
-            const uploadSpeed = document.getElementById('uploadSpeed');
-            const uploadTime = document.getElementById('uploadTime');
-            const statusMessage = document.getElementById('statusMessage');
-            const liveFileList = document.getElementById('liveFileList');
 
-            if (uploadUiTimer) {
-                clearInterval(uploadUiTimer);
-            }
-            uploadUiTimer = setInterval(() => {
-                const elapsedSec = (performance.now() - startTime) / 1000;
-                uploadTime.textContent = `${elapsedSec.toFixed(1)}s`;
-            }, 200);
-
-            xhr.upload.addEventListener('progress', function(e) {
+            // Track upload progress
+            xhr.upload.addEventListener('progress', function (e) {
                 if (e.lengthComputable) {
-                    const now = performance.now();
-                    const dt = (now - lastTime) / 1000;
-                    const dBytes = e.loaded - lastLoaded;
-                    if (dt > 0) {
-                        const instantBps = dBytes / dt;
-                        smoothedBps = smoothedBps ? (0.2 * instantBps + 0.8 * smoothedBps) : instantBps;
-                    }
-                    lastTime = now;
-                    lastLoaded = e.loaded;
-
-                    const uploadFrac = e.total ? (e.loaded / e.total) : 0;
-                    const overallPercent = Math.min(30, Math.floor(uploadFrac * 30));
-                    progressFill.style.width = overallPercent + '%';
-                    progressPercent.textContent = overallPercent + '%';
-
-                    if (smoothedBps > 1024 * 1024) {
-                        uploadSpeed.textContent = (smoothedBps / (1024 * 1024)).toFixed(2) + ' MB/s';
-                    } else {
-                        uploadSpeed.textContent = (smoothedBps / 1024).toFixed(2) + ' KB/s';
-                    }
-
-                    if (uploadFrac >= 1) {
-                        statusMessage.textContent = 'Upload finished. Starting server processing...';
-                    } else {
-                        statusMessage.textContent = `Uploading (${Math.floor(uploadFrac * 100)}%)...`;
-                    }
+                    const percentComplete = (e.loaded / e.total) * 100;
+                    document.getElementById('progressFill').style.width = percentComplete + '%';
                 }
             });
 
-            xhr.upload.addEventListener('load', function() {
-                phase = 'processing';
-                progressFill.style.width = '30%';
-                progressPercent.textContent = '30%';
-                uploadSpeed.textContent = '—';
-                const mainFile = document.getElementById('upload-main-file');
-                if (mainFile) {
-                    mainFile.classList.add('success');
-                    mainFile.querySelector('.file-status').textContent = 'UPLOADED';
-                }
-                statusMessage.textContent = 'Upload complete. Processing on server...';
-            });
-
-            xhr.onreadystatechange = function() {
-                if (xhr.readyState === 4) {
-                    if (xhr.status === 200) {
-                        let response;
-                        try {
-                            response = JSON.parse(xhr.responseText);
-                        } catch (e) {
-                            statusMessage.textContent = 'Upload response was not JSON. Please refresh and try again.';
-                            showToast('Upload response not JSON', 'error');
-                            submitBtn.disabled = false;
-                            submitBtn.innerHTML = '<i class="fas fa-cloud-upload-alt"></i> Upload & Process';
-                            if (uploadUiTimer) {
-                                clearInterval(uploadUiTimer);
-                                uploadUiTimer = null;
+            // Handle upload completion
+            xhr.addEventListener('load', function () {
+                if (xhr.status === 200) {
+                    try {
+                        const contentType = (xhr.getResponseHeader('Content-Type') || '').toLowerCase();
+                        if (!contentType.includes('application/json')) {
+                            const txt = (xhr.responseText || '').slice(0, 2000).toLowerCase();
+                            if (txt.includes('<html') || txt.includes('login')) {
+                                showToast('Session expired. Redirecting to login...', 'warning');
+                                window.location.href = '/login';
+                                return;
                             }
+                            showToast('Upload started, but server did not return JSON.', 'error');
+                            resetUploadButton();
                             return;
                         }
-
-                        if (response && response.job_id) {
-                            startPolling(response.job_id);
-                        } else {
-                            statusMessage.textContent = 'Upload started but no job ID was returned.';
-                            showToast('No job ID returned', 'error');
-                            submitBtn.disabled = false;
-                            submitBtn.innerHTML = '<i class="fas fa-cloud-upload-alt"></i> Upload & Process';
-                            if (uploadUiTimer) {
-                                clearInterval(uploadUiTimer);
-                                uploadUiTimer = null;
-                            }
+                        const resp = JSON.parse(xhr.responseText);
+                        if (resp && resp.progress_url) {
+                            window.location.href = resp.progress_url;
+                            return;
                         }
-                    } else {
-                        if (uploadUiTimer) {
-                            clearInterval(uploadUiTimer);
-                            uploadUiTimer = null;
-                        }
-                        showToast('Upload failed. Please try again.', 'error');
-                        submitBtn.disabled = false;
-                        submitBtn.innerHTML = '<i class="fas fa-cloud-upload-alt"></i> Upload & Process';
-                        statusMessage.textContent = `Upload failed (HTTP ${xhr.status})`;
-                        const mainFile = document.getElementById('upload-main-file');
-                        if (mainFile) {
-                            mainFile.classList.add('failed');
-                            mainFile.querySelector('.file-status').textContent = 'FAILED';
-                        }
+                        showToast('Upload started, but no progress URL returned.', 'warning');
+                        resetUploadButton();
+                    } catch (e) {
+                        showToast('Upload started, but response was not JSON.', 'error');
+                        resetUploadButton();
                     }
+                } else {
+                    // Error
+                    let msg = 'Upload failed. Please try again.';
+                    try {
+                        const data = JSON.parse(xhr.responseText);
+                        if (data && data.error) {
+                            msg = data.error;
+                        } else if (data && data.detail) {
+                            msg = typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail);
+                        }
+                    } catch (e) {}
+                    showToast(msg, 'error');
+                    resetUploadButton();
                 }
-            };
+            });
 
-            xhr.onerror = function() {
-                if (uploadUiTimer) {
-                    clearInterval(uploadUiTimer);
-                    uploadUiTimer = null;
-                }
-                statusMessage.textContent = 'Network error during upload.';
-                showToast('Network error during upload', 'error');
-                submitBtn.disabled = false;
-                submitBtn.innerHTML = '<i class="fas fa-cloud-upload-alt"></i> Upload & Process';
-            };
+            // Handle upload error
+            xhr.addEventListener('error', function () {
+                showToast('Upload failed. Please check your connection.', 'error');
+                resetUploadButton();
+            });
 
-            xhr.onabort = function() {
-                if (uploadUiTimer) {
-                    clearInterval(uploadUiTimer);
-                    uploadUiTimer = null;
-                }
-                statusMessage.textContent = 'Upload aborted.';
-                showToast('Upload aborted', 'warning');
-                submitBtn.disabled = false;
-                submitBtn.innerHTML = '<i class="fas fa-cloud-upload-alt"></i> Upload & Process';
-            };
-
-            xhr.ontimeout = function() {
-                if (uploadUiTimer) {
-                    clearInterval(uploadUiTimer);
-                    uploadUiTimer = null;
-                }
-                statusMessage.textContent = 'Upload timed out.';
-                showToast('Upload timed out', 'error');
-                submitBtn.disabled = false;
-                submitBtn.innerHTML = '<i class="fas fa-cloud-upload-alt"></i> Upload & Process';
-            };
-
-            xhr.open('POST', '/upload/?response=json', true);
+            // Send the request
+            xhr.open('POST', '/upload/?response=json');
             xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
             xhr.setRequestHeader('Accept', 'application/json');
             xhr.send(formData);
-        }
-
-        let pollInterval;
-        function startPolling(jobId) {
-            const liveFileList = document.getElementById('liveFileList');
-            const statusMessage = document.getElementById('statusMessage');
-            const progressFill = document.getElementById('progressFill');
-            const progressPercent = document.getElementById('progressPercent');
-            const submitBtn = document.getElementById('submitBtn');
-
-            function renderProcessedFiles(processed) {
-                const mainFile = document.getElementById('upload-main-file');
-                const mainHtml = mainFile ? mainFile.outerHTML : '';
-                liveFileList.innerHTML = mainHtml;
-
-                if (!Array.isArray(processed)) return;
-                processed.forEach(file => {
-                    const isDuplicate = file.status === 'duplicate';
-                    const isFailed = file.status === 'failed';
-                    const fileItem = document.createElement('div');
-
-                    let className = 'file-item';
-                    if (isDuplicate) className += ' duplicate';
-                    else if (isFailed) className += ' failed';
-                    else className += ' success';
-                    fileItem.className = className;
-
-                    let icon = 'fa-check-circle';
-                    if (isDuplicate) icon = 'fa-copy';
-                    else if (isFailed) icon = 'fa-exclamation-circle';
-
-                    let statusText = 'SUCCESS';
-                    if (isDuplicate) statusText = 'SKIPPED (Duplicate)';
-                    else if (isFailed) statusText = 'FAILED';
-
-                    fileItem.innerHTML = `
-                        <span><i class="fas ${icon}"></i> ${file.name}</span>
-                        <span class="file-status">${statusText}</span>
-                    `;
-                    liveFileList.appendChild(fileItem);
-                });
-            }
-
-            pollInterval = setInterval(async () => {
-                try {
-                    const res = await fetch(`/upload/status/${jobId}`);
-                    if (!res.ok) {
-                        clearInterval(pollInterval);
-                        statusMessage.textContent = `Status check failed (HTTP ${res.status}).`;
-                        showToast('Status check failed', 'error');
-                        submitBtn.disabled = false;
-                        submitBtn.innerHTML = '<i class="fas fa-cloud-upload-alt"></i> Upload & Process';
-                        if (uploadUiTimer) {
-                            clearInterval(uploadUiTimer);
-                            uploadUiTimer = null;
-                        }
-                        return;
-                    }
-                    const data = await res.json();
-
-                    if (data.status === 'completed') {
-                        clearInterval(pollInterval);
-                        statusMessage.textContent = data.message || 'Completed.';
-                        progressFill.style.width = '100%';
-                        progressPercent.textContent = '100%';
-                        const onlyDuplicates = Array.isArray(data.processed_files) && data.processed_files.length > 0 && data.processed_files.every(f => f.status === 'duplicate');
-                        if (onlyDuplicates) {
-                            showToast('All files were duplicates and skipped', 'warning');
-                        } else {
-                            showToast('Dataset uploaded and processed!', 'success');
-                        }
-
-                        renderProcessedFiles(data.processed_files);
-                        submitBtn.disabled = false;
-                        submitBtn.innerHTML = '<i class="fas fa-cloud-upload-alt"></i> Upload & Process';
-                        if (uploadUiTimer) {
-                            clearInterval(uploadUiTimer);
-                            uploadUiTimer = null;
-                        }
-                    } else if (data.status === 'failed') {
-                        clearInterval(pollInterval);
-                        statusMessage.textContent = 'Processing failed: ' + (data.error || 'Unknown error');
-                        showToast('Processing failed', 'error');
-
-                        renderProcessedFiles(data.processed_files);
-                        submitBtn.disabled = false;
-                        submitBtn.innerHTML = '<i class="fas fa-cloud-upload-alt"></i> Upload & Process';
-                        if (uploadUiTimer) {
-                            clearInterval(uploadUiTimer);
-                            uploadUiTimer = null;
-                        }
-                    } else {
-                        statusMessage.textContent = data.message || 'Processing...';
-                        const serverPct = typeof data.progress === 'number' ? data.progress : 0;
-                        const overall = Math.max(30, Math.min(100, 30 + Math.floor((serverPct / 100) * 70)));
-                        const current = parseInt(progressPercent.textContent, 10) || 0;
-                        if (overall >= current) {
-                            progressFill.style.width = overall + '%';
-                            progressPercent.textContent = overall + '%';
-                        }
-
-                        // Update live file list if processed_files info is available
-                        if (data.processed_files && Array.isArray(data.processed_files)) {
-                            renderProcessedFiles(data.processed_files);
-                        }
-                    }
-                } catch (e) {
-                    console.error('Polling error:', e);
-                }
-            }, 1000);
         }
 
         async function loadSchemasForUpload() {

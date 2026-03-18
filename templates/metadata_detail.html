@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dataset Metadata - statXtract</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --secondary: #64748b;
+            --accent: #10b981;
+            --bg-dark: #0f172a;
+            --glass-bg: rgba(30, 41, 59, 0.7);
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --text-main: rgba(255, 255, 255, 0.95);
+            --text-muted: rgba(255, 255, 255, 0.7);
+            --shadow-heavy: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.2);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+
+        body {
+            background: var(--bg-dark);
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 50%),
+                radial-gradient(at 100% 0%, rgba(16, 185, 129, 0.1) 0px, transparent 50%);
+            min-height: 100vh;
+            color: var(--text-main);
+            padding: 40px 20px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+
+        .btn-back {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            color: var(--text-main);
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .btn-back:hover {
+            background: rgba(255, 255, 255, 0.1);
+            transform: translateX(-5px);
+        }
+
+        .metadata-card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            box-shadow: var(--shadow-heavy);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            max-height: 85vh;
+        }
+
+        .card-header {
+            padding: 24px 30px;
+            border-bottom: 1px solid var(--glass-border);
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .card-title {
+            font-size: 1.5rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #fff 0%, #cbd5e1 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .card-subtitle {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            margin-top: 4px;
+        }
+
+        .scroll-content {
+            padding: 30px;
+            overflow-y: auto;
+            flex: 1;
+            scrollbar-width: thin;
+            scrollbar-color: var(--primary) transparent;
+        }
+
+        .scroll-content::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .scroll-content::-webkit-scrollbar-thumb {
+            background: var(--primary);
+            border-radius: 10px;
+        }
+
+        .section {
+            margin-bottom: 32px;
+        }
+
+        .section-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 1px solid rgba(99, 102, 241, 0.2);
+            padding-bottom: 8px;
+        }
+
+        .meta-row {
+            display: flex;
+            padding: 12px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .meta-label {
+            width: 240px;
+            color: var(--text-muted);
+            font-weight: 500;
+            flex-shrink: 0;
+        }
+
+        .meta-value {
+            flex: 1;
+            color: var(--text-main);
+            line-height: 1.6;
+        }
+
+        .download-group {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+
+        .btn-download {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 24px;
+            border-radius: 12px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .btn-ddi {
+            background: rgba(99, 102, 241, 0.15);
+            border: 1px solid var(--primary);
+            color: var(--primary);
+        }
+
+        .btn-micro {
+            background: rgba(16, 185, 129, 0.15);
+            border: 1px solid var(--accent);
+            color: var(--accent);
+        }
+
+        .btn-download:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        @media (max-width: 768px) {
+            .meta-row {
+                flex-direction: column;
+                gap: 4px;
+            }
+            .meta-label {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <a href="/admin" class="btn-back">
+                <i class="fas fa-arrow-left"></i> Back to Dashboard
+            </a>
+        </div>
+
+        <div class="metadata-card">
+            <div class="card-header">
+                <div class="card-title" id="display-title">Loading Metadata...</div>
+                <div class="card-subtitle" id="display-survey">Please wait...</div>
+            </div>
+
+            <div class="scroll-content" id="metadata-body">
+                <!-- Content will be loaded via JS -->
+                <div style="text-align: center; padding: 40px;">
+                    <i class="fas fa-circle-notch fa-spin fa-2x" style="color: var(--primary);"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const SCHEMA = "{{ schema }}";
+        const DATASET = "{{ dataset }}";
+
+        function _escapeHtml(s) {
+            return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
+        function _metaRow(label, value) {
+            if (!value && value !== 0) return '';
+            return `
+                <div class="meta-row">
+                    <div class="meta-label">${_escapeHtml(label)}</div>
+                    <div class="meta-value">${_escapeHtml(value)}</div>
+                </div>
+            `;
+        }
+
+        async function loadMetadata() {
+            try {
+                const res = await fetch(`/metadata/${SCHEMA}/${DATASET}`);
+                const data = await res.json();
+                
+                if (data.error) throw new Error(data.error);
+
+                document.getElementById('display-title').textContent = data.dataset?.display_name || 'Dataset Metadata';
+                document.getElementById('display-survey').textContent = data.survey?.display_name || SCHEMA;
+
+                const meta = data.study_description || {};
+                const downloads = data.downloads || {};
+
+                let html = `
+                    <div class="section">
+                        <div class="section-title"><i class="fas fa-book"></i> Study Description</div>
+                        <div class="download-group">
+                            <a class="btn-download btn-ddi" href="${_escapeHtml(downloads.ddi || '#')}" target="_blank">
+                                <i class="fas fa-file-code"></i> Download DDI XML
+                            </a>
+                            <a class="btn-download btn-micro" href="${_escapeHtml(downloads.microdata || '#')}" target="_blank">
+                                <i class="fas fa-download"></i> Get Microdata
+                            </a>
+                        </div>
+                    </div>
+
+                    <div class="section">
+                        <div class="section-title"><i class="fas fa-id-card"></i> Identification</div>
+                        ${_metaRow('Survey ID', meta.survey_id)}
+                        ${_metaRow('Title', meta.title)}
+                        ${_metaRow('Abstract', meta.abstract)}
+                    </div>
+
+                    <div class="section">
+                        <div class="section-title"><i class="fas fa-search"></i> Scope</div>
+                        ${_metaRow('Keywords', meta.keywords)}
+                    </div>
+
+                    <div class="section">
+                        <div class="section-title"><i class="fas fa-globe"></i> Coverage</div>
+                        ${_metaRow('Geographic Coverage', meta.geographic_coverage)}
+                        ${_metaRow('Industrial Coverage', meta.industrial_coverage)}
+                        ${_metaRow('Product Coverage', meta.product_coverage)}
+                    </div>
+
+                    <div class="section">
+                        <div class="section-title"><i class="fas fa-vial"></i> Sampling</div>
+                        ${_metaRow('Weighting', meta.weighting)}
+                        ${_metaRow('Frequency', meta.frequency)}
+                        ${_metaRow('Methodology', meta.methodology)}
+                    </div>
+
+                    <div class="section">
+                        <div class="section-title"><i class="fas fa-clipboard-list"></i> Data Collection</div>
+                        ${_metaRow('Mode', meta.collection_mode)}
+                        ${_metaRow('Time Method', meta.time_method)}
+                        ${_metaRow('Procedures', meta.procedures)}
+                    </div>
+
+                    <div class="section">
+                        <div class="section-title"><i class="fas fa-cogs"></i> Metadata Production</div>
+                        ${_metaRow('Producer', meta.producer)}
+                        ${_metaRow('DDI ID', meta.ddi_id)}
+                    </div>
+                `;
+
+                document.getElementById('metadata-body').innerHTML = html;
+
+            } catch (e) {
+                document.getElementById('metadata-body').innerHTML = `
+                    <div style="text-align: center; color: #ef4444; padding: 40px;">
+                        <i class="fas fa-exclamation-triangle fa-2x"></i>
+                        <p style="margin-top: 10px;">Failed to load metadata: ${_escapeHtml(e.message)}</p>
+                    </div>
+                `;
+            }
+        }
+
+        window.onload = loadMetadata;
+    </script>
+</body>
+
+</html>

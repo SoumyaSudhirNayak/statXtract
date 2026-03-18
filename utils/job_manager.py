@@ -6,8 +6,10 @@ import uuid
 # Job Status Constants
 JOB_STATUS_INITIALIZED = "INITIALIZED"
 JOB_STATUS_QUEUED = "QUEUED"
+JOB_STATUS_PROCESSING = "PROCESSING"
 JOB_STATUS_CONVERTING = "CONVERTING"
 JOB_STATUS_EXPORTING = "EXPORTING"
+JOB_STATUS_PARSING_DDI = "PARSING_DDI"
 JOB_STATUS_INGESTING = "INGESTING"
 JOB_STATUS_COMPLETED = "COMPLETED"
 JOB_STATUS_FAILED = "FAILED"
@@ -15,12 +17,15 @@ JOB_STATUS_FAILED = "FAILED"
 # In-memory job store
 jobs: Dict[str, Dict[str, Any]] = {}
 
-def create_job(filename: Optional[str] = None, schema: Optional[str] = None) -> str:
+def create_job(
+    filename: Optional[str] = None,
+    schema: Optional[str] = None,
+    schema_display_name: Optional[str] = None,
+    year: Optional[str] = None,
+    dataset_display_name: Optional[str] = None,
+    dataset_db_name: Optional[str] = None,
+) -> str:
     job_id = str(uuid.uuid4())
-    # Ensure schema is not None/empty; if it is, this should likely be caught earlier, 
-    # but we can default to 'public' ONLY if absolutely necessary. 
-    # However, per requirements, we want to fail fast if schema is invalid.
-    # But create_job might be called with validated schema.
     
     jobs[job_id] = {
         "status": JOB_STATUS_INITIALIZED,
@@ -29,12 +34,17 @@ def create_job(filename: Optional[str] = None, schema: Optional[str] = None) -> 
         "message": "Job initialized",
         "filename": filename,
         "schema": schema,
+        "schema_display_name": schema_display_name,
+        "year": year,
+        "dataset_display_name": dataset_display_name,
+        "dataset_db_name": dataset_db_name,
         "job_type": "upload",
         "input_file_path": None,
         "output_paths": {},
         "logs": [],
         "log_messages": [],
         "files": [],
+        "processed_files": [], # Structured info: {name, status, message, timestamp}
         "errors": [],
         "transitions": [{
             "from": None,
@@ -60,10 +70,15 @@ def update_job(
     error: str = None,
     filename: str = None,
     schema: str = None,
+    schema_display_name: str = None,
+    year: str = None,
+    dataset_display_name: str = None,
+    dataset_db_name: str = None,
     job_type: str = None,
     input_file_path: str = None,
     output_paths: dict = None,
     log: str = None,
+    processed_file: dict = None, # {name, status, message}
 ):
     job = jobs.get(job_id)
     if not job:
@@ -80,8 +95,9 @@ def update_job(
     LIFECYCLE_ORDER = [
         JOB_STATUS_INITIALIZED,
         JOB_STATUS_QUEUED,
+        JOB_STATUS_PROCESSING,
         JOB_STATUS_CONVERTING,
-        JOB_STATUS_EXPORTING,
+        JOB_STATUS_PARSING_DDI,
         JOB_STATUS_INGESTING,
         JOB_STATUS_COMPLETED
     ]
@@ -144,6 +160,14 @@ def update_job(
         job["filename"] = filename
     if schema is not None:
         job["schema"] = schema
+    if schema_display_name is not None:
+        job["schema_display_name"] = schema_display_name
+    if year is not None:
+        job["year"] = year
+    if dataset_display_name is not None:
+        job["dataset_display_name"] = dataset_display_name
+    if dataset_db_name is not None:
+        job["dataset_db_name"] = dataset_db_name
     if job_type:
         job["job_type"] = job_type
     if input_file_path is not None:
@@ -162,6 +186,14 @@ def update_job(
         job["logs"].append(log)
         if "log_messages" in job:
             job["log_messages"].append(log)
+    
+    if processed_file:
+        if "processed_files" not in job:
+            job["processed_files"] = []
+        # Add timestamp if not present
+        if "timestamp" not in processed_file:
+            processed_file["timestamp"] = datetime.now().isoformat()
+        job["processed_files"].append(processed_file)
         
     job["updated_at"] = datetime.now().isoformat()
 
