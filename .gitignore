@@ -7,8 +7,7 @@ venv/
 
 __pycache__/
 *.pyc
-ADMIN_ACCOUNT/
-
 uploads/
 temp/
+ADMIN_ACCOUNT/
 .pytest_cache/

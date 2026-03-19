@@ -25,14 +25,14 @@ def _to_pg_schema_name(display_name: str) -> str:
 
 
 SURVEY_SCHEMA_DISPLAY_NAMES = [
-    "Periodic Labour Force Survey",
     "Annual Survey of Industries",
-    "Household Consumption Expenditure Survey",
+    "Index of Industrial Production",
+    "Household Consumption Expenditure",
     "Economic Census",
-    "Employment Unemployment",
-    "Health",
-    "Education",
-    "Enterprise Survey",
+    "Enterprises Surveys",
+    "Periodic Labour Force Survey",
+    "Employment and Unemployment",
+    "Land and Livestock Holding Surveys",
     "Other Surveys",
 ]
 

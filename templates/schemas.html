@@ -388,7 +388,7 @@
             const container = document.getElementById('schemasContainer');
             
             try {
-                const response = await fetch('/schemas');
+                const response = await fetch('/surveys');
                 const schemas = await response.json();
 
                 if (schemas.error) {
@@ -416,20 +416,18 @@
                     card.style.animationDelay = `${index * 0.1}s`;
                     
                     card.innerHTML = `
-                        <i class="${schema.icon || 'fas fa-database'} schema-icon"></i>
+                        <i class="fas fa-folder-tree schema-icon"></i>
                         <div class="schema-info">
-                            <div class="schema-name">${schema.schema}</div>
-                            <div class="schema-full-name">${schema.name}</div>
-                            <div class="schema-description">${schema.description}</div>
-                            <div class="schema-category">${schema.category}</div>
+                            <div class="schema-name">${schema.display_name}</div>
+                            <div class="schema-full-name">${schema.dataset_count} datasets</div>
+                            <div class="schema-description">Logical survey group</div>
+                            <div class="schema-category">Survey</div>
                         </div>
                     `;
 
                     // Add click handler for future functionality
                     card.addEventListener('click', () => {
-                        console.log(`Clicked on schema: ${schema.schema}`);
-                        // You can add navigation to schema details here
-                        // window.location.href = `/schema/${schema.schema}`;
+                        window.location.href = `/datasets-page?survey=${encodeURIComponent(schema.survey)}`;
                     });
 
                     grid.appendChild(card);
