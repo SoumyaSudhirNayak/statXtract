@@ -15,6 +15,7 @@ import tempfile
 import difflib
 import re
 import bcrypt
+from typing import Any, Dict, List
 from datetime import timedelta, datetime
 from dotenv import load_dotenv
 from pathlib import Path
@@ -23,7 +24,7 @@ from watchgod import awatch, Change
 
 # Import your custom modules
 from utils.ingestion_pipeline import ingest_upload_file, process_dataset_zip, convert_and_ingest_nesstar_binary_study, discover_nesstar_converter_exe
-from utils.db_init import ensure_core_tables
+from utils.db_init import ensure_core_tables, _to_pg_schema_name
 from utils.metadata_helper import get_column_labels, apply_labels
 from utils.job_manager import (
     create_job,
@@ -457,6 +458,233 @@ async def get_schemas(request: Request):
     except Exception as e:
         print(f"ERROR in get_schemas: {e}")
         return {"error": str(e)}
+
+
+def _format_dataset_suffix(suffix: str) -> str:
+    s = (suffix or "").strip().strip("_")
+    if not s:
+        return ""
+    return "-".join([p for p in s.split("_") if p])
+
+
+def _dataset_display_from_schema(schema_name: str, survey_display: str, survey_db: str) -> str:
+    sn = (schema_name or "").strip()
+    if "__" in sn:
+        ds = sn.split("__", 1)[1]
+        suffix = _format_dataset_suffix(ds)
+        return suffix.replace("-", " ").replace("_", " ").title() or survey_display
+
+    if sn == survey_db:
+        return survey_display
+
+    if sn.startswith(survey_db + "_"):
+        suffix = sn[len(survey_db) + 1 :]
+        cleaned = _format_dataset_suffix(suffix)
+        return f"{survey_display}({cleaned})" if cleaned else survey_display
+
+    parts = sn.split("_", 1)
+    if len(parts) == 2:
+        cleaned = _format_dataset_suffix(parts[1])
+        return f"{survey_display}({cleaned})" if cleaned else survey_display
+
+    return survey_display
+
+
+async def _list_non_system_schemas(conn: asyncpg.Connection) -> list[str]:
+    rows = await conn.fetch(
+        """
+        SELECT schema_name
+        FROM information_schema.schemata
+        WHERE schema_name NOT IN ('pg_catalog', 'information_schema', 'public')
+        ORDER BY schema_name
+        """
+    )
+    return [r["schema_name"] for r in rows]
+
+
+async def _group_schemas_by_survey(conn: asyncpg.Connection) -> dict[str, dict[str, Any]]:
+    reg_rows = await conn.fetch(
+        """
+        SELECT display_name, db_name
+        FROM schema_registry
+        ORDER BY display_name
+        """
+    )
+    display_by_db = {r["db_name"]: r["display_name"] for r in reg_rows}
+    db_by_display_lower = {str(r["display_name"]).strip().lower(): r["db_name"] for r in reg_rows}
+
+    schema_names = await _list_non_system_schemas(conn)
+
+    grouped: dict[str, dict[str, Any]] = {}
+    for sn in schema_names:
+        survey_db = None
+        if "__" in sn:
+            candidate = sn.split("__", 1)[0]
+            if candidate in display_by_db:
+                survey_db = candidate
+        if not survey_db:
+            if sn in display_by_db:
+                survey_db = sn
+        if not survey_db:
+            for db in display_by_db.keys():
+                if sn.startswith(db + "_"):
+                    survey_db = db
+                    break
+        if not survey_db:
+            base_token = sn.split("_", 1)[0].strip()
+            survey_db = db_by_display_lower.get(base_token.lower())
+            if not survey_db:
+                candidate = _to_pg_schema_name(base_token)
+                if candidate in display_by_db:
+                    survey_db = candidate
+
+        if not survey_db or survey_db not in display_by_db:
+            continue
+
+        survey_display = display_by_db[survey_db]
+        group = grouped.get(survey_db)
+        if not group:
+            group = {"survey": survey_db, "display_name": survey_display, "datasets": []}
+            grouped[survey_db] = group
+
+        group["datasets"].append(
+            {
+                "schema": sn,
+                "display_name": _dataset_display_from_schema(sn, survey_display, survey_db),
+            }
+        )
+
+    for g in grouped.values():
+        g["datasets"] = sorted(g["datasets"], key=lambda x: x["display_name"])
+    return dict(sorted(grouped.items(), key=lambda x: x[1]["display_name"]))
+
+
+@app.get("/surveys")
+async def list_surveys(request: Request, current_user=Depends(get_current_user)):
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        grouped = await _group_schemas_by_survey(conn)
+    return [
+        {"survey": v["survey"], "display_name": v["display_name"], "dataset_count": len(v["datasets"])}
+        for v in grouped.values()
+    ]
+
+
+@app.get("/surveys/{survey}/datasets")
+async def list_survey_datasets(request: Request, survey: str, current_user=Depends(get_current_user)):
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        grouped = await _group_schemas_by_survey(conn)
+    g = grouped.get(survey)
+    if not g:
+        raise HTTPException(status_code=404, detail="Survey not found")
+    datasets = g["datasets"]
+    if len(datasets) > 1:
+        datasets = [d for d in datasets if d["schema"] != survey]
+    return datasets
+
+
+@app.get("/surveys/{survey}/{dataset}/tables")
+async def list_survey_tables(request: Request, survey: str, dataset: str, current_user=Depends(get_current_user)):
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        grouped = await _group_schemas_by_survey(conn)
+        g = grouped.get(survey)
+        if not g:
+            raise HTTPException(status_code=404, detail="Survey not found")
+        ds = [d for d in g["datasets"] if d["schema"] == dataset]
+        if not ds:
+            raise HTTPException(status_code=404, detail="Dataset not found")
+
+        rows = await conn.fetch(
+            """
+            SELECT table_name,
+                   (SELECT COUNT(*) FROM information_schema.columns
+                    WHERE table_name = t.table_name AND table_schema = t.table_schema) as column_count,
+                   (SELECT reltuples::bigint FROM pg_class c
+                    JOIN pg_namespace n ON n.oid = c.relnamespace
+                    WHERE c.relname = t.table_name AND n.nspname = t.table_schema) as row_count
+            FROM information_schema.tables t
+            WHERE table_type = 'BASE TABLE'
+              AND table_schema = $1
+            ORDER BY table_name
+            """,
+            dataset,
+        )
+
+    hidden = {"dataset_metadata", "variables", "variable_categories", "variable_statistics"}
+    out = []
+    for r in rows:
+        name = r["table_name"]
+        if name in hidden:
+            continue
+        out.append(
+            {
+                "table_name": name,
+                "row_count": r["row_count"] or 0,
+                "column_count": r["column_count"] or 0,
+            }
+        )
+    return out
+
+
+@app.get("/surveys/{survey}/{dataset}/{table}/columns")
+async def list_survey_columns(request: Request, survey: str, dataset: str, table: str, current_user=Depends(get_current_user)):
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        grouped = await _group_schemas_by_survey(conn)
+        g = grouped.get(survey)
+        if not g:
+            raise HTTPException(status_code=404, detail="Survey not found")
+        ds = [d for d in g["datasets"] if d["schema"] == dataset]
+        if not ds:
+            raise HTTPException(status_code=404, detail="Dataset not found")
+
+        cols = await conn.fetch(
+            """
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_schema = $1 AND table_name = $2
+            ORDER BY ordinal_position
+            """,
+            dataset,
+            table,
+        )
+    return [c["column_name"] for c in cols]
+
+
+@app.get("/surveys/{survey}/{dataset}/{table}/query")
+async def query_survey_table(
+    request: Request,
+    survey: str,
+    dataset: str,
+    table: str,
+    columns: str = "",
+    filters: str = "",
+    limit: int = 100,
+    offset: int = 0,
+    current_user=Depends(get_current_user),
+):
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        grouped = await _group_schemas_by_survey(conn)
+        g = grouped.get(survey)
+        if not g:
+            raise HTTPException(status_code=404, detail="Survey not found")
+        ds = [d for d in g["datasets"] if d["schema"] == dataset]
+        if not ds:
+            raise HTTPException(status_code=404, detail="Dataset not found")
+
+    return await query_table(
+        request=request,
+        schema=dataset,
+        table=table,
+        columns=columns,
+        filters=filters,
+        limit=limit,
+        offset=offset,
+        current_user=current_user,
+    )
 
 
 @app.get("/schemas/{schema}/datasets")

@@ -221,19 +221,73 @@ Source: [query_data.py run_query](file:///e:/STATATHON%202025%20LOCAL/Statathon_
 
 - `POST /upload/` (multipart form-data: file + schema)
 - Extracts ZIP and loads data into PostgreSQL
+- **Known Issue:** `NotNullViolation` in `dataset_registry` table.
+  - *Error:* `(psycopg2.errors.NotNullViolation) null value in column "display_name" of relation "dataset_registry" violates not-null constraint`.
+  - *Cause:* Legacy table schema mismatch where `dataset_registry` contains columns from `schema_registry` (like `display_name`, `db_name`) that are marked `NOT NULL`.
+  - *Status:* Table dropping logic implemented in `db_init.py` to force-recreate the correct schema (id, survey_schema, dataset_schema, dataset_display_name, created_at).
 
-Source: [main.py upload_dataset](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/main.py#L669-L806)
+Source: [ingestion_pipeline.py](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/utils/ingestion_pipeline.py#L321-L327)
 
-Supported input types:
-- `.csv` → load directly
-- `.xlsx` → converted to CSV then loaded
-- `.sav` → converted to CSV then loaded
-- `.txt` fixed-width → uses matched `.xml` DDI to parse then loads
-- `.por` (SPSS portable) → treated similarly to `.sav` for metadata checks
-- `.nesstar` study packages:
-  - Handled by `convert_and_ingest_nesstar_binary_study()` when a binary Nesstar study or `.nesstar` ZIP is detected.
-  - Uses the Nesstar GUI via PowerShell + AutoIt to export to `.sav`/`.csv`, then falls back into the normal `process_directory()` ingestion path.
-  - Respects job `schema` and ensures metadata tables (`datasets`, `dataset_files`, `variables`, `variable_categories`, `variable_missing_values`) live in the correct schema.
+#### Ingestion Workflow:
+1.  **Validation:** Check for ZIP file integrity and supported extensions (`.csv`, `.xlsx`, `.sav`, `.txt`).
+2.  **Conversion:** Excel and SPSS files are converted to CSV using `pandas` or `pyreadstat`.
+3.  **DDI Processing:** If a matched `.xml` DDI is found, it's used to parse fixed-width TXT or apply labels to variables.
+4.  **Database Loading:** Data is streamed into PostgreSQL using `df.to_sql` (SQLAlchemy).
+5.  **Hierarchy Registration:** The dataset is registered in `dataset_registry` under its parent survey schema.
+
+#### File Structuring Methodology:
+- **Physical Storage:** `uploads/{survey_schema}/{dataset_folder}/raw` and `uploads/{survey_schema}/{dataset_folder}/processed`.
+- **Naming Convention:** Dataset folders use a `{survey_schema}__{dataset_name}` or `{survey_schema}_{year}` convention to maintain logical grouping.
+- **DDI Mapping:** DDI XML files must share a prefix with the data file or be unique within the ZIP to be correctly matched.
+
+### E) Logical Hierarchy & Schema Mapping
+
+The system implements a **Survey → Dataset → Table** logical hierarchy without altering the physical flat schema structure of the database.
+
+#### Schema Mapping Implementations:
+- **`_group_schemas_by_survey` ([main.py](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/main.py)):** A centralized function that scans all database schemas and groups them based on prefixes registered in `schema_registry`.
+- **Supported Surveys:**
+  - Annual Survey of Industries (`annual_survey_of_industries`)
+  - Index of Industrial Production (`index_of_industrial_production`)
+  - Household Consumption Expenditure (`household_consumption_expenditure`)
+  - Economic Census (`economic_census`)
+  - Enterprises Surveys (`enterprises_surveys`)
+  - Periodic Labour Force Survey (`periodic_labour_force_survey`)
+  - Employment and Unemployment (`employment_and_unemployment`)
+  - Land and Livestock Holding Surveys (`land_and_livestock_holding_surveys`)
+  - Other Surveys (`other_surveys`)
+- **Mapping Logic:**
+  - Uses `__` as a delimiter (e.g., `annual_survey_of_industries__2023_24` maps to survey `annual_survey_of_industries`).
+  - Falls back to `_` prefix matching if no delimiter is found.
+  - Resolves display names from `schema_registry` or `SURVEY_SCHEMA_DISPLAY_NAMES`.
+- **API Endpoints:**
+  - `/surveys`: Returns logical survey groups with dataset counts.
+  - `/surveys/{survey}/datasets`: Returns datasets belonging to a survey.
+  - `/surveys/{survey}/{dataset}/tables`: Lists tables within a specific dataset.
+
+### F) Variable Dictionary & Configurations
+
+#### Variable Dictionary ([db_utils.py](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/utils/db_utils.py)):
+- Every dataset schema contains a `variable_dictionary` table.
+- **Fields:** `variable_name`, `label`, `ddi_type`, `width`, `final_type`, `valid_count`, `invalid_count`.
+- **Example:** A variable `V1` in `plfs` might have label "Age", ddi_type "numeric", and width 3.
+- Automatically populated during ingestion from DDI metadata or data file headers.
+
+#### Variable Configurations ([db_init.py](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/utils/db_init.py)):
+- **Table:** `variable_configs` in the `public` schema.
+- **Governance:** Admins can configure `include_in_api` (visibility) and `filterable` (query capability) per variable.
+- **UI:** The "Configure Variables" section in the admin dashboard provides a grid for managing these settings.
+
+### G) Metadata Integration Processes
+
+- **DDI Parsing:** Uses `utils/ddi_parser.py` to extract `abstract`, `keywords`, `geographic_coverage`, and `industrial_coverage`.
+- **Metadata Cards:**
+  - Displays rich dataset metadata in the UI.
+  - Metadata is stored in `{dataset_schema}.dataset_metadata`.
+  - UI renders these as searchable cards to provide context before querying.
+  - **Example:** A card for "PLFS 2023-24" would show its abstract from the DDI and a list of key variables.
+- **Label Application:** Before returning query results, the system fetches labels from the variable dictionary and applies them to the JSON output for better readability.
+- **Privacy Enforcement:** Suppression rules (e.g., `< 5 rows`) are applied after label application but before the response is returned.
 
 ### E) NADA admin integration
 

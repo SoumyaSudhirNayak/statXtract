@@ -1008,11 +1008,25 @@
         <div class="config-section" id="configSection">
             <h2><i class="fas fa-cogs"></i> Configure Variables</h2>
 
-            <div class="schema-selector">
-                <label for="schemaSelect"><i class="fas fa-database"></i> Select Schema:</label>
-                <select id="schemaSelect" onchange="loadVariables()">
-                    <option value="">Choose a schema...</option>
-                </select>
+            <div class="schema-selector" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; align-items: end;">
+                <div>
+                    <label for="surveySelectConfig"><i class="fas fa-folder-tree"></i> Survey:</label>
+                    <select id="surveySelectConfig" onchange="loadConfigDatasets()">
+                        <option value="">Loading surveys...</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="datasetSelectConfig"><i class="fas fa-calendar"></i> Dataset:</label>
+                    <select id="datasetSelectConfig" onchange="loadVariables()">
+                        <option value="">Select a survey first...</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="tableSelectConfig"><i class="fas fa-table"></i> Table (optional):</label>
+                    <select id="tableSelectConfig" onchange="filterVariablesByTable()">
+                        <option value="">All tables</option>
+                    </select>
+                </div>
             </div>
             <!-- Add this after the schema selector -->
             <div id="schemaInfo" style="margin-bottom: 20px;">
@@ -1288,14 +1302,34 @@
         // Load schemas for configuration
         async function loadSchemas() {
             try {
-                const response = await fetch('/schemas');
-                const schemas = await response.json();
+                const surveysRes = await fetch('/surveys');
+                const surveys = await surveysRes.json();
+                const surveySel = document.getElementById('surveySelectConfig');
+                const datasetSel = document.getElementById('datasetSelectConfig');
+                const tableSel = document.getElementById('tableSelectConfig');
+                if (surveySel) {
+                    surveySel.innerHTML = '<option value="" disabled selected>Select Survey...</option>';
+                    (Array.isArray(surveys) ? surveys : []).forEach(s => {
+                        const opt = document.createElement('option');
+                        opt.value = s.survey;
+                        opt.textContent = s.display_name;
+                        surveySel.appendChild(opt);
+                    });
+                }
+                if (datasetSel) {
+                    datasetSel.innerHTML = '<option value="" disabled selected>Select a survey first...</option>';
+                }
+                if (tableSel) {
+                    tableSel.innerHTML = '<option value="">All tables</option>';
+                }
 
-                const populate = (id, placeholder) => {
+                const schemasRes = await fetch('/schemas');
+                const schemas = await schemasRes.json();
+                const populateSchemas = (id, placeholder) => {
                     const el = document.getElementById(id);
                     if (!el) return;
                     el.innerHTML = `<option value="">${placeholder}</option>`;
-                    schemas.forEach(s => {
+                    (Array.isArray(schemas) ? schemas : []).forEach(s => {
                         const val = s.schema || s.name || s;
                         const opt = document.createElement('option');
                         opt.value = val;
@@ -1304,9 +1338,8 @@
                     });
                 };
 
-                populate('schemaSelect', 'Choose a schema...');
-                populate('nesstarSchema', 'Select target schema...');
-                populate('nadaSchema', 'Select target schema...');
+                populateSchemas('nesstarSchema', 'Select target schema...');
+                populateSchemas('nadaSchema', 'Select target schema...');
 
             } catch (error) {
                 console.error('Error loading schemas:', error);
@@ -1326,7 +1359,12 @@
             const configSection = document.getElementById('configSection');
             configSection.classList.remove('active');
             document.getElementById('variablesForm').style.display = 'none';
-            document.getElementById('schemaSelect').value = '';
+            const surveySel = document.getElementById('surveySelectConfig');
+            const datasetSel = document.getElementById('datasetSelectConfig');
+            const tableSel = document.getElementById('tableSelectConfig');
+            if (surveySel) surveySel.value = '';
+            if (datasetSel) datasetSel.innerHTML = '<option value="" disabled selected>Select a survey first...</option>';
+            if (tableSel) tableSel.innerHTML = '<option value="">All tables</option>';
         }
 
         let nadaJobPoller = null;
@@ -1918,10 +1956,58 @@
             nadaDatasetLimit = Number.isFinite(val) ? Math.min(Math.max(val, 1), 200) : nadaDatasetLimit;
         });
 
-        // Load variables for selected schema - UPDATED VERSION
+        let lastVariablesPayload = null;
+
+        async function loadConfigDatasets() {
+            const surveySel = document.getElementById('surveySelectConfig');
+            const datasetSel = document.getElementById('datasetSelectConfig');
+            const tableSel = document.getElementById('tableSelectConfig');
+            if (!surveySel || !datasetSel) return;
+            const survey = surveySel.value;
+            datasetSel.innerHTML = '<option value="" disabled selected>Loading datasets...</option>';
+            if (tableSel) tableSel.innerHTML = '<option value="">All tables</option>';
+            document.getElementById('variablesForm').style.display = 'none';
+            document.getElementById('schemaInfo').innerHTML = '';
+            lastVariablesPayload = null;
+            try {
+                const res = await fetch(`/surveys/${survey}/datasets`);
+                const datasets = await res.json();
+                datasetSel.innerHTML = '';
+                const def = document.createElement('option');
+                def.value = '';
+                def.textContent = 'Select Dataset...';
+                def.disabled = true;
+                def.selected = true;
+                datasetSel.appendChild(def);
+                (Array.isArray(datasets) ? datasets : []).forEach(d => {
+                    const opt = document.createElement('option');
+                    opt.value = d.schema;
+                    opt.textContent = d.display_name;
+                    datasetSel.appendChild(opt);
+                });
+            } catch (e) {
+                datasetSel.innerHTML = '<option value="" disabled selected>Error loading datasets</option>';
+            }
+        }
+
+        function filterVariablesByTable() {
+            const tableSel = document.getElementById('tableSelectConfig');
+            const datasetSel = document.getElementById('datasetSelectConfig');
+            const selectedSchema = datasetSel ? datasetSel.value : '';
+            if (!lastVariablesPayload || !selectedSchema) return;
+            const table = tableSel ? tableSel.value : '';
+            if (!table) {
+                populateVariables(lastVariablesPayload.variables || [], selectedSchema);
+                return;
+            }
+            const filtered = (lastVariablesPayload.variables || []).filter(v => Array.isArray(v.tables) && v.tables.includes(table));
+            populateVariables(filtered, selectedSchema);
+        }
+
+        // Load variables for selected dataset schema
         async function loadVariables() {
-            const schemaSelect = document.getElementById('schemaSelect');
-            const selectedSchema = schemaSelect.value;
+            const datasetSel = document.getElementById('datasetSelectConfig');
+            const selectedSchema = datasetSel ? datasetSel.value : '';
 
             if (!selectedSchema) {
                 document.getElementById('variablesForm').style.display = 'none';
@@ -1932,13 +2018,14 @@
                 showToast('Loading variables...', 'info');
 
                 // Call the actual API endpoint
-                const response = await fetch(`/admin/schemas/${selectedSchema}/variables`);
+                const response = await fetch(`/admin/schemas/${encodeURIComponent(selectedSchema)}/variables`);
                 const data = await response.json();
 
                 if (data.error) {
                     throw new Error(data.error);
                 }
 
+                lastVariablesPayload = data;
                 populateVariables(data.variables, selectedSchema);
                 document.getElementById('variablesForm').style.display = 'block';
 
@@ -1959,6 +2046,17 @@
                     </p>
                 </div>
             `;
+                }
+
+                const tableSel = document.getElementById('tableSelectConfig');
+                if (tableSel && data.table_details) {
+                    tableSel.innerHTML = '<option value="">All tables</option>';
+                    Object.keys(data.table_details).forEach(t => {
+                        const opt = document.createElement('option');
+                        opt.value = t;
+                        opt.textContent = t;
+                        tableSel.appendChild(opt);
+                    });
                 }
 
             } catch (error) {

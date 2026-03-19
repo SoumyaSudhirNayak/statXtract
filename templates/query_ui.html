@@ -1045,14 +1045,26 @@
 
         </header>
 
-        <!-- Schema Selection -->
+        <!-- Survey Selection -->
         <div class="glass-card hover-lift">
             <div class="form-group">
                 <label class="form-label">
-                    <i class="fas fa-layer-group"></i> Select Schema
+                    <i class="fas fa-layer-group"></i> Select Survey
                 </label>
-                <select class="form-select" id="schema">
-                    <option selected disabled>Loading schemas...</option>
+                <select class="form-select" id="survey">
+                    <option selected disabled>Loading surveys...</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Dataset Selection -->
+        <div class="glass-card hover-lift">
+            <div class="form-group">
+                <label class="form-label">
+                    <i class="fas fa-calendar"></i> Select Dataset
+                </label>
+                <select class="form-select" id="dataset">
+                    <option selected disabled>Select a survey first...</option>
                 </select>
             </div>
         </div>
@@ -1298,96 +1310,142 @@
             showProgress(true, 10);
 
             try {
-                const response = await fetch("/datasets");
+                const response = await fetch("/surveys");
                 showProgress(true, 50);
                 const data = await response.json();
 
-                tableDataBySchema = data;
-                const schemaSelect = document.getElementById("schema");
-                schemaSelect.innerHTML = "";
+                const surveySelect = document.getElementById("survey");
+                const datasetSelect = document.getElementById("dataset");
+                const tableSelect = document.getElementById("table");
+                surveySelect.innerHTML = "";
 
                 const defaultOption = document.createElement("option");
                 defaultOption.value = "";
-                defaultOption.textContent = "Select a schema...";
+                defaultOption.textContent = "Select a survey...";
                 defaultOption.selected = true;
                 defaultOption.disabled = true;
-                schemaSelect.appendChild(defaultOption);
+                surveySelect.appendChild(defaultOption);
 
                 showProgress(true, 80);
 
-                for (const schemaName of Object.keys(data)) {
+                const items = Array.isArray(data) ? data : [];
+                for (const s of items) {
                     const option = document.createElement("option");
-                    option.value = schemaName;
-                    option.textContent = schemaName;
-                    schemaSelect.appendChild(option);
+                    option.value = s.survey;
+                    option.textContent = s.display_name;
+                    surveySelect.appendChild(option);
                 }
 
-                schemaSelect.onchange = function (e) {
-                    const selectedSchema = e.target.value;
-                    if (selectedSchema) {
-                        loadTables(selectedSchema);
-                    } else {
-                        document.getElementById("table").innerHTML = "";
-                        document.getElementById("columns-grid").innerHTML = "";
-                    }
+                datasetSelect.innerHTML = '<option selected disabled>Select a survey first...</option>';
+                tableSelect.innerHTML = '<option selected disabled>Select a dataset first...</option>';
+                document.getElementById("columns-grid").innerHTML = "";
+
+                surveySelect.onchange = async function (e) {
+                    const selectedSurvey = e.target.value;
+                    if (!selectedSurvey) return;
+                    await loadDatasets(selectedSurvey);
+                };
+
+                datasetSelect.onchange = async function (e) {
+                    const selectedDataset = e.target.value;
+                    const selectedSurvey = surveySelect.value;
+                    if (!selectedSurvey || !selectedDataset) return;
+                    await loadTables(selectedSurvey, selectedDataset);
                 };
 
                 showProgress(true, 100);
                 setTimeout(() => showProgress(false), 500);
-                showToast(`Loaded ${Object.keys(data).length} schemas successfully!`, 'success');
+                showToast(`Loaded ${items.length} surveys successfully!`, 'success');
 
             } catch (error) {
                 console.error("Error loading schemas:", error);
-                showToast('Failed to load schemas', 'error');
-                const schemaSelect = document.getElementById("schema");
-                schemaSelect.innerHTML = "<option disabled>Error loading schemas</option>";
+                showToast('Failed to load surveys', 'error');
+                const surveySelect = document.getElementById("survey");
+                surveySelect.innerHTML = "<option disabled>Error loading surveys</option>";
             } finally {
                 showLoading(false);
             }
         }
 
-        function loadTables(schema) {
+        async function loadDatasets(survey) {
+            showLoading(true);
+            const datasetSelect = document.getElementById('dataset');
             const tableSelect = document.getElementById('table');
-            const tables = tableDataBySchema[schema];
+            datasetSelect.innerHTML = '<option selected disabled>Loading datasets...</option>';
+            tableSelect.innerHTML = '<option selected disabled>Select a dataset first...</option>';
+            document.getElementById('columns-grid').innerHTML = '';
+            try {
+                const res = await fetch(`/surveys/${survey}/datasets`);
+                const data = await res.json();
+                const items = Array.isArray(data) ? data : [];
+                datasetSelect.innerHTML = '';
+                const def = document.createElement('option');
+                def.value = '';
+                def.textContent = 'Select a dataset...';
+                def.disabled = true;
+                def.selected = true;
+                datasetSelect.appendChild(def);
 
-            tableSelect.innerHTML = "";
-
-            if (!Array.isArray(tables)) {
-                console.warn("Schema tables not an array:", schema, tables);
-                return;
-            }
-
-            const defaultOption = document.createElement("option");
-            defaultOption.value = "";
-            defaultOption.textContent = "Select a table...";
-            defaultOption.selected = true;
-            defaultOption.disabled = true;
-            tableSelect.appendChild(defaultOption);
-
-            tables.forEach(t => {
-                const option = document.createElement("option");
-                option.value = t.table_name;
-                option.textContent = `${t.table_name} (${t.row_count ?? "?"} rows)`;
-                tableSelect.appendChild(option);
-            });
-
-            tableSelect.onchange = async (e) => {
-                const selectedTable = e.target.value;
-                if (selectedTable) {
-                    await loadColumns(schema, selectedTable);
-                } else {
-                    document.getElementById("columns-grid").innerHTML = "";
+                for (const d of items) {
+                    const opt = document.createElement('option');
+                    opt.value = d.schema;
+                    opt.textContent = d.display_name;
+                    datasetSelect.appendChild(opt);
                 }
-            };
-
-            showToast(`Loaded ${tables.length} tables for ${schema}`, 'success');
+                showToast(`Loaded ${items.length} datasets`, 'success');
+            } catch (e) {
+                datasetSelect.innerHTML = '<option disabled>Error loading datasets</option>';
+                showToast('Failed to load datasets', 'error');
+            } finally {
+                showLoading(false);
+            }
         }
 
-        async function loadColumns(schema, tableName) {
+        async function loadTables(survey, dataset) {
+            showLoading(true);
+            const tableSelect = document.getElementById('table');
+            tableSelect.innerHTML = '<option selected disabled>Loading tables...</option>';
+            document.getElementById('columns-grid').innerHTML = '';
+            try {
+                const res = await fetch(`/surveys/${survey}/${encodeURIComponent(dataset)}/tables`);
+                const tables = await res.json();
+                const items = Array.isArray(tables) ? tables : [];
+                tableSelect.innerHTML = '';
+                const def = document.createElement('option');
+                def.value = '';
+                def.textContent = 'Select a table...';
+                def.disabled = true;
+                def.selected = true;
+                tableSelect.appendChild(def);
+                for (const t of items) {
+                    const option = document.createElement('option');
+                    option.value = t.table_name;
+                    option.textContent = `${t.table_name} (${t.row_count ?? "?"} rows)`;
+                    tableSelect.appendChild(option);
+                }
+
+                tableSelect.onchange = async (e) => {
+                    const selectedTable = e.target.value;
+                    if (selectedTable) {
+                        await loadColumns(survey, dataset, selectedTable);
+                    } else {
+                        document.getElementById("columns-grid").innerHTML = "";
+                    }
+                };
+                showToast(`Loaded ${items.length} tables`, 'success');
+            } catch (e) {
+                tableSelect.innerHTML = '<option disabled>Error loading tables</option>';
+                showToast('Failed to load tables', 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        async function loadColumns(survey, dataset, tableName) {
             showLoading(true);
 
             try {
-                const res = await fetch(`/datasets/${schema}/${tableName}/columns`);
+                const res = await fetch(`/surveys/${survey}/${encodeURIComponent(dataset)}/${tableName}/columns`);
                 const columns = await res.json();
 
                 const grid = document.getElementById('columns-grid');
@@ -1502,15 +1560,16 @@
 
         // Run Query with Progress
         async function runQuery() {
-            const schema = document.getElementById('schema').value;
+            const survey = document.getElementById('survey').value;
+            const dataset = document.getElementById('dataset').value;
             const table = document.getElementById('table').value;
             const columns = getSelectedColumns().join(',');
             const filters = document.getElementById('filters').value;
             const limit = document.getElementById('limit').value;
             const offset = document.getElementById('offset').value;
 
-            if (!schema || !table) {
-                showToast("Please select both schema and table.", 'error');
+            if (!survey || !dataset || !table) {
+                showToast("Please select survey, dataset, and table.", 'error');
                 return;
             }
 
@@ -1525,7 +1584,7 @@
 
             try {
                 showProgress(true, 30);
-                const res = await fetch(`/datasets/${schema}/${table}/query?${params.toString()}`);
+                const res = await fetch(`/surveys/${survey}/${encodeURIComponent(dataset)}/${table}/query?${params.toString()}`);
                 showProgress(true, 60);
                 const data = await res.json();
 
@@ -1958,7 +2017,8 @@
                 const chartType = document.getElementById('chartType').value;
                 const xAxisCol = document.getElementById('xAxis').value;
                 const yAxisCol = document.getElementById('yAxis').value;
-                const schema = document.getElementById('schema').value;
+                const survey = document.getElementById('survey').value;
+                const dataset = document.getElementById('dataset').value;
                 const table = document.getElementById('table').value;
 
                 pdf.setFontSize(16);
@@ -1966,7 +2026,7 @@
 
                 pdf.setFontSize(10);
                 pdf.text(`Chart Type: ${chartType.toUpperCase()}`, 20, 30);
-                pdf.text(`Data Source: ${schema}.${table}`, 20, 35);
+                pdf.text(`Data Source: ${survey}/${dataset}.${table}`, 20, 35);
                 pdf.text(`Generated: ${new Date().toLocaleString()}`, 20, 40);
                 pdf.text(`Records: ${latestResults.length}`, 20, 45);
 

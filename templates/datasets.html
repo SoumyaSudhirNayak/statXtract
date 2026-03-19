@@ -679,15 +679,18 @@
                     <!-- Stats will be populated here -->
                 </div>
 
-                <!-- Search and Filter Controls -->
+                <!-- Survey/Dataset Controls -->
                 <div class="controls-section">
-                    <div class="search-box">
-                        <input type="text" class="search-input" id="searchInput" placeholder="🔍 Search schemas or tables..." oninput="filterSchemas()">
+                    <div class="search-box" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                        <select id="surveySelect" class="search-input" onchange="onSurveyChange()">
+                            <option value="" disabled selected>Loading surveys...</option>
+                        </select>
+                        <select id="datasetSelect" class="search-input" onchange="onDatasetChange()">
+                            <option value="" disabled selected>Select a survey first...</option>
+                        </select>
                     </div>
-                    <div class="filter-buttons">
-                        <button class="filter-btn active" onclick="filterByType('all')">All Schemas</button>
-                        <button class="filter-btn" onclick="filterByType('non-empty')">With Tables</button>
-                        <button class="filter-btn" onclick="filterByType('empty')">Empty</button>
+                    <div class="search-box" style="margin-top: 12px;">
+                        <input type="text" class="search-input" id="searchInput" placeholder="🔍 Search tables..." oninput="filterTables()">
                     </div>
                 </div>
 
@@ -704,8 +707,9 @@
     </div>
 
     <script>
-        let allDatasets = {};
-        let currentFilter = 'all';
+        let currentSurvey = '';
+        let currentDataset = '';
+        let currentTables = [];
 
         // Theme Toggle Functionality
         function toggleTheme() {
@@ -733,37 +737,170 @@
                 toggleTheme();
             }
 
-            // Load datasets data
-            loadDatasets();
+            initHierarchy();
         });
 
-        // Load datasets from API
-        async function loadDatasets() {
+        function _qs(name) {
+            const params = new URLSearchParams(window.location.search);
+            return params.get(name);
+        }
+
+        async function initHierarchy() {
             try {
-                const response = await fetch('/datasets');
-                const datasets = await response.json();
+                const surveySelect = document.getElementById('surveySelect');
+                const datasetSelect = document.getElementById('datasetSelect');
+                const response = await fetch('/surveys');
+                const surveys = await response.json();
 
-                // Hide loading
                 document.getElementById('loading').style.display = 'none';
+                document.getElementById('tableContent').style.display = 'block';
 
-                if (datasets && Object.keys(datasets).length > 0) {
-                    allDatasets = datasets;
-                    // Show table
-                    document.getElementById('tableContent').style.display = 'block';
-                    populateSummaryStats(datasets);
-                    populateDatasetsTable(datasets);
+                surveySelect.innerHTML = '';
+                const def = document.createElement('option');
+                def.value = '';
+                def.textContent = 'Select Survey...';
+                def.disabled = true;
+                def.selected = true;
+                surveySelect.appendChild(def);
+
+                (Array.isArray(surveys) ? surveys : []).forEach(s => {
+                    const opt = document.createElement('option');
+                    opt.value = s.survey;
+                    opt.textContent = s.display_name;
+                    surveySelect.appendChild(opt);
+                });
+
+                const pre = _qs('survey');
+                if (pre) {
+                    surveySelect.value = pre;
+                    await onSurveyChange();
                 } else {
-                    // Show empty state
-                    document.getElementById('emptyState').style.display = 'block';
+                    datasetSelect.innerHTML = '<option value="" disabled selected>Select a survey first...</option>';
                 }
-            } catch (error) {
-                console.error('Error loading datasets:', error);
+            } catch (e) {
+                console.error('Error loading surveys:', e);
                 document.getElementById('loading').innerHTML = `
                     <i class="fas fa-exclamation-triangle" style="color: var(--danger-color);"></i>
-                    <h3>Error Loading Tables</h3>
-                    <p>Failed to load database tables. Please try again later.</p>
+                    <h3>Error Loading Surveys</h3>
+                    <p>Failed to load surveys. Please try again later.</p>
                 `;
             }
+        }
+
+        async function onSurveyChange() {
+            const surveySelect = document.getElementById('surveySelect');
+            const datasetSelect = document.getElementById('datasetSelect');
+            const survey = surveySelect.value;
+            currentSurvey = survey;
+            currentDataset = '';
+            currentTables = [];
+            datasetSelect.innerHTML = '<option value="" disabled selected>Loading datasets...</option>';
+            renderTables([]);
+            try {
+                const res = await fetch(`/surveys/${survey}/datasets`);
+                const datasets = await res.json();
+                datasetSelect.innerHTML = '';
+                const def = document.createElement('option');
+                def.value = '';
+                def.textContent = 'Select Dataset...';
+                def.disabled = true;
+                def.selected = true;
+                datasetSelect.appendChild(def);
+                (Array.isArray(datasets) ? datasets : []).forEach(d => {
+                    const opt = document.createElement('option');
+                    opt.value = d.schema;
+                    opt.textContent = d.display_name;
+                    datasetSelect.appendChild(opt);
+                });
+            } catch (e) {
+                datasetSelect.innerHTML = '<option value="" disabled selected>Error loading datasets</option>';
+            }
+        }
+
+        async function onDatasetChange() {
+            const datasetSelect = document.getElementById('datasetSelect');
+            const dataset = datasetSelect.value;
+            currentDataset = dataset;
+            currentTables = [];
+            renderTables([]);
+            if (!currentSurvey || !currentDataset) return;
+
+            try {
+                const res = await fetch(`/surveys/${currentSurvey}/${encodeURIComponent(currentDataset)}/tables`);
+                const tables = await res.json();
+                currentTables = Array.isArray(tables) ? tables : [];
+                renderTables(currentTables);
+                populateSummaryStatsForTables(currentTables);
+            } catch (e) {
+                renderTables([]);
+            }
+        }
+
+        function populateSummaryStatsForTables(tables) {
+            const summary = document.getElementById('summaryStats');
+            const totalTables = (tables || []).length;
+            const totalRows = (tables || []).reduce((sum, t) => sum + (t.row_count || 0), 0);
+            const totalCols = (tables || []).reduce((sum, t) => sum + (t.column_count || 0), 0);
+            summary.innerHTML = `
+                <div class="stat-item">
+                    <div class="stat-number">${totalTables}</div>
+                    <div class="stat-label">Tables</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number">${totalRows.toLocaleString()}</div>
+                    <div class="stat-label">Rows (est.)</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number">${totalCols.toLocaleString()}</div>
+                    <div class="stat-label">Columns</div>
+                </div>
+            `;
+        }
+
+        function renderTables(tables) {
+            const container = document.getElementById('schemasContainer');
+            if (!tables || tables.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state fade-in">
+                        <i class="fas fa-table"></i>
+                        <h3>No Tables</h3>
+                        <p>Select a dataset to view tables.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const grid = document.createElement('div');
+            grid.className = 'schemas-grid fade-in';
+            tables.forEach((t, idx) => {
+                const card = document.createElement('div');
+                card.className = 'schema-section';
+                card.style.animationDelay = `${idx * 0.05}s`;
+                card.innerHTML = `
+                    <div class="schema-header">
+                        <div class="schema-title">
+                            <i class="fas fa-table"></i>
+                            <span>${t.table_name}</span>
+                        </div>
+                        <div class="schema-stats">
+                            <span><i class="fas fa-database"></i> ${(t.row_count || 0).toLocaleString()} rows</span>
+                            <span><i class="fas fa-columns"></i> ${(t.column_count || 0).toLocaleString()} cols</span>
+                        </div>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+            container.innerHTML = '';
+            container.appendChild(grid);
+        }
+
+        function filterTables() {
+            const q = (document.getElementById('searchInput').value || '').toLowerCase().trim();
+            if (!q) {
+                renderTables(currentTables);
+                return;
+            }
+            renderTables((currentTables || []).filter(t => String(t.table_name || '').toLowerCase().includes(q)));
         }
 
         // Populate summary statistics
