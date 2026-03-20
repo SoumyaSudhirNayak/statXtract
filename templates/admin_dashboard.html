@@ -940,11 +940,11 @@
                 <i class="fas fa-arrow-right card-arrow"></i>
             </a>
 
-            <!-- Configure Variables -->
+            <!-- Survey Configuration Panel -->
             <a href="#" onclick="showConfigureVariables(); return false;" class="glass-card fade-in">
                 <i class="fas fa-cogs card-icon"></i>
-                <h3 class="card-title">Configure Variables</h3>
-                <p class="card-description">Manage variable configurations, labels, and API settings for each schema</p>
+                <h3 class="card-title">Survey Configuration Panel</h3>
+                <p class="card-description">Configure table visibility and variable response behavior for users</p>
                 <i class="fas fa-arrow-right card-arrow"></i>
             </a>
 
@@ -996,9 +996,9 @@
             </div>
         </div>
 
-        <!-- Configure Variables Section -->
+        <!-- Survey Configuration Panel -->
         <div class="config-section" id="configSection">
-            <h2><i class="fas fa-cogs"></i> Configure Variables</h2>
+            <h2><i class="fas fa-sliders-h"></i> Survey Configuration Panel</h2>
 
             <div class="schema-selector" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; align-items: end;">
                 <div>
@@ -1009,49 +1009,51 @@
                 </div>
                 <div>
                     <label for="datasetSelectConfig"><i class="fas fa-calendar"></i> Dataset:</label>
-                    <select id="datasetSelectConfig" onchange="loadVariables()">
+                    <select id="datasetSelectConfig" onchange="loadConfigTables()">
                         <option value="">Select a survey first...</option>
                     </select>
                 </div>
                 <div>
-                    <label for="tableSelectConfig"><i class="fas fa-table"></i> Table (optional):</label>
-                    <select id="tableSelectConfig" onchange="filterVariablesByTable()">
-                        <option value="">All tables</option>
+                    <label for="tableSelectConfig"><i class="fas fa-table"></i> Table:</label>
+                    <select id="tableSelectConfig" onchange="loadVariables()">
+                        <option value="">Select a dataset first...</option>
                     </select>
                 </div>
             </div>
-            <!-- Add this after the schema selector -->
             <div id="schemaInfo" style="margin-bottom: 20px;">
-                <!-- Schema information will be populated here -->
             </div>
 
             <div id="variablesForm" style="display: none;">
-                <form action="/admin/update-variable-config" method="post" id="configForm">
-                    <input type="hidden" name="schema" id="selectedSchema">
-
-                    <table class="config-table">
-                        <thead>
-                            <tr>
-                                <th><i class="fas fa-code"></i> Variable</th>
-                                <th><i class="fas fa-tag"></i> Label</th>
-                                <th><i class="fas fa-eye"></i> Include?</th>
-                                <th><i class="fas fa-filter"></i> Filterable?</th>
-                            </tr>
-                        </thead>
-                        <tbody id="variablesTableBody">
-                            <!-- Variables will be populated here -->
-                        </tbody>
-                    </table>
-
-                    <div class="form-actions">
+                <div style="position: sticky; top: 10px; z-index: 10; display: flex; justify-content: space-between; gap: 10px; align-items: center; margin-bottom: 16px; padding: 12px; background: rgba(8, 18, 40, 0.92); border: 1px solid rgba(100, 116, 139, 0.35); border-radius: 12px;">
+                    <label style="display:flex; align-items:center; gap:10px; font-weight: 600; flex-wrap: wrap;">
+                        <span style="display:flex; align-items:center; gap:8px;">
+                            <input id="showTableToUsers" type="checkbox" checked />
+                            <span>Show Table to Users</span>
+                        </span>
+                        <span style="display:flex; align-items:center; gap:8px;">
+                            <input id="includeAllVariablesInApi" type="checkbox" onchange="applyBulkVariableToggle('include_in_api', this.checked)" />
+                            <span>Include All Variables in API</span>
+                        </span>
+                        <span style="display:flex; align-items:center; gap:8px;">
+                            <input id="filterableAllVariables" type="checkbox" onchange="applyBulkVariableToggle('filterable', this.checked)" />
+                            <span>Filterable All Variables</span>
+                        </span>
+                    </label>
+                    <div style="display:flex; gap:10px;">
                         <button type="button" class="btn btn-cancel" onclick="hideConfigureVariables()">
                             <i class="fas fa-times"></i> Cancel
                         </button>
-                        <button type="submit" class="btn btn-secondary">
-                            <i class="fas fa-save"></i> Save Configuration
+                        <button type="button" class="btn btn-secondary" onclick="saveAllConfigurations()">
+                            <i class="fas fa-save"></i> Save All Configurations
                         </button>
                     </div>
-                </form>
+                </div>
+
+                <div style="margin-bottom: 10px; padding: 10px 12px; border: 1px solid rgba(100, 116, 139, 0.35); border-radius: 10px; background: rgba(8, 18, 40, 0.75); color: rgba(255,255,255,0.9); font-weight: 600;">
+                    <i class="fas fa-sliders-h"></i> Configuration Editor
+                </div>
+                <div id="variablesGrid" style="display:grid; grid-template-columns: repeat(auto-fill,minmax(260px,1fr)); gap: 10px;">
+                </div>
             </div>
         </div>
 
@@ -1322,7 +1324,7 @@
                     datasetSel.innerHTML = '<option value="" disabled selected>Select a survey first...</option>';
                 }
                 if (tableSel) {
-                    tableSel.innerHTML = '<option value="">All tables</option>';
+                    tableSel.innerHTML = '<option value="" disabled selected>Select a dataset first...</option>';
                 }
 
                 const schemasRes = await fetch('/schemas');
@@ -1366,7 +1368,7 @@
             const tableSel = document.getElementById('tableSelectConfig');
             if (surveySel) surveySel.value = '';
             if (datasetSel) datasetSel.innerHTML = '<option value="" disabled selected>Select a survey first...</option>';
-            if (tableSel) tableSel.innerHTML = '<option value="">All tables</option>';
+            if (tableSel) tableSel.innerHTML = '<option value="" disabled selected>Select a dataset first...</option>';
         }
 
         let nadaJobPoller = null;
@@ -1974,7 +1976,7 @@
             nadaDatasetLimit = Number.isFinite(val) ? Math.min(Math.max(val, 1), 200) : nadaDatasetLimit;
         });
 
-        let lastVariablesPayload = null;
+        let currentConfigPayload = null;
 
         async function loadConfigDatasets() {
             const surveySel = document.getElementById('surveySelectConfig');
@@ -1983,10 +1985,10 @@
             if (!surveySel || !datasetSel) return;
             const survey = surveySel.value;
             datasetSel.innerHTML = '<option value="" disabled selected>Loading datasets...</option>';
-            if (tableSel) tableSel.innerHTML = '<option value="">All tables</option>';
+            if (tableSel) tableSel.innerHTML = '<option value="">Select a dataset first...</option>';
             document.getElementById('variablesForm').style.display = 'none';
             document.getElementById('schemaInfo').innerHTML = '';
-            lastVariablesPayload = null;
+            currentConfigPayload = null;
             try {
                 const res = await fetch(`/surveys/${survey}/datasets`);
                 const datasets = await res.json();
@@ -2008,152 +2010,186 @@
             }
         }
 
-        function filterVariablesByTable() {
-            const tableSel = document.getElementById('tableSelectConfig');
+        async function loadConfigTables() {
+            const surveySel = document.getElementById('surveySelectConfig');
             const datasetSel = document.getElementById('datasetSelectConfig');
-            const selectedSchema = datasetSel ? datasetSel.value : '';
-            if (!lastVariablesPayload || !selectedSchema) return;
-            const table = tableSel ? tableSel.value : '';
-            if (!table) {
-                populateVariables(lastVariablesPayload.variables || [], selectedSchema);
+            const tableSel = document.getElementById('tableSelectConfig');
+            const survey = surveySel ? surveySel.value : '';
+            const dataset = datasetSel ? datasetSel.value : '';
+            tableSel.innerHTML = '<option value="" disabled selected>Loading tables...</option>';
+            document.getElementById('variablesForm').style.display = 'none';
+            currentConfigPayload = null;
+            if (!survey || !dataset) {
+                tableSel.innerHTML = '<option value="" disabled selected>Select dataset first...</option>';
                 return;
             }
-            const filtered = (lastVariablesPayload.variables || []).filter(v => Array.isArray(v.tables) && v.tables.includes(table));
-            populateVariables(filtered, selectedSchema);
+            try {
+                const res = await fetch(`/surveys/${survey}/${encodeURIComponent(dataset)}/tables`);
+                const tables = await res.json();
+                tableSel.innerHTML = '';
+                const def = document.createElement('option');
+                def.value = '';
+                def.textContent = 'Select Table...';
+                def.disabled = true;
+                def.selected = true;
+                tableSel.appendChild(def);
+                (Array.isArray(tables) ? tables : []).forEach(t => {
+                    const opt = document.createElement('option');
+                    opt.value = t.table_name;
+                    opt.textContent = t.table_name;
+                    tableSel.appendChild(opt);
+                });
+            } catch (e) {
+                tableSel.innerHTML = '<option value="" disabled selected>Error loading tables</option>';
+            }
         }
 
-        // Load variables for selected dataset schema
         async function loadVariables() {
             const datasetSel = document.getElementById('datasetSelectConfig');
+            const tableSel = document.getElementById('tableSelectConfig');
             const selectedSchema = datasetSel ? datasetSel.value : '';
+            const selectedTable = tableSel ? tableSel.value : '';
 
-            if (!selectedSchema) {
+            if (!selectedSchema || !selectedTable) {
                 document.getElementById('variablesForm').style.display = 'none';
                 return;
             }
 
             try {
                 showToast('Loading variables...', 'info');
-
-                // Call the actual API endpoint
-                const response = await fetch(`/admin/schemas/${encodeURIComponent(selectedSchema)}/variables`);
+                const response = await fetch(`/admin/schemas/${encodeURIComponent(selectedSchema)}/variables?table=${encodeURIComponent(selectedTable)}`);
                 const data = await response.json();
 
                 if (data.error) {
                     throw new Error(data.error);
                 }
 
-                lastVariablesPayload = data;
+                currentConfigPayload = data;
                 populateVariables(data.variables, selectedSchema);
                 document.getElementById('variablesForm').style.display = 'block';
-
-                showToast(`Loaded ${data.total_variables} variables from ${data.total_tables} tables`, 'success');
-
-                // Show schema info
+                document.getElementById('showTableToUsers').checked = !!data.show_table_to_users;
+                showToast(`Loaded ${data.total_variables} variables from table ${data.table}`, 'success');
                 const schemaInfo = document.getElementById('schemaInfo');
                 if (schemaInfo) {
                     schemaInfo.innerHTML = `
                 <div style="background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); 
                            border-radius: 10px; padding: 15px; margin-bottom: 20px;">
                     <h4 style="color: #f59e0b; margin-bottom: 10px;">
-                        <i class="fas fa-info-circle"></i> Schema: ${data.schema}
+                        <i class="fas fa-info-circle"></i> Schema: ${data.schema} • Table: ${data.table}
                     </h4>
                     <p style="color: rgba(255,255,255,0.9); margin: 0;">
-                        <strong>${data.total_tables}</strong> tables • 
-                        <strong>${data.total_variables}</strong> unique variables
+                        <strong>${data.total_variables}</strong> variables loaded
                     </p>
                 </div>
             `;
                 }
-
-                const tableSel = document.getElementById('tableSelectConfig');
-                if (tableSel && data.table_details) {
-                    tableSel.innerHTML = '<option value="">All tables</option>';
-                    Object.keys(data.table_details).forEach(t => {
-                        const opt = document.createElement('option');
-                        opt.value = t;
-                        opt.textContent = t;
-                        tableSel.appendChild(opt);
-                    });
-                }
-
             } catch (error) {
                 console.error('Error loading variables:', error);
                 showToast(`Failed to load variables: ${error.message}`, 'error');
             }
         }
 
-        // Enhanced populate variables function
         function populateVariables(variables, schema) {
-            const tbody = document.getElementById('variablesTableBody');
-            const selectedSchemaInput = document.getElementById('selectedSchema');
-
-            tbody.innerHTML = '';
-            selectedSchemaInput.value = schema;
-
-            variables.forEach(variable => {
-                const row = document.createElement('tr');
-
-                // Create tooltip for data types and tables
-                const tooltip = `Data Types: ${variable.data_types.join(', ')}\nFound in ${variable.table_count} table(s): ${variable.tables.join(', ')}`;
-
-                row.innerHTML = `
-            <td>
-                <div style="display: flex; flex-direction: column;">
-                    <span class="variable-name" title="${tooltip}">${variable.variable_name}</span>
-                    <small style="color: rgba(255,255,255,0.6); font-size: 0.8rem;">
-                        ${variable.data_types[0]} • ${variable.table_count} table(s)
-                    </small>
-                </div>
-            </td>
-            <td>
-                <input type="text" 
-                       name="label_${variable.variable_name}" 
-                       value="${variable.label}" 
-                       placeholder="Enter label...">
-            </td>
-            <td style="text-align: center;">
-                <input type="checkbox" 
-                       name="include_${variable.variable_name}" 
-                       ${variable.include_in_api ? 'checked' : ''}>
-            </td>
-            <td style="text-align: center;">
-                <input type="checkbox" 
-                       name="filter_${variable.variable_name}" 
-                       ${variable.filterable ? 'checked' : ''}
-                       ${!variable.filterable ? 'disabled' : ''}>
-            </td>
-        `;
-                tbody.appendChild(row);
+            const grid = document.getElementById('variablesGrid');
+            grid.innerHTML = '';
+            (Array.isArray(variables) ? variables : []).forEach(variable => {
+                const card = document.createElement('div');
+                card.className = 'variable-config-card';
+                card.style.cssText = 'background: rgba(8, 18, 40, 0.85); border: 1px solid rgba(100, 116, 139, 0.28); border-radius: 10px; padding: 10px;';
+                card.dataset.variable = variable.variable_name;
+                card.innerHTML = `
+                    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
+                        <div style="font-weight:700; color:#f8fafc; font-size:12px;">${variable.variable_name}</div>
+                        <span style="font-size:10px; padding:2px 6px; border-radius:999px; background:rgba(245,158,11,0.18); color:#f59e0b; border:1px solid rgba(245,158,11,0.35);">${variable.data_type || 'type'}</span>
+                    </div>
+                    <div style="display:grid; gap:8px;">
+                        <label style="display:flex; justify-content:space-between; align-items:center; font-size:12px;">
+                            <span>Include in API</span>
+                            <input type="checkbox" data-key="include_in_api" onchange="updateBulkToggleStates()" ${variable.include_in_api ? 'checked' : ''}>
+                        </label>
+                        <label style="display:flex; justify-content:space-between; align-items:center; font-size:12px;">
+                            <span>Filterable</span>
+                            <input type="checkbox" data-key="filterable" onchange="updateBulkToggleStates()" ${variable.filterable ? 'checked' : ''}>
+                        </label>
+                        <label style="display:flex; justify-content:space-between; align-items:center; font-size:12px;">
+                            <span>Sensitive</span>
+                            <input type="checkbox" data-key="is_sensitive" ${variable.is_sensitive ? 'checked' : ''}>
+                        </label>
+                        <label style="display:flex; justify-content:space-between; align-items:center; font-size:12px;">
+                            <span>Min Rows</span>
+                            <input type="number" data-key="min_rows" min="1" value="${variable.min_rows || 5}" style="max-width:90px;">
+                        </label>
+                    </div>
+                `;
+                grid.appendChild(card);
             });
+            updateBulkToggleStates();
         }
 
-        // Enhanced form submission with better error handling
-        document.getElementById('configForm').addEventListener('submit', async function (e) {
-            e.preventDefault();
-
-            try {
-                showToast('Saving configuration...', 'info');
-
-                // Debug: Log form data before sending
-                const formData = new FormData(this);
-                console.log('=== FORM DATA BEING SENT ===');
-                for (let [key, value] of formData.entries()) {
-                    console.log(key, value);
+        function applyBulkVariableToggle(key, checked) {
+            const cards = Array.from(document.querySelectorAll('.variable-config-card'));
+            cards.forEach(card => {
+                const el = card.querySelector(`[data-key="${key}"]`);
+                if (el) {
+                    el.checked = checked;
                 }
-                console.log('==============================');
+            });
+            updateBulkToggleStates();
+        }
 
+        function updateBulkToggleStates() {
+            const syncOne = (key, targetId) => {
+                const target = document.getElementById(targetId);
+                if (!target) return;
+                const items = Array.from(document.querySelectorAll(`.variable-config-card [data-key="${key}"]`));
+                if (!items.length) {
+                    target.checked = false;
+                    target.indeterminate = false;
+                    return;
+                }
+                const checkedCount = items.filter(i => i.checked).length;
+                target.checked = checkedCount === items.length;
+                target.indeterminate = checkedCount > 0 && checkedCount < items.length;
+            };
+            syncOne('include_in_api', 'includeAllVariablesInApi');
+            syncOne('filterable', 'filterableAllVariables');
+        }
+
+        async function saveAllConfigurations() {
+            const datasetSel = document.getElementById('datasetSelectConfig');
+            const tableSel = document.getElementById('tableSelectConfig');
+            const schema = (datasetSel ? datasetSel.value : '').trim();
+            const table = (tableSel ? tableSel.value : '').trim();
+            if (!schema || !table) {
+                showToast('Select survey, dataset and table first', 'error');
+                return;
+            }
+            try {
+                showToast('Saving configurations...', 'info');
+                const cards = Array.from(document.querySelectorAll('.variable-config-card'));
+                const configs = cards.map(card => {
+                    const getEl = (k) => card.querySelector(`[data-key="${k}"]`);
+                    return {
+                        variable_name: card.dataset.variable,
+                        include_in_api: !!getEl('include_in_api')?.checked,
+                        filterable: !!getEl('filterable')?.checked,
+                        is_sensitive: !!getEl('is_sensitive')?.checked,
+                        min_rows: Number(getEl('min_rows')?.value || 5),
+                    };
+                });
                 const response = await fetch('/admin/update-variable-config', {
                     method: 'POST',
-                    body: formData
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        schema,
+                        table,
+                        show_table_to_users: !!document.getElementById('showTableToUsers').checked,
+                        configs
+                    })
                 });
-
                 const result = await response.json();
-                console.log('Server response:', result);
-
                 if (response.ok && !result.error) {
-                    showToast(`Configuration saved! Updated ${result.updated_count} variables.`, 'success');
-                    hideConfigureVariables();
+                    showToast(`Saved ${result.updated_count} variable configurations`, 'success');
                 } else {
                     throw new Error(result.error || `HTTP ${response.status}: ${response.statusText}`);
                 }
@@ -2161,7 +2197,7 @@
                 console.error('Full error details:', error);
                 showToast(`Failed to save: ${error.message}`, 'error');
             }
-        });
+        }
 
         // Card hover effects
         document.querySelectorAll('.glass-card').forEach(card => {

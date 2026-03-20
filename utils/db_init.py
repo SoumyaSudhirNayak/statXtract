@@ -104,6 +104,26 @@ async def ensure_core_tables(conn: asyncpg.Connection) -> None:
 
     await conn.execute(
         """
+        CREATE TABLE IF NOT EXISTS dataset_configs (
+            id SERIAL PRIMARY KEY,
+            schema_name TEXT NOT NULL,
+            table_name TEXT NOT NULL,
+            show_table_to_users BOOLEAN DEFAULT TRUE,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE (schema_name, table_name)
+        );
+        """
+    )
+
+    try:
+        await conn.execute(
+            "ALTER TABLE dataset_configs ADD COLUMN IF NOT EXISTS show_table_to_users BOOLEAN DEFAULT TRUE"
+        )
+    except Exception:
+        pass
+
+    await conn.execute(
+        """
         CREATE TABLE IF NOT EXISTS variable_configs (
             id SERIAL PRIMARY KEY,
             schema_name TEXT NOT NULL,
@@ -111,11 +131,41 @@ async def ensure_core_tables(conn: asyncpg.Connection) -> None:
             label TEXT,
             include_in_api BOOLEAN DEFAULT TRUE,
             filterable BOOLEAN DEFAULT FALSE,
+            display_mode TEXT DEFAULT 'label',
+            is_sensitive BOOLEAN DEFAULT FALSE,
+            min_rows INTEGER DEFAULT 5,
+            table_name TEXT DEFAULT '*',
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE (schema_name, variable_name)
+            UNIQUE (schema_name, table_name, variable_name)
         );
         """
     )
+
+    for col_def in [
+        ("display_mode", "TEXT DEFAULT 'label'"),
+        ("is_sensitive", "BOOLEAN DEFAULT FALSE"),
+        ("min_rows", "INTEGER DEFAULT 5"),
+        ("table_name", "TEXT DEFAULT '*'"),
+    ]:
+        try:
+            await conn.execute(
+                f"ALTER TABLE variable_configs ADD COLUMN IF NOT EXISTS {col_def[0]} {col_def[1]}"
+            )
+        except Exception:
+            pass
+
+    try:
+        await conn.execute("ALTER TABLE variable_configs DROP CONSTRAINT IF EXISTS variable_configs_schema_name_variable_name_key")
+    except Exception:
+        pass
+    try:
+        await conn.execute("ALTER TABLE variable_configs DROP CONSTRAINT IF EXISTS varconfigs_unique")
+    except Exception:
+        pass
+    try:
+        await conn.execute("ALTER TABLE variable_configs ADD CONSTRAINT varconfigs_unique UNIQUE (schema_name, table_name, variable_name)")
+    except Exception:
+        pass
 
     # Fix dataset_registry if it's in a bad state from previous versions
     # Check for old column names which indicates old schema
