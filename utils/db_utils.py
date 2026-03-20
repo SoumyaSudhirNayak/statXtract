@@ -101,15 +101,21 @@ def ensure_metadata_tables(schema_name: str, db_url: str) -> None:
             )
         )
 
+        # Migrate: drop and recreate these tables with the correct schema
+        # matching _store_variables which uses table_name + variable_name
+        for tbl in ("variable_missing_values", "variable_categories"):
+            conn.execute(text(f'DROP TABLE IF EXISTS "{schema}".{tbl} CASCADE'))
+
         conn.execute(
             text(
                 f"""
                 CREATE TABLE IF NOT EXISTS "{schema}".variable_categories (
                     id SERIAL PRIMARY KEY,
-                    variable_id TEXT REFERENCES "{schema}".variables(variable_id) ON DELETE CASCADE,
-                    category_code TEXT,
-                    category_label TEXT,
-                    frequency INTEGER
+                    table_name TEXT NOT NULL,
+                    variable_name TEXT NOT NULL,
+                    value TEXT,
+                    label TEXT,
+                    frequency BIGINT
                 );
                 """
             )
@@ -120,12 +126,13 @@ def ensure_metadata_tables(schema_name: str, db_url: str) -> None:
                 f"""
                 CREATE TABLE IF NOT EXISTS "{schema}".variable_missing_values (
                     id SERIAL PRIMARY KEY,
-                    variable_id TEXT REFERENCES "{schema}".variables(variable_id) ON DELETE CASCADE,
+                    variable_id TEXT,
                     missing_value TEXT
                 );
                 """
             )
         )
+
 
 
 def ensure_survey_metadata_tables(schema_name: str, db_url: str) -> None:
@@ -333,6 +340,16 @@ def ensure_dataset_schema_tables(dataset_schema: str, db_url: str) -> None:
             )
         )
 
+        # ── Migrate variable_categories if it has the old schema (variable_id column instead of table_name) ──
+        # This handles schemas that were partially set up by old code
+        old_cat = conn.execute(text(
+            "SELECT 1 FROM information_schema.columns "
+            "WHERE table_schema = :s AND table_name = 'variable_categories' AND column_name = 'variable_id'"
+        ), {"s": schema}).fetchone()
+        if old_cat:
+            conn.execute(text(f'DROP TABLE IF EXISTS "{schema}".variable_categories CASCADE'))
+            conn.execute(text(f'DROP TABLE IF EXISTS "{schema}".variable_missing_values CASCADE'))
+
         conn.execute(
             text(
                 f"""
@@ -344,6 +361,18 @@ def ensure_dataset_schema_tables(dataset_schema: str, db_url: str) -> None:
                     label TEXT,
                     frequency BIGINT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+                """
+            )
+        )
+
+        conn.execute(
+            text(
+                f"""
+                CREATE TABLE IF NOT EXISTS "{schema}".variable_missing_values (
+                    id SERIAL PRIMARY KEY,
+                    variable_id TEXT,
+                    missing_value TEXT
                 );
                 """
             )
@@ -367,3 +396,4 @@ def ensure_dataset_schema_tables(dataset_schema: str, db_url: str) -> None:
                 """
             )
         )
+

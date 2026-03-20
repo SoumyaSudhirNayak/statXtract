@@ -1074,6 +1074,16 @@
             </div>
 
             <div class="schema-selector">
+                <label for="nesstarYear"><i class="fas fa-calendar"></i> Year:</label>
+                <input id="nesstarYear" type="text" class="form-select" placeholder="e.g., 2023" />
+            </div>
+
+            <div class="schema-selector">
+                <label for="nesstarDataset"><i class="fas fa-tag"></i> Dataset Name:</label>
+                <input id="nesstarDataset" type="text" class="form-select" placeholder="e.g., PLFS Round 2023" />
+            </div>
+
+            <div class="schema-selector">
                 <label for="nesstarFile"><i class="fas fa-file-archive"></i> Nesstar Study / Package (.nesstar or .zip):</label>
                 <input id="nesstarFile" type="file" class="form-select" accept=".nesstar,.zip" />
                 <div style="color: rgba(255,255,255,0.75); font-size: 0.9rem; margin-top: 6px;">
@@ -1393,7 +1403,11 @@
             btn.disabled = false;
             btn.innerHTML = '<i class="fas fa-upload"></i> Start Upload';
             const fileInput = document.getElementById('nesstarFile');
+            const yearInput = document.getElementById('nesstarYear');
+            const datasetInput = document.getElementById('nesstarDataset');
             fileInput.value = '';
+            if(yearInput) yearInput.value = '';
+            if(datasetInput) datasetInput.value = '';
             
             if (nesstarJobPoller) {
                 clearInterval(nesstarJobPoller);
@@ -1468,6 +1482,8 @@
 
         function startNesstarUpload() {
             const schema = (document.getElementById('nesstarSchema').value || '').trim();
+            const year = (document.getElementById('nesstarYear').value || '').trim();
+            const dataset = (document.getElementById('nesstarDataset').value || '').trim();
             const fileInput = document.getElementById('nesstarFile');
             const file = fileInput.files && fileInput.files[0];
             const btn = document.getElementById('nesstarUploadBtn');
@@ -1477,6 +1493,14 @@
 
             if (!schema) {
                 showToast('Please select a target schema', 'error');
+                return;
+            }
+            if (!year) {
+                showToast('Please enter a year', 'error');
+                return;
+            }
+            if (!dataset) {
+                showToast('Please enter a dataset name', 'error');
                 return;
             }
 
@@ -1505,6 +1529,8 @@
 
             const formData = new FormData();
             formData.append('schema', schema);
+            formData.append('year', year);
+            formData.append('dataset', dataset);
             formData.append('file', file);
 
             const xhr = new XMLHttpRequest();

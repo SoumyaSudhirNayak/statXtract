@@ -63,6 +63,25 @@ from datetime import date
 today = date.today().isoformat()
 START_TIME = datetime.now()
 
+# ── Internal / metadata tables that should NOT appear in user-facing dropdowns ──
+_INTERNAL_TABLE_NAMES = {
+    "datasets", "dataset_files", "dataset_metadata", "dataset_registry", "dataset_tables",
+    "variables", "variable_categories", "variable_statistics", "variable_missing_values",
+}
+_INTERNAL_TABLE_KEYWORDS = (
+    "variable", "metadata", "category", "missing", "_error", "_stat",
+)
+
+def _is_internal_table(name: str) -> bool:
+    """Returns True if the table is a system/metadata table that should be hidden from users."""
+    low = (name or "").lower()
+    if low in _INTERNAL_TABLE_NAMES:
+        return True
+    for kw in _INTERNAL_TABLE_KEYWORDS:
+        if kw in low:
+            return True
+    return False
+
 
 async def _resolve_registry_schema(conn: asyncpg.Connection, schema_value: str) -> dict | None:
     s = (schema_value or "").strip()
@@ -612,11 +631,10 @@ async def list_survey_tables(request: Request, survey: str, dataset: str, curren
             dataset,
         )
 
-    hidden = {"dataset_metadata", "variables", "variable_categories", "variable_statistics"}
     out = []
     for r in rows:
         name = r["table_name"]
-        if name in hidden:
+        if _is_internal_table(name):
             continue
         out.append(
             {
@@ -1184,8 +1202,10 @@ async def list_schemas_and_tables(request: Request):
             schema_name = schema_row["schema_name"]
             result[schema_name] = []
 
-        # Add table data to schemas that have tables
+        # Add table data to schemas that have tables (excluding internal/metadata tables)
         for row in tables_data:
+            if _is_internal_table(row["table_name"]):
+                continue
             result[row["table_schema"]].append(
                 {
                     "table_name": row["table_name"],
@@ -2064,6 +2084,8 @@ async def get_schema_variables(
 
             for table_row in tables:
                 table_name = table_row["table_name"]
+                if _is_internal_table(table_name):
+                    continue
 
                 # Get columns for this table
                 columns = await conn.fetch(
