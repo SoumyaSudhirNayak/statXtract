@@ -431,6 +431,22 @@ async def datasets_page(
     return templates.TemplateResponse("datasets.html", {"request": request})
 
 
+@app.get("/explorer", response_class=HTMLResponse)
+async def explorer_page(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
+):
+    return templates.TemplateResponse(
+        "explorer.html",
+        {
+            "request": request,
+            "username": current_user.username,
+            "email": current_user.username,
+            "role": current_user.role,
+        },
+    )
+
+
 @app.get("/metadata-detail/{schema}/{dataset}", response_class=HTMLResponse)
 async def metadata_detail_page(
     request: Request,

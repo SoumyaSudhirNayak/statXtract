@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Explorer - Data Analytics Platform</title>
+
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+
+    <style>
+        :root {
+            --primary-color: #64748b;
+            --secondary-color: #f59e0b;
+            --text-light: #ffffff;
+            --glass-bg: rgba(15, 23, 42, 0.7);
+            --glass-border: rgba(100, 116, 139, 0.25);
+            --shadow-light: 0 8px 32px rgba(15, 23, 42, 0.3);
+            --border-radius: 20px;
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%);
+            min-height: 100vh;
+            color: var(--text-light);
+            padding: 30px;
+            padding-top: 80px;
+        }
+
+        .back-btn {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: 50px;
+            padding: 12px 20px;
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-light);
+            font-weight: 500;
+            text-decoration: none;
+        }
+
+        .back-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-light);
+            color: var(--text-light);
+        }
+
+        .main-container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        /* Header & Breadcrumbs */
+        .explorer-header {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--border-radius);
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: var(--shadow-light);
+        }
+
+        .header-title {
+            font-size: 2rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #fff 0%, #f0f0f0 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .breadcrumbs {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            font-size: 1.1rem;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .crumb-item {
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .crumb-item.active {
+            color: var(--text-light);
+            font-weight: 600;
+        }
+
+        .crumb-item.clickable:hover {
+            color: var(--secondary-color);
+        }
+
+        .crumb-separator {
+            color: rgba(255, 255, 255, 0.3);
+            font-size: 0.9rem;
+        }
+
+        /* Views */
+        .view-section {
+            display: none;
+            animation: fadeIn 0.4s ease forwards;
+        }
+
+        .view-section.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Grid Layouts for Cards */
+        .cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 25px;
+        }
+
+        /* OLD SCHEMA-CARD STYLES (Requested by User) */
+        .schema-card {
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(20px) saturate(120%);
+            border: 1px solid rgba(100, 116, 139, 0.25);
+            border-radius: var(--border-radius);
+            padding: 35px;
+            box-shadow: var(--shadow-light);
+            transition: var(--transition);
+            position: relative;
+            cursor: pointer;
+            /* overflow hidden removed to let tooltip display correctly */
+        }
+
+        .schema-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+        }
+
+        .schema-card:hover {
+            background: rgba(15, 23, 42, 0.85);
+            border-color: rgba(245, 158, 11, 0.3);
+            transform: translateY(-8px);
+            box-shadow: 0 12px 30px rgba(245, 158, 11, 0.1);
+        }
+
+        .schema-card:hover .schema-icon {
+            transform: scale(1.1);
+            color: var(--secondary-color);
+        }
+
+        .schema-icon {
+            font-size: 3rem;
+            color: var(--primary-color);
+            margin-bottom: 20px;
+            transition: var(--transition);
+            display: block;
+        }
+
+        .schema-info {
+            flex: 1;
+        }
+
+        .schema-name {
+            font-size: 1.4rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+            color: var(--text-light);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .schema-full-name {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: var(--secondary-color);
+        }
+
+        .schema-description {
+            font-size: 0.95rem;
+            color: rgba(255, 255, 255, 0.8);
+            line-height: 1.6;
+            margin-bottom: 15px;
+        }
+
+        .schema-category {
+            display: inline-block;
+            background: rgba(245, 158, 11, 0.2);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            color: #fbbf24;
+            padding: 4px 12px;
+            border-radius: 15px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* Tooltip */
+        .tooltip-container {
+            position: relative;
+        }
+
+        .metadata-tooltip {
+            position: absolute;
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: white;
+            padding: 15px;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+            width: 300px;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.2s, visibility 0.2s;
+            pointer-events: none;
+            left: 50%;
+            bottom: calc(100% + 10px);
+            transform: translateX(-50%);
+            font-size: 0.9rem;
+        }
+
+        .metadata-tooltip::before {
+            content: '';
+            position: absolute;
+            bottom: -6px;
+            left: 50%;
+            transform: translateX(-50%) rotate(45deg);
+            width: 12px;
+            height: 12px;
+            background: rgba(15, 23, 42, 0.95);
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .tooltip-container:hover .metadata-tooltip {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .tt-title {
+            font-weight: 700;
+            margin-bottom: 8px;
+            color: var(--secondary-color);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 5px;
+        }
+
+        .tt-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 5px;
+        }
+
+        .tt-label {
+            color: rgba(255, 255, 255, 0.6);
+            min-width: 80px;
+        }
+
+        /* Tables View */
+        .tables-toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+            background: var(--glass-bg);
+            padding: 20px;
+            border-radius: var(--border-radius);
+            border: 1px solid var(--glass-border);
+        }
+
+        .search-box {
+            position: relative;
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .search-box i {
+            position: absolute;
+            left: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .search-input {
+            width: 100%;
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 50px;
+            padding: 12px 15px 12px 45px;
+            color: white;
+            font-size: 1rem;
+            transition: var(--transition);
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: var(--secondary-color);
+            background: rgba(0, 0, 0, 0.3);
+        }
+
+        .tables-list {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .table-row {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 15px;
+            padding: 20px 25px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            transition: var(--transition);
+        }
+
+        .table-row:hover {
+            border-color: rgba(245, 158, 11, 0.3);
+            background: rgba(15, 23, 42, 0.85);
+        }
+
+        .table-info {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .table-icon {
+            font-size: 2rem;
+            color: var(--primary-color);
+        }
+
+        .table-details h4 {
+            font-size: 1.2rem;
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+
+        .table-meta {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 0.9rem;
+            display: flex;
+            gap: 15px;
+        }
+
+        .table-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .action-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            text-decoration: none;
+            transition: var(--transition);
+            cursor: pointer;
+            border: 1px solid transparent;
+        }
+
+        .btn-data {
+            background: rgba(59, 130, 246, 0.15);
+            color: #60a5fa;
+            border-color: rgba(59, 130, 246, 0.3);
+        }
+
+        .btn-data:hover {
+            background: rgba(59, 130, 246, 0.25);
+            color: #fff;
+        }
+
+        .btn-meta {
+            background: rgba(16, 185, 129, 0.15);
+            color: #34d399;
+            border-color: rgba(16, 185, 129, 0.3);
+        }
+
+        .btn-meta:hover {
+            background: rgba(16, 185, 129, 0.25);
+            color: #fff;
+        }
+
+        .btn-query {
+            background: rgba(245, 158, 11, 0.15);
+            color: #fbbf24;
+            border-color: rgba(245, 158, 11, 0.3);
+        }
+
+        .btn-query:hover {
+            background: rgba(245, 158, 11, 0.25);
+            color: #fff;
+        }
+
+        .loading-spinner {
+            text-align: center;
+            padding: 60px;
+            font-size: 1.5rem;
+            color: var(--secondary-color);
+        }
+        
+        .loading-spinner i {
+            animation: spin 1s infinite linear;
+            margin-bottom: 15px;
+            font-size: 3rem;
+        }
+
+        @keyframes spin {
+            100% { transform: rotate(360deg); }
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px;
+            background: var(--glass-bg);
+            border-radius: var(--border-radius);
+            border: 1px solid var(--glass-border);
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .empty-state i {
+            font-size: 3.5rem;
+            margin-bottom: 20px;
+            color: var(--primary-color);
+        }
+        
+    </style>
+</head>
+<body>
+
+    <a href="/admin/dashboard" class="back-btn">
+        <i class="fas fa-arrow-left"></i>
+        <span>Back</span>
+    </a>
+
+    <div class="main-container">
+        <!-- Header & Breadcrumbs -->
+        <div class="explorer-header">
+            <h1 class="header-title"><i class="fas fa-compass"></i> Data Explorer</h1>
+            
+            <div class="breadcrumbs" id="breadcrumbs">
+                <div class="crumb-item active clickable" onclick="navigateToLevel(1)">
+                    <i class="fas fa-home"></i> Home
+                </div>
+                <!-- Populated dynamically -->
+            </div>
+        </div>
+
+        <!-- Level 1: Schemas -->
+        <div id="view-schemas" class="view-section active">
+            <div id="schemas-loading" class="loading-spinner">
+                <i class="fas fa-circle-notch"></i>
+                <div>Loading Schemas...</div>
+            </div>
+            <div id="schemas-grid" class="cards-grid"></div>
+        </div>
+
+        <!-- Level 2: Datasets -->
+        <div id="view-datasets" class="view-section">
+            <div id="datasets-loading" class="loading-spinner" style="display:none;">
+                <i class="fas fa-circle-notch"></i>
+                <div>Loading Datasets...</div>
+            </div>
+            <div id="datasets-grid" class="cards-grid"></div>
+            <div id="datasets-empty" class="empty-state" style="display:none;">
+                <i class="fas fa-folder-open"></i>
+                <h3>No datasets found</h3>
+            </div>
+        </div>
+
+        <!-- Level 3: Tables -->
+        <div id="view-tables" class="view-section">
+            <div class="tables-toolbar">
+                <div class="search-box">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="table-search" class="search-input" placeholder="Search tables..." onkeyup="filterTables()">
+                </div>
+            </div>
+
+            <div id="tables-loading" class="loading-spinner" style="display:none;">
+                <i class="fas fa-circle-notch"></i>
+                <div>Loading Tables...</div>
+            </div>
+            
+            <div id="tables-list" class="tables-list"></div>
+            
+            <div id="tables-empty" class="empty-state" style="display:none;">
+                <i class="fas fa-table"></i>
+                <h3>No tables found</h3>
+                <p>Try adjusting your search</p>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // State management
+        let state = {
+            level: 1, // 1: Schemas, 2: Datasets, 3: Tables
+            selectedSchema: null,
+            selectedDataset: null,
+            schemas: [],
+            datasets: [],
+            tables: []
+        };
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            loadSchemas();
+        });
+
+        // ================= LOADING DATA =================
+
+        async function loadSchemas() {
+            try {
+                document.getElementById('schemas-loading').style.display = 'block';
+                document.getElementById('schemas-grid').innerHTML = '';
+                
+                const res = await fetch('/surveys');
+                const data = await res.json();
+                
+                if(data && Array.isArray(data)) {
+                    state.schemas = data;
+                    renderSchemasDialog();
+                } else {
+                    console.error("Failed to load schemas");
+                }
+            } catch (e) {
+                console.error("Error fetching schemas", e);
+            } finally {
+                document.getElementById('schemas-loading').style.display = 'none';
+            }
+        }
+
+        async function loadDatasets(schemaObj) {
+            try {
+                // Change View First
+                state.selectedSchema = schemaObj;
+                navigateToLevel(2);
+                
+                document.getElementById('datasets-loading').style.display = 'block';
+                document.getElementById('datasets-grid').innerHTML = '';
+                document.getElementById('datasets-empty').style.display = 'none';
+                
+                const res = await fetch(`/surveys/${schemaObj.survey}/datasets`);
+                const data = await res.json();
+                
+                if(data && Array.isArray(data) && data.length > 0) {
+                    state.datasets = data;
+                    // Lazy load table/row counts for datasets
+                    renderDatasetsList();
+                } else {
+                    state.datasets = [];
+                    document.getElementById('datasets-empty').style.display = 'block';
+                }
+            } catch (e) {
+                console.error("Error fetching datasets", e);
+            } finally {
+                document.getElementById('datasets-loading').style.display = 'none';
+            }
+        }
+
+        async function loadTables(datasetObj) {
+            try {
+                state.selectedDataset = datasetObj;
+                navigateToLevel(3);
+                
+                document.getElementById('tables-loading').style.display = 'block';
+                document.getElementById('tables-list').innerHTML = '';
+                document.getElementById('tables-empty').style.display = 'none';
+                document.getElementById('table-search').value = '';
+                
+                // Fetch tables
+                const res = await fetch(`/surveys/${state.selectedSchema.survey}/${encodeURIComponent(datasetObj.schema)}/tables`);
+                const data = await res.json();
+                
+                if(data && Array.isArray(data) && data.length > 0) {
+                    state.tables = data;
+                    renderTablesList(data);
+                } else {
+                    state.tables = [];
+                    document.getElementById('tables-empty').style.display = 'block';
+                }
+            } catch(e) {
+                console.error("Error fetching tables", e);
+            } finally {
+                document.getElementById('tables-loading').style.display = 'none';
+            }
+        }
+
+        // Parallel fetch for tooltip metadata
+        async function fetchTooltipMeta(schemaDb, datasetSchema) {
+            try {
+                const res = await fetch(`/metadata/${schemaDb}/${datasetSchema}`);
+                if(res.ok) {
+                    return await res.json();
+                }
+            } catch(e) {
+                return null;
+            }
+            return null;
+        }
+
+        async function fetchDatasetStats(schemaDb, datasetSchema, cardId) {
+            try {
+                const res = await fetch(`/surveys/${schemaDb}/${encodeURIComponent(datasetSchema)}/tables`);
+                if(res.ok) {
+                    const data = await res.json();
+                    let rows = 0;
+                    data.forEach(t => rows += (t.row_count || 0));
+                    
+                    const tablesElem = document.getElementById(`st-tables-${cardId}`);
+                    const rowsElem = document.getElementById(`st-rows-${cardId}`);
+                    
+                    if(tablesElem) tablesElem.innerHTML = `<i class="fas fa-table"></i> ${data.length}`;
+                    if(rowsElem) rowsElem.innerHTML = `<i class="fas fa-list"></i> ${rows.toLocaleString()}`;
+                }
+            } catch(e) {
+                // Ignore silent fail
+            }
+        }
+
+        // ================= RENDERING UI =================
+
+        function renderSchemasDialog() {
+            const grid = document.getElementById('schemas-grid');
+            grid.innerHTML = '';
+            
+            state.schemas.forEach((schema, index) => {
+                const card = document.createElement('div');
+                card.className = 'schema-card tooltip-container';
+                card.style.animationDelay = `${index * 0.1}s`;
+                card.onclick = () => loadDatasets(schema);
+                
+                card.innerHTML = `
+                    <i class="fas fa-folder-tree schema-icon"></i>
+                    <div class="schema-info">
+                        <div class="schema-name">${schema.display_name}</div>
+                        <div class="schema-full-name">${schema.dataset_count} datasets</div>
+                        <div class="schema-description">Manage and explore databases</div>
+                        <div class="schema-category">Schema</div>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        function renderDatasetsList() {
+            const grid = document.getElementById('datasets-grid');
+            grid.innerHTML = '';
+            
+            state.datasets.forEach((ds, idx) => {
+                const cardId = `ds-card-${idx}`;
+                const card = document.createElement('div');
+                card.className = 'schema-card tooltip-container';
+                card.style.animationDelay = `${idx * 0.1}s`;
+                card.onclick = () => loadTables(ds);
+                
+                card.innerHTML = `
+                    <i class="fas fa-folder-open schema-icon"></i>
+                    <div class="schema-info">
+                        <div class="schema-name">${ds.display_name}</div>
+                        <div class="schema-full-name">
+                            <span id="st-tables-${cardId}">... tables</span> | 
+                            <span id="st-rows-${cardId}">... rows</span>
+                        </div>
+                        <div class="schema-description">Click to view datasets tables</div>
+                        <div class="schema-category">Dataset</div>
+                    </div>
+                    
+                    <div class="metadata-tooltip" id="tt-${cardId}">
+                        <div class="tt-title">Loading metadata...</div>
+                    </div>
+                `;
+
+                // Hover functionality
+                let hovered = false;
+                card.addEventListener('mouseenter', async () => {
+                    hovered = true;
+                    // Lazy load tooltip content
+                    const tt = document.getElementById(`tt-${cardId}`);
+                    if(tt.dataset.loaded) return; // already loaded
+                    
+                    const meta = await fetchTooltipMeta(state.selectedSchema.survey, ds.schema);
+                    if(hovered && meta && meta.study_description) {
+                        tt.dataset.loaded = 'true';
+                        tt.innerHTML = `
+                            <div class="tt-title">${meta.study_description.title || ds.display_name}</div>
+                            <div class="tt-row"><div class="tt-label">Survey ID:</div><div>${meta.study_description.survey_id || 'N/A'}</div></div>
+                            <div class="tt-row"><div class="tt-label">Country:</div><div>${meta.study_description.country || 'INDIA'}</div></div>
+                            <!-- <div class="tt-row"><div class="tt-label">Type:</div><div>${meta.study_description.type || 'N/A'}</div></div> -->
+                        `;
+                    }
+                });
+                card.addEventListener('mouseleave', () => { hovered = false; });
+                
+                grid.appendChild(card);
+
+                // Fetch real stats
+                fetchDatasetStats(state.selectedSchema.survey, ds.schema, cardId);
+            });
+        }
+
+        function renderTablesList(tablesData) {
+            const list = document.getElementById('tables-list');
+            list.innerHTML = '';
+            
+            if(tablesData.length === 0) {
+                document.getElementById('tables-empty').style.display = 'block';
+                return;
+            }
+            document.getElementById('tables-empty').style.display = 'none';
+
+            tablesData.forEach(table => {
+                const row = document.createElement('div');
+                row.className = 'table-row';
+                
+                // Replace underscores and capitalize logic
+                const tNameClean = table.table_name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+                
+                row.innerHTML = `
+                    <div class="table-info">
+                        <i class="fas fa-file-alt table-icon"></i>
+                        <div class="table-details">
+                            <h4>${tNameClean} ` + (table.table_name !== tNameClean ? `<span style="opacity:0.5;font-size:0.8rem;">(${table.table_name})</span>` : '') + `</h4>
+                            <div class="table-meta">
+                                <span><i class="fas fa-list"></i> ${(table.row_count || 0).toLocaleString()} rows</span>
+                                <span><i class="fas fa-columns"></i> ${(table.column_count || 0)} columns</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="table-actions">
+                        <a href="/metadata-detail/${state.selectedSchema.survey}/${state.selectedDataset.schema}" class="action-btn btn-meta" title="View Metadata">
+                            <i class="fas fa-info-circle"></i> Info
+                        </a>
+                        <a href="/query?table=${state.selectedDataset.schema}.${table.table_name}" class="action-btn btn-query" title="Execute Custom Query">
+                            <i class="fas fa-search"></i> Query
+                        </a>
+                    </div>
+                `;
+                list.appendChild(row);
+            });
+        }
+
+        function filterTables() {
+            const query = document.getElementById('table-search').value.toLowerCase();
+            const filtered = state.tables.filter(t => 
+                t.table_name.toLowerCase().includes(query) || 
+                t.table_name.replace(/_/g, ' ').toLowerCase().includes(query)
+            );
+            renderTablesList(filtered);
+        }
+
+
+        // ================= NAVIGATION =================
+
+        function navigateToLevel(level) {
+            state.level = level;
+            
+            document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
+            
+            if(level === 1) {
+                state.selectedSchema = null;
+                state.selectedDataset = null;
+                document.getElementById('view-schemas').classList.add('active');
+            } else if (level === 2) {
+                state.selectedDataset = null;
+                document.getElementById('view-datasets').classList.add('active');
+            } else if (level === 3) {
+                document.getElementById('view-tables').classList.add('active');
+            }
+            
+            updateBreadcrumbs();
+        }
+
+        function updateBreadcrumbs() {
+            const bc = document.getElementById('breadcrumbs');
+            
+            let html = `
+                <div class="crumb-item clickable" onclick="navigateToLevel(1)">
+                    <i class="fas fa-home"></i> Home
+                </div>
+            `;
+            
+            if(state.level >= 2 && state.selectedSchema) {
+                html += `
+                    <i class="fas fa-chevron-right crumb-separator"></i>
+                    <div class="crumb-item ${state.level === 2 ? 'active' : 'clickable'}" onclick="${state.level > 2 ? 'navigateToLevel(2)' : ''}">
+                        <i class="fas fa-folder"></i> ${state.selectedSchema.display_name}
+                    </div>
+                `;
+            }
+            
+            if(state.level === 3 && state.selectedDataset) {
+                html += `
+                    <i class="fas fa-chevron-right crumb-separator"></i>
+                    <div class="crumb-item active">
+                        <i class="fas fa-folder-open"></i> ${state.selectedDataset.display_name}
+                    </div>
+                `;
+            }
+            
+            bc.innerHTML = html;
+        }
+
+    </script>
+</body>
+</html>
