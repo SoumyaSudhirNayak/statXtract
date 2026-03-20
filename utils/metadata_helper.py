@@ -19,24 +19,20 @@ async def get_column_labels(conn: asyncpg.Connection, table_name: str, schema: s
     
     simple_table_name = table_name.split('.')[-1]
 
-    rows = await conn.fetch(
-        """
-        WITH latest_dataset AS (
-            SELECT v.dataset_id
-            FROM variables v
-            JOIN datasets d ON d.dataset_id = v.dataset_id
-            WHERE v.table_name = $1
-            ORDER BY d.created_at DESC
-            LIMIT 1
+    # In the current architecture, category labels are stored in the
+    # '{schema}'.variable_categories table, keyed by table_name and variable_name.
+    try:
+        rows = await conn.fetch(
+            f"""
+            SELECT variable_name as column_name, value as category_code, label as category_label
+            FROM "{schema}".variable_categories
+            WHERE table_name = $1
+            """,
+            simple_table_name,
         )
-        SELECT v.column_name, vc.category_code, vc.category_label
-        FROM variables v
-        JOIN variable_categories vc ON v.variable_id = vc.variable_id
-        WHERE v.table_name = $1
-          AND v.dataset_id = (SELECT dataset_id FROM latest_dataset)
-    """,
-        simple_table_name,
-    )
+    except Exception as e:
+        print(f"Warning: Could not fetch categorical labels for {schema}.{table_name} - {e}")
+        return defaultdict(dict)
     
     label_map = defaultdict(dict)
     for r in rows:

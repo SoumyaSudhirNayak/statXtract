@@ -104,9 +104,34 @@ async def query_data(
         if await has_exceeded_usage_limit(conn, current_user.username):
             raise HTTPException(status_code=429, detail="Daily usage limit exceeded")
 
-        col_sql = "*"
-        if columns:
-            col_sql = ", ".join(f'"{col.strip()}"' for col in columns.split(","))
+        # Discover label columns for substitution
+        actual_columns = await conn.fetch(
+            "SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = $1",
+            table_name
+        )
+        all_cols = [c["column_name"] for c in actual_columns]
+        label_cols = set(c for c in all_cols if c.endswith("_label"))
+        raw_cols_with_labels = set(c[:-6] for c in label_cols)
+
+        col_list = []
+        if not columns or columns.strip() == "*":
+            for c in all_cols:
+                if c in label_cols:
+                    continue
+                if c in raw_cols_with_labels:
+                    col_list.append(f'"{c}_label" AS "{c}"')
+                else:
+                    col_list.append(f'"{c}"')
+        else:
+            for col in columns.split(","):
+                col = col.strip()
+                if not col: continue
+                if col in raw_cols_with_labels:
+                    col_list.append(f'"{col}_label" AS "{col}"')
+                else:
+                    col_list.append(f'"{col}"')
+
+        col_sql = ", ".join(col_list) if col_list else "*"
 
         where_clause = ""
         if filters:

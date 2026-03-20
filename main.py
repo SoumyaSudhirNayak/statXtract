@@ -671,6 +671,108 @@ async def list_survey_columns(request: Request, survey: str, dataset: str, table
     return [c["column_name"] for c in cols]
 
 
+@app.get("/surveys/{survey}/{dataset}/{table}/filter-metadata")
+async def get_filter_metadata(request: Request, survey: str, dataset: str, table: str, current_user=Depends(get_current_user)):
+    """Returns per-column metadata for the interactive filter builder (types, categories, statistics)."""
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        # Validate survey/dataset
+        grouped = await _group_schemas_by_survey(conn)
+        g = grouped.get(survey)
+        if not g:
+            raise HTTPException(status_code=404, detail="Survey not found")
+        ds = [d for d in g["datasets"] if d["schema"] == dataset]
+        if not ds:
+            raise HTTPException(status_code=404, detail="Dataset not found")
+
+        # Get columns from information_schema
+        cols = await conn.fetch(
+            """
+            SELECT column_name, data_type
+            FROM information_schema.columns
+            WHERE table_schema = $1 AND table_name = $2
+            ORDER BY ordinal_position
+            """,
+            dataset,
+            table,
+        )
+
+        # Get DDI variable metadata
+        try:
+            variables = await conn.fetch(
+                f'SELECT variable_name, label, ddi_type, final_type FROM "{dataset}".variables WHERE table_name = $1',
+                table,
+            )
+        except Exception:
+            variables = []
+
+        # Get categories
+        try:
+            categories = await conn.fetch(
+                f'SELECT variable_name, value, label FROM "{dataset}".variable_categories WHERE table_name = $1',
+                table,
+            )
+        except Exception:
+            categories = []
+
+        # Get statistics
+        try:
+            stats = await conn.fetch(
+                f'SELECT variable_name, mean, min, max, stddev, unique_count FROM "{dataset}".variable_statistics WHERE table_name = $1',
+                table,
+            )
+        except Exception:
+            stats = []
+
+    # Build lookup maps
+    var_map = {v["variable_name"]: dict(v) for v in variables}
+    cat_map: Dict[str, List[Dict]] = {}
+    for c in categories:
+        cat_map.setdefault(c["variable_name"], []).append({"value": c["value"], "label": c["label"]})
+    stat_map = {s["variable_name"]: dict(s) for s in stats}
+
+    # Build per-column result
+    result = []
+    for c in cols:
+        col_name = c["column_name"]
+        pg_type = c["data_type"]
+        var_info = var_map.get(col_name, {})
+        col_cats = cat_map.get(col_name, [])
+        col_stats = stat_map.get(col_name)
+
+        # Determine filter type: numeric, categorical, text
+        ddi_type = (var_info.get("ddi_type") or "").lower()
+        final_type = (var_info.get("final_type") or "").lower()
+        is_numeric = pg_type in ("integer", "bigint", "smallint", "numeric", "double precision", "real") or "numeric" in ddi_type or "int" in final_type or "float" in final_type
+        is_categorical = len(col_cats) > 0
+
+        if is_categorical:
+            filter_type = "categorical"
+        elif is_numeric:
+            filter_type = "numeric"
+        else:
+            filter_type = "text"
+
+        entry = {
+            "column_name": col_name,
+            "pg_type": pg_type,
+            "label": var_info.get("label") or col_name,
+            "filter_type": filter_type,
+        }
+        if col_cats:
+            entry["categories"] = col_cats
+        if col_stats:
+            entry["statistics"] = {
+                "min": col_stats.get("min"),
+                "max": col_stats.get("max"),
+                "mean": col_stats.get("mean"),
+                "stddev": col_stats.get("stddev"),
+                "unique_count": col_stats.get("unique_count"),
+            }
+        result.append(entry)
+
+    return result
+
 @app.get("/surveys/{survey}/{dataset}/{table}/query")
 async def query_survey_table(
     request: Request,
@@ -1332,19 +1434,21 @@ async def get_columns(
         return {"error": str(e)}
 
 
-def fix_filter_case_sensitivity(filters: str, column_map: dict) -> str:
-    """Fix case sensitivity issues in filter expressions."""
+def fix_filter_case_sensitivity(filters: str, column_map: dict, raw_cols_with_labels: set = None) -> str:
+    """Fix case sensitivity issues and handle label redirection for WHERE clauses."""
     if not filters:
         return filters
+    if raw_cols_with_labels is None:
+        raw_cols_with_labels = set()
 
     fixed_filters = filters
-
-    # Sort by length (longest first) to avoid partial matches
     sorted_columns = sorted(column_map.items(), key=lambda x: len(x[0]), reverse=True)
 
     for lower_col, actual_col in sorted_columns:
-        # Use word boundaries to match whole column names only
-        # Match column names that are not already quoted
+        # If this column has a _label redirected display version,
+        # we still want the WHERE clause to hit the original raw column.
+        # We do NOT add quotes here if it's in raw_cols_with_labels to let it be treated normally
+        # or we quote the actual raw column name.
         pattern = r'(?<!")' + re.escape(lower_col) + r'(?!")\b'
         fixed_filters = re.sub(
             pattern, f'"{actual_col}"', fixed_filters, flags=re.IGNORECASE
@@ -1459,25 +1563,90 @@ async def query_table(
 
             selected_cols = columns or "*"
 
+            # Identify if we have generated _label columns
+            all_cols = [c["column_name"] for c in actual_columns]
+            label_cols = set(c for c in all_cols if c.endswith("_label"))
+            raw_cols_with_labels = set(c[:-6] for c in label_cols)
+
             # Build query with proper escaping
+            col_list = []
             if selected_cols == "*":
-                query = f'SELECT * FROM "{schema}"."{table}"'
+                for c in all_cols:
+                    if c in label_cols:
+                        continue  # Skip literal `_label` columns so we don't have dupes
+                    if c in raw_cols_with_labels:
+                        col_list.append(f'"{c}_label" AS "{c}"')
+                    else:
+                        col_list.append(f'"{c}"')
             else:
-                # Escape column names
-                col_list = [
-                    f'"{col.strip()}"'
-                    for col in selected_cols.split(",")
-                    if col.strip()
-                ]
-                query = f'SELECT {", ".join(col_list)} FROM "{schema}"."{table}"'
+                for col in selected_cols.split(","):
+                    col = col.strip()
+                    if not col: continue
+                    col_case_matched = column_map.get(col.lower(), col)
+                    if col_case_matched in raw_cols_with_labels:
+                        col_list.append(f'"{col_case_matched}_label" AS "{col_case_matched}"')
+                    else:
+                        col_list.append(f'"{col_case_matched}"')
+
+            if not col_list:
+                col_list = ["*"]
+                
+            query = f'SELECT {", ".join(col_list)} FROM "{schema}"."{table}"'
 
             if filters:
                 # Fix case sensitivity in filters
                 print(f"DEBUG: Original filters: {filters}")
-                fixed_filters = fix_filter_case_sensitivity(filters, column_map)
+                fixed_filters = fix_filter_case_sensitivity(filters, column_map, raw_cols_with_labels)
                 
                 # Auto-quote string values if missing quotes
                 fixed_filters = smart_quote_filters(fixed_filters, column_type_map)
+
+                # CRITICAL FAILSAFE: If the user provides a numeric code (e.g. '01') 
+                # CRITICAL FAILSAFE: If the user provides a numeric code (e.g. '01') 
+                # but the DB column actually contains label strings (e.g. 'JAMMU & KASHMIR'),
+                # we must map the code to the label at query time.
+                try:
+                    from utils.metadata_helper import get_column_labels
+                    meta_map = await get_column_labels(conn, table, schema)
+                    
+                    def resolve_code_to_label(match):
+                        col_full = match.group(1)
+                        col_name_stripped = col_full.replace('"', '')
+                        op = match.group(2)
+                        val_quoted = match.group(3)
+                        val = val_quoted.strip("'\"")
+                        
+                        col_type = column_type_map.get(col_name_stripped.lower(), "").lower()
+                        is_text_db = any(t in col_type for t in ["text", "char", "string"])
+                        
+                        if is_text_db:
+                            # Check categorization meta
+                            cats = meta_map.get(col_name_stripped)
+                            if cats:
+                                # Standardize the val to match codes (strip leading zeros for numeric compare)
+                                val_norm = val
+                                try: val_norm = str(int(float(val)))
+                                except: pass
+                                
+                                for code, label in cats.items():
+                                    if not label: continue
+                                    code_norm = str(code)
+                                    try: code_norm = str(int(float(code)))
+                                    except: pass
+                                    
+                                    if (str(code) == val or code_norm == val_norm) and val != "":
+                                        # Match found! Redirect query to use the label
+                                        label_esc = label.replace("'", "''")
+                                        # Ensure we only replace if it's the right operator and value
+                                        return f'"{col_name_stripped}"{op}\'{label_esc}\''
+                        
+                        return match.group(0)
+
+                    # Match "Col" = 'Val' or Col = val
+                    filter_pattern = r'("[^"]+"|[a-zA-Z0-9_]+)\s*(=|!=|<>)\s*(\'[^\']*\'|"[^"]*"|[a-zA-Z0-9_\.]+)'
+                    fixed_filters = re.sub(filter_pattern, resolve_code_to_label, fixed_filters)
+                except Exception as e:
+                    print(f"⚠️ Fallback filter mapping failed: {e}")
                 
                 print(f"DEBUG: Fixed filters: {fixed_filters}")
                 query += f" WHERE {fixed_filters}"
@@ -1491,7 +1660,7 @@ async def query_table(
             
             # Apply metadata labels
             try:
-                label_map = await get_column_labels(conn, table)
+                label_map = await get_column_labels(conn, table, schema)
                 result = apply_labels(result, label_map)
             except Exception as e:
                 print(f"⚠️ Failed to apply labels in query_table: {e}")
