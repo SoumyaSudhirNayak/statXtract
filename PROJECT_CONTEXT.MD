@@ -219,26 +219,35 @@ Source: [query_data.py run_query](file:///e:/STATATHON%202025%20LOCAL/Statathon_
 
 ### D) Upload / ingestion
 
-- `POST /upload/` (multipart form-data: file + schema)
-- Extracts ZIP and loads data into PostgreSQL
-- **Known Issue:** `NotNullViolation` in `dataset_registry` table.
-  - *Error:* `(psycopg2.errors.NotNullViolation) null value in column "display_name" of relation "dataset_registry" violates not-null constraint`.
-  - *Cause:* Legacy table schema mismatch where `dataset_registry` contains columns from `schema_registry` (like `display_name`, `db_name`) that are marked `NOT NULL`.
-  - *Status:* Table dropping logic implemented in `db_init.py` to force-recreate the correct schema (id, survey_schema, dataset_schema, dataset_display_name, created_at).
+- `POST /upload/` (multipart form-data: file + schema + dataset_name)
+- Supported formats: `.zip`, `.csv`, `.xlsx`, `.sav`, `.txt`, `.nesstar`
+- Extracts/converts and loads data into PostgreSQL
 
-Source: [ingestion_pipeline.py](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/utils/ingestion_pipeline.py#L321-L327)
+Source: [ingestion_pipeline.py](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/utils/ingestion_pipeline.py)
 
-#### Ingestion Workflow:
-1.  **Validation:** Check for ZIP file integrity and supported extensions (`.csv`, `.xlsx`, `.sav`, `.txt`).
-2.  **Conversion:** Excel and SPSS files are converted to CSV using `pandas` or `pyreadstat`.
-3.  **DDI Processing:** If a matched `.xml` DDI is found, it's used to parse fixed-width TXT or apply labels to variables.
-4.  **Database Loading:** Data is streamed into PostgreSQL using `df.to_sql` (SQLAlchemy).
-5.  **Hierarchy Registration:** The dataset is registered in `dataset_registry` under its parent survey schema.
+#### Unified Ingestion Workflow (ZIP + Nesstar):
+All upload types converge into a **single, unified ingestion block** in `ingest_upload_file()`:
+
+1. **File Preparation:**
+   - **ZIP:** Extract to `raw_dir/extracted/`, copy data files to `processed_dir/`, copy DDI XML to `dataset_root/ddi.xml`.
+   - **Nesstar:** AutoIt exports datasets + DDI to `uploads/export_nesstar/`, then code copies data files to `processed_dir/` and DDI to `dataset_root/ddi.xml`. *(Same as ZIP — just a different extraction source.)*
+   - **Single file:** Copy directly to `processed_dir/`.
+2. **DDI Parsing:** Parse `ddi_path` via `parse_ddi_xml()` → extract `ddi_meta` (title, abstract, keywords, coverage, variables).
+3. **Dataset Registry:** Register in `public.dataset_registry` under parent survey schema.
+4. **Dataset Metadata:** Store rich metadata (abstract, keywords, coverage, methodology, producer, etc.) in `{dataset_schema}.dataset_metadata`.
+5. **Per-file Processing:**
+   - Load via `_load_data_file()` (supports CSV, XLSX, SAV, POR, fixed-width TXT).
+   - Apply DDI category labels via `_apply_ddi_labels()`.
+   - Infer + convert column types via `_infer_and_convert_column()`.
+   - Write to PostgreSQL via `df.to_sql()` into `{dataset_schema}.{table_name}`.
+   - Populate `variables`, `variable_statistics`, `variable_categories` tables with per-column metadata.
+6. **Hierarchy Registration:** Dataset tables registered in the survey schema's `dataset_tables`.
 
 #### File Structuring Methodology:
-- **Physical Storage:** `uploads/{survey_schema}/{dataset_folder}/raw` and `uploads/{survey_schema}/{dataset_folder}/processed`.
-- **Naming Convention:** Dataset folders use a `{survey_schema}__{dataset_name}` or `{survey_schema}_{year}` convention to maintain logical grouping.
-- **DDI Mapping:** DDI XML files must share a prefix with the data file or be unique within the ZIP to be correctly matched.
+- **Physical Storage:** `uploads/{survey_schema}/{dataset_folder}/raw_files` and `uploads/{survey_schema}/{dataset_folder}/processed`.
+- **Nesstar Export Storage:** `uploads/export_nesstar/` (temporary; contents cleared after copy, folder preserved).
+- **Naming Convention:** Dataset schemas use `{survey_schema}__{dataset_name}` (double-underscore delimiter).
+- **DDI Mapping:** DDI XML files must be present in the ZIP or export folder; detected by `.xml`/`.nsdstat` extension.
 
 ### E) Logical Hierarchy & Schema Mapping
 
@@ -268,10 +277,20 @@ The system implements a **Survey → Dataset → Table** logical hierarchy witho
 ### F) Variable Dictionary & Configurations
 
 #### Variable Dictionary ([db_utils.py](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/utils/db_utils.py)):
-- Every dataset schema contains a `variable_dictionary` table.
-- **Fields:** `variable_name`, `label`, `ddi_type`, `width`, `final_type`, `valid_count`, `invalid_count`.
-- **Example:** A variable `V1` in `plfs` might have label "Age", ddi_type "numeric", and width 3.
-- Automatically populated during ingestion from DDI metadata or data file headers.
+- Every dataset schema contains a `variables` table (created by `ensure_dataset_schema_tables()`).
+- **Fields:** `table_name`, `variable_name`, `label`, `ddi_type`, `width`, `interval`, `valid_count`, `invalid_count`, `final_type`.
+- **Unique constraint:** `(table_name, variable_name)` — used for upsert during ingestion.
+- Automatically populated during ingestion from DDI metadata and data file profiling.
+
+#### Related tables per dataset schema:
+- `variable_categories` — stores DDI value labels: `(table_name, variable_name, value, label, frequency)`.
+- `variable_statistics` — stores per-column stats: `(table_name, variable_name, mean, min, max, stddev, unique_count)`.
+- `variable_missing_values` — stores DDI missing value codes: `(variable_id, missing_value)`.
+- `dataset_metadata` — stores rich DDI metadata per dataset.
+
+#### Schema Migration (auto-healing):
+- `ensure_dataset_schema_tables()` checks `information_schema.columns` for old `variable_id`-based `variable_categories` tables and auto-drops + recreates them with the correct `(table_name, variable_name)` schema.
+- `ensure_metadata_tables()` runs the same migration via `DROP TABLE IF EXISTS ... CASCADE`.
 
 #### Variable Configurations ([db_init.py](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/utils/db_init.py)):
 - **Table:** `variable_configs` in the `public` schema.
@@ -306,8 +325,23 @@ Created on startup in `ensure_core_tables()`:
 - `users`
 - `usage_logs`
 - `variable_configs`
+- `dataset_registry` — maps `(survey_schema, dataset_schema, dataset_display_name)`.
 
 Source: [db_init.py](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/utils/db_init.py#L4-L62)
+
+#### Per-dataset schema tables (created by `ensure_dataset_schema_tables()` in `db_utils.py`):
+- `dataset_metadata` — DDI-derived rich metadata (title, abstract, keywords, coverage, methodology, etc.)
+- `variables` — per-column metadata: `(table_name, variable_name, label, ddi_type, width, valid_count, invalid_count, final_type)`
+- `variable_categories` — DDI value labels: `(table_name, variable_name, value, label, frequency)`
+- `variable_statistics` — column stats: `(table_name, variable_name, mean, min, max, stddev, unique_count)`
+- `variable_missing_values` — DDI missing value codes
+
+#### Per-survey schema tables (created by `ensure_survey_metadata_tables()` in `db_utils.py`):
+- `dataset_registry` — lists datasets within the survey: `(year, dataset_display_name, dataset_db_name)`
+- `dataset_tables` — lists tables within each dataset
+
+#### Internal table filtering:
+All table-listing API endpoints (`/datasets`, `/surveys/.../tables`, `/admin/schemas/.../variables`) filter out internal tables using `_is_internal_table()` in `main.py`. Hidden tables include: `datasets`, `dataset_files`, `dataset_metadata`, `variables`, `variable_categories`, `variable_statistics`, `variable_missing_values`, and any table containing keywords like `variable`, `metadata`, `category`, `missing`, `_error`, `_stat`.
 
 Notes:
 - `usage_logs` stores `user_email`, `endpoint`, `schema_name`, `table_name`, `rows_returned`, `bytes_sent`, `queried_at`.
