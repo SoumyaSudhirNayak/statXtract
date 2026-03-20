@@ -5,6 +5,7 @@ from fastapi.templating import Jinja2Templates
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from fastapi.openapi.utils import get_openapi
 from contextlib import asynccontextmanager
+import contextvars
 from starlette.middleware.sessions import SessionMiddleware
 import asyncio
 import asyncpg
@@ -594,15 +595,241 @@ async def _group_schemas_by_survey(conn: asyncpg.Connection) -> dict[str, dict[s
     return dict(sorted(grouped.items(), key=lambda x: x[1]["display_name"]))
 
 
+_CFG_CONN: contextvars.ContextVar = contextvars.ContextVar("cfg_conn")
+_CFG_FILTERS: contextvars.ContextVar = contextvars.ContextVar("cfg_filters", default=None)
+_CFG_LABELS: contextvars.ContextVar = contextvars.ContextVar("cfg_labels", default=None)
+
+
+class TableHidden(Exception):
+    pass
+
+
+def _set_apply_context(*, conn, filters=None, labels=None):
+    t1 = _CFG_CONN.set(conn)
+    t2 = _CFG_FILTERS.set(filters)
+    t3 = _CFG_LABELS.set(labels)
+    return (t1, t2, t3)
+
+
+def _reset_apply_context(tokens):
+    _CFG_CONN.reset(tokens[0])
+    _CFG_FILTERS.reset(tokens[1])
+    _CFG_LABELS.reset(tokens[2])
+
+
+def _normalize_role(role_value: Any) -> str:
+    raw = str(role_value or "").strip().lower()
+    return {"1": "admin", "2": "analyst", "3": "user"}.get(raw, raw or "user")
+
+
+def _extract_filter_columns(filter_expr: str, known_columns: list[str]) -> set[str]:
+    if not filter_expr:
+        return set()
+    known = {c.lower(): c for c in known_columns}
+    used = set()
+    for m in re.finditer(r'("([^"]+)"|([A-Za-z_][A-Za-z0-9_]*))', filter_expr):
+        ident = m.group(2) or m.group(3)
+        if not ident:
+            continue
+        hit = known.get(ident.lower())
+        if hit:
+            used.add(hit)
+    return used
+
+
+async def get_dataset_configs(schema: str) -> dict[str, dict]:
+    conn = _CFG_CONN.get(None)
+    if conn is None:
+        raise RuntimeError("Missing DB connection for config context")
+    has_show_col = await conn.fetchval(
+        """
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_name = 'dataset_configs'
+          AND column_name = 'show_table_to_users'
+        LIMIT 1
+        """
+    )
+    if has_show_col:
+        rows = await conn.fetch(
+            """
+            SELECT table_name, show_table_to_users
+            FROM dataset_configs
+            WHERE schema_name = $1
+            """,
+            schema,
+        )
+    else:
+        rows = await conn.fetch(
+            """
+            SELECT table_name, TRUE AS show_table_to_users
+            FROM dataset_configs
+            WHERE schema_name = $1
+            """,
+            schema,
+        )
+    return {r["table_name"]: dict(r) for r in rows}
+
+
+async def get_variable_configs(schema: str, table: str) -> dict[str, dict]:
+    conn = _CFG_CONN.get(None)
+    if conn is None:
+        raise RuntimeError("Missing DB connection for config context")
+    has_table_col = await conn.fetchval(
+        """
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_name = 'variable_configs'
+          AND column_name = 'table_name'
+        LIMIT 1
+        """
+    )
+    if has_table_col:
+        rows = await conn.fetch(
+            """
+            SELECT *
+            FROM variable_configs
+            WHERE schema_name = $1
+              AND table_name IN ($2, '*')
+            ORDER BY (table_name <> '*') DESC, updated_at DESC
+            """,
+            schema,
+            table,
+        )
+    else:
+        rows = await conn.fetch(
+            """
+            SELECT *
+            FROM variable_configs
+            WHERE schema_name = $1
+            ORDER BY updated_at DESC
+            """,
+            schema,
+        )
+    out = {}
+    for r in rows:
+        vn = r["variable_name"]
+        if vn not in out:
+            out[vn] = dict(r)
+    return out
+
+
+async def apply_config(schema, table, user, columns, rows):
+    conn = _CFG_CONN.get(None)
+    filters = _CFG_FILTERS.get()
+    labels = _CFG_LABELS.get() or {}
+    if conn is None:
+        raise RuntimeError("Missing DB connection for config context")
+
+    user_role = _normalize_role(getattr(user, "role", "user"))
+    print("USER ROLE:", user_role)
+
+    if user_role == "admin":
+        print("FINAL COLUMNS:", columns)
+        if rows is None:
+            return columns, None
+        return columns, [dict(r) for r in rows]
+
+    dataset_cfg = await get_dataset_configs(schema)
+    table_cfg = dataset_cfg.get(table)
+    if table_cfg is not None and table_cfg.get("show_table_to_users") is False:
+        raise TableHidden()
+
+    if not columns and rows is None:
+        return [], None
+
+    var_cfg = await get_variable_configs(schema, table)
+
+    allowed_columns = []
+    min_rows_required = 0
+    for col in columns:
+        cfg = var_cfg.get(col)
+        if cfg and cfg.get("include_in_api") is False:
+            continue
+        if cfg and cfg.get("is_sensitive") and user_role != "admin":
+            continue
+        if cfg and cfg.get("is_sensitive"):
+            try:
+                min_rows_required = max(min_rows_required, int(cfg.get("min_rows") or 5))
+            except Exception:
+                min_rows_required = max(min_rows_required, 5)
+        allowed_columns.append(col)
+
+    print("FINAL COLUMNS:", allowed_columns)
+
+    if filters and columns:
+        used_cols = _extract_filter_columns(filters, columns)
+        allowed_set = set(allowed_columns)
+        for c in used_cols:
+            if c not in allowed_set:
+                raise HTTPException(status_code=400, detail=f"Invalid or restricted filter column: {c}")
+            cfg = var_cfg.get(c)
+            if cfg and cfg.get("filterable") is False:
+                raise HTTPException(status_code=400, detail=f"Column '{c}' is not configured as filterable.")
+
+    if rows is None:
+        return allowed_columns, None
+
+    result = []
+    for row in rows:
+        row_dict = dict(row)
+        filtered = {}
+        for col in allowed_columns:
+            val = row_dict.get(col)
+            if val is not None:
+                col_labels = labels.get(col) or {}
+                if col_labels:
+                    val = col_labels.get(str(val), val)
+            filtered[col] = val
+        result.append(filtered)
+
+    if user_role != "admin" and min_rows_required > 0 and len(result) < min_rows_required:
+        raise HTTPException(status_code=403, detail="Suppressed")
+
+    return allowed_columns, result
+
+
 @app.get("/surveys")
 async def list_surveys(request: Request, current_user=Depends(get_current_user)):
     pool = request.app.state.db
     async with pool.acquire() as conn:
         grouped = await _group_schemas_by_survey(conn)
-    return [
-        {"survey": v["survey"], "display_name": v["display_name"], "dataset_count": len(v["datasets"])}
-        for v in grouped.values()
-    ]
+        out = []
+        for v in grouped.values():
+            datasets = v["datasets"]
+            if len(datasets) > 1:
+                datasets = [d for d in datasets if d["schema"] != v["survey"]]
+            visible_count = 0
+            for d in datasets:
+                rows = await conn.fetch(
+                    """
+                    SELECT table_name
+                    FROM information_schema.tables
+                    WHERE table_type = 'BASE TABLE'
+                      AND table_schema = $1
+                    ORDER BY table_name
+                    """,
+                    d["schema"],
+                )
+                tokens = _set_apply_context(conn=conn)
+                try:
+                    has_visible = False
+                    for r in rows:
+                        tname = r["table_name"]
+                        if _is_internal_table(tname):
+                            continue
+                        try:
+                            await apply_config(d["schema"], tname, current_user, [], None)
+                            has_visible = True
+                            break
+                        except TableHidden:
+                            continue
+                    if has_visible:
+                        visible_count += 1
+                finally:
+                    _reset_apply_context(tokens)
+            out.append({"survey": v["survey"], "display_name": v["display_name"], "dataset_count": visible_count})
+        return out
 
 
 @app.get("/surveys/{survey}/datasets")
@@ -610,13 +837,43 @@ async def list_survey_datasets(request: Request, survey: str, current_user=Depen
     pool = request.app.state.db
     async with pool.acquire() as conn:
         grouped = await _group_schemas_by_survey(conn)
-    g = grouped.get(survey)
-    if not g:
-        raise HTTPException(status_code=404, detail="Survey not found")
-    datasets = g["datasets"]
-    if len(datasets) > 1:
-        datasets = [d for d in datasets if d["schema"] != survey]
-    return datasets
+        g = grouped.get(survey)
+        if not g:
+            raise HTTPException(status_code=404, detail="Survey not found")
+        datasets = g["datasets"]
+        if len(datasets) > 1:
+            datasets = [d for d in datasets if d["schema"] != survey]
+
+        allowed = []
+        for d in datasets:
+            rows = await conn.fetch(
+                """
+                SELECT table_name
+                FROM information_schema.tables
+                WHERE table_type = 'BASE TABLE'
+                  AND table_schema = $1
+                ORDER BY table_name
+                """,
+                d["schema"],
+            )
+            tokens = _set_apply_context(conn=conn)
+            try:
+                has_visible = False
+                for r in rows:
+                    tname = r["table_name"]
+                    if _is_internal_table(tname):
+                        continue
+                    try:
+                        await apply_config(d["schema"], tname, current_user, [], None)
+                        has_visible = True
+                        break
+                    except TableHidden:
+                        continue
+                if has_visible:
+                    allowed.append(d)
+            finally:
+                _reset_apply_context(tokens)
+        return allowed
 
 
 @app.get("/surveys/{survey}/{dataset}/tables")
@@ -647,19 +904,27 @@ async def list_survey_tables(request: Request, survey: str, dataset: str, curren
             dataset,
         )
 
-    out = []
-    for r in rows:
-        name = r["table_name"]
-        if _is_internal_table(name):
-            continue
-        out.append(
-            {
-                "table_name": name,
-                "row_count": r["row_count"] or 0,
-                "column_count": r["column_count"] or 0,
-            }
-        )
-    return out
+        tokens = _set_apply_context(conn=conn)
+        try:
+            out = []
+            for r in rows:
+                name = r["table_name"]
+                if _is_internal_table(name):
+                    continue
+                try:
+                    await apply_config(dataset, name, current_user, [], None)
+                except TableHidden:
+                    continue
+                out.append(
+                    {
+                        "table_name": name,
+                        "row_count": r["row_count"] or 0,
+                        "column_count": r["column_count"] or 0,
+                    }
+                )
+            return out
+        finally:
+            _reset_apply_context(tokens)
 
 
 @app.get("/surveys/{survey}/{dataset}/{table}/columns")
@@ -684,7 +949,16 @@ async def list_survey_columns(request: Request, survey: str, dataset: str, table
             dataset,
             table,
         )
-    return [c["column_name"] for c in cols]
+        all_cols = [c["column_name"] for c in cols]
+        tokens = _set_apply_context(conn=conn)
+        try:
+            try:
+                allowed_cols, _ = await apply_config(dataset, table, current_user, all_cols, None)
+            except TableHidden:
+                raise HTTPException(status_code=404, detail="Table not found")
+            return allowed_cols
+        finally:
+            _reset_apply_context(tokens)
 
 
 @app.get("/surveys/{survey}/{dataset}/{table}/filter-metadata")
@@ -712,6 +986,17 @@ async def get_filter_metadata(request: Request, survey: str, dataset: str, table
             dataset,
             table,
         )
+
+        tokens = _set_apply_context(conn=conn)
+        try:
+            try:
+                allowed_cols, _ = await apply_config(dataset, table, current_user, [c["column_name"] for c in cols], None)
+            except TableHidden:
+                raise HTTPException(status_code=404, detail="Table not found")
+        finally:
+            _reset_apply_context(tokens)
+        allowed_set = set(allowed_cols)
+        cols = [c for c in cols if c["column_name"] in allowed_set]
 
         # Get DDI variable metadata
         try:
@@ -846,7 +1131,37 @@ async def list_datasets_v2(
             schema_db,
         )
 
-    return [{"dataset": r["dataset_schema"], "display_name": r["dataset_display_name"]} for r in rows]
+        out = []
+        for r in rows:
+            dataset_schema = r["dataset_schema"]
+            trows = await conn.fetch(
+                """
+                SELECT table_name
+                FROM information_schema.tables
+                WHERE table_type = 'BASE TABLE'
+                  AND table_schema = $1
+                ORDER BY table_name
+                """,
+                dataset_schema,
+            )
+            tokens = _set_apply_context(conn=conn)
+            try:
+                has_visible = False
+                for tr in trows:
+                    tn = tr["table_name"]
+                    if _is_internal_table(tn):
+                        continue
+                    try:
+                        await apply_config(dataset_schema, tn, current_user, [], None)
+                        has_visible = True
+                        break
+                    except TableHidden:
+                        continue
+                if has_visible:
+                    out.append({"dataset": dataset_schema, "display_name": r["dataset_display_name"]})
+            finally:
+                _reset_apply_context(tokens)
+        return out
 
 
 @app.get("/schemas/{schema}/{dataset}/tables")
@@ -895,20 +1210,28 @@ async def list_tables_v2(
             dataset_schema,
         )
 
-    hidden = {"dataset_metadata", "variables", "variable_categories", "variable_statistics"}
-    out = []
-    for r in rows:
-        name = r["table_name"]
-        if name in hidden:
-            continue
-        out.append(
-            {
-                "table_name": name,
-                "row_count": r["row_count"] or 0,
-                "column_count": r["column_count"] or 0,
-            }
-        )
-    return out
+        hidden = {"dataset_metadata", "variables", "variable_categories", "variable_statistics"}
+        tokens = _set_apply_context(conn=conn)
+        try:
+            out = []
+            for r in rows:
+                name = r["table_name"]
+                if name in hidden:
+                    continue
+                try:
+                    await apply_config(dataset_schema, name, current_user, [], None)
+                except TableHidden:
+                    continue
+                out.append(
+                    {
+                        "table_name": name,
+                        "row_count": r["row_count"] or 0,
+                        "column_count": r["column_count"] or 0,
+                    }
+                )
+            return out
+        finally:
+            _reset_apply_context(tokens)
 
 
 @app.get("/metadata/{schema}/{dataset}")
@@ -1045,7 +1368,35 @@ async def list_datasets(
             """,
             (year or "").strip(),
         )
-    return [{"display_name": r["dataset_display_name"], "db_name": r["dataset_db_name"]} for r in rows]
+        out = []
+        for r in rows:
+            dataset_db = r["dataset_db_name"]
+            trows = await conn.fetch(
+                f"""
+                SELECT table_name
+                FROM "{schema_db}".dataset_tables
+                WHERE year = $1 AND dataset_db_name = $2
+                ORDER BY table_name
+                """,
+                (year or "").strip(),
+                dataset_db,
+            )
+            tokens = _set_apply_context(conn=conn)
+            try:
+                has_visible = False
+                for tr in trows:
+                    tn = tr["table_name"]
+                    try:
+                        await apply_config(schema_db, tn, current_user, [], None)
+                        has_visible = True
+                        break
+                    except TableHidden:
+                        continue
+                if has_visible:
+                    out.append({"display_name": r["dataset_display_name"], "db_name": dataset_db})
+            finally:
+                _reset_apply_context(tokens)
+        return out
 
 
 @app.get("/schemas/{schema}/{year}/{dataset}/tables")
@@ -1073,15 +1424,26 @@ async def list_tables(
             (year or "").strip(),
             (dataset or "").strip(),
         )
-    return [
-        {
-            "table_name": r["table_name"],
-            "display_name": r["level_display_name"] or r["table_name"],
-            "row_count": r["row_count"] or 0,
-            "column_count": r["column_count"] or 0,
-        }
-        for r in rows
-    ]
+        tokens = _set_apply_context(conn=conn)
+        try:
+            out = []
+            for r in rows:
+                tname = r["table_name"]
+                try:
+                    await apply_config(schema_db, tname, current_user, [], None)
+                except TableHidden:
+                    continue
+                out.append(
+                    {
+                        "table_name": tname,
+                        "display_name": r["level_display_name"] or tname,
+                        "row_count": r["row_count"] or 0,
+                        "column_count": r["column_count"] or 0,
+                    }
+                )
+            return out
+        finally:
+            _reset_apply_context(tokens)
 
 
 def _parse_filters_param(filters: str) -> list[tuple[str, str, str]]:
@@ -1144,10 +1506,23 @@ async def query_dataset_table(
             (dataset or "").strip(),
             (table or "").strip(),
         )
-        allowed_set = {r["variable_name"] for r in allowed_cols}
+        all_columns = [r["variable_name"] for r in allowed_cols]
         type_map = {r["variable_name"]: (r["final_type"] or "").upper() for r in allowed_cols}
 
-        select_cols: list[str] = []
+        tokens = _set_apply_context(conn=conn, filters=filters)
+        try:
+            try:
+                allowed_columns, _ = await apply_config(schema_db, table, current_user, all_columns, None)
+            except TableHidden:
+                raise HTTPException(status_code=404, detail="Table not found")
+        finally:
+            _reset_apply_context(tokens)
+
+        allowed_set = set(allowed_columns)
+        if not allowed_set:
+            raise HTTPException(status_code=403, detail="No columns available")
+
+        selected_columns: list[str] = []
         if columns and columns.strip() and columns.strip() != "*":
             for c in columns.split(","):
                 col = c.strip()
@@ -1155,9 +1530,11 @@ async def query_dataset_table(
                     continue
                 if col not in allowed_set:
                     raise HTTPException(status_code=400, detail=f"Invalid column: {col}")
-                select_cols.append(f'"{col}"')
+                selected_columns.append(col)
         else:
-            select_cols = ["*"]
+            selected_columns = allowed_columns
+
+        select_cols = [f'"{c}"' for c in selected_columns]
 
         where_parts: list[str] = []
         values: list[Any] = []
@@ -1212,14 +1589,39 @@ async def query_dataset_table(
         sql = f'SELECT {", ".join(select_cols)} FROM "{schema_db}"."{table}"{where_sql} LIMIT {safe_limit} OFFSET {safe_offset}'
         rows = await conn.fetch(sql, *values)
 
-        user_role = str(getattr(current_user, "role", ""))
-        if user_role != "1" and len(rows) < 5:
-            await log_usage(conn, current_user.username, f"/schemas/{schema_db}/{year}/{dataset}/{table}/query", schema_db, table, 0, 0)
-            raise HTTPException(status_code=403, detail="Data suppressed (less than 5 rows)")
+        labels = {}
+        try:
+            for col in selected_columns:
+                cats = await conn.fetch(
+                    f'SELECT value, label FROM "{schema_db}".variable_categories WHERE table_name = $1 AND variable_name = $2',
+                    table,
+                    col,
+                )
+                if cats:
+                    labels[col] = {str(r["value"]): r["label"] for r in cats}
+        except Exception:
+            labels = {}
 
         data = [dict(r) for r in rows]
-        await log_usage(conn, current_user.username, f"/schemas/{schema_db}/{year}/{dataset}/{table}/query", schema_db, table, len(data), len(json.dumps(data, default=str).encode()))
-        return data
+        tokens = _set_apply_context(conn=conn, labels=labels)
+        try:
+            _, filtered_data = await apply_config(schema_db, table, current_user, selected_columns, data)
+        except HTTPException:
+            await log_usage(conn, current_user.username, f"/schemas/{schema_db}/{year}/{dataset}/{table}/query", schema_db, table, 0, 0)
+            raise
+        finally:
+            _reset_apply_context(tokens)
+
+        await log_usage(
+            conn,
+            current_user.username,
+            f"/schemas/{schema_db}/{year}/{dataset}/{table}/query",
+            schema_db,
+            table,
+            len(filtered_data),
+            len(json.dumps(filtered_data, default=str).encode()),
+        )
+        return filtered_data
 
 
 @app.get("/metadata/{schema}/{year}/{dataset}")
@@ -1287,12 +1689,10 @@ async def get_dataset_metadata(
 
 
 @app.get("/datasets")
-async def list_schemas_and_tables(request: Request):
-    """Lists ALL schemas and their tables - INCLUDING EMPTY SCHEMAS."""
+async def list_schemas_and_tables(request: Request, current_user=Depends(get_current_user)):
     try:
         pool = request.app.state.db
         async with pool.acquire() as conn:
-            # First, get ALL schemas (including empty ones)
             all_schemas = await conn.fetch("""
                 SELECT schema_name
                 FROM information_schema.schemata
@@ -1300,7 +1700,6 @@ async def list_schemas_and_tables(request: Request):
                 ORDER BY schema_name;
             """)
 
-            # Then get tables with their metadata
             tables_data = await conn.fetch("""
                 SELECT table_schema, table_name,
                        (SELECT COUNT(*) FROM information_schema.columns 
@@ -1314,28 +1713,27 @@ async def list_schemas_and_tables(request: Request):
                 ORDER BY table_schema, table_name;
             """)
 
-        # Initialize result with ALL schemas (empty arrays for schemas without tables)
-        result = {}
-        for schema_row in all_schemas:
-            schema_name = schema_row["schema_name"]
-            result[schema_name] = []
-
-        # Add table data to schemas that have tables (excluding internal/metadata tables)
-        for row in tables_data:
-            if _is_internal_table(row["table_name"]):
-                continue
-            result[row["table_schema"]].append(
-                {
-                    "table_name": row["table_name"],
-                    "row_count": row["row_count"] or 0,
-                    "column_count": row["column_count"] or 0,
-                }
-            )
-
-        print(
-            f"DEBUG: Returning {len(result)} schemas (including empty ones): {list(result.keys())}"
-        )
-        return result
+            result = {schema_row["schema_name"]: [] for schema_row in all_schemas}
+            tokens = _set_apply_context(conn=conn)
+            try:
+                for row in tables_data:
+                    if _is_internal_table(row["table_name"]):
+                        continue
+                    try:
+                        await apply_config(row["table_schema"], row["table_name"], current_user, [], None)
+                    except TableHidden:
+                        continue
+                    result[row["table_schema"]].append(
+                        {
+                            "table_name": row["table_name"],
+                            "row_count": row["row_count"] or 0,
+                            "column_count": row["column_count"] or 0,
+                        }
+                    )
+            finally:
+                _reset_apply_context(tokens)
+            print(f"DEBUG: Returning {len(result)} schemas (including empty ones): {list(result.keys())}")
+            return result
 
     except Exception as e:
         print(f"ERROR in list_schemas_and_tables: {e}")
@@ -1416,12 +1814,22 @@ async def get_columns(
                         print(
                             f"DEBUG: Using direct query method, found columns: {columns}"
                         )
+                        tokens = _set_apply_context(conn=conn)
+                        try:
+                            try:
+                                allowed_cols, _ = await apply_config(schema, table, current_user, columns, None)
+                            except TableHidden:
+                                raise HTTPException(status_code=404, detail="Table not found")
+                        finally:
+                            _reset_apply_context(tokens)
                         if details:
+                            allowed_set = set(allowed_cols)
                             return [
                                 {"name": c, "type": None, "position": i + 1}
                                 for i, c in enumerate(columns)
+                                if c in allowed_set
                             ]
-                        return columns
+                        return allowed_cols
                     else:
                         print(f"DEBUG: Table {schema}.{table} exists but has no data")
                         return []
@@ -1443,7 +1851,19 @@ async def get_columns(
             print(f"DEBUG: Columns: {columns}")
             print(f"DEBUG: Column details: {column_details}")
 
-            return column_details if details else columns
+            tokens = _set_apply_context(conn=conn)
+            try:
+                try:
+                    allowed_cols, _ = await apply_config(schema, table, current_user, columns, None)
+                except TableHidden:
+                    raise HTTPException(status_code=404, detail="Table not found")
+            finally:
+                _reset_apply_context(tokens)
+
+            if details:
+                allowed_set = set(allowed_cols)
+                return [d for d in column_details if d["name"] in allowed_set]
+            return allowed_cols
 
     except Exception as e:
         print(f"ERROR in get_columns for {schema}.{table}: {e}")
@@ -1543,7 +1963,6 @@ async def query_table(
     try:
         pool = request.app.state.db
         async with pool.acquire() as conn:
-            # Validate table exists first
             table_check = await conn.fetch(
                 """
                 SELECT table_name FROM information_schema.tables 
@@ -1554,9 +1973,8 @@ async def query_table(
             )
 
             if not table_check:
-                return {"error": f"Table {schema}.{table} not found"}
+                raise HTTPException(status_code=404, detail=f"Table {schema}.{table} not found")
 
-            # Get actual column names for case-insensitive filter handling
             actual_columns = await conn.fetch(
                 """
                 SELECT column_name, data_type
@@ -1577,54 +1995,18 @@ async def query_table(
             print(f"DEBUG: Column map for case sensitivity: {column_map}")
             print(f"DEBUG: Column type map: {column_type_map}")
 
-            selected_cols = columns or "*"
-
-            # Identify if we have generated _label columns
             all_cols = [c["column_name"] for c in actual_columns]
             label_cols = set(c for c in all_cols if c.endswith("_label"))
             raw_cols_with_labels = set(c[:-6] for c in label_cols)
+            raw_cols = [c for c in all_cols if c not in label_cols]
 
-            # Build query with proper escaping
-            col_list = []
-            if selected_cols == "*":
-                for c in all_cols:
-                    if c in label_cols:
-                        continue  # Skip literal `_label` columns so we don't have dupes
-                    if c in raw_cols_with_labels:
-                        col_list.append(f'"{c}_label" AS "{c}"')
-                    else:
-                        col_list.append(f'"{c}"')
-            else:
-                for col in selected_cols.split(","):
-                    col = col.strip()
-                    if not col: continue
-                    col_case_matched = column_map.get(col.lower(), col)
-                    if col_case_matched in raw_cols_with_labels:
-                        col_list.append(f'"{col_case_matched}_label" AS "{col_case_matched}"')
-                    else:
-                        col_list.append(f'"{col_case_matched}"')
-
-            if not col_list:
-                col_list = ["*"]
-                
-            query = f'SELECT {", ".join(col_list)} FROM "{schema}"."{table}"'
-
+            fixed_filters = None
             if filters:
-                # Fix case sensitivity in filters
                 print(f"DEBUG: Original filters: {filters}")
                 fixed_filters = fix_filter_case_sensitivity(filters, column_map, raw_cols_with_labels)
-                
-                # Auto-quote string values if missing quotes
                 fixed_filters = smart_quote_filters(fixed_filters, column_type_map)
-
-                # CRITICAL FAILSAFE: If the user provides a numeric code (e.g. '01') 
-                # CRITICAL FAILSAFE: If the user provides a numeric code (e.g. '01') 
-                # but the DB column actually contains label strings (e.g. 'JAMMU & KASHMIR'),
-                # we must map the code to the label at query time.
                 try:
-                    from utils.metadata_helper import get_column_labels
                     meta_map = await get_column_labels(conn, table, schema)
-                    
                     def resolve_code_to_label(match):
                         col_full = match.group(1)
                         col_name_stripped = col_full.replace('"', '')
@@ -1634,76 +2016,98 @@ async def query_table(
                         
                         col_type = column_type_map.get(col_name_stripped.lower(), "").lower()
                         is_text_db = any(t in col_type for t in ["text", "char", "string"])
-                        
                         if is_text_db:
-                            # Check categorization meta
                             cats = meta_map.get(col_name_stripped)
                             if cats:
-                                # Standardize the val to match codes (strip leading zeros for numeric compare)
                                 val_norm = val
                                 try: val_norm = str(int(float(val)))
                                 except: pass
-                                
                                 for code, label in cats.items():
                                     if not label: continue
                                     code_norm = str(code)
                                     try: code_norm = str(int(float(code)))
                                     except: pass
-                                    
                                     if (str(code) == val or code_norm == val_norm) and val != "":
-                                        # Match found! Redirect query to use the label
                                         label_esc = label.replace("'", "''")
-                                        # Ensure we only replace if it's the right operator and value
                                         return f'"{col_name_stripped}"{op}\'{label_esc}\''
-                        
                         return match.group(0)
 
-                    # Match "Col" = 'Val' or Col = val
                     filter_pattern = r'("[^"]+"|[a-zA-Z0-9_]+)\s*(=|!=|<>)\s*(\'[^\']*\'|"[^"]*"|[a-zA-Z0-9_\.]+)'
                     fixed_filters = re.sub(filter_pattern, resolve_code_to_label, fixed_filters)
                 except Exception as e:
                     print(f"⚠️ Fallback filter mapping failed: {e}")
-                
                 print(f"DEBUG: Fixed filters: {fixed_filters}")
-                query += f" WHERE {fixed_filters}"
 
+            tokens = _set_apply_context(conn=conn, filters=fixed_filters)
+            try:
+                try:
+                    allowed_columns, _ = await apply_config(schema, table, current_user, raw_cols, None)
+                except TableHidden:
+                    raise HTTPException(status_code=404, detail=f"Table {schema}.{table} not found")
+            finally:
+                _reset_apply_context(tokens)
+
+            if not allowed_columns:
+                raise HTTPException(status_code=403, detail="No columns available")
+
+            allowed_set = set(allowed_columns)
+            selected_columns = []
+            if columns and columns.strip() and columns.strip() != "*":
+                for col in columns.split(","):
+                    col = col.strip()
+                    if not col:
+                        continue
+                    col_case_matched = column_map.get(col.lower(), col)
+                    if col_case_matched not in allowed_set:
+                        raise HTTPException(status_code=400, detail=f"Column not allowed or invalid: {col_case_matched}")
+                    selected_columns.append(col_case_matched)
+            else:
+                selected_columns = allowed_columns
+
+            col_list = []
+            for c in selected_columns:
+                if c in raw_cols_with_labels:
+                    col_list.append(f'"{c}_label" AS "{c}"')
+                else:
+                    col_list.append(f'"{c}"')
+
+            query = f'SELECT {", ".join(col_list)} FROM "{schema}"."{table}"'
+            if fixed_filters:
+                query += f" WHERE {fixed_filters}"
             query += f" LIMIT {limit} OFFSET {offset}"
 
             print(f"DEBUG: Executing query: {query}")
             rows = await conn.fetch(query)
             result = [dict(r) for r in rows]
-            row_count = len(result)
-            
-            # Apply metadata labels
+            label_map = {}
             try:
                 label_map = await get_column_labels(conn, table, schema)
-                result = apply_labels(result, label_map)
-            except Exception as e:
-                print(f"⚠️ Failed to apply labels in query_table: {e}")
+            except Exception:
+                label_map = {}
 
-            # Cell suppression logic
-            user_role = str(current_user.role)
-            print(f"DEBUG: role={current_user.role}, row_count={row_count}")
-            if user_role != "1" and row_count < 5:
-                print("DEBUG: Suppression triggered!")
+            labels = {c: (label_map.get(c) or {}) for c in selected_columns}
+            tokens = _set_apply_context(conn=conn, labels=labels)
+            try:
+                _, filtered = await apply_config(schema, table, current_user, selected_columns, result)
+            except HTTPException:
                 await log_usage(
-                    conn, current_user.username,
-                    f"/datasets/{schema}/{table}/query", schema, table,
-                    0, 0
+                    conn,
+                    current_user.username,
+                    f"/datasets/{schema}/{table}/query",
+                    schema,
+                    table,
+                    0,
+                    0,
                 )
-                raise HTTPException(
-                    status_code=403,
-                    detail={
-                        "error": "Data Access Restricted",
-                        "reason": "Fewer than 5 rows returned. Cell suppression applied.",
-                        "actual_rows": row_count,
-                        "role": user_role,
-                    }
-                )
+                raise
+            finally:
+                _reset_apply_context(tokens)
 
-            print(f"DEBUG: Query returned {row_count} rows")
-            return result
+            print(f"DEBUG: Query returned {len(filtered)} rows")
+            return filtered
 
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"ERROR in query_table: {e}")
         return {"error": str(e)}
@@ -2242,110 +2646,93 @@ async def admin_change_password(
 async def get_schema_variables(
     request: Request,
     schema: str,
+    table: str = "",
     current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
 ):
-    """Get all variables/columns from all tables in a schema"""
     try:
+        table_name = (table or "").strip()
+        if not table_name:
+            return {"error": "Table is required"}
+
         pool = request.app.state.db
         async with pool.acquire() as conn:
-            # Get all tables in the schema
-            tables = await conn.fetch(
+            t_exists = await conn.fetchval(
                 """
-                SELECT table_name 
-                FROM information_schema.tables 
-                WHERE table_schema = $1 
+                SELECT 1
+                FROM information_schema.tables
+                WHERE table_schema = $1
+                  AND table_name = $2
                 AND table_type = 'BASE TABLE'
-                ORDER BY table_name
-            """,
+                LIMIT 1
+                """,
                 schema,
+                table_name,
+            )
+            if not t_exists:
+                return {"error": f"Table '{table_name}' not found in schema '{schema}'"}
+
+            cols = await conn.fetch(
+                """
+                SELECT column_name, data_type, is_nullable, ordinal_position
+                FROM information_schema.columns
+                WHERE table_schema = $1 AND table_name = $2
+                ORDER BY ordinal_position
+                """,
+                schema,
+                table_name,
             )
 
-            if not tables:
-                return {"error": f"No tables found in schema '{schema}'"}
-
-            # Get all unique columns across all tables in the schema
-            all_variables = set()
-            table_variables = {}
-
-            for table_row in tables:
-                table_name = table_row["table_name"]
-                if _is_internal_table(table_name):
-                    continue
-
-                # Get columns for this table
-                columns = await conn.fetch(
-                    """
-                    SELECT column_name, data_type, is_nullable
-                    FROM information_schema.columns
-                    WHERE table_schema = $1 AND table_name = $2
-                    ORDER BY ordinal_position
+            cfg_rows = await conn.fetch(
+                """
+                SELECT *
+                FROM variable_configs
+                WHERE schema_name = $1
+                  AND table_name IN ($2, '*')
+                ORDER BY (table_name <> '*') DESC, updated_at DESC
                 """,
-                    schema,
-                    table_name,
-                )
+                schema,
+                table_name,
+            )
+            cfg_map = {}
+            for r in cfg_rows:
+                vn = r["variable_name"]
+                if vn not in cfg_map:
+                    cfg_map[vn] = dict(r)
 
-                table_vars = []
-                for col in columns:
-                    var_info = {
-                        "variable_name": col["column_name"],
-                        "data_type": col["data_type"],
-                        "nullable": col["is_nullable"] == "YES",
-                        "table": table_name,
-                    }
-                    table_vars.append(var_info)
-                    all_variables.add(col["column_name"])
+            table_cfg = await conn.fetchrow(
+                """
+                SELECT show_table_to_users
+                FROM dataset_configs
+                WHERE schema_name = $1 AND table_name = $2
+                LIMIT 1
+                """,
+                schema,
+                table_name,
+            )
 
-                table_variables[table_name] = table_vars
-
-            # Create a comprehensive variable list
-            variables_list = []
-            for var_name in sorted(all_variables):
-                # Find which tables contain this variable
-                containing_tables = []
-                data_types = set()
-
-                for table_name, vars_list in table_variables.items():
-                    for var in vars_list:
-                        if var["variable_name"] == var_name:
-                            containing_tables.append(table_name)
-                            data_types.add(var["data_type"])
-
-                # Determine if it should be filterable based on data type
-                is_filterable = any(
-                    dt
-                    in [
-                        "integer",
-                        "bigint",
-                        "numeric",
-                        "text",
-                        "varchar",
-                        "character varying",
-                        "date",
-                        "timestamp",
-                    ]
-                    for dt in data_types
-                )
-
-                variables_list.append(
+            variables = []
+            for c in cols:
+                vn = c["column_name"]
+                cfg = cfg_map.get(vn, {})
+                variables.append(
                     {
-                        "variable_name": var_name,
-                        "label": var_name.replace(
-                            "_", " "
-                        ).title(),  # Auto-generate label
-                        "data_types": list(data_types),
-                        "tables": containing_tables,
-                        "include_in_api": True,  # Default to true
-                        "filterable": is_filterable,
-                        "table_count": len(containing_tables),
+                        "variable_name": vn,
+                        "label": cfg.get("label") or vn,
+                        "data_type": c["data_type"],
+                        "nullable": c["is_nullable"] == "YES",
+                        "include_in_api": bool(cfg.get("include_in_api", True)),
+                        "filterable": bool(cfg.get("filterable", False)),
+                        "is_sensitive": bool(cfg.get("is_sensitive", False)),
+                        "min_rows": int(cfg.get("min_rows") or 5),
                     }
                 )
 
             return {
                 "schema": schema,
-                "total_tables": len(tables),
-                "total_variables": len(variables_list),
-                "variables": variables_list,
-                "table_details": table_variables,
+                "table": table_name,
+                "show_table_to_users": True if table_cfg is None else bool(table_cfg["show_table_to_users"]),
+                "total_variables": len(variables),
+                "variables": variables,
             }
 
     except Exception as e:
@@ -2358,65 +2745,163 @@ async def update_variable_config(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
 ):
-    """Update variable configuration for a schema - Fixed for checkbox handling"""
     try:
-        # Get raw form data
-        form_data = await request.form()
-        schema = form_data.get("schema")
-
+        body = await request.json()
+        schema = (body.get("schema") or "").strip()
+        table_name = (body.get("table") or "").strip()
+        show_table_to_users = bool(body.get("show_table_to_users", True))
+        configs = body.get("configs") or []
         if not schema:
             return {"error": "Schema parameter is required"}
+        if not table_name:
+            return {"error": "Table parameter is required"}
 
-        # Debug: Print received form data
-        print("=== RECEIVED FORM DATA ===")
-        form_dict = dict(form_data)
-        for key, value in form_dict.items():
-            print(f"{key}: {value}")
-        print("==========================")
-
-        # Extract all variable names from label fields
-        variable_names = set()
-        for key in form_data.keys():
-            if key.startswith("label_"):
-                var_name = key.replace("label_", "")
-                variable_names.add(var_name)
-
-        if not variable_names:
-            return {"error": "No variables found in form data"}
-
-        print(f"Processing {len(variable_names)} variables: {list(variable_names)}")
-
-        # Process each variable
-        config_updates = []
-        for var_name in sorted(variable_names):
-            # Get label (always present)
-            label = form_data.get(f"label_{var_name}", var_name)
-
-            # Handle checkboxes: KEY EXISTS = checked, KEY MISSING = unchecked
-            include_checked = f"include_{var_name}" in form_data
-            filter_checked = f"filter_{var_name}" in form_data
-
-            config = {
-                "variable_name": var_name,
-                "label": label,
-                "include_in_api": include_checked,
-                "filterable": filter_checked,
-            }
-            config_updates.append(config)
-
-            # Debug output
-            print(
-                f"  {var_name}: label='{label}', include={include_checked}, filter={filter_checked}"
+        pool = request.app.state.db
+        async with pool.acquire() as conn:
+            try:
+                await conn.execute(
+                    "ALTER TABLE dataset_configs ADD COLUMN IF NOT EXISTS show_table_to_users BOOLEAN DEFAULT TRUE"
+                )
+            except Exception:
+                pass
+            has_dataset_name = await conn.fetchval(
+                """
+                SELECT 1
+                FROM information_schema.columns
+                WHERE table_name = 'dataset_configs'
+                  AND column_name = 'dataset_name'
+                LIMIT 1
+                """
             )
+            if has_dataset_name:
+                upd_ds = await conn.execute(
+                    """
+                    UPDATE dataset_configs
+                    SET show_table_to_users = $4, updated_at = NOW()
+                    WHERE schema_name = $1 AND dataset_name = $2 AND table_name = $3
+                    """,
+                    schema,
+                    "*",
+                    table_name,
+                    show_table_to_users,
+                )
+                if str(upd_ds).upper().endswith(" 0"):
+                    await conn.execute(
+                        """
+                        INSERT INTO dataset_configs (schema_name, dataset_name, table_name, show_table_to_users, updated_at)
+                        VALUES ($1, $2, $3, $4, NOW())
+                        """,
+                        schema,
+                        "*",
+                        table_name,
+                        show_table_to_users,
+                    )
+            else:
+                upd_ds = await conn.execute(
+                    """
+                    UPDATE dataset_configs
+                    SET show_table_to_users = $3, updated_at = NOW()
+                    WHERE schema_name = $1 AND table_name = $2
+                    """,
+                    schema,
+                    table_name,
+                    show_table_to_users,
+                )
+                if str(upd_ds).upper().endswith(" 0"):
+                    await conn.execute(
+                        """
+                        INSERT INTO dataset_configs (schema_name, table_name, show_table_to_users, updated_at)
+                        VALUES ($1, $2, $3, NOW())
+                        """,
+                        schema,
+                        table_name,
+                        show_table_to_users,
+                    )
 
-        # Here you would save to your database
-        # For now, we'll just return success
+            keep_names = []
+            updated = 0
+            for cfg in configs:
+                var_name = (cfg.get("variable_name") or "").strip()
+                if not var_name:
+                    continue
+                keep_names.append(var_name)
+                label = cfg.get("label") or var_name
+                include_in_api = bool(cfg.get("include_in_api", True))
+                filterable = bool(cfg.get("filterable", False))
+                is_sensitive = bool(cfg.get("is_sensitive", False))
+                try:
+                    min_rows = int(cfg.get("min_rows") or 5)
+                except Exception:
+                    min_rows = 5
+                min_rows = max(1, min_rows)
+                upd_var = await conn.execute(
+                    """
+                    UPDATE variable_configs
+                    SET label = $4,
+                        include_in_api = $5,
+                        filterable = $6,
+                        is_sensitive = $7,
+                        min_rows = $8,
+                        updated_at = NOW()
+                    WHERE schema_name = $1
+                      AND table_name = $2
+                      AND variable_name = $3
+                    """,
+                    schema,
+                    table_name,
+                    var_name,
+                    label,
+                    include_in_api,
+                    filterable,
+                    is_sensitive,
+                    min_rows,
+                )
+                if str(upd_var).upper().endswith(" 0"):
+                    await conn.execute(
+                        """
+                        INSERT INTO variable_configs
+                            (schema_name, table_name, variable_name, label, include_in_api, filterable, is_sensitive, min_rows, updated_at)
+                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+                        """,
+                        schema,
+                        table_name,
+                        var_name,
+                        label,
+                        include_in_api,
+                        filterable,
+                        is_sensitive,
+                        min_rows,
+                    )
+                updated += 1
 
+            if keep_names:
+                await conn.execute(
+                    """
+                    DELETE FROM variable_configs
+                    WHERE schema_name = $1
+                      AND table_name = $2
+                      AND variable_name <> ALL($3::text[])
+                    """,
+                    schema,
+                    table_name,
+                    keep_names,
+                )
+            else:
+                await conn.execute(
+                    """
+                    DELETE FROM variable_configs
+                    WHERE schema_name = $1
+                      AND table_name = $2
+                    """,
+                    schema,
+                    table_name,
+                )
         return {
-            "message": f"Successfully updated configuration for {len(config_updates)} variables in schema '{schema}'",
+            "message": f"Successfully saved configuration for table '{table_name}' in schema '{schema}'",
             "schema": schema,
-            "updated_count": len(config_updates),
-            "configurations": config_updates,
+            "table": table_name,
+            "show_table_to_users": show_table_to_users,
+            "updated_count": updated,
         }
 
     except Exception as e:

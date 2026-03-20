@@ -22,6 +22,15 @@ Context: National Statistics Office (MoSPI) hosts anonymized unit-level microdat
 - Authentication + role checks using **JWT**.
 - Daily usage tracking via a `usage_logs` table (row-count metering).
 - Basic privacy rule: suppress results for non-admin if the response would return fewer than 5 rows.
+- Centralized configuration enforcement via `apply_config(schema, table, user, columns, rows)` in `main.py`.
+- Survey Configuration Panel in admin dashboard with:
+  - table-level visibility (`show_table_to_users`)
+  - variable-level controls (`include_in_api`, `filterable`, `is_sensitive`, `min_rows`)
+  - bulk UX toggles for “Include All Variables in API” and “Filterable All Variables”
+- Configuration enforcement is applied across:
+  - query APIs
+  - schema/dataset/table listing APIs
+  - filter metadata and column listing endpoints
 - NADA-style admin endpoints for downloading/ingesting datasets into the DB via background jobs.
 - Swagger/OpenAPI documentation at `/docs` (FastAPI auto-generated) plus a separate MkDocs doc site under `statathon-docs-only/`.
 
@@ -41,7 +50,7 @@ Nesstar-specific ingest path:
 ### Known gaps (important)
 
 - SQL safety: there are endpoints that build SQL strings directly; raw SQL execution exists. These are not safe for untrusted users.
-- `variable_configs` exists in DB, but query endpoints do not enforce it yet; the admin update endpoint currently does not write to DB.
+- `test_cat.py` is environment-dependent and may fail in local setups where referenced sample tables do not exist.
 - Request-rate limiting (requests/time) is not implemented; only daily row caps exist.
 - Privacy controls are minimal (cell suppression by row count only).
 - Duplicate query endpoints exist (schema-aware and public-only variants).
@@ -294,8 +303,8 @@ The system implements a **Survey → Dataset → Table** logical hierarchy witho
 
 #### Variable Configurations ([db_init.py](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/utils/db_init.py)):
 - **Table:** `variable_configs` in the `public` schema.
-- **Governance:** Admins can configure `include_in_api` (visibility) and `filterable` (query capability) per variable.
-- **UI:** The "Configure Variables" section in the admin dashboard provides a grid for managing these settings.
+- **Governance:** Admins can configure `include_in_api`, `filterable`, `is_sensitive`, and `min_rows` per variable.
+- **UI:** The "Survey Configuration Panel" in the admin dashboard provides table-level and variable-level controls, including bulk toggles.
 
 ### G) Metadata Integration Processes
 
@@ -345,7 +354,7 @@ All table-listing API endpoints (`/datasets`, `/surveys/.../tables`, `/admin/sch
 
 Notes:
 - `usage_logs` stores `user_email`, `endpoint`, `schema_name`, `table_name`, `rows_returned`, `bytes_sent`, `queried_at`.
-- `variable_configs` is intended for survey config governance (`include_in_api`, `filterable`) but is not enforced in query endpoints yet.
+- `variable_configs` and `dataset_configs` are enforced centrally through `apply_config(...)` before responses are returned to non-admin users.
 
 ## 10) Documentation in repo
 
