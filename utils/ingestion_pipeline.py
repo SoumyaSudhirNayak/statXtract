@@ -28,7 +28,13 @@ from utils.job_manager import (
     JOB_STATUS_COMPLETED,
     JOB_STATUS_FAILED,
 )
-from utils.db_utils import ensure_dataset_schema_tables, make_dataset_schema_name, to_snake_case_identifier
+from utils.db_utils import (
+    ensure_dataset_schema_tables,
+    make_dataset_schema_name,
+    to_snake_case_identifier,
+    schema_exists,
+    ensure_metadata_tables,
+)
  
 # Configure logging with custom format for terminal visibility
 log_format = "%(asctime)s [statXtract] %(levelname)s: %(message)s"
@@ -221,22 +227,91 @@ async def ingest_upload_file(
     if ext == ".nesstar":
         log_terminal(f"Metadata detected: {src.name} (Nesstar Study)", "success")
         update_job(job_id, status=JOB_STATUS_CONVERTING, current_state=JOB_STATUS_CONVERTING, message="Converting Nesstar to SPSS...")
-        timeout_sec = int(os.getenv("NESSTAR_CONVERSION_TIMEOUT_SEC") or "3600")
-        run_info = await asyncio.to_thread(_run_nesstar_converter_streaming, job_id, str(raw_dest), str(processed_dir), timeout_sec, schema)
-        if int(run_info.get("returncode") or 1) != 0:
-            log_terminal(f"Nesstar conversion failed for {src.name}", "error")
-            raise ValueError(f"Nesstar conversion failed (code={int(run_info.get('returncode') or 1)})")
         
-        picked = _pick_exported_files(processed_dir)
-        data_path = picked.get("data")
-        ddi_path = picked.get("ddi")
-        if ddi_path:
-            log_terminal("Nesstar DDI metadata extracted", "success")
+        from utils.nesstar_orchestrator import run_nesstar_conversion_pipeline
+        # Use fixed root-level export_nesstar path — this is where Nesstar Explorer
+        # actually saves exported files regardless of the dataset subdirectory.
+        export_nesstar_dir = upload_root / "export_nesstar"
+        _ensure_dir(export_nesstar_dir)
+        
+        # Run conversion orchestration: AutoIt (Data) -> Python Watcher -> AutoIt (DDI)
+        run_info = await run_nesstar_conversion_pipeline(job_id, str(raw_dest), str(export_nesstar_dir), schema)
+        
+        # NOTE: 'returncode' can be 0 (falsy!) so we must check explicitly with is not None
+        rc = run_info.get("returncode")
+        if rc is None or int(rc) != 0:
+            err = run_info.get('error') or 'Unknown Error'
+            log_terminal(f"Nesstar conversion failed: {err}", "error")
+            raise ValueError(f"Nesstar conversion failed: {err}")
+
+        # ── Redirect exported files into the SAME pipeline as ZIP upload ──
+        # Treat export_nesstar/ exactly like extract_dir from a ZIP:
+        #   1) Find DDI XML → copy to ddi_path
+        #   2) Find data files → copy to processed_dir
+        #   3) Fall through to the unified ingestion block (shared with ZIP)
+
+        log_terminal("Nesstar export complete. Feeding exported files into standard ingestion pipeline...")
+        update_job(job_id, status=JOB_STATUS_PARSING_DDI, current_state=JOB_STATUS_PARSING_DDI,
+                   message="Scanning exported files for DDI and datasets...")
+
+        # Scan for DDI XML in exported folder
+        nesstar_ddi_candidates = [
+            p for p in export_nesstar_dir.rglob("*")
+            if p.is_file() and p.suffix.lower() in {".xml", ".nsdstat"}
+        ]
+        nesstar_ddi_candidates.sort(key=lambda p: 0 if p.suffix.lower() == ".nsdstat" else 1)
+        if nesstar_ddi_candidates:
+            log_terminal(f"DDI metadata found in export: {nesstar_ddi_candidates[0].name}", "success")
             fixed_ddi = dataset_root / "ddi.xml"
-            shutil.copy2(ddi_path, fixed_ddi)
+            shutil.copy2(nesstar_ddi_candidates[0], fixed_ddi)
             ddi_path = fixed_ddi
-        if data_path:
-            processed_files.append(Path(data_path))
+
+        # Scan for data files and copy them to processed_dir (same as ZIP extraction)
+        for p in export_nesstar_dir.rglob("*"):
+            if not p.is_file():
+                continue
+            if p.suffix.lower() in {".csv", ".xlsx", ".txt", ".sav", ".por"}:
+                checksum = get_file_checksum(str(p))
+                if p.name in manifest and manifest[p.name]["checksum"] == checksum:
+                    log_terminal(f"Skipping duplicate file: {p.name} (already uploaded)", "warning")
+                    update_job(job_id, processed_file={"name": p.name, "status": "duplicate", "message": "Already uploaded"})
+                    continue
+
+                dest = processed_dir / p.name
+                shutil.copy2(p, dest)
+                processed_files.append(dest)
+                manifest[p.name] = {
+                    "checksum": checksum,
+                    "size": p.stat().st_size,
+                    "timestamp": datetime.now().isoformat()
+                }
+
+        # Cleanup Nesstar export folder CONTENTS (keep the folder itself for next upload)
+        try:
+            for item in os.listdir(str(export_nesstar_dir)):
+                item_path = os.path.join(str(export_nesstar_dir), item)
+                try:
+                    if os.path.isfile(item_path) or os.path.islink(item_path):
+                        os.unlink(item_path)
+                    elif os.path.isdir(item_path):
+                        shutil.rmtree(item_path)
+                except Exception as e:
+                    log_terminal(f"Cleanup warning (file {item}): {e}", "warning")
+            log_terminal("Cleaned up export_nesstar folder contents.")
+        except Exception as e:
+            log_terminal(f"Cleanup warning (export dir): {e}", "warning")
+
+        try:
+            os.remove(str(raw_dest))
+            log_terminal(f"Cleaned up source .Nesstar file: {raw_dest.name}")
+        except Exception as e:
+            log_terminal(f"Cleanup warning (source file): {e}", "warning")
+
+        # ── Falls through to the unified ingestion block below (line 336+) ──
+        # processed_files and ddi_path are now populated exactly like a ZIP extraction.
+        # The rest of the pipeline (DDI parsing, type inference, table creation,
+        # metadata storage, variable profiling) runs identically to ZIP upload.
+
 
     elif ext == ".zip":
         log_terminal(f"Processing ZIP archive: {src.name}")
@@ -1749,57 +1824,75 @@ async def ingest_directory(conn, root_dir: Path, db_url: str, schema: str):
     return await process_directory(root_dir, db_url, schema)
 
 def _store_variables(conn, dataset_id: str, variables: List[DDIVariable], schema: str):
-    """Stores variable metadata into the database."""
+    """Stores variable metadata into the database.
+    
+    Uses the schema created by ensure_dataset_schema_tables:
+      variables(table_name, variable_name, label, ddi_type, width, ...)
+      variable_categories(table_name, variable_name, value, label, frequency)
+      variable_missing_values(table_name, variable_name, missing_value)
+    """
+    # Use dataset_id as the logical table_name group for DDI variables
+    table_name = dataset_id
+
     for var in variables:
-        vid = f"{dataset_id}_{var.name}" # Unique ID
-        
-        # Insert Variable
+        var_name = (var.name or "").strip()
+        if not var_name:
+            continue
+
+        # ── Insert / upsert variable ──────────────────────────────────────
         conn.execute(text(f"""
-            INSERT INTO "{schema}".variables (variable_id, dataset_id, label, data_type, start_pos, width, decimals, universe, question_text, concept)
-            VALUES (:vid, :did, :label, :dtype, :start, :width, :dec, :univ, :q, :concept)
-            ON CONFLICT (variable_id) DO UPDATE SET
-                label = EXCLUDED.label,
-                data_type = EXCLUDED.data_type,
-                concept = EXCLUDED.concept
+            INSERT INTO "{schema}".variables
+                (table_name, variable_name, label, ddi_type, width, interval,
+                 valid_count, invalid_count, final_type)
+            VALUES
+                (:tbl, :vname, :label, :dtype, :width, :interval,
+                 :valid_count, :invalid_count, :final_type)
+            ON CONFLICT (table_name, variable_name) DO UPDATE SET
+                label        = EXCLUDED.label,
+                ddi_type     = EXCLUDED.ddi_type,
+                width        = EXCLUDED.width,
+                final_type   = EXCLUDED.final_type
         """), {
-            "vid": vid,
-            "did": dataset_id,
-            "label": var.label,
-            "dtype": var.data_type,
-            "start": var.start_pos,
-            "width": var.width,
-            "dec": var.decimals,
-            "univ": var.universe,
-            "q": var.question,
-            "concept": var.concept
+            "tbl":          table_name,
+            "vname":        var_name,
+            "label":        var.label or "",
+            "dtype":        var.data_type or "",
+            "width":        var.width,
+            "interval":     "",
+            "valid_count":  None,
+            "invalid_count": None,
+            "final_type":   var.data_type or "",
         })
-        
-        # Insert Categories
+
+        # ── Categories ────────────────────────────────────────────────────
         conn.execute(
-            text(f'DELETE FROM "{schema}".variable_categories WHERE variable_id = :vid'),
-            {"vid": vid},
+            text(f'DELETE FROM "{schema}".variable_categories WHERE table_name = :tbl AND variable_name = :vname'),
+            {"tbl": table_name, "vname": var_name},
         )
-        for cat in var.categories:
+        for cat in (var.categories or []):
             conn.execute(text(f"""
-                INSERT INTO "{schema}".variable_categories (variable_id, category_code, category_label, frequency)
-                VALUES (:vid, :code, :label, :freq)
+                INSERT INTO "{schema}".variable_categories
+                    (table_name, variable_name, value, label, frequency)
+                VALUES (:tbl, :vname, :code, :label, :freq)
             """), {
-                "vid": vid, 
-                "code": cat['code'], 
-                "label": cat['label'],
-                "freq": cat['frequency']
+                "tbl":   table_name,
+                "vname": var_name,
+                "code":  cat.get('code', ''),
+                "label": cat.get('label', ''),
+                "freq":  cat.get('frequency'),
             })
-            
-        # Insert Missing Values
+
+        # ── Missing values ────────────────────────────────────────────────
         conn.execute(
             text(f'DELETE FROM "{schema}".variable_missing_values WHERE variable_id = :vid'),
-            {"vid": vid},
+            {"vid": f"{table_name}_{var_name}"},
         )
-        for mv in var.missing_values:
+        for mv in (var.missing_values or []):
             conn.execute(text(f"""
                 INSERT INTO "{schema}".variable_missing_values (variable_id, missing_value)
                 VALUES (:vid, :val)
-            """), {"vid": vid, "val": mv})
+            """), {"vid": f"{table_name}_{var_name}", "val": mv})
+
 
 def _load_data_file(file_path: Path, ddi_metadata: Optional[Dict]) -> Optional[pd.DataFrame]:
     """Loads data file into DataFrame using appropriate method."""
