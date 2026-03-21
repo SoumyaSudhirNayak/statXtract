@@ -968,7 +968,8 @@
             </a>
 
             <!-- Survey Configuration Panel -->
-            <a href="#" onclick="showConfigureVariables(); return false;" class="glass-card fade-in">
+            <a href="/admin/survey-config" class="glass-card fade-in">
+
                 <i class="fas fa-cogs card-icon"></i>
                 <h3 class="card-title">Survey Configuration Panel</h3>
                 <p class="card-description">Configure table visibility and variable response behavior for users</p>
@@ -1326,9 +1327,7 @@
 
         // Show Configure Variables section
         function showConfigureVariables() {
-            const configSection = document.getElementById('configSection');
-            configSection.classList.add('active');
-            configSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            window.location.href = '/admin/survey-config';
         }
 
         // Hide Configure Variables section

@@ -2770,6 +2770,19 @@ async def upload_dataset(
 # =================== ADMIN ROUTES ===================
 
 
+@app.get("/admin/survey-config", response_class=HTMLResponse)
+async def admin_survey_config_page(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
+):
+    return templates.TemplateResponse(
+        "survey_config.html",
+        {
+            "request": request,
+        },
+    )
+
+
 @app.get("/admin/change-password", response_class=HTMLResponse)
 async def admin_change_password_page(
     request: Request,
