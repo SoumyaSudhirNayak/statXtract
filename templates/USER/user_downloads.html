@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Downloads — STATXTRACT</title>
+  <link rel="stylesheet" href="/static/user_styles.css">
+  <style>
+    .downloads-toolbar { display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:28px; background:rgba(255,255,255,0.8); padding:24px; border-radius:var(--radius-lg); border:2px solid var(--border); }
+    @media(max-width:800px) { .downloads-toolbar { flex-direction:column; align-items:stretch; gap:16px; } }
+    
+    .view-toggle { display:inline-flex; background:var(--bg-section); padding:4px; border-radius:var(--radius-md); border:1px solid var(--border); }
+    .view-toggle-btn { padding:8px 16px; border-radius:var(--radius-sm); border:none; background:transparent; font-size:14px; font-weight:700; cursor:pointer; color:var(--text-muted); transition:var(--transition); display:flex; align-items:center; gap:8px; }
+    .view-toggle-btn.active { background:#fff; color:var(--royal); box-shadow:var(--shadow-sm); }
+    
+    .file-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:24px; margin-bottom:40px; }
+    .file-card { background:#fff; border:2px solid var(--border-soft); border-radius:var(--radius-lg); padding:24px; transition:var(--transition); position:relative; overflow:hidden; }
+    .file-card:hover { border-color:var(--green); transform:translateY(-4px); box-shadow:0 12px 30px rgba(46,125,50,0.12); }
+    .file-card::after { content:''; position:absolute; bottom:0; left:0; right:0; height:4px; background:var(--green); transform:scaleX(0); transition:transform 0.4s ease; transform-origin:left; }
+    .file-card:hover::after { transform:scaleX(1); }
+    
+    .file-format-icon { width:48px; height:48px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-family:var(--font-head); font-weight:900; font-size:16px; margin-bottom:16px; box-shadow:inset 0 0 0 2px rgba(255,255,255,0.5); }
+    .format-csv { background:#e3eaff; color:var(--royal); }
+    .format-json { background:#FFF3E0; color:var(--saffron); }
+    .format-pdf { background:var(--green-light); color:var(--green); }
+    
+    .file-name { font-family:var(--font-head); font-size:16px; font-weight:800; color:var(--text-main); margin-bottom:6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .file-meta { font-size:12px; color:var(--text-muted); font-weight:600; margin-bottom:20px; display:flex; gap:12px; }
+    .file-meta span { display:flex; align-items:center; gap:4px; }
+    
+    .file-actions { display:grid; grid-template-columns:1fr auto; gap:8px; border-top:1px solid var(--border-soft); padding-top:16px; }
+    .download-btn { padding:10px; background:var(--bg-section); font-weight:700; border-radius:var(--radius-sm); border:1px solid var(--border); color:var(--text-main); display:flex; align-items:center; justify-content:center; gap:8px; cursor:pointer; transition:var(--transition); }
+    .download-btn:hover { background:var(--royal); color:#fff; border-color:var(--royal); }
+  </style>
+</head>
+<body>
+  <div class="animated-bg"></div>
+
+  <header class="site-header">
+    <a href="/user/dashboard" class="site-logo">STATXTRACT</a>
+    <div class="header-right">
+      <button class="profile-btn" onclick="window.location.href='/user/profile'">
+        <div class="avatar">👤</div>
+        My Profile
+      </button>
+    </div>
+  </header>
+
+  <div style="display: flex;">
+    <aside class="sidebar expanded" id="sidebar">
+      <button class="sidebar-toggle" onclick="document.getElementById('sidebar').classList.toggle('collapsed');"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg></button>
+      <nav class="sidebar-nav">
+        <a href="/user/dashboard" class="nav-item"><div class="nav-icon">📊</div><span class="nav-label">Dashboard</span></a>
+        <a href="/query" class="nav-item"><div class="nav-icon">🔍</div><span class="nav-label">Advanced Query</span></a>
+        <a href="/user/history" class="nav-item"><div class="nav-icon">⏱️</div><span class="nav-label">Query History</span></a>
+        <a href="/user/downloads" class="nav-item active"><div class="nav-icon">⬇️</div><span class="nav-label">My Downloads</span></a>
+        <a href="/user/plans" class="nav-item"><div class="nav-icon">💎</div><span class="nav-label">Plans & Pricing</span></a>
+        <a href="/user/settings" class="nav-item"><div class="nav-icon">⚙️</div><span class="nav-label">Settings</span></a>
+      </nav>
+    </aside>
+
+    <main style="flex:1; padding: 40px; overflow-y:auto; max-height:calc(100vh - 72px);">
+      <h2 class="section-title">Data Exports & Vault</h2>
+      
+      <!-- Toolbar -->
+      <div class="downloads-toolbar">
+        <div style="flex:1;">
+          <h3 style="font-family:var(--font-head); font-size:20px; margin-bottom:8px;">Your Extracted Datasets</h3>
+          <p style="color:var(--text-muted); font-size:14px; margin:0; max-width:600px;">All successfully built and encrypted CSV, JSON, and PDF files are stored securely here for 30 days before auto-archiving.</p>
+        </div>
+        <div style="display:flex; flex-direction:column; align-items:flex-end; gap:12px;">
+          <div style="position:relative; width:280px;">
+            <input type="text" class="form-input" placeholder="Search by file name..." style="padding-left:36px; padding-top:10px; padding-bottom:10px;">
+            <span style="position:absolute; left:12px; top:50%; transform:translateY(-50%); opacity:0.6;">🔍</span>
+          </div>
+          <div class="view-toggle">
+            <button class="view-toggle-btn active"><span>■</span> Grid</button>
+            <button class="view-toggle-btn"><span>≡</span> List</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Grid Layout -->
+      <div class="file-grid">
+        
+        <!-- Extracted File 1 -->
+        <div class="file-card">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+            <div class="file-format-icon format-csv">CSV</div>
+            <span class="badge badge-green">Ready</span>
+          </div>
+          <div class="file-name" title="Healthcare_Facilities_Export.csv">Healthcare_Facilities_Export.csv</div>
+          <div class="file-meta">
+            <span>💾 2.4 MB</span>
+            <span>📅 Mar 15</span>
+          </div>
+          <div class="file-actions">
+            <button class="download-btn">Download Native</button>
+            <button class="btn btn-ghost btn-icon" style="color:var(--danger); border-color:var(--border);">🗑️</button>
+          </div>
+        </div>
+
+        <!-- Extracted File 2 -->
+        <div class="file-card">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+            <div class="file-format-icon format-json">JSON</div>
+            <span class="badge badge-green">Ready</span>
+          </div>
+          <div class="file-name" title="Economic_Census_Data.json">Economic_Census_Data.json</div>
+          <div class="file-meta">
+            <span>💾 1.8 MB</span>
+            <span>📅 Mar 12</span>
+          </div>
+          <div class="file-actions">
+            <button class="download-btn">Download JSON</button>
+            <button class="btn btn-ghost btn-icon" style="color:var(--danger); border-color:var(--border);">🗑️</button>
+          </div>
+        </div>
+
+        <!-- Extracted File 3 -->
+        <div class="file-card">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+            <div class="file-format-icon format-pdf">PDF</div>
+            <span class="badge badge-green">Ready</span>
+          </div>
+          <div class="file-name" title="Chart_Demographics_2021.pdf">Chart_Demographics_2021.pdf</div>
+          <div class="file-meta">
+            <span>💾 840 KB</span>
+            <span>📅 Mar 08</span>
+          </div>
+          <div class="file-actions">
+            <button class="download-btn">Save PDF Report</button>
+            <button class="btn btn-ghost btn-icon" style="color:var(--danger); border-color:var(--border);">🗑️</button>
+          </div>
+        </div>
+
+        <!-- Archiving File 4 -->
+        <div class="file-card" style="opacity:0.8;">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+            <div class="file-format-icon format-csv" style="filter:grayscale(1);">CSV</div>
+            <span class="badge" style="background:var(--bg-section); color:var(--text-muted);">Archived</span>
+          </div>
+          <div class="file-name" style="text-decoration:line-through; color:var(--text-muted);">Old_Analytics_Dump.csv</div>
+          <div class="file-meta">
+            <span>💾 15.0 MB</span>
+            <span>📅 Feb 10</span>
+          </div>
+          <div class="file-actions">
+            <button class="download-btn" disabled style="opacity:0.5; cursor:not-allowed;">Link Expired</button>
+            <button class="btn btn-ghost btn-icon" disabled style="opacity:0.5;">🗑️</button>
+          </div>
+        </div>
+
+      </div>
+    </main>
+  </div>
+</body>
+</html>

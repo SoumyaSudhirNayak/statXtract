@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>STATXTRACT - Modules</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@800;900&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --navy: #1F3A5F;
+      --royal: #2E5BBA;
+      --green: #2E7D32;
+      --bg: #F5F7FA;
+    }
+    body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg);
+      font-family: 'Inter', sans-serif;
+      min-height: 100vh;
+      color: #1c1c1c;
+      overflow-x: hidden;
+    }
+    .abg {
+      position: fixed; inset: 0; z-index: -1;
+      background: radial-gradient(circle at center, transparent 0%, rgba(31,58,95,0.02) 100%);
+    }
+    header {
+      background: var(--navy);
+      padding: 24px 40px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    }
+    .logo {
+      font-family: 'Poppins', sans-serif;
+      font-weight: 900;
+      font-size: 32px;
+      color: white;
+      text-decoration: none;
+      letter-spacing: -0.5px;
+      transition: opacity 0.2s;
+    }
+    .logo:hover { opacity: 0.8; }
+    .hero {
+      text-align: center;
+      padding: 80px 20px 60px;
+    }
+    .hero h2 {
+      font-family: 'Poppins', sans-serif;
+      font-size: 56px;
+      font-weight: 800;
+      margin: 0 0 20px;
+      color: #1c1c1c;
+      letter-spacing: -1px;
+    }
+    .hero p {
+      font-size: 22px;
+      color: #6B7280;
+      max-width: 760px;
+      margin: 0 auto;
+      line-height: 1.6;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 60px;
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 0 20px 80px;
+    }
+    @media (max-width: 800px) {
+      .grid { grid-template-columns: 1fr; gap: 40px; }
+      .hero h2 { font-size: 40px; }
+      .hero p { font-size: 18px; }
+    }
+    .card {
+      background: rgba(255,255,255,0.8);
+      backdrop-filter: blur(8px);
+      border: 2px solid #D1D5DB;
+      border-radius: 24px;
+      padding: 48px;
+      text-align: center;
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .card-admin:hover {
+      border-color: var(--royal);
+      transform: translateY(-8px);
+      box-shadow: 0 25px 60px rgba(46, 91, 186, 0.25);
+    }
+    .card-user:hover {
+      border-color: var(--green);
+      transform: translateY(-8px);
+      box-shadow: 0 25px 60px rgba(46, 125, 50, 0.25);
+    }
+    .icon-box {
+      width: 110px;
+      height: 110px;
+      border-radius: 28px;
+      background: #F3F4F6;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 32px;
+      transition: all 0.5s ease;
+    }
+    .card-admin:hover .icon-box {
+      background: var(--royal);
+      transform: scale(1.1) rotate(5deg);
+    }
+    .card-user:hover .icon-box {
+      background: var(--green);
+      transform: scale(1.1) rotate(5deg);
+    }
+    .icon {
+      transition: all 0.3s ease;
+    }
+    .card-admin .icon { color: var(--royal); }
+    .card-user .icon { color: var(--green); }
+    .card-admin:hover .icon, .card-user:hover .icon { color: white; }
+    
+    .card h3 {
+      font-family: 'Poppins', sans-serif;
+      font-size: 32px;
+      font-weight: 900;
+      margin: 0 0 16px;
+      color: #1c1c1c;
+    }
+    .card p {
+      font-size: 18px;
+      color: #6b7280;
+      line-height: 1.6;
+      margin: 0 0 32px;
+    }
+    .action {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 700;
+      font-size: 20px;
+      margin-top: auto;
+    }
+    .card-admin .action { color: var(--royal); }
+    .card-user .action { color: var(--green); }
+  </style>
+</head>
+<body>
+  <div class="abg"></div>
+  <header>
+    <a href="/" class="logo">STATXTRACT</a>
+  </header>
+
+  <div class="hero">
+    <h2>Select Your Portal</h2>
+    <p>Access the STATXTRACT data platform through our specialized modules for administrators and users.</p>
+  </div>
+
+  <div class="grid">
+    <a href="/login" class="card card-admin">
+      <div class="icon-box">
+        <svg class="icon" width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/></svg>
+      </div>
+      <h3>Admin Module</h3>
+      <p>System administration, user management, and data ingestion controls.</p>
+      <div class="action">
+        Enter Portal 
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+      </div>
+    </a>
+
+    <a href="/user/module-selection" class="card card-user">
+      <div class="icon-box">
+        <svg class="icon" width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      </div>
+      <h3>User Module</h3>
+      <p>Data exploration, query tools, and personalized analysis dashboards.</p>
+      <div class="action">
+        Enter Portal 
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+      </div>
+    </a>
+  </div>
+</body>
+</html>

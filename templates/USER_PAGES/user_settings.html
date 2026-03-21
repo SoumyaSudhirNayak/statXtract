@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Settings — STATXTRACT User Portal</title>
+  <meta name="description" content="Manage your STATXTRACT account settings — security, notifications, API keys, and interface preferences.">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/user_styles.css">
+  <style>
+    body { background: linear-gradient(135deg, #F5F7FA, #EEF3FB, #E9EEF7); min-height: 100vh; overflow: hidden; }
+    .app-shell { display: flex; flex-direction: column; height: 100vh; }
+    .main-area  { display: flex; flex: 1; overflow: hidden; }
+    .content    { flex: 1; overflow-y: auto; padding: 40px 48px; }
+    .nav-svg    { width: 20px; height: 20px; flex-shrink: 0; }
+    .nav-item.active { background: var(--green); color: #fff; border-color: var(--green); box-shadow: 0 6px 20px rgba(46,125,50,0.4); }
+    .nav-item.active:hover { background: var(--green); color: #fff; }
+
+    /* ── PAGE HEADER ── */
+    .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 28px; }
+    .section-title-h { font-family: var(--font-head); font-size: 30px; font-weight: 900; color: var(--text-main); }
+
+    /* ── SETTINGS LAYOUT ── */
+    .settings-layout { display: grid; grid-template-columns: 260px 1fr; gap: 28px; align-items: start; }
+    @media (max-width: 1000px) { .settings-layout { grid-template-columns: 1fr; } }
+
+    /* ── SETTINGS NAV ── */
+    .settings-nav {
+      background: rgba(255,255,255,0.92);
+      backdrop-filter: blur(14px);
+      border: 2px solid var(--border);
+      border-radius: 18px;
+      padding: 16px 12px;
+      position: sticky;
+      top: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      transition: all 0.3s;
+    }
+    .settings-nav:hover { border-color: var(--royal); }
+    .s-nav-btn {
+      width: 100%; padding: 13px 14px;
+      border: none; background: transparent;
+      font-size: 14px; font-weight: 700; color: var(--text-main);
+      font-family: var(--font-body); text-align: left;
+      border-radius: 12px; border-left: 3px solid transparent;
+      cursor: pointer;
+      transition: all 0.25s;
+      display: flex; align-items: center; gap: 12px;
+    }
+    .s-nav-btn:hover { background: var(--bg-section); color: var(--royal); }
+    .s-nav-btn.active { background: rgba(46,91,186,0.08); color: var(--royal); border-left-color: var(--royal); }
+    .s-nav-icon { font-size: 17px; width: 22px; text-align: center; flex-shrink: 0; }
+
+    /* ── SETTINGS PANELS ── */
+    .settings-panel { display: none; flex-direction: column; gap: 20px; }
+    .settings-panel.active { display: flex; animation: fadeUp 0.3s ease; }
+    @keyframes fadeUp { from{opacity:0;transform:translateY(10px);} to{opacity:1;transform:none;} }
+
+    /* ── PANEL CARD ── */
+    .panel-card {
+      background: rgba(255,255,255,0.92);
+      backdrop-filter: blur(14px);
+      border: 2px solid var(--border);
+      border-radius: 20px;
+      padding: 28px 32px;
+      transition: all 0.3s;
+    }
+    .panel-card:hover { box-shadow: 0 10px 28px rgba(31,58,95,0.08); }
+    .pc-header { margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border-soft); }
+    .pc-title  { font-family: var(--font-head); font-size: 19px; font-weight: 800; color: var(--text-main); margin-bottom: 4px; }
+    .pc-desc   { font-size: 13px; color: var(--text-muted); }
+
+    /* ── TOGGLE ROWS ── */
+    .toggle-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 18px 20px;
+      background: var(--bg-section);
+      border: 1px solid var(--border-soft);
+      border-radius: 12px;
+      margin-bottom: 12px;
+      transition: all 0.25s;
+    }
+    .toggle-row:last-child { margin-bottom: 0; }
+    .toggle-row:hover { border-color: var(--royal); background: rgba(46,91,186,0.04); }
+    .setting-info { flex: 1; }
+    .setting-title { font-size: 15px; font-weight: 700; color: var(--text-main); margin-bottom: 3px; }
+    .setting-sub   { font-size: 13px; color: var(--text-muted); line-height: 1.5; }
+
+    /* ── TOGGLE SWITCH ── */
+    .switch { position: relative; display: inline-block; width: 46px; height: 26px; flex-shrink: 0; margin-left: 20px; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider { position: absolute; cursor: pointer; top:0; left:0; right:0; bottom:0; background: var(--border); transition: 0.3s; border-radius: 34px; }
+    .slider::before { position:absolute; content:""; height:20px; width:20px; left:3px; bottom:3px; background:white; transition:0.3s; border-radius:50%; box-shadow:0 2px 6px rgba(0,0,0,0.15); }
+    input:checked + .slider { background: var(--green); }
+    input:checked + .slider::before { transform: translateX(20px); }
+
+    /* ── SESSION CARDS ── */
+    .session-list { display: flex; flex-direction: column; gap: 0; border: 1px solid var(--border-soft); border-radius: 14px; overflow: hidden; }
+    .session-row { display:flex; justify-content:space-between; align-items:center; padding:18px 20px; border-bottom:1px solid var(--border-soft); transition:background 0.2s; }
+    .session-row:last-child { border-bottom: none; }
+    .session-row:hover { background: rgba(46,91,186,0.04); }
+    .session-left { display: flex; align-items: center; gap: 16px; }
+    .session-icon { font-size: 28px; }
+
+    /* ── API BOX ── */
+    .api-box {
+      background: #0F172A;
+      border-radius: 12px;
+      padding: 16px 20px;
+      font-family: 'Courier New', monospace;
+      font-size: 14px;
+      color: #7DD3FC;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      margin-top: 12px;
+      border: 1px solid #1E293B;
+    }
+    .api-box-btns { display:flex; gap:8px; flex-shrink:0; }
+    .api-copy-btn, .api-regen-btn {
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.12);
+      color: #fff;
+      padding: 7px 14px;
+      border-radius: 7px;
+      font-size: 12px; font-weight: 700;
+      cursor: pointer;
+      transition: background 0.2s;
+      font-family: var(--font-body);
+    }
+    .api-copy-btn:hover, .api-regen-btn:hover { background: rgba(255,255,255,0.16); }
+
+    /* ── COLOR THEME SWATCHES ── */
+    .color-grid { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
+    .color-swatch {
+      width: 48px; height: 48px; border-radius: 12px;
+      cursor: pointer; border: 3px solid transparent;
+      transition: all 0.2s;
+    }
+    .color-swatch:hover { transform: scale(1.1); }
+    .color-swatch.selected { border-color: #fff; box-shadow: 0 0 0 3px var(--royal), 0 4px 12px rgba(0,0,0,0.15); }
+
+    /* ── DENSITY TOGGLE ── */
+    .density-options { display: flex; gap: 12px; margin-top: 12px; }
+    .density-btn {
+      flex: 1; padding: 14px 12px;
+      border: 2px solid var(--border);
+      border-radius: 12px; background: #fff;
+      font-family: var(--font-body); font-weight: 700; font-size: 14px;
+      cursor: pointer; text-align: center; transition: all 0.2s;
+      color: var(--text-muted);
+    }
+    .density-btn:hover          { border-color: var(--royal); color: var(--royal); }
+    .density-btn.active         { background: rgba(46,91,186,0.08); border-color: var(--royal); color: var(--royal); }
+
+    /* ── FIELD ELEMENTS ── */
+    .field-wrap  { margin-bottom: 16px; }
+    .field-label { display:block; font-size:11px; font-weight:700; color:var(--text-main); text-transform:uppercase; letter-spacing:0.6px; margin-bottom:6px; }
+    .field-input, .field-select { width:100%; padding:12px 16px; border:2px solid var(--border); border-radius:10px; background:#fff; font-family:var(--font-body); font-size:14px; color:var(--text-main); outline:none; transition:all 0.3s; }
+    .field-input:focus, .field-select:focus { border-color:var(--royal); box-shadow:0 0 0 3px rgba(46,91,186,0.12); }
+
+    .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+    @media(max-width:700px){ .grid-2{ grid-template-columns:1fr; } }
+
+    /* ── DANGER ZONE ── */
+    .danger-zone { background:rgba(255,235,238,0.7); border-color:rgba(211,47,47,0.25); }
+    .danger-zone .pc-title { color:var(--danger); }
+
+    /* ── TOAST ── */
+    .toast-container { position:fixed; top:88px; right:20px; z-index:9999; display:flex; flex-direction:column; gap:10px; }
+    .toast { min-width:300px; background:#fff; border-radius:12px; padding:14px 18px; display:flex; align-items:center; gap:12px; box-shadow:0 8px 30px rgba(0,0,0,0.12); border:1px solid var(--border); font-size:14px; font-weight:500; animation:slideIn 0.3s ease; }
+    .toast.success { border-left:4px solid var(--green); }
+    .toast.error   { border-left:4px solid var(--danger); }
+    .toast.info    { border-left:4px solid var(--royal); }
+    @keyframes slideIn  { from{transform:translateX(120px);opacity:0;} to{transform:none;opacity:1;} }
+    @keyframes slideOut { from{transform:none;opacity:1;} to{transform:translateX(120px);opacity:0;} }
+  </style>
+</head>
+<body>
+  <div class="animated-bg"></div>
+  <div class="toast-container" id="toastContainer"></div>
+
+  <div class="app-shell">
+    <header class="site-header">
+      <a href="/user/dashboard" class="site-logo">STATXTRACT</a>
+      <div class="header-right">
+        <button class="profile-btn" onclick="window.location.href='/user/profile'">
+          <div class="avatar" id="avatarInitial">U</div>
+          <span id="headerUsername">{{ username | default('My Profile') }}</span>
+        </button>
+      </div>
+    </header>
+
+    <div class="main-area">
+      <!-- SIDEBAR -->
+      <aside class="sidebar expanded" id="sidebar">
+        <button class="sidebar-toggle" id="sidebarToggle">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <nav class="sidebar-nav">
+          <a href="/user/dashboard" class="nav-item"><div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div><span class="nav-label">Dashboard</span></a>
+          <a href="/query" class="nav-item"><div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div><span class="nav-label">Advanced Query</span></a>
+          <a href="/user/history" class="nav-item"><div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><span class="nav-label">Query History</span></a>
+          <a href="/user/downloads" class="nav-item"><div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div><span class="nav-label">My Downloads</span></a>
+          <a href="/user/usage" class="nav-item"><div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V10M18 20V4M6 20v-4"/></svg></div><span class="nav-label">Usage &amp; Limits</span></a>
+          <a href="/user/plans" class="nav-item"><div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></div><span class="nav-label">Plans &amp; Pricing</span></a>
+          <a href="/user/settings" class="nav-item active"><div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div><span class="nav-label">Settings</span></a>
+          <a href="/user/profile" class="nav-item" style="margin-top:auto;"><div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div><span class="nav-label">My Profile</span></a>
+        </nav>
+      </aside>
+
+      <!-- MAIN -->
+      <main class="content">
+        <div class="page-header">
+          <h1 class="section-title-h">Account Settings</h1>
+        </div>
+
+        <div class="settings-layout">
+
+          <!-- SETTINGS NAV -->
+          <nav class="settings-nav">
+            <button id="nav-security" class="s-nav-btn active" onclick="switchTab('security')">
+              <span class="s-nav-icon">🔒</span> Security &amp; Auth
+            </button>
+            <button id="nav-notifications" class="s-nav-btn" onclick="switchTab('notifications')">
+              <span class="s-nav-icon">🔔</span> Alerts &amp; Automation
+            </button>
+            <button id="nav-api" class="s-nav-btn" onclick="switchTab('api')">
+              <span class="s-nav-icon">🔑</span> API &amp; Developer
+            </button>
+            <button id="nav-ui" class="s-nav-btn" onclick="switchTab('ui')">
+              <span class="s-nav-icon">🎨</span> Interface Prefs
+            </button>
+            <button id="nav-account" class="s-nav-btn" onclick="switchTab('account')">
+              <span class="s-nav-icon">⚠️</span> Account Actions
+            </button>
+          </nav>
+
+          <!-- PANELS -->
+          <div>
+
+            <!-- ── SECURITY ── -->
+            <div class="settings-panel active" id="panel-security">
+              <div class="panel-card">
+                <div class="pc-header">
+                  <div class="pc-title">🔒 Security &amp; Authentication</div>
+                  <div class="pc-desc">Protect your account with advanced cryptographic safeguards and session controls.</div>
+                </div>
+                <div class="toggle-row">
+                  <div class="setting-info">
+                    <div class="setting-title">Two-Factor Authentication (2FA)</div>
+                    <div class="setting-sub">Require a 6-digit OTP code via SMS or Authenticator app on every login attempt.</div>
+                  </div>
+                  <label class="switch"><input type="checkbox" onchange="settingChanged('2FA')"><span class="slider"></span></label>
+                </div>
+                <div class="toggle-row">
+                  <div class="setting-info">
+                    <div class="setting-title">Login Alert Emails</div>
+                    <div class="setting-sub">Receive an instant email alert when your account is signed in from an unrecognized IP or device.</div>
+                  </div>
+                  <label class="switch"><input type="checkbox" checked onchange="settingChanged('Login Alerts')"><span class="slider"></span></label>
+                </div>
+                <div class="toggle-row">
+                  <div class="setting-info">
+                    <div class="setting-title">Session Inactivity Timeout</div>
+                    <div class="setting-sub">Automatically sign out after 60 minutes of inactivity for enhanced security.</div>
+                  </div>
+                  <label class="switch"><input type="checkbox" onchange="settingChanged('Timeout')"><span class="slider"></span></label>
+                </div>
+              </div>
+
+              <div class="panel-card">
+                <div class="pc-header">
+                  <div class="pc-title">Active Sessions</div>
+                  <div class="pc-desc">Manage all devices currently signed in with your account.</div>
+                </div>
+                <div class="session-list">
+                  <div class="session-row">
+                    <div class="session-left">
+                      <div class="session-icon">💻</div>
+                      <div>
+                        <div style="font-weight:700;">Windows 11 · Chrome 122</div>
+                        <div style="font-size:13px; color:var(--text-muted);">Mumbai, India · Active right now</div>
+                      </div>
+                    </div>
+                    <span class="badge badge-green">Current</span>
+                  </div>
+                  <div class="session-row">
+                    <div class="session-left">
+                      <div class="session-icon">📱</div>
+                      <div>
+                        <div style="font-weight:700;">iOS 17 · Safari Mobile</div>
+                        <div style="font-size:13px; color:var(--text-muted);">Bangalore, India · Mar 12, 10:45 AM</div>
+                      </div>
+                    </div>
+                    <button class="btn btn-danger" style="padding:7px 14px; font-size:12px;" onclick="revokeSession(this)">Revoke</button>
+                  </div>
+                  <div class="session-row">
+                    <div class="session-left">
+                      <div class="session-icon">🖥️</div>
+                      <div>
+                        <div style="font-weight:700;">macOS · Firefox 123</div>
+                        <div style="font-size:13px; color:var(--text-muted);">Delhi, India · Mar 10, 3:20 PM</div>
+                      </div>
+                    </div>
+                    <button class="btn btn-danger" style="padding:7px 14px; font-size:12px;" onclick="revokeSession(this)">Revoke</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- ── NOTIFICATIONS ── -->
+            <div class="settings-panel" id="panel-notifications">
+              <div class="panel-card">
+                <div class="pc-header">
+                  <div class="pc-title">🔔 Alerts &amp; Automation</div>
+                  <div class="pc-desc">Configure email notifications and automated query tracking reports.</div>
+                </div>
+                <div class="toggle-row">
+                  <div class="setting-info">
+                    <div class="setting-title">Query Completion Emails</div>
+                    <div class="setting-sub">Send email when long-running queries (&gt;30s) complete execution.</div>
+                  </div>
+                  <label class="switch"><input type="checkbox" checked onchange="settingChanged('Query Emails')"><span class="slider"></span></label>
+                </div>
+                <div class="toggle-row">
+                  <div class="setting-info">
+                    <div class="setting-title">Monthly Usage Summary</div>
+                    <div class="setting-sub">Receive a PDF statistics report summarizing your data usage every month.</div>
+                  </div>
+                  <label class="switch"><input type="checkbox" onchange="settingChanged('Monthly Report')"><span class="slider"></span></label>
+                </div>
+                <div class="toggle-row">
+                  <div class="setting-info">
+                    <div class="setting-title">Plan Limit Warnings</div>
+                    <div class="setting-sub">Warn me when I've used 80% of my monthly query quota.</div>
+                  </div>
+                  <label class="switch"><input type="checkbox" checked onchange="settingChanged('Limit Warnings')"><span class="slider"></span></label>
+                </div>
+                <div class="toggle-row">
+                  <div class="setting-info">
+                    <div class="setting-title">New Dataset Announcements</div>
+                    <div class="setting-sub">Get notified when new verified government datasets are added to the platform.</div>
+                  </div>
+                  <label class="switch"><input type="checkbox" onchange="settingChanged('Dataset Notices')"><span class="slider"></span></label>
+                </div>
+              </div>
+            </div>
+
+            <!-- ── API ── -->
+            <div class="settings-panel" id="panel-api">
+              <div class="panel-card">
+                <div class="pc-header">
+                  <div class="pc-title">🔑 API &amp; Developer Integration</div>
+                  <div class="pc-desc">Access your bearer tokens and configure REST API integration settings.</div>
+                </div>
+
+                <div style="margin-bottom:24px;">
+                  <div style="font-size:15px; font-weight:700; color:var(--text-main); margin-bottom:6px;">Production Bearer Token</div>
+                  <div style="font-size:13px; color:var(--text-muted); margin-bottom:12px; line-height:1.5;">
+                    This token grants REST API access based on your current plan. <strong>Never expose this in client-side code or public repositories.</strong>
+                  </div>
+                  <div class="api-box" id="apiBox">
+                    <span id="apiKeyDisplay">sk_live_StATxT34r•••••••••••••••••••</span>
+                    <div class="api-box-btns">
+                      <button class="api-copy-btn" onclick="revealOrCopyKey()">Reveal Key</button>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="grid-2" style="margin-bottom:20px;">
+                  <div class="field-wrap">
+                    <label class="field-label">Default Export Format</label>
+                    <select class="field-select">
+                      <option>JSON</option>
+                      <option>CSV</option>
+                      <option>NDJSON</option>
+                    </select>
+                  </div>
+                  <div class="field-wrap">
+                    <label class="field-label">Rate Limit Behavior</label>
+                    <select class="field-select">
+                      <option>Queue requests (recommended)</option>
+                      <option>Return 429 immediately</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div style="display:flex; gap:10px;">
+                  <button class="btn btn-outline-blue" onclick="regenerateKey()">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.33"/></svg>
+                    Regenerate Key
+                  </button>
+                  <button class="btn btn-ghost" onclick="showToast('API docs opened in new tab.','info')">View API Docs</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- ── INTERFACE PREFS ── -->
+            <div class="settings-panel" id="panel-ui">
+              <div class="panel-card">
+                <div class="pc-header">
+                  <div class="pc-title">🎨 Interface Preferences</div>
+                  <div class="pc-desc">Customize the appearance and behavior of your STATXTRACT workspace.</div>
+                </div>
+
+                <div style="margin-bottom:24px;">
+                  <div style="font-size:15px; font-weight:700; color:var(--text-main); margin-bottom:8px;">Accent Color</div>
+                  <div class="color-grid">
+                    <div class="color-swatch selected" style="background:#2E7D32;" onclick="selectColor(this,'#2E7D32')" title="Forest Green"></div>
+                    <div class="color-swatch" style="background:#2E5BBA;" onclick="selectColor(this,'#2E5BBA')" title="Royal Blue"></div>
+                    <div class="color-swatch" style="background:#7B1FA2;" onclick="selectColor(this,'#7B1FA2')" title="Purple"></div>
+                    <div class="color-swatch" style="background:#F4A300;" onclick="selectColor(this,'#F4A300')" title="Saffron"></div>
+                    <div class="color-swatch" style="background:#D32F2F;" onclick="selectColor(this,'#D32F2F')" title="Red"></div>
+                    <div class="color-swatch" style="background:#1F3A5F;" onclick="selectColor(this,'#1F3A5F')" title="Navy"></div>
+                  </div>
+                </div>
+
+                <div style="margin-bottom:24px;">
+                  <div style="font-size:15px; font-weight:700; color:var(--text-main); margin-bottom:8px;">Dashboard Density</div>
+                  <div class="density-options">
+                    <div class="density-btn active" onclick="setDensity(this)">🖥 Comfortable</div>
+                    <div class="density-btn" onclick="setDensity(this)">📊 Compact</div>
+                  </div>
+                </div>
+
+                <div class="toggle-row">
+                  <div class="setting-info">
+                    <div class="setting-title">Auto-collapse Sidebar</div>
+                    <div class="setting-sub">Minimize the sidebar automatically on page load for a wider content view.</div>
+                  </div>
+                  <label class="switch"><input type="checkbox" onchange="settingChanged('Auto-collapse')"><span class="slider"></span></label>
+                </div>
+                <div class="toggle-row">
+                  <div class="setting-info">
+                    <div class="setting-title">Show Query Code in History</div>
+                    <div class="setting-sub">Display the raw SQL preview chip inside the Query History table rows.</div>
+                  </div>
+                  <label class="switch"><input type="checkbox" checked onchange="settingChanged('SQL Preview')"><span class="slider"></span></label>
+                </div>
+              </div>
+            </div>
+
+            <!-- ── ACCOUNT ACTIONS ── -->
+            <div class="settings-panel" id="panel-account">
+              <div class="panel-card">
+                <div class="pc-header">
+                  <div class="pc-title">Account Data &amp; Exports</div>
+                  <div class="pc-desc">Request a copy of all your account data in JSON format for portability.</div>
+                </div>
+                <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                  <button class="btn btn-outline-blue" onclick="showToast('Data export requested. You will receive an email shortly.','success')">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    Request Data Export
+                  </button>
+                </div>
+              </div>
+
+              <div class="panel-card">
+                <div class="pc-header">
+                  <div class="pc-title">Sign Out Globally</div>
+                  <div class="pc-desc">Invalidate all active sessions across every device simultaneously.</div>
+                </div>
+                <form action="/auth/logout" method="POST">
+                  <button type="submit" class="btn btn-danger">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                    Sign Out of All Sessions
+                  </button>
+                </form>
+              </div>
+
+              <div class="panel-card danger-zone">
+                <div class="pc-header">
+                  <div class="pc-title">⚠️ Danger Zone</div>
+                  <div class="pc-desc">These actions are permanent and cannot be undone. Please proceed with extreme caution.</div>
+                </div>
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+                  <div>
+                    <div style="font-weight:700; color:var(--text-main); margin-bottom:4px;">Delete Account Permanently</div>
+                    <div style="font-size:13px; color:var(--text-muted);">All data, history, and settings will be erased permanently with no recovery option.</div>
+                  </div>
+                  <button class="btn btn-danger" onclick="confirmDelete()">Delete My Account</button>
+                </div>
+              </div>
+            </div>
+
+          </div><!-- /panels -->
+        </div><!-- /settings-layout -->
+
+        <div style="height: 40px;"></div>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    document.getElementById('sidebarToggle').addEventListener('click', () => {
+      const sb = document.getElementById('sidebar');
+      sb.classList.toggle('collapsed'); sb.classList.toggle('expanded');
+    });
+
+    const username = '{{ username | default("") }}' || sessionStorage.getItem('userEmail') || 'User';
+    const dn = username.includes('@') ? username.split('@')[0] : username;
+    document.getElementById('headerUsername').textContent = dn;
+    document.getElementById('avatarInitial').textContent  = dn.charAt(0).toUpperCase();
+
+    /* ── Tab Switch ── */
+    function switchTab(id) {
+      document.querySelectorAll('.s-nav-btn').forEach(b => b.classList.remove('active'));
+      document.getElementById(`nav-${id}`).classList.add('active');
+      document.querySelectorAll('.settings-panel').forEach(p => p.classList.remove('active'));
+      document.getElementById(`panel-${id}`).classList.add('active');
+    }
+
+    /* ── Setting Toggle ── */
+    function settingChanged(name) {
+      showToast(`"${name}" setting updated.`, 'success');
+    }
+
+    /* ── Revoke Session ── */
+    function revokeSession(btn) {
+      const row = btn.closest('.session-row');
+      row.style.animation = 'fadeOut 0.3s ease forwards';
+      setTimeout(() => row.remove(), 300);
+      showToast('Session revoked successfully.', 'success');
+    }
+
+    /* ── API Key ── */
+    let keyRevealed = false;
+    function revealOrCopyKey() {
+      const disp = document.getElementById('apiKeyDisplay');
+      const btn  = document.querySelector('.api-copy-btn');
+      if (!keyRevealed) {
+        disp.textContent = 'sk_live_StATxT34r93jd081_f92bA4cF8LmqzT0';
+        btn.textContent  = 'Copy to Clipboard';
+        keyRevealed = true;
+      } else {
+        navigator.clipboard.writeText(disp.textContent).catch(() => {});
+        showToast('API key copied!', 'success');
+      }
+    }
+
+    function regenerateKey() {
+      showToast('New API key generated. Refresh to see it.', 'success');
+      keyRevealed = false;
+      document.getElementById('apiKeyDisplay').textContent = 'sk_live_New•••••••••••••••••••••••••';
+      document.querySelector('.api-copy-btn').textContent  = 'Reveal Key';
+    }
+
+    /* ── Color Swatch ── */
+    function selectColor(el, color) {
+      document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('selected'));
+      el.classList.add('selected');
+      document.documentElement.style.setProperty('--green', color);
+      showToast(`Accent color updated!`, 'success');
+    }
+
+    /* ── Density ── */
+    function setDensity(btn) {
+      document.querySelectorAll('.density-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      showToast(`Density set to "${btn.textContent.trim()}".`, 'success');
+    }
+
+    /* ── Confirm Delete ── */
+    function confirmDelete() {
+      if (confirm('⚠️ Are you absolutely sure? This will permanently delete your account and all associated data. This action cannot be undone.')) {
+        showToast('Account deletion is currently disabled. Contact support.', 'error');
+      }
+    }
+
+    /* ── Toast ── */
+    function showToast(msg, type='info') {
+      const tc = document.getElementById('toastContainer');
+      const t  = document.createElement('div');
+      t.className = `toast ${type}`;
+      const icons = { success:'✅', error:'❌', info:'ℹ️' };
+      t.innerHTML = `<span>${icons[type]||'ℹ️'}</span><span>${msg}</span>`;
+      tc.appendChild(t);
+      setTimeout(() => { t.style.animation='slideOut 0.3s ease forwards'; setTimeout(()=>t.remove(),300); }, 4000);
+    }
+  </script>
+</body>
+</html>

@@ -70,7 +70,7 @@ async def login_form(
 
         # 👇 Redirect based on role
         role_id = str(user["role_id"])
-        target = "/admin/dashboard" if role_id == "1" else "/query"
+        target = "/admin/dashboard" if role_id == "1" else "/user/dashboard"
 
         response = RedirectResponse(url=target, status_code=HTTP_302_FOUND)
         response.set_cookie("access_token", token, httponly=True)

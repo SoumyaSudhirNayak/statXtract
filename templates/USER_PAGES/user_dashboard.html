@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard — STATXTRACT User Portal</title>
+  <meta name="description" content="Your personalized STATXTRACT analytics dashboard — monitor queries, downloads, and activity at a glance.">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/user_styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    body { background: linear-gradient(135deg, #F5F7FA, #EEF3FB, #E9EEF7); min-height: 100vh; overflow: hidden; }
+    .app-shell { display: flex; flex-direction: column; height: 100vh; }
+    .main-area  { display: flex; flex: 1; overflow: hidden; }
+
+    /* ── SIDEBAR SVG ICONS ── */
+    .nav-svg { width: 20px; height: 20px; flex-shrink: 0; }
+
+    /* Active nav item */
+    .nav-item.active {
+      background: var(--green);
+      color: #fff;
+      border-color: var(--green);
+      box-shadow: 0 6px 20px rgba(46,125,50,0.4);
+    }
+    .nav-item.active:hover { background: var(--green); color: #fff; }
+
+    /* ── MAIN CONTENT ── */
+    .content { flex: 1; overflow-y: auto; padding: 40px 48px; }
+
+    /* ── PAGE HEADER ── */
+    .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 36px; }
+    .page-title { font-family: var(--font-head); font-size: 34px; font-weight: 900; color: var(--text-main); line-height: 1.1; }
+    .page-title span { color: var(--green); }
+    .page-time { font-size: 13px; color: var(--text-muted); font-weight: 500; }
+
+    /* ── STAT CARDS GRID ── */
+    .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 28px; }
+    @media(max-width:1200px) { .stats-grid { grid-template-columns: 1fr 1fr; } }
+    .stat-card-big {
+      padding: 28px 28px 24px;
+      background: rgba(255,255,255,0.88);
+      backdrop-filter: blur(12px);
+      border: 2px solid var(--border);
+      border-radius: 18px;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+      cursor: default;
+      min-height: 160px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .stat-card-big::after {
+      content: '';
+      position: absolute;
+      bottom: -30px; right: -30px;
+      width: 100px; height: 100px;
+      border-radius: 50%;
+      opacity: 0.08;
+      transition: transform 0.4s;
+    }
+    .stat-card-big:hover { transform: translateY(-4px); }
+    .stat-card-big:hover::after { transform: scale(1.5); }
+
+    .sc-green  .stat-card-big:hover, .stat-card-big.sc-green:hover  { border-color: var(--green);  box-shadow: 0 12px 36px rgba(46,125,50,0.16); }
+    .stat-card-big.sc-green::after  { background: var(--green); }
+    .stat-card-big.sc-blue::after   { background: var(--royal); }
+    .stat-card-big.sc-orange::after { background: var(--saffron); }
+    .stat-card-big.sc-purple::after { background: var(--purple); }
+
+    .stat-card-big:hover { border-color: var(--border); box-shadow: 0 12px 36px rgba(31,58,95,0.12); }
+    .stat-card-big.sc-green:hover   { border-color: var(--green);   box-shadow: 0 12px 36px rgba(46,125,50,0.18); }
+    .stat-card-big.sc-blue:hover    { border-color: var(--royal);   box-shadow: 0 12px 36px rgba(46,91,186,0.18); }
+    .stat-card-big.sc-orange:hover  { border-color: var(--saffron); box-shadow: 0 12px 36px rgba(244,163,0,0.18); }
+    .stat-card-big.sc-purple:hover  { border-color: var(--purple);  box-shadow: 0 12px 36px rgba(123,31,162,0.18); }
+
+    .sc-icon-row { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
+    .sc-icon {
+      width: 52px; height: 52px;
+      border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px;
+      transition: transform 0.3s;
+    }
+    .stat-card-big:hover .sc-icon { transform: scale(1.1) rotate(5deg); }
+    .sc-trend { font-size: 12px; font-weight: 700; display: flex; align-items: center; gap: 4px; }
+    .sc-trend.up   { color: var(--green); }
+    .sc-trend.down { color: var(--danger); }
+
+    .sc-num   { font-family: var(--font-head); font-size: 44px; font-weight: 800; color: var(--text-main); line-height: 1; margin-bottom: 6px; }
+    .sc-label { font-size: 13px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.8px; }
+
+    /* ── CHARTS GRID ── */
+    .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 28px; }
+    @media(max-width:1100px) { .charts-grid { grid-template-columns: 1fr; } }
+
+    .chart-card {
+      background: rgba(255,255,255,0.88);
+      backdrop-filter: blur(12px);
+      border: 2px solid var(--border);
+      border-radius: 18px;
+      padding: 28px;
+      transition: all 0.3s;
+    }
+    .chart-card:hover { border-color: var(--royal); box-shadow: 0 10px 30px rgba(46,91,186,0.12); }
+    .chart-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .chart-title  { font-family: var(--font-head); font-size: 17px; font-weight: 800; color: var(--text-main); }
+    .chart-toolbar { display: flex; gap: 6px; }
+    .chart-btn {
+      padding: 6px 14px; border-radius: 8px; border: 2px solid var(--border);
+      background: #fff; font-size: 12px; font-weight: 700;
+      cursor: pointer; transition: all 0.2s; font-family: var(--font-body);
+    }
+    .chart-btn:hover { border-color: var(--royal); color: var(--royal); }
+    .chart-btn.active { background: var(--royal); color: #fff; border-color: var(--royal); }
+    canvas { max-height: 260px; }
+
+    /* ── RECENT ACTIVITY TABLE ── */
+    .activity-card {
+      background: rgba(255,255,255,0.88);
+      backdrop-filter: blur(12px);
+      border: 2px solid var(--border);
+      border-radius: 18px;
+      overflow: hidden;
+      transition: all 0.3s;
+    }
+    .activity-card:hover { border-color: var(--green); box-shadow: 0 10px 30px rgba(46,125,50,0.12); }
+    .activity-header {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 24px 28px; border-bottom: 1px solid var(--border-soft);
+    }
+    .activity-title { font-family: var(--font-head); font-size: 18px; font-weight: 800; color: var(--text-main); }
+
+    /* ── GETTING STARTED CARD ── */
+    .started-card {
+      background: linear-gradient(135deg, rgba(46,125,50,0.08), rgba(244,163,0,0.06));
+      border: 2px solid rgba(46,125,50,0.2);
+      border-radius: 18px;
+      padding: 28px 32px;
+      margin-bottom: 28px;
+      display: flex;
+      align-items: center;
+      gap: 28px;
+      transition: all 0.3s;
+    }
+    .started-card:hover { border-color: var(--green); box-shadow: 0 10px 30px rgba(46,125,50,0.12); }
+    .started-icon { font-size: 52px; flex-shrink: 0; }
+    .started-title { font-family: var(--font-head); font-size: 22px; font-weight: 800; color: var(--text-main); margin-bottom: 8px; }
+    .started-list { display: flex; flex-direction: column; gap: 6px; }
+    .started-list li { font-size: 14px; color: var(--text-muted); font-weight: 500; list-style: none; display: flex; align-items: center; gap: 8px; }
+    .started-list li::before { content: '✓'; color: var(--green); font-weight: 800; }
+
+    /* ── TOAST ── */
+    .toast-container { position: fixed; top: 88px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 10px; }
+    .toast { min-width: 300px; background: #fff; border-radius: 12px; padding: 14px 18px; display: flex; align-items: center; gap: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.12); border: 1px solid var(--border); font-size: 14px; font-weight: 500; animation: slideIn 0.3s ease; }
+    .toast.success { border-left: 4px solid var(--green); }
+    .toast.info    { border-left: 4px solid var(--royal); }
+    @keyframes slideIn { from{ transform: translateX(120px); opacity: 0; } to{ transform: none; opacity: 1; } }
+    @keyframes slideOut { from{ transform: none; opacity: 1; } to{ transform: translateX(120px); opacity: 0; } }
+  </style>
+</head>
+<body>
+  <div class="animated-bg"></div>
+  <div class="toast-container" id="toastContainer"></div>
+
+  <div class="app-shell">
+    <!-- ── HEADER ── -->
+    <header class="site-header">
+      <a href="/user/dashboard" class="site-logo">STATXTRACT</a>
+      <div class="header-right">
+        <button class="profile-btn" onclick="window.location.href='/user/profile'" id="profileBtn">
+          <div class="avatar" id="avatarInitial">U</div>
+          <span id="headerUsername">{{ username | default('My Profile') }}</span>
+        </button>
+      </div>
+    </header>
+
+    <div class="main-area">
+      <!-- ── SIDEBAR ── -->
+      <aside class="sidebar expanded" id="sidebar">
+        <button class="sidebar-toggle" id="sidebarToggle" title="Toggle Sidebar">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <nav class="sidebar-nav">
+          <a href="/user/dashboard" class="nav-item active">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div>
+            <span class="nav-label">Dashboard</span>
+          </a>
+          <a href="/query" class="nav-item">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>
+            <span class="nav-label">Advanced Query</span>
+          </a>
+          <a href="/user/history" class="nav-item">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+            <span class="nav-label">Query History</span>
+          </a>
+          <a href="/user/downloads" class="nav-item">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div>
+            <span class="nav-label">My Downloads</span>
+          </a>
+          <a href="/user/usage" class="nav-item">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V10M18 20V4M6 20v-4"/></svg></div>
+            <span class="nav-label">Usage &amp; Limits</span>
+          </a>
+          <a href="/user/plans" class="nav-item">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></div>
+            <span class="nav-label">Plans &amp; Pricing</span>
+          </a>
+          <a href="/user/settings" class="nav-item">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div>
+            <span class="nav-label">Settings</span>
+          </a>
+          <a href="/user/profile" class="nav-item" style="margin-top:auto;">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+            <span class="nav-label">My Profile</span>
+          </a>
+        </nav>
+      </aside>
+
+      <!-- ── MAIN CONTENT ── -->
+      <main class="content">
+        <!-- Page Header -->
+        <div class="page-header">
+          <div>
+            <h1 class="page-title">Welcome back, <span id="usernameDisplay">Analyst</span> 👋</h1>
+            <p class="page-time" id="currentTime">Loading...</p>
+          </div>
+          <button class="btn btn-primary" onclick="window.location.href='/query'">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            New Query
+          </button>
+        </div>
+
+        <!-- Getting Started -->
+        <div class="started-card">
+          <div class="started-icon">🚀</div>
+          <div style="flex:1;">
+            <div class="started-title">Quick Start Guide</div>
+            <ul class="started-list">
+              <li>Use <strong>Advanced Query</strong> to build and run SQL queries on government datasets</li>
+              <li>Download results as <strong>CSV, PDF, or JSON</strong> from the Query page</li>
+              <li>Track all past queries in <strong>Query History</strong> with execution details</li>
+              <li>Upgrade your plan to unlock <strong>more queries and premium features</strong></li>
+            </ul>
+          </div>
+          <button class="btn btn-outline-blue" style="flex-shrink:0;" onclick="window.location.href='/query'">Go to Query →</button>
+        </div>
+
+        <!-- Stat Cards -->
+        <div class="stats-grid">
+          <div class="stat-card-big sc-green">
+            <div class="sc-icon-row">
+              <div class="sc-icon" style="background:#E8F5E9; color:var(--green);">📊</div>
+              <div class="sc-trend up">↑ +12% this week</div>
+            </div>
+            <div>
+              <div class="sc-num">1,420</div>
+              <div class="sc-label">Queries Run</div>
+            </div>
+          </div>
+          <div class="stat-card-big sc-blue">
+            <div class="sc-icon-row">
+              <div class="sc-icon" style="background:#E3F2FD; color:var(--royal);">⬇️</div>
+              <div class="sc-trend up">↑ +5% this week</div>
+            </div>
+            <div>
+              <div class="sc-num">84.5K</div>
+              <div class="sc-label">Rows Downloaded</div>
+            </div>
+          </div>
+          <div class="stat-card-big sc-orange">
+            <div class="sc-icon-row">
+              <div class="sc-icon" style="background:#FFF3E0; color:var(--saffron);">⚡</div>
+              <div class="sc-trend up">Blazing fast</div>
+            </div>
+            <div>
+              <div class="sc-num">1.2s</div>
+              <div class="sc-label">Avg. Response Time</div>
+            </div>
+          </div>
+          <div class="stat-card-big sc-purple">
+            <div class="sc-icon-row">
+              <div class="sc-icon" style="background:#F3E5F5; color:var(--purple);">💎</div>
+              <div class="sc-trend up">Active</div>
+            </div>
+            <div>
+              <div class="sc-num" style="font-size:30px;">Free Tier</div>
+              <div class="sc-label">Role: {{ role | default('User') }}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Charts Grid -->
+        <div class="charts-grid">
+          <div class="chart-card">
+            <div class="chart-header">
+              <div class="chart-title">Query Usage Traffic</div>
+              <div class="chart-toolbar">
+                <button class="chart-btn active" onclick="switchChart('bar','weekly',this)">Weekly</button>
+                <button class="chart-btn" onclick="switchChart('bar','monthly',this)">Monthly</button>
+              </div>
+            </div>
+            <canvas id="barChart"></canvas>
+          </div>
+          <div class="chart-card">
+            <div class="chart-header">
+              <div class="chart-title">Top Datasets Queried</div>
+            </div>
+            <canvas id="pieChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Recent Activity -->
+        <div class="activity-card">
+          <div class="activity-header">
+            <div class="activity-title">Recent Activity Log</div>
+            <button class="btn btn-outline-blue" onclick="window.location.href='/user/history'">
+              View All History
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+          </div>
+          <div style="overflow-x:auto;">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Action</th>
+                  <th>Target Dataset</th>
+                  <th>Timestamp</th>
+                  <th>Status / Impact</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><span class="badge badge-green">Query Executed</span></td>
+                  <td>
+                    <div style="font-weight:700;">Demographics 2021</div>
+                    <span style="font-size:12px; color:var(--text-muted);">census_data_primary</span>
+                  </td>
+                  <td>Today, 10:45 AM</td>
+                  <td><span style="color:var(--green); font-weight:700;">Completed (0.8s)</span></td>
+                </tr>
+                <tr>
+                  <td><span class="badge badge-blue">Export</span></td>
+                  <td>
+                    <div style="font-weight:700;">Economic Census</div>
+                    <span style="font-size:12px; color:var(--text-muted);">retail_index_v2</span>
+                  </td>
+                  <td>Yesterday, 3:20 PM</td>
+                  <td>Downloaded as CSV</td>
+                </tr>
+                <tr>
+                  <td><span class="badge badge-green">Query Executed</span></td>
+                  <td>
+                    <div style="font-weight:700;">Healthcare Facilities</div>
+                    <span style="font-size:12px; color:var(--text-muted);">hospitals_geo_tagged</span>
+                  </td>
+                  <td>Mar 20, 2026</td>
+                  <td><span style="color:var(--green); font-weight:700;">Completed (1.4s)</span></td>
+                </tr>
+                <tr>
+                  <td><span class="badge badge-orange">API Sync</span></td>
+                  <td>
+                    <div style="font-weight:700;">Global Trade Logs</div>
+                    <span style="font-size:12px; color:var(--text-muted);">export_import_metrics</span>
+                  </td>
+                  <td>Mar 19, 2026</td>
+                  <td>Sync routine</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div style="height:40px;"></div>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    // ── Sidebar Toggle ──
+    document.getElementById('sidebarToggle').addEventListener('click', () => {
+      const sb = document.getElementById('sidebar');
+      sb.classList.toggle('collapsed');
+      sb.classList.toggle('expanded');
+    });
+
+    // ── Username from template / sessionStorage ──
+    const username = '{{ username | default("") }}' || sessionStorage.getItem('userEmail') || 'Analyst';
+    const displayName = username.includes('@') ? username.split('@')[0] : username;
+    document.getElementById('usernameDisplay').textContent = displayName.charAt(0).toUpperCase() + displayName.slice(1);
+    document.getElementById('headerUsername').textContent = displayName;
+    document.getElementById('avatarInitial').textContent = displayName.charAt(0).toUpperCase();
+
+    // ── Current Time ──
+    function updateTime() {
+      const now = new Date();
+      document.getElementById('currentTime').textContent = now.toLocaleString('en-IN', {
+        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+      });
+    }
+    updateTime();
+    setInterval(updateTime, 60000);
+
+    // ── Bar Chart ──
+    let barInstance = null;
+    const weeklyData  = [120, 190, 150, 220, 310, 180, 250];
+    const monthlyData = [1200, 1500, 1100, 1800, 2200, 1600, 2400, 1900, 2100, 1700, 2300, 2600];
+    const weekLabels  = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+    const monthLabels = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+    function buildBar(data, labels) {
+      if (barInstance) barInstance.destroy();
+      barInstance = new Chart(document.getElementById('barChart').getContext('2d'), {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{ label: 'Queries', data, backgroundColor: 'rgba(46,125,50,0.8)', borderRadius: 8, borderWidth: 0 }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: { beginAtZero: true, grid: { color: '#E5E7EB' }, border: { dash: [4,4] }, ticks: { font: { family: 'Inter', weight: '600' } } },
+            x: { grid: { display: false }, ticks: { font: { family: 'Inter', weight: '600' } } }
+          }
+        }
+      });
+    }
+    buildBar(weeklyData, weekLabels);
+
+    // ── Doughnut Chart ──
+    new Chart(document.getElementById('pieChart').getContext('2d'), {
+      type: 'doughnut',
+      data: {
+        labels: ['Financial', 'Demographics', 'Healthcare', 'Geo-Spatial'],
+        datasets: [{ data: [45, 25, 20, 10], backgroundColor: ['#2E5BBA','#2E7D32','#F4A300','#7B1FA2'], borderWidth: 0, hoverOffset: 8 }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '65%',
+        plugins: {
+          legend: { position: 'right', labels: { font: { family: 'Inter', size: 13, weight: '600' }, padding: 16 } }
+        }
+      }
+    });
+
+    // ── Chart Switcher ──
+    function switchChart(type, period, btn) {
+      document.querySelectorAll('.chart-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      if (period === 'weekly')  buildBar(weeklyData, weekLabels);
+      if (period === 'monthly') buildBar(monthlyData, monthLabels);
+    }
+
+    // ── Toast (show welcome) ──
+    function showToast(msg, type='info') {
+      const tc = document.getElementById('toastContainer');
+      const t  = document.createElement('div');
+      t.className = `toast ${type}`;
+      t.innerHTML = `<span>${type==='success'?'✅':'ℹ️'}</span><span>${msg}</span>`;
+      tc.appendChild(t);
+      setTimeout(() => { t.style.animation='slideOut 0.3s ease forwards'; setTimeout(()=>t.remove(),300); }, 4000);
+    }
+    setTimeout(() => showToast('Welcome back to STATXTRACT!', 'success'), 800);
+  </script>
+</body>
+</html>

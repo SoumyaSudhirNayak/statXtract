@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>User Dashboard — STATXTRACT</title>
+  <link rel="stylesheet" href="/static/user_styles.css">
+  <style>
+    .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-bottom:24px; }
+    .grid-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:20px; margin-bottom:24px; }
+    .grid-4 { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:24px; }
+    @media(max-width:1100px){.grid-4{grid-template-columns:1fr 1fr;}.grid-3{grid-template-columns:1fr 1fr;}}
+    @media(max-width:700px){.grid-2,.grid-3,.grid-4{grid-template-columns:1fr;}}
+
+    .card-p { padding:28px; background:rgba(255,255,255,0.88); backdrop-filter:blur(10px); border:2px solid var(--border); border-radius:var(--radius-lg); transition:var(--transition); }
+    .card-p:hover { border-color:var(--green); box-shadow:0 12px 36px rgba(46,125,50,0.14); transform:translateY(-2px); }
+    .card-p.blue:hover { border-color:var(--royal); box-shadow:0 12px 36px rgba(46,91,186,0.14); }
+    .card-p.saffron:hover { border-color:var(--saffron); box-shadow:0 12px 36px rgba(244,163,0,0.14); }
+    
+    .card-label { font-size:12px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.8px; margin-bottom:8px; }
+    .card-big-num { font-family:var(--font-head); font-size:44px; font-weight:800; color:var(--text-main); line-height:1; margin-bottom:6px; }
+    .card-sub { font-size:14px; color:var(--text-muted); }
+    .card-icon-row { display:flex; align-items:center; gap:12px; margin-bottom:14px; }
+    .icon-box { width:44px; height:44px; border-radius:var(--radius-md); display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:20px; }
+    
+    .chart-toolbar { display:flex; gap:8px; margin-bottom:16px; justify-content: flex-end; }
+    .chart-btn { padding:8px 16px; border-radius:var(--radius-md); border:2px solid var(--border); background:#fff; font-size:13px; font-weight:700; cursor:pointer; transition:var(--transition); }
+    .chart-btn.active { background:var(--royal); color:#fff; border-color:var(--royal); }
+    .chart-btn:hover:not(.active) { border-color:var(--royal); color:var(--royal); }
+    canvas#barChart, canvas#pieChart { max-height:300px; width:100%; }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <!-- Animated Background -->
+  <div class="animated-bg"></div>
+
+  <!-- Header -->
+  <header class="site-header">
+    <a href="/user/dashboard" class="site-logo">STATXTRACT</a>
+    <div class="header-right">
+      <button class="profile-btn" onclick="window.location.href='/user/profile'">
+        <div class="avatar">👤</div>
+        {{ username | default('My Profile') }}
+      </button>
+    </div>
+  </header>
+
+  <div style="display: flex;">
+    <!-- Sidebar -->
+    <aside class="sidebar expanded" id="sidebar">
+      <button class="sidebar-toggle" onclick="document.getElementById('sidebar').classList.toggle('collapsed');"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg></button>
+      <nav class="sidebar-nav">
+        <a href="/user/dashboard" class="nav-item active"><div class="nav-icon">📊</div><span class="nav-label">Dashboard</span></a>
+        <a href="/query" class="nav-item"><div class="nav-icon">🔍</div><span class="nav-label">Advanced Query</span></a>
+        <a href="/user/history" class="nav-item"><div class="nav-icon">⏱️</div><span class="nav-label">Query History</span></a>
+        <a href="/user/downloads" class="nav-item"><div class="nav-icon">⬇️</div><span class="nav-label">My Downloads</span></a>
+        <a href="/user/plans" class="nav-item"><div class="nav-icon">💎</div><span class="nav-label">Plans & Pricing</span></a>
+        <a href="/user/settings" class="nav-item"><div class="nav-icon">⚙️</div><span class="nav-label">Settings</span></a>
+      </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main style="flex:1; padding: 48px; overflow-y:auto; max-height:calc(100vh - 72px);">
+      <h2 class="page-title" style="font-family:var(--font-head); font-size:36px; font-weight:900; margin-bottom:36px;">Welcome back, {{ username | default('Analyst') }} 👋</h2>
+      
+      <!-- Metrics Grid 4 -->
+      <div class="grid-4">
+        <div class="card-p" style="padding:40px; min-height:260px; display:flex; flex-direction:column; justify-content:space-between; position:relative;">
+          <div class="card-icon-row" style="margin-bottom:24px;">
+            <div class="icon-box" style="width:56px; height:56px; font-size:28px; background:var(--green-light); color:var(--green);">📊</div>
+            <div style="position:absolute; top:40px; right:40px; color:var(--text-light);">↗</div>
+          </div>
+          <div>
+            <div class="card-label" style="font-size:14px; letter-spacing:1px;">Queries Run</div>
+            <div class="card-big-num" style="font-size:52px; margin-bottom:8px;">1,420</div>
+            <div class="card-sub" style="font-size:16px;"><span style="color:var(--green); font-weight:700;">+12%</span> from last week</div>
+          </div>
+        </div>
+        <div class="card-p blue" style="padding:40px; min-height:260px; display:flex; flex-direction:column; justify-content:space-between; position:relative;">
+          <div class="card-icon-row" style="margin-bottom:24px;">
+            <div class="icon-box" style="width:56px; height:56px; font-size:28px; background:#e3eaff; color:var(--royal);">⬇️</div>
+            <div style="position:absolute; top:40px; right:40px; color:var(--text-light);">↗</div>
+          </div>
+          <div>
+            <div class="card-label" style="font-size:14px; letter-spacing:1px;">Rows Downloaded</div>
+            <div class="card-big-num" style="font-size:52px; margin-bottom:8px;">84.5K</div>
+            <div class="card-sub" style="font-size:16px;"><span style="color:var(--royal); font-weight:700;">+5%</span> from last week</div>
+          </div>
+        </div>
+        <div class="card-p saffron" style="padding:40px; min-height:260px; display:flex; flex-direction:column; justify-content:space-between; position:relative;">
+          <div class="card-icon-row" style="margin-bottom:24px;">
+            <div class="icon-box" style="width:56px; height:56px; font-size:28px; background:#FFF3E0; color:var(--saffron);">⏱️</div>
+            <div style="position:absolute; top:40px; right:40px; color:var(--text-light);">↗</div>
+          </div>
+          <div>
+            <div class="card-label" style="font-size:14px; letter-spacing:1px;">Avg. Execution</div>
+            <div class="card-big-num" style="font-size:52px; margin-bottom:8px;">1.2s</div>
+            <div class="card-sub" style="font-size:16px;">Blazing fast performance</div>
+          </div>
+        </div>
+        <div class="card-p" style="padding:40px; min-height:260px; display:flex; flex-direction:column; justify-content:space-between; position:relative; border-color:var(--purple);">
+          <div class="card-icon-row" style="margin-bottom:24px;">
+            <div class="icon-box" style="width:56px; height:56px; font-size:28px; background:#F3E5F5; color:var(--purple);">💎</div>
+            <div style="position:absolute; top:40px; right:40px; color:var(--text-light);">↗</div>
+          </div>
+          <div>
+            <div class="card-label" style="font-size:14px; letter-spacing:1px;">Current Plan</div>
+            <div class="card-big-num" style="font-size:42px; margin-bottom:8px;">User Tier</div>
+            <div class="card-sub" style="font-size:16px;">Role ID: {{ role | default('N/A') }}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Charts Data Grid -->
+      <div class="grid-2">
+        <div class="card-p" style="padding:24px;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h3 style="font-family:var(--font-head); font-size:18px;">Query Usage Traffic</h3>
+            <div class="chart-toolbar">
+              <button class="chart-btn active">Weekly</button>
+              <button class="chart-btn">Monthly</button>
+            </div>
+          </div>
+          <canvas id="barChart"></canvas>
+        </div>
+        
+        <div class="card-p blue" style="padding:24px;">
+          <h3 style="font-family:var(--font-head); font-size:18px; margin-bottom:16px;">Top Datasets Queried</h3>
+          <canvas id="pieChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Recent Activity Table -->
+      <div class="card" style="padding:28px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+          <h3 class="section-title" style="font-size:20px; margin:0;">Recent Activity Log</h3>
+          <button class="btn btn-outline-blue" onclick="window.location.href='/user/history'">View All History</button>
+        </div>
+        <div style="overflow-x:auto;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Action</th>
+                <th>Target Dataset</th>
+                <th>Timestamp</th>
+                <th>Impact / Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span class="badge badge-green">Query Executed</span></td>
+                <td><div style="font-weight:600;">Demographics 2021</div><span style="font-size:12px; color:var(--text-muted);">census_data_primary</span></td>
+                <td>Today, 10:45 AM</td>
+                <td><span style="color:var(--green); font-weight:600;">Completed (0.8s)</span></td>
+              </tr>
+              <tr>
+                <td><span class="badge badge-blue">Export Format</span></td>
+                <td><div style="font-weight:600;">Economic Census</div><span style="font-size:12px; color:var(--text-muted);">retail_index_v2</span></td>
+                <td>Yesterday, 3:20 PM</td>
+                <td>Downloaded as CSV</td>
+              </tr>
+              <tr>
+                <td><span class="badge badge-green">Query Executed</span></td>
+                <td><div style="font-weight:600;">Healthcare Facilities</div><span style="font-size:12px; color:var(--text-muted);">hospitals_geo_tagged</span></td>
+                <td>Mar 15, 2026</td>
+                <td><span style="color:var(--green); font-weight:600;">Completed (1.4s)</span></td>
+              </tr>
+              <tr>
+                <td><span class="badge badge-orange">API Sync</span></td>
+                <td><div style="font-weight:600;">Global Trade Logs</div><span style="font-size:12px; color:var(--text-muted);">export_import_metrics</span></td>
+                <td>Mar 14, 2026</td>
+                <td>Sync routine</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      // Bar Chart Injection
+      const barCtx = document.getElementById('barChart').getContext('2d');
+      new Chart(barCtx, {
+        type: 'bar',
+        data: {
+          labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+          datasets: [{
+            label: 'Queries Extracted',
+            data: [120, 190, 150, 220, 310, 180, 250],
+            backgroundColor: '#2E7D32',
+            borderRadius: 6,
+            borderWidth: 0
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: { beginAtZero: true, grid: { color: '#E5E7EB' }, border: { dash: [4, 4] } },
+            x: { grid: { display: false } }
+          }
+        }
+      });
+
+      // Doughnut (Pie) Chart Injection
+      const pieCtx = document.getElementById('pieChart').getContext('2d');
+      new Chart(pieCtx, {
+        type: 'doughnut',
+        data: {
+          labels: ['Financial', 'Demographics', 'Healthcare', 'Geo-Spatial'],
+          datasets: [{
+            data: [45, 25, 20, 10],
+            backgroundColor: ['#2E5BBA', '#2E7D32', '#F4A300', '#7B1FA2'],
+            borderWidth: 0,
+            hoverOffset: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: '65%',
+          plugins: {
+            legend: { position: 'right', labels: { font: { family: 'Inter', size: 13, weight: '600' } } }
+          }
+        }
+      });
+    });
+  </script>
+</body>
+</html>

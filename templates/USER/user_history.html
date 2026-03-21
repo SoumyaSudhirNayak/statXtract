@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Query History — STATXTRACT</title>
+  <link rel="stylesheet" href="/static/user_styles.css">
+  <style>
+    .filter-bar { display:flex; gap:16px; align-items:center; background:rgba(255,255,255,0.9); padding:20px 24px; border:2px solid var(--border); border-radius:var(--radius-lg); margin-bottom:24px; box-shadow:var(--shadow-sm); }
+    @media(max-width:900px){ .filter-bar { flex-direction:column; align-items:stretch; } }
+    .filter-group { display:flex; flex-direction:column; gap:6px; flex:1; }
+    .filter-label { font-size:12px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; }
+    
+    .history-card { background:rgba(255,255,255,0.95); backdrop-filter:blur(10px); border:2px solid var(--border); border-radius:var(--radius-lg); padding:32px; box-shadow:var(--shadow-md); }
+    .status-dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:6px; }
+    .status-dot.success { background:var(--green); box-shadow:0 0 8px var(--green); }
+    .status-dot.failed { background:var(--danger); box-shadow:0 0 8px var(--danger); }
+    .status-dot.running { background:var(--saffron); box-shadow:0 0 8px var(--saffron); animation:blink 1.5s infinite; }
+    @keyframes blink { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+    
+    .query-string { font-family:monospace; font-size:12px; background:var(--bg-section); padding:8px 12px; border-radius:var(--radius-sm); color:var(--navy); display:block; margin-top:8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:400px; border:1px solid var(--border-soft); }
+    .pagination { display:flex; justify-content:center; gap:8px; margin-top:32px; }
+    .page-btn { width:36px; height:36px; border-radius:var(--radius-sm); border:2px solid var(--border); background:#fff; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:var(--transition); }
+    .page-btn:hover { border-color:var(--royal); color:var(--royal); }
+    .page-btn.active { background:var(--royal); color:#fff; border-color:var(--royal); }
+  </style>
+</head>
+<body>
+  <div class="animated-bg"></div>
+
+  <header class="site-header">
+    <a href="/user/dashboard" class="site-logo">STATXTRACT</a>
+    <div class="header-right">
+      <button class="profile-btn" onclick="window.location.href='/user/profile'">
+        <div class="avatar">👤</div>
+        My Profile
+      </button>
+    </div>
+  </header>
+
+  <div style="display: flex;">
+    <aside class="sidebar expanded" id="sidebar">
+      <button class="sidebar-toggle" onclick="document.getElementById('sidebar').classList.toggle('collapsed');"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg></button>
+      <nav class="sidebar-nav">
+        <a href="/user/dashboard" class="nav-item"><div class="nav-icon">📊</div><span class="nav-label">Dashboard</span></a>
+        <a href="/query" class="nav-item"><div class="nav-icon">🔍</div><span class="nav-label">Advanced Query</span></a>
+        <a href="/user/history" class="nav-item active"><div class="nav-icon">⏱️</div><span class="nav-label">Query History</span></a>
+        <a href="/user/downloads" class="nav-item"><div class="nav-icon">⬇️</div><span class="nav-label">My Downloads</span></a>
+        <a href="/user/plans" class="nav-item"><div class="nav-icon">💎</div><span class="nav-label">Plans & Pricing</span></a>
+        <a href="/user/settings" class="nav-item"><div class="nav-icon">⚙️</div><span class="nav-label">Settings</span></a>
+      </nav>
+    </aside>
+
+    <main style="flex:1; padding: 40px; overflow-y:auto; max-height:calc(100vh - 72px);">
+      <h2 class="section-title">Query Execution Engine Logs</h2>
+      
+      <!-- Filter Bar -->
+      <div class="filter-bar">
+        <div class="filter-group">
+          <span class="filter-label">Search Query</span>
+          <div style="position:relative;">
+            <input type="text" class="form-input" placeholder="Search dataset name, ID, or keywords..." style="padding-left:36px;">
+            <span style="position:absolute; left:12px; top:50%; transform:translateY(-50%); font-size:16px;">🔍</span>
+          </div>
+        </div>
+        <div class="filter-group" style="max-width:200px;">
+          <span class="filter-label">Filter Date</span>
+          <select class="form-select">
+            <option>All Time</option>
+            <option>Last 7 Days</option>
+            <option>Last 30 Days</option>
+            <option>This Year</option>
+          </select>
+        </div>
+        <div class="filter-group" style="max-width:200px;">
+          <span class="filter-label">Execution Status</span>
+          <select class="form-select">
+            <option>All Statuses</option>
+            <option>Success</option>
+            <option>Failed / Error</option>
+          </select>
+        </div>
+        <div class="filter-group" style="max-width:120px;">
+          <span class="filter-label">&nbsp;</span>
+          <button class="btn btn-primary btn-full">Filter</button>
+        </div>
+      </div>
+
+      <!-- History Table -->
+      <div class="history-card">
+        <div style="overflow-x:auto;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th style="width:14%;">Query ID</th>
+                <th style="width:36%;">Target Dataset & String</th>
+                <th style="width:15%;">Timestamp</th>
+                <th style="width:10%;">Metrics</th>
+                <th style="width:15%;">Status</th>
+                <th style="width:10%;">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span style="font-family:monospace; font-weight:700; color:var(--royal); background:#e3eaff; padding:4px 8px; border-radius:4px;">#QX-8F21A</span></td>
+                <td>
+                  <div style="font-weight:700; font-size:15px; color:var(--navy);">Economic Survey 2023</div>
+                  <code class="query-string">SELECT id, revenue, sector FROM tbl_eco_23 WHERE sector='IT' LIMIT 5000</code>
+                </td>
+                <td>
+                  <div style="font-weight:600; color:var(--text-main);">Mar 21, 2026</div>
+                  <div style="font-size:12px; color:var(--text-muted);">14:02:45 UTC</div>
+                </td>
+                <td>
+                  <div style="font-size:13px; font-weight:700; color:var(--text-main);">1.20s</div>
+                  <div style="font-size:12px; color:var(--text-muted);">5,000 rows</div>
+                </td>
+                <td><span class="status-dot success"></span> <span style="font-weight:700; font-size:13px; color:var(--green);">Completed</span></td>
+                <td>
+                  <button class="btn btn-ghost btn-icon" title="View Results" onclick="window.location.href='/query'">▶️</button>
+                  <button class="btn btn-ghost btn-icon" title="Download">⬇️</button>
+                </td>
+              </tr>
+              
+              <tr>
+                <td><span style="font-family:monospace; font-weight:700; color:var(--royal); background:#e3eaff; padding:4px 8px; border-radius:4px;">#QX-3F88B</span></td>
+                <td>
+                  <div style="font-weight:700; font-size:15px; color:var(--navy);">Health Indicators Geographic</div>
+                  <code class="query-string">SELECT * FROM hospitals_geo WHERE region='North' AND beds > 100</code>
+                </td>
+                <td>
+                  <div style="font-weight:600; color:var(--text-main);">Mar 20, 2026</div>
+                  <div style="font-size:12px; color:var(--text-muted);">09:30:12 UTC</div>
+                </td>
+                <td>
+                  <div style="font-size:13px; font-weight:700; color:var(--text-main);">2.45s</div>
+                  <div style="font-size:12px; color:var(--text-muted);">12,010 rows</div>
+                </td>
+                <td><span class="status-dot success"></span> <span style="font-weight:700; font-size:13px; color:var(--green);">Completed</span></td>
+                <td>
+                  <button class="btn btn-ghost btn-icon" title="View Results">▶️</button>
+                  <button class="btn btn-ghost btn-icon" title="Download">⬇️</button>
+                </td>
+              </tr>
+
+              <tr>
+                <td><span style="font-family:monospace; font-weight:700; color:var(--text-muted); background:var(--border-soft); padding:4px 8px; border-radius:4px;">#QX-9A43C</span></td>
+                <td>
+                  <div style="font-weight:700; font-size:15px; color:var(--navy);">Census 2021 Aggregates</div>
+                  <code class="query-string" style="color:var(--danger); border-color:var(--danger);">SELECT avg(income), city FROM census GROUP BY ... (TIMEOUT)</code>
+                </td>
+                <td>
+                  <div style="font-weight:600; color:var(--text-main);">Mar 18, 2026</div>
+                  <div style="font-size:12px; color:var(--text-muted);">16:45:00 UTC</div>
+                </td>
+                <td>
+                  <div style="font-size:13px; font-weight:700; color:var(--danger);">30.0s (T/O)</div>
+                  <div style="font-size:12px; color:var(--text-muted);">0 rows</div>
+                </td>
+                <td><span class="status-dot failed"></span> <span style="font-weight:700; font-size:13px; color:var(--danger);">Query Timeout</span></td>
+                <td>
+                  <button class="btn btn-ghost btn-icon" title="Re-run Query" style="color:var(--royal);">↺</button>
+                </td>
+              </tr>
+              
+              <tr>
+                <td><span style="font-family:monospace; font-weight:700; color:var(--saffron); background:#FFF3E0; padding:4px 8px; border-radius:4px;">#QX-B119D</span></td>
+                <td>
+                  <div style="font-weight:700; font-size:15px; color:var(--navy);">Global Trade Routing</div>
+                  <code class="query-string">SELECT * FROM export_import_metrics WHERE year=2025 LIMIT 100000</code>
+                </td>
+                <td>
+                  <div style="font-weight:600; color:var(--text-main);">Just Now</div>
+                  <div style="font-size:12px; color:var(--text-muted);">14:15:00 UTC</div>
+                </td>
+                <td>
+                  <div style="font-size:13px; font-weight:700; color:var(--saffron);">Evaluating...</div>
+                  <div style="font-size:12px; color:var(--text-muted);">--</div>
+                </td>
+                <td><span class="status-dot running"></span> <span style="font-weight:700; font-size:13px; color:var(--saffron);">Executing</span></td>
+                <td>
+                  <button class="btn btn-ghost btn-icon" title="Cancel Execution" style="color:var(--danger);">⏹</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        
+        <!-- Pagination -->
+        <div class="pagination">
+          <button class="page-btn">«</button>
+          <button class="page-btn active">1</button>
+          <button class="page-btn">2</button>
+          <button class="page-btn">3</button>
+          <button class="page-btn" style="border:none;">...</button>
+          <button class="page-btn">14</button>
+          <button class="page-btn">»</button>
+        </div>
+      </div>
+    </main>
+  </div>
+</body>
+</html>
