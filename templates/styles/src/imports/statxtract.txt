@@ -1,0 +1,1245 @@
+Design a structured multi-screen web application UI for a project named "SPATXTRACT".
+
+The UI must be clean, simple, and professional. Focus on layout, navigation, and user flow. Do not apply complex styling or color logic.
+
+---
+
+## GLOBAL RULES (VERY IMPORTANT)
+
+* Keep "SPATXTRACT" as a fixed header on ALL screens (top-left)
+* Top-right should display user/admin name when logged in
+* Every major action should navigate to a NEW SCREEN (no expanding sections)
+* Use card-based layout for dashboards
+* Maintain consistent spacing and alignment
+* Use simple icons where needed
+* Keep UI minimal and structured
+
+---
+
+1. SPLASH / FIRST SCREEN
+
+---
+
+* Full screen centered content
+* Display:
+
+  * Project name: "SPATXTRACT"
+  * Subtitle: "Smart Data Access Platform"
+* Add a small, subtle animation (fade-in or slight motion)
+
+After 2–3 seconds OR on user interaction:
+→ Navigate to Module Selection Screen
+
+---
+
+2. MODULE SELECTION SCREEN
+
+---
+
+Header:
+
+* Left: SPATXTRACT
+
+Center:
+
+* Two large selectable cards:
+
+  1. Admin
+  2. User
+
+Each card:
+
+* Title
+* Short description
+* Clickable
+
+On click:
+→ Navigate to respective flow
+
+---
+
+3. ADMIN AUTHENTICATION FLOW
+
+---
+
+Screen 1:
+
+* Two options:
+
+  * Sign In
+  * Create Account
+
+---
+
+## Screen 2: CREATE ACCOUNT (ADMIN)
+
+* Scrollable form layout
+
+Fields:
+
+* Full Name
+* Official Email
+* Phone Number
+* Employee ID
+* Organization Name
+* Department
+* Designation
+
+UI Behavior:
+
+* Each field clearly separated
+* Form should be vertically scrollable
+* Proper spacing between fields
+
+Bottom:
+
+* Button: "Confirm Details"
+
+On click:
+→ Navigate to Admin Dashboard
+
+---
+
+4. ADMIN DASHBOARD
+
+---
+
+Header:
+
+* Left: SPATXTRACT
+* Right: Admin Name (clickable)
+
+Main Section:
+
+* Title: "Admin Dashboard"
+
+Below title:
+
+* Grid of cards (multiple rows)
+
+---
+
+## CARDS (CORE FUNCTIONALITY)
+
+Display the following as individual cards:
+
+1. Upload Dataset
+2. Nesstar Upload
+3. NADA Import
+4. Query Data
+5. View Schema & Tables
+6. Usage Logs
+7. Configure Variables
+8. Metadata
+9. Change Password
+10. User Management
+11. System Settings
+
+Each card must contain:
+
+* Title
+* Small description
+* Icon
+* Arrow indicator (suggesting navigation)
+
+---
+
+## CARD BEHAVIOR (IMPORTANT)
+
+* Clicking a card MUST open a NEW SCREEN
+* Do NOT expand content inside dashboard
+* Navigation should be clear and direct
+
+---
+
+5. ADMIN PROFILE SCREEN
+
+---
+
+Trigger:
+
+* Clicking admin name (top-right)
+
+New Screen:
+Display all admin details:
+
+* Full Name
+* Email
+* Phone Number
+* Employee ID
+* Organization Name
+* Department
+* Designation
+
+Layout:
+
+* Structured in readable format
+* Include "Back to Dashboard" option
+
+---
+
+6. UPLOAD DATASET SCREEN
+
+---
+
+Trigger:
+
+* Clicking "Upload Dataset" card
+
+New Screen Layout:
+
+Header:
+
+* Same as global
+
+Main Content:
+
+* Title: "Upload Dataset"
+
+Components:
+
+* File upload section (drag & drop or select file)
+* Instruction text explaining CSV upload
+* Buttons:
+
+  * Upload
+  * Cancel
+
+Optional:
+
+* Progress indicator after upload
+
+---
+
+7. NAVIGATION RULES
+
+---
+
+* Every card → separate page
+* Every page → consistent header
+* Provide back navigation where needed
+* Avoid deep nesting of screens
+
+---
+
+8. INTERACTION RULES
+
+---
+
+* Keep interactions simple
+* Minimal animation (only small transitions)
+* No complex UI behavior
+* Focus on clarity and usability
+
+---
+
+## END GOAL
+
+The UI should clearly guide the user through:
+Splash → Module Selection → Admin Auth → Dashboard → Feature Screens
+
+It should feel structured, easy to navigate, and logically organized.
+
+
+Design a multi-screen admin panel UI for a project named "SPATXTRACT". Focus only on structure, layout, components, and navigation behavior.
+
+GLOBAL RULE:
+
+* Each card opens a completely NEW SCREEN (except Metadata which uses a popup)
+* Keep header consistent on all screens
+* No scrolling expansions for card content
+* Use structured layouts and clear input sections
+
+---
+
+1. UPLOAD DATASET SCREEN
+
+---
+
+Trigger: Clicking "Upload Dataset" card
+
+Screen Layout:
+
+Step 1:
+
+* Field: Select Dataset Category (dropdown)
+
+Step 2:
+
+* Section: Guidelines
+
+  * Display instructions about dataset format (text block)
+
+Step 3:
+
+* File Upload Section
+
+  * Upload box (drag & drop or browse)
+  * Accept file (CSV)
+
+Step 4:
+
+* Progress Section
+
+  * Progress bar (initially empty)
+
+Step 5:
+
+* Button: "Upload"
+
+Behavior:
+
+* On clicking Upload → start upload process
+* Progress bar updates dynamically
+
+---
+
+2. NESTA UPLOAD SCREEN
+
+---
+
+Trigger: Clicking "NESTA Upload" card
+
+Fields:
+
+* Target Schema (input or dropdown)
+* File Upload (browse/select file)
+* Data Type (dropdown)
+
+Buttons:
+
+* Upload
+* Cancel
+
+Behavior:
+
+* On Upload → show progress bar below
+* Progress updates until completion
+
+---
+
+3. NADA IMPORT SCREEN
+
+---
+
+Trigger: Clicking "NADA Import" card
+
+Fields:
+
+* API Key (input field)
+* Browse Dataset (button)
+* Dataset ID (input field)
+* Target Schema (dropdown)
+
+Buttons:
+
+* Download & Ingest
+* Close
+
+Behavior:
+
+* On Download & Ingest → initiate process
+* Optional progress indicator
+
+---
+
+4. QUERY DATA SCREEN
+
+---
+
+Trigger: Clicking "Query Data" card
+
+Fields:
+
+* Select Schema (dropdown)
+
+* Select Table (dropdown)
+
+* Select Columns:
+
+  * Multi-select list
+  * Options:
+
+    * Select All
+    * Deselect All
+
+* Filters (input)
+
+* Limit (input)
+
+* Offset (input)
+
+Button:
+
+* Execute
+
+---
+
+## RESULT SECTION (AFTER EXECUTE)
+
+* Large result display area (table format)
+
+Options inside result area:
+
+* Download
+* JSON Format
+
+View Toggle Options:
+
+* Table View
+* Chart View
+
+Chart View Options:
+
+* Bar Chart
+* Pie Chart
+* Other basic charts
+
+Behavior:
+
+* Clicking Execute → populate result area
+* Switching views updates visualization
+
+---
+
+5. VIEW SCHEMA / TABLE SCREEN
+
+---
+
+Trigger: Clicking "View Schema & Tables" card
+
+Layout:
+
+* Left Side OR Dropdown:
+
+  * List of schemas/tables
+
+Interaction:
+
+* On selecting a table:
+  → Show POP-UP CARD (not new page)
+
+Popup Content:
+
+* Table details
+* Columns
+* Structure info
+
+---
+
+6. USAGE LOGS SCREEN
+
+---
+
+Trigger: Clicking "Usage Logs" card
+
+Layout:
+
+* Data display card/table
+
+Fields to show:
+
+* User Name
+* Dataset Used
+* Rows Accessed
+* Date
+* Action performed
+
+Structure:
+
+* Tabular format
+* Scrollable if large data
+
+---
+
+7. CONFIGURE VARIABLES SCREEN
+
+---
+
+Trigger: Clicking "Configure Variables" card
+
+Fields:
+
+* Select Schema (dropdown)
+* Select Table (dropdown)
+* Variable Name (input)
+* Filters (input)
+
+Layout:
+
+* Structured form layout
+
+---
+
+8. METADATA SCREEN (POP-UP BASED)
+
+---
+
+Trigger: Clicking "Metadata" card
+
+Screen Layout:
+
+Fields:
+
+* Select Schema (dropdown)
+* Select Table (dropdown)
+
+Interaction:
+
+* On selecting schema/table:
+  → Show POP-UP BOX (same screen, not navigation)
+
+Popup Content:
+
+* Metadata details of selected schema/table
+
+---
+
+9. CHANGE PASSWORD SCREEN
+
+---
+
+Trigger: Clicking "Change Password" card
+
+Fields:
+
+* Current Password
+* New Password
+* Confirm New Password
+
+Buttons:
+
+* Update Password
+* Cancel
+
+Optional:
+
+* Show password rules (text)
+
+---
+
+10. USER MANAGEMENT SCREEN
+
+---
+
+Trigger: Clicking "User Management" card
+
+Layout:
+
+Left Sidebar:
+
+* Total Users
+* User Types:
+
+  * Student
+  * Researcher
+  * Government
+  * Private
+  * Analyst
+
+Main Content:
+
+* Table/List of users:
+
+  * Name
+  * Type
+  * Data usage
+  * Last active date
+
+Analytics Section:
+
+* Visual representation:
+
+  * Charts (user distribution)
+  * Usage trends
+
+---
+
+11. SYSTEM SETTINGS SCREEN
+
+---
+
+Trigger: Clicking "System Settings" card
+
+Layout:
+
+* General settings panel
+
+Include options like:
+
+* System configuration fields
+* Toggle switches
+* Basic settings controls
+
+Keep layout simple and structured
+
+---
+
+## NAVIGATION RULES
+
+* Each module opens on separate screen
+* Metadata uses popup (only exception)
+* Provide back navigation where needed
+* Keep layout consistent across all screens
+
+---
+
+## END GOAL
+
+The UI should clearly separate each function into its own screen, with structured forms, clear actions, and logical navigation flow.
+
+Avoid clutter and avoid combining multiple functions in one screen.
+
+
+Design the USER MODULE UI for a web application named "SPATXTRACT". Focus strictly on flow, navigation, layout, and behavior.
+
+---
+
+## GLOBAL RULES
+
+* Header must remain consistent:
+
+  * Left: SPATXTRACT
+  * Right: User Profile (clickable)
+* All major actions should navigate to new screens
+* Use structured forms and clear sections
+* Maintain consistency with Admin flow
+
+---
+
+1. USER AUTHENTICATION SCREEN
+
+---
+
+Fields:
+
+* Full Name
+* Email
+* Phone Number
+* Organization Type (clickable field → opens new screen)
+* Organization Name (dynamic based on role)
+* Purpose of Access (selection)
+
+---
+
+2. ORGANIZATION TYPE SELECTION SCREEN
+
+---
+
+Trigger:
+
+* Clicking "Organization Type"
+
+New Screen:
+Show selectable options:
+
+* Student
+* Researcher
+* Private
+* Analyst
+
+(Note: Government option is removed)
+
+Each option is clickable and navigates to a new screen
+
+---
+
+3. STUDENT VERIFICATION SCREEN
+
+---
+
+Fields:
+
+* Institution Name
+* Student ID Name
+* Student ID Number
+* Course Name
+* Year of Study
+* Institution Email
+
+Upload Section:
+
+* Upload ID Card OR Bonafide Certificate
+
+Button:
+
+* Continue / Save
+
+---
+
+4. RESEARCHER VERIFICATION SCREEN
+
+---
+
+Fields:
+
+* Research Area
+* Designation
+* Research ID
+* Research Email
+
+Upload Section:
+
+* Upload ID Card OR Authorization Letter
+
+Button:
+
+* Continue / Save
+
+---
+
+5. PRIVATE ORGANIZATION SCREEN
+
+---
+
+Fields:
+
+* Company Name
+* Designation
+* Employee ID
+* Work Email
+* Address
+
+Upload Section:
+
+* Upload Employee ID OR Offer Letter
+
+Button:
+
+* Continue / Save
+
+---
+
+6. ANALYST SCREEN
+
+---
+
+Fields:
+
+* Portfolio Link
+* Experience (Years)
+* Area of Analysis
+
+Upload Section:
+
+* Upload Resume OR Certifications
+
+Button:
+
+* Continue / Save
+
+---
+
+7. PURPOSE OF ACCESS
+
+---
+
+Options:
+
+* Research
+* Academic
+* Policy
+
+Selection Behavior:
+
+* User selects one option
+
+---
+
+## FINAL AUTH STEP
+
+After completing all fields:
+→ Navigate to USER DASHBOARD
+
+---
+
+8. USER DASHBOARD (MAIN STRUCTURE)
+
+---
+
+Layout:
+
+HEADER:
+
+* Left: SPATXTRACT
+* Right: User Name (clickable profile)
+
+---
+
+## LEFT SIDE PANEL (PERMANENT)
+
+* Fixed vertical sidebar (less than half width)
+* Remains visible during scrolling
+
+Menu Items:
+
+1. Dashboard
+2. Query Page
+3. Settings
+4. Plans & Pricing
+5. History
+6. Downloads
+
+Behavior:
+
+* Clicking any item → load corresponding screen (right side)
+* Sidebar does NOT move
+
+---
+
+## RIGHT SIDE CONTENT AREA
+
+* Dynamic content area
+* Changes based on selected menu item
+
+---
+
+## DEFAULT LANDING (IMPORTANT)
+
+When user first enters dashboard:
+
+Show:
+
+* Welcome Message
+* Instructions / Important Information
+* Basic usage guidance
+
+(No need to click anything initially)
+
+---
+
+9. DASHBOARD VIEW
+
+---
+
+Trigger:
+
+* Clicking "Dashboard" from sidebar
+
+Show:
+
+* Welcome message
+* Summary details
+* Instructions
+* Possibly recent activity overview
+
+---
+
+10. QUERY PAGE
+
+---
+
+Trigger:
+
+* Clicking "Query Page"
+
+Layout:
+
+Fields:
+
+* Select Schema
+
+* Select Table
+
+* Select Columns (multi-select)
+
+  * Select All
+  * Deselect All
+
+* Filters
+
+* Limit
+
+* Offset
+
+Button:
+
+* Execute
+
+---
+
+## RESULT SECTION
+
+* Large output area
+
+Options:
+
+* Download
+* JSON format
+
+View Options:
+
+* Table View
+* Chart View
+
+Chart Types:
+
+* Bar Chart
+* Pie Chart
+* Other simple charts
+
+---
+
+11. SETTINGS PAGE
+
+---
+
+Trigger:
+
+* Clicking "Settings"
+
+Fields:
+
+* Profile details (editable)
+* Change password option
+* Basic preferences
+
+---
+
+12. PLANS & PRICING PAGE
+
+---
+
+Trigger:
+
+* Clicking "Plans & Pricing"
+
+Show:
+
+* Different plans
+* Features per plan
+* Upgrade option
+
+---
+
+13. HISTORY PAGE
+
+---
+
+Trigger:
+
+* Clicking "History"
+
+Show:
+
+* Previous queries
+* Dataset usage
+* Date/time
+
+---
+
+14. DOWNLOADS PAGE
+
+---
+
+Trigger:
+
+* Clicking "Downloads"
+
+Show:
+
+* List of downloaded files
+* File name
+* Date
+* Download option
+
+---
+
+15. PROFILE & LOGOUT
+
+---
+
+Trigger:
+
+* Clicking user name (top-right)
+
+Show dropdown or screen:
+
+* Profile details
+* Scrollable info
+
+At bottom:
+
+* Logout button
+
+Behavior:
+
+* On Logout → Navigate to Module Selection Screen (Admin / User)
+
+---
+
+## END GOAL
+
+The UI should clearly guide the user through:
+Authentication → Verification → Dashboard → Feature Usage
+
+The left sidebar must remain fixed, while the right side dynamically updates based on user interaction.
+
+Design the USER DASHBOARD INTERACTION FLOW for a web application named "SPATXTRACT". Focus strictly on layout behavior, screen structure, and interactions.
+
+---
+
+## GLOBAL LAYOUT (VERY IMPORTANT)
+
+* The screen is divided into TWO sections:
+
+1. LEFT PANEL (Fixed Sidebar)
+
+   * Occupies less than half of the screen
+   * Always visible (fixed)
+   * Contains navigation menu
+   * Must be RESIZABLE (user can drag to increase/decrease width)
+
+2. RIGHT PANEL (Dynamic Content Area)
+
+   * Occupies remaining space
+   * Content changes based on selected menu item
+   * Scrollable independently
+
+---
+
+## LEFT PANEL CONTENT
+
+Top:
+
+* Header: "SPATXTRACT"
+
+Below:
+Navigation Menu:
+
+* Dashboard
+* Query Page
+* Settings
+* Plans & Pricing
+* History
+* Downloads
+
+Behavior:
+
+* Clicking any option updates RIGHT PANEL only
+* LEFT PANEL remains fixed
+
+---
+
+## DEFAULT VIEW (ON LOGIN)
+
+Right Panel should show:
+
+* Welcome Message
+* Important Instructions
+* Basic usage guidance
+
+---
+
+1. DASHBOARD VIEW
+
+---
+
+Trigger:
+
+* Clicking "Dashboard"
+
+Right Panel shows:
+
+* Welcome message
+* Summary / overview
+* Basic user info or activity
+
+---
+
+2. QUERY PAGE (MOST IMPORTANT)
+
+---
+
+Trigger:
+
+* Clicking "Query Page"
+
+Layout:
+
+LEFT SIDE (within left panel area, below header):
+
+* Section Title: "Query Selection"
+
+Fields:
+
+* Select Schema (dropdown)
+* Select Table (dropdown)
+* Attributes / Features (multi-select)
+* Filters (input field)
+
+Bottom:
+
+* Button: "Fetch"
+
+---
+
+## RIGHT PANEL (RESULT AREA)
+
+Initially empty.
+
+After clicking "Fetch":
+
+Step 1:
+
+* Display RESULT TABLE (large table view)
+* Table should show queried dataset
+
+Above Table (Top Right):
+
+* Download Options:
+
+  * CSV
+  * PDF
+  * JSON
+  * Table format
+
+---
+
+## SCROLL BEHAVIOR (IMPORTANT)
+
+When user scrolls DOWN in right panel:
+
+Show additional section:
+
+* Chart Options:
+
+  * Bar Chart
+  * Pie Chart
+  * Other charts
+
+* Export Options:
+
+  * Download as PNG
+  * Download as PDF
+
+---
+
+## INTERACTION RULES
+
+* Left panel remains fixed
+* Right panel updates dynamically
+* Query execution updates table in real-time
+* Chart section appears below table on scroll
+
+---
+
+3. SETTINGS PAGE
+
+---
+
+Trigger:
+
+* Clicking "Settings"
+
+Right Panel shows:
+
+Options:
+
+* Change Password
+* Change Username
+* Delete Account
+* Theme Option (optional setting)
+
+---
+
+4. PLANS & PRICING PAGE
+
+---
+
+Trigger:
+
+* Clicking "Plans & Pricing"
+
+Right Panel shows:
+
+* Current Plan (user’s active plan)
+
+* Plan Details
+
+* Available Plans
+
+* Upgrade Option:
+
+  * Button to upgrade plan
+
+---
+
+5. HISTORY PAGE
+
+---
+
+Trigger:
+
+* Clicking "History"
+
+Right Panel shows:
+
+* List of previous queries
+* Stored results
+* Date and time
+
+---
+
+6. DOWNLOADS PAGE
+
+---
+
+Trigger:
+
+* Clicking "Downloads"
+
+Right Panel shows:
+
+* List of downloaded files
+* Format (CSV, PDF, JSON)
+* Date of download
+
+---
+
+7. PROFILE & LOGOUT
+
+---
+
+Trigger:
+
+* Clicking User Profile (top-right corner)
+
+Show:
+
+* User Details:
+
+  * Name
+  * Role
+  * Organization info
+
+At bottom:
+
+* Logout button
+
+Behavior:
+
+* On Logout → Navigate back to Module Selection Screen (Admin / User)
+
+---
+
+## RESIZABLE PANEL BEHAVIOR (IMPORTANT)
+
+* User can drag boundary between left and right panels
+* Left panel width increases/decreases dynamically
+* Right panel adjusts accordingly
+* Maintain minimum width for both panels
+
+---
+
+## END GOAL
+
+The UI should provide:
+
+* Fixed navigation on left
+* Dynamic data interaction on right
+* Strong focus on query execution and data visualization
+
+The Query Page must feel like the central working area of the application.
+
+

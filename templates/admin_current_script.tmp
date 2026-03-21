@@ -1,0 +1,192 @@
+                <i class="fas ${icon}"></i>
+                <span>${message}</span>
+            `;
+
+            toastContainer.appendChild(toast);
+
+            // Remove toast after 4 seconds
+            setTimeout(() => {
+                toast.style.animation = 'slideDown 0.3s ease-out reverse';
+                setTimeout(() => {
+                    if (toast.parentNode) {
+                        toast.parentNode.removeChild(toast);
+                    }
+                }, 300);
+            }, 4000);
+
+            return toast;
+        }
+
+        // Load schemas for configuration
+        async function loadSchemas() {
+            try {
+                const schemasRes = await fetch('/schemas');
+                const schemas = await schemasRes.json();
+                const populateSchemas = (id, placeholder) => {
+                    const el = document.getElementById(id);
+                    if (!el) return;
+                    el.innerHTML = `<option value="">${placeholder}</option>`;
+                    (Array.isArray(schemas) ? schemas : []).forEach(s => {
+                        const val = s.schema || s.name || s;
+                        const opt = document.createElement('option');
+                        opt.value = val;
+                        opt.textContent = s.name || val;
+                        el.appendChild(opt);
+                    });
+                };
+
+                populateSchemas('nesstarSchema', 'Select target schema...');
+                populateSchemas('nadaSchema', 'Select target schema...');
+
+            } catch (error) {
+                console.error('Error loading schemas:', error);
+                showToast('Failed to load schemas', 'error');
+            }
+        }
+
+        // Card hover effects
+        document.querySelectorAll('.glass-card').forEach(card => {
+            card.addEventListener('mouseenter', function () {
+                this.style.borderColor = 'var(--primary-color)';
+            });
+
+            card.addEventListener('mouseleave', function () {
+                this.style.borderColor = 'var(--glass-border)';
+            });
+        });
+
+        // Mobile responsive controls
+        function checkMobile() {
+            const mobileControls = document.querySelector('.mobile-controls');
+            const desktopLogout = document.querySelector('body > .logout-btn');
+            const desktopTheme = document.getElementById('desktopThemeToggle');
+
+            if (window.innerWidth <= 768) {
+                if (mobileControls) mobileControls.style.display = 'flex';
+                if (desktopLogout) desktopLogout.style.display = 'none';
+                if (desktopTheme) desktopTheme.style.display = 'none';
+            } else {
+                if (mobileControls) mobileControls.style.display = 'none';
+                if (desktopLogout) desktopLogout.style.display = 'flex';
+                if (desktopTheme) desktopTheme.style.display = 'flex';
+            }
+        }
+
+        window.addEventListener('resize', checkMobile);
+        window.addEventListener('load', checkMobile);
+
+        // Keyboard navigation
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') {
+                window.location.href = '/';
+            }
+        });
+
+        // Enhanced Logout functionality
+        async function handleLogout() {
+            try {
+                const logoutBtn = document.querySelector('.logout-btn');
+                logoutBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>Logging out...</span>';
+                logoutBtn.style.pointerEvents = 'none';
+
+                showToast('Signing out...', 'info');
+
+                const response = await fetch('/auth/logout', {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+
+                if (response.ok) {
+                    showToast('Logged out successfully!', 'success');
+                    setTimeout(() => {
+                        window.location.href = '/login';
+                    }, 1500);
+                } else {
+                    throw new Error('Logout request failed');
+                }
+            } catch (error) {
+                console.error('Logout error:', error);
+                showToast('Logout failed. Please try again.', 'error');
+
+                const logoutBtn = document.querySelector('.logout-btn');
+                logoutBtn.innerHTML = '<i class="fas fa-sign-out-alt"></i><span>Logout</span>';
+                logoutBtn.style.pointerEvents = 'auto';
+            }
+        }
+
+        function openMetadataBrowser() {
+            const modal = document.getElementById('metadataModal');
+            modal.style.display = 'block';
+            loadDashboardSchemas();
+        }
+
+        function closeMetadataBrowser() {
+            const modal = document.getElementById('metadataModal');
+            modal.style.display = 'none';
+        }
+
+        function _escapeHtml(s) {
+            return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
+        async function loadDashboardSchemas() {
+            try {
+                const res = await fetch('/schemas');
+                const data = await res.json();
+                const select = document.getElementById('metadataSchema');
+                select.innerHTML = '';
+
+                const def = document.createElement('option');
+                def.value = '';
+                def.textContent = 'Select a survey...';
+                def.disabled = true;
+                def.selected = true;
+                select.appendChild(def);
+
+                const items = Array.isArray(data) ? data : [];
+                for (const s of items) {
+                    const opt = document.createElement('option');
+                    opt.value = s.schema;
+                    opt.textContent = s.name || s.schema;
+                    select.appendChild(opt);
+                }
+
+                document.getElementById('metadataDatasetCards').innerHTML = '<div style="color: rgba(255,255,255,0.5); font-style: italic; font-size: 0.9rem;">Select a survey first...</div>';
+            } catch (e) {
+                showToast('Failed to load schemas for metadata', 'error');
+            }
+        }
+
+        async function loadDashboardDatasets() {
+            const schema = document.getElementById('metadataSchema').value;
+            const container = document.getElementById('metadataDatasetCards');
+            container.innerHTML = '<div style="color: rgba(255,255,255,0.75);">Loading datasets...</div>';
+            try {
+                const res = await fetch(`/schemas/${schema}/datasets`);
+                const data = await res.json();
+                const items = Array.isArray(data) ? data : [];
+                if (!items.length) {
+                    container.innerHTML = '<div style="color: rgba(255,255,255,0.7);">No datasets found.</div>';
+                    return;
+                }
+                container.innerHTML = items.map(d => {
+                    const label = _escapeHtml(d.display_name || d.dataset);
+                    const ds = _escapeHtml(d.dataset);
+                    const url = `/metadata-detail/${schema}/${ds}`;
+                    return `
+                        <a href="${url}" class="btn btn-secondary" style="text-align:left; width: 100%; text-decoration: none; display: flex; align-items: center; gap: 10px;">
+                            <i class="fas fa-database"></i> ${label}
+                        </a>
+                    `;
+                }).join('');
+            } catch (e) {
+                container.innerHTML = '<div style="color: rgba(255,255,255,0.7);">Failed to load datasets.</div>';
+            }
+        }
+    </script>
+</body>
+
+</html>

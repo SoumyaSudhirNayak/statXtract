@@ -7,40 +7,62 @@
     <title>Admin Dashboard - Data Analytics Platform</title>
 
     <!-- Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@700;800;900&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
 
     <style>
         :root {
-            /* Purple Color Scheme */
-            --primary-color: #64748b;
-            --primary-gradient: linear-gradient(135deg, #64748b 0%, #475569 100%);
-            --secondary-color: #f59e0b;
-            --secondary-gradient: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-            --success-color: #f59e0b;
-            --warning-color: #f59e0b;
-            --danger-color: #ef4444;
-            --dark-color: #2d3748;
-            --light-color: #f7fafc;
-            --text-light: #ffffff;
-            --text-dark: #2d3748;
-
-            /* Glass morphism with purple colors */
-            --glass-bg: rgba(15, 23, 42, 0.7);
-            --glass-border: rgba(100, 116, 139, 0.25);
-            --shadow-light: 0 8px 32px rgba(15, 23, 42, 0.3);
-            --shadow-heavy: 0 20px 40px rgba(0, 0, 0, 0.4);
+            --font-head: 'Poppins', sans-serif;
+            --font-body: 'Inter', sans-serif;
+            --primary-color: #2E5BBA;
+            --primary-gradient: linear-gradient(135deg, #2E5BBA 0%, #1F3A5F 100%);
+            --secondary-color: #F4A300;
+            --secondary-gradient: linear-gradient(135deg, #F4A300 0%, #D97706 100%);
+            --success-color: #2E7D32;
+            --warning-color: #F4A300;
+            --danger-color: #D4183D;
+            --text-primary: #1C1C1C;
+            --text-secondary: #4B5563;
+            --text-muted: #6B7280;
+            --text-inverse: #FFFFFF;
+            --text-light: #1C1C1C;
+            --text-dark: #FFFFFF;
+            --page-bg: linear-gradient(135deg, #F5F7FA 0%, #EEF3FB 55%, #E9EEF7 100%);
+            --surface-bg: rgba(255, 255, 255, 0.88);
+            --surface-strong: #FFFFFF;
+            --surface-muted: #F8FAFC;
+            --glass-bg: rgba(255, 255, 255, 0.88);
+            --glass-border: rgba(209, 213, 219, 0.95);
+            --shadow-light: 0 8px 26px rgba(31, 58, 95, 0.08);
+            --shadow-heavy: 0 16px 36px rgba(31, 58, 95, 0.16);
             --border-radius: 20px;
-            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            --focus-ring: 0 0 0 3px rgba(46, 91, 186, 0.28);
+            --transition: all 0.28s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
         [data-theme="dark"] {
-            --dark-color: #f7fafc;
-            --light-color: #1a202c;
-            --text-light: #f7fafc;
-            --text-dark: #1a202c;
-            --glass-bg: rgba(0, 0, 0, 0.15);
-            --glass-border: rgba(255, 255, 255, 0.1);
+            --primary-color: #F4A300;
+            --primary-gradient: linear-gradient(135deg, #1F3A5F 0%, #2E5BBA 100%);
+            --secondary-color: #F4A300;
+            --secondary-gradient: linear-gradient(135deg, #F4A300 0%, #D97706 100%);
+            --success-color: #F4A300;
+            --warning-color: #F4A300;
+            --danger-color: #EF4444;
+            --text-primary: #FFFFFF;
+            --text-secondary: rgba(255, 255, 255, 0.82);
+            --text-muted: rgba(255, 255, 255, 0.65);
+            --text-inverse: #0F172A;
+            --text-light: #FFFFFF;
+            --text-dark: #0F172A;
+            --page-bg: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%);
+            --surface-bg: rgba(15, 23, 42, 0.78);
+            --surface-strong: rgba(15, 23, 42, 0.92);
+            --surface-muted: rgba(30, 41, 59, 0.9);
+            --glass-bg: rgba(15, 23, 42, 0.78);
+            --glass-border: rgba(100, 116, 139, 0.35);
+            --shadow-light: 0 8px 28px rgba(0, 0, 0, 0.35);
+            --shadow-heavy: 0 20px 42px rgba(0, 0, 0, 0.5);
+            --focus-ring: 0 0 0 3px rgba(244, 163, 0, 0.28);
         }
 
         * {
@@ -50,38 +72,68 @@
         }
 
         body {
-            font-family: 'Inter', sans-serif;
-            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%);
+            font-family: var(--font-body);
+            background: var(--page-bg);
             min-height: 100vh;
-            color: var(--text-light);
+            color: var(--text-primary);
             transition: var(--transition);
             overflow-x: hidden;
             padding: 30px;
         }
 
-        /* Theme Toggle */
+        /* Universal Controls */
+        .logout-btn,
         .theme-toggle {
             position: fixed;
             top: 20px;
-            right: 20px;
-            z-index: 1000;
-            background: var(--glass-bg);
+            z-index: 1100;
+            background: var(--surface-strong);
             backdrop-filter: blur(20px);
             border: 1px solid var(--glass-border);
             border-radius: 50px;
-            padding: 12px 20px;
+            padding: 10px 20px;
             cursor: pointer;
             transition: var(--transition);
             display: flex;
             align-items: center;
             gap: 8px;
-            color: var(--text-light);
+            color: var(--text-primary);
             font-weight: 500;
+            font-family: var(--font-body);
+            box-shadow: var(--shadow-light);
+            text-decoration: none;
         }
 
+        .logout-btn {
+            left: 20px;
+        }
+
+        .theme-toggle {
+            right: 20px;
+        }
+
+        .logout-btn:hover,
         .theme-toggle:hover {
             transform: translateY(-2px);
-            box-shadow: var(--shadow-light);
+            background: var(--primary-color);
+            color: var(--text-inverse);
+            box-shadow: var(--shadow-heavy);
+        }
+
+        .theme-toggle {
+            appearance: none;
+            -webkit-appearance: none;
+        }
+
+        .theme-toggle:focus-visible,
+        .logout-btn:focus-visible,
+        .glass-card:focus-visible,
+        .btn:focus-visible,
+        .home-link a:focus-visible,
+        .schema-selector select:focus-visible,
+        .config-table input[type="text"]:focus-visible {
+            outline: none;
+            box-shadow: var(--focus-ring);
         }
 
         /* Main Container */
@@ -94,7 +146,7 @@
         /* Header */
         .header {
             text-align: center;
-            margin-bottom: 40px;
+            margin-bottom: 32px;
             background: var(--glass-bg);
             backdrop-filter: blur(20px);
             border: 1px solid var(--glass-border);
@@ -118,11 +170,9 @@
 
         .header h1 {
             font-size: 2.8rem;
-            font-weight: 700;
-            background: linear-gradient(135deg, #fff 0%, #f0f0f0 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
+            font-family: var(--font-head);
+            font-weight: 800;
+            color: var(--text-primary);
             margin-bottom: 15px;
             display: flex;
             align-items: center;
@@ -132,7 +182,7 @@
 
         .header p {
             font-size: 1.2rem;
-            color: rgba(255, 255, 255, 0.8);
+            color: var(--text-secondary);
             font-weight: 400;
         }
 
@@ -171,7 +221,7 @@
             position: relative;
             overflow: hidden;
             text-decoration: none;
-            color: var(--text-light);
+            color: var(--text-primary);
             display: block;
         }
 
@@ -182,14 +232,14 @@
             left: 0;
             right: 0;
             height: 1px;
-            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+            background: linear-gradient(90deg, transparent, rgba(46, 91, 186, 0.24), transparent);
         }
 
         .glass-card:hover {
             transform: translateY(-8px);
             box-shadow: var(--shadow-heavy);
             border-color: var(--primary-color);
-            color: var(--text-light);
+            color: var(--text-primary);
         }
 
         .glass-card:hover .card-icon {
@@ -210,14 +260,14 @@
             font-size: 1.4rem;
             font-weight: 700;
             margin-bottom: 12px;
-            color: var(--text-light);
+            color: var(--text-primary);
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
 
         .card-description {
             font-size: 1rem;
-            color: rgba(255, 255, 255, 0.8);
+            color: var(--text-secondary);
             line-height: 1.6;
             margin-bottom: 20px;
         }
@@ -267,7 +317,7 @@
 
         .stat-label {
             font-size: 0.9rem;
-            color: rgba(255, 255, 255, 0.8);
+            color: var(--text-secondary);
             text-transform: uppercase;
             letter-spacing: 0.5px;
             font-weight: 500;
@@ -306,32 +356,6 @@
         .home-link a:hover {
             color: var(--secondary-color);
             text-shadow: 0 0 10px rgba(240, 147, 251, 0.5);
-        }
-
-        /* Logout Button */
-        .logout-btn {
-            position: fixed;
-            top: 20px;
-            left: 20px;
-            background: rgba(255, 107, 107, 0.2);
-            backdrop-filter: blur(20px);
-            border: 1px solid var(--danger-color);
-            border-radius: 50px;
-            padding: 12px 20px;
-            color: var(--text-light);
-            text-decoration: none;
-            font-weight: 500;
-            transition: var(--transition);
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            z-index: 999;
-        }
-
-        .logout-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(255, 107, 107, 0.4);
-            background: rgba(255, 107, 107, 0.3);
         }
 
         /* Configure Variables Modal/Section */
@@ -380,7 +404,7 @@
 
         .schema-selector label {
             display: block;
-            color: var(--text-light);
+            color: var(--text-primary);
             font-weight: 600;
             margin-bottom: 10px;
             font-size: 1.1rem;
@@ -389,17 +413,17 @@
         .schema-selector select {
             width: 100%;
             padding: 15px 20px;
-            background: rgba(15, 23, 42, 0.6);
-            border: 1px solid rgba(100, 116, 139, 0.3);
+            background: var(--surface-strong);
+            border: 1px solid var(--glass-border);
             border-radius: 12px;
-            color: #ffffff;
+            color: var(--text-primary);
             font-size: 1rem;
             transition: var(--transition);
-            font-family: 'Inter', sans-serif;
+            font-family: var(--font-body);
         }
 
         .schema-selector select:focus {
-            background: rgba(15, 23, 42, 0.8);
+            background: var(--surface-strong);
             border-color: #f59e0b;
             box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2);
             outline: none;
@@ -409,11 +433,11 @@
         .config-table {
             width: 100%;
             border-collapse: collapse;
-            background: rgba(15, 23, 42, 0.8);
+            background: var(--surface-strong);
             border-radius: 15px;
             overflow: hidden;
             box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
-            border: 1px solid rgba(100, 116, 139, 0.2);
+            border: 1px solid var(--glass-border);
             margin-bottom: 30px;
         }
 
@@ -433,19 +457,19 @@
         }
 
         .config-table tbody tr {
-            background: rgba(15, 23, 42, 0.6);
-            border-bottom: 1px solid rgba(100, 116, 139, 0.2);
+            background: var(--surface-bg);
+            border-bottom: 1px solid var(--glass-border);
             transition: var(--transition);
         }
 
         .config-table tbody tr:hover {
-            background: rgba(15, 23, 42, 0.9);
+            background: var(--surface-muted);
             box-shadow: 0 4px 15px rgba(100, 116, 139, 0.2);
         }
 
         .config-table tbody td {
             padding: 15px;
-            color: var(--text-light);
+            color: var(--text-primary);
             font-size: 0.95rem;
             border: none;
             vertical-align: middle;
@@ -454,12 +478,12 @@
         .config-table input[type="text"] {
             width: 100%;
             padding: 10px 15px;
-            background: rgba(15, 23, 42, 0.6);
-            border: 1px solid rgba(100, 116, 139, 0.3);
+            background: var(--surface-strong);
+            border: 1px solid var(--glass-border);
             border-radius: 8px;
-            color: #ffffff;
+            color: var(--text-primary);
             font-size: 0.9rem;
-            font-family: 'Inter', sans-serif;
+            font-family: var(--font-body);
             transition: var(--transition);
         }
 
@@ -603,7 +627,8 @@
             animation: fadeIn 0.6s ease-out forwards;
         }
 
-        /* Responsive Design */
+
+        /* Responsive controls */
         @media (max-width: 768px) {
             .main-container {
                 padding: 20px;
@@ -682,16 +707,16 @@
             display: flex;
             align-items: center;
             gap: 15px;
-            background: rgba(255, 255, 255, 0.1);
+            background: var(--surface-strong);
             backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            border: 1px solid var(--glass-border);
             border-radius: 50px;
             padding: 15px 25px;
             transition: var(--transition);
         }
 
         .user-details:hover {
-            background: rgba(255, 255, 255, 0.15);
+            background: var(--surface-muted);
             transform: translateY(-2px);
         }
 
@@ -712,14 +737,14 @@
         .username {
             font-size: 1.2rem;
             font-weight: 700;
-            color: var(--text-light);
+            color: var(--text-primary);
             margin-bottom: 2px;
             text-transform: capitalize;
         }
 
         .user-email {
             font-size: 0.9rem;
-            color: rgba(255, 255, 255, 0.7);
+            color: var(--text-secondary);
             font-weight: 400;
         }
 
@@ -739,38 +764,34 @@
             text-align: center;
             margin-bottom: 30px;
             padding: 20px;
-            background: rgba(79, 172, 254, 0.1);
-            border: 1px solid var(--success-color);
+            background: var(--surface-bg);
+            border: 1px solid var(--glass-border);
             border-radius: var(--border-radius);
             backdrop-filter: blur(10px);
         }
 
         .welcome-stats h3 {
-            color: var(--success-color);
+            color: var(--primary-color);
             margin-bottom: 10px;
             font-size: 1.3rem;
         }
 
         .welcome-stats p {
-            color: rgba(255, 255, 255, 0.9);
+            color: var(--text-secondary);
             font-size: 1rem;
         }
 
-        /* Enhanced subtle theme with golden touch */
-        .glass-card {
-            background: rgba(15, 23, 42, 0.75);
-            backdrop-filter: blur(20px) saturate(120%);
-            border: 1px solid rgba(100, 116, 139, 0.25);
+        [data-theme="dark"] .glass-card {
+            background: rgba(15, 23, 42, 0.78);
+            border: 1px solid rgba(100, 116, 139, 0.35);
         }
 
-        .glass-card:hover {
-            background: rgba(15, 23, 42, 0.85);
+        [data-theme="dark"] .glass-card:hover {
+            background: rgba(15, 23, 42, 0.9);
             border-color: rgba(245, 158, 11, 0.3);
-            transform: translateY(-3px);
-            box-shadow: 0 12px 30px rgba(245, 158, 11, 0.1);
+            box-shadow: 0 12px 30px rgba(245, 158, 11, 0.14);
         }
 
-        /* Golden icon accents */
         .card-icon,
         .schema-icon,
         .table-icon {
@@ -788,45 +809,42 @@
         }
 
         ::-webkit-scrollbar-track {
-            background: rgba(255, 255, 255, 0.1);
+            background: rgba(148, 163, 184, 0.12);
             border-radius: 10px;
         }
 
         ::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, 0.3);
+            background: rgba(100, 116, 139, 0.45);
             border-radius: 10px;
         }
 
         ::-webkit-scrollbar-thumb:hover {
-            background: rgba(255, 255, 255, 0.5);
+            background: rgba(71, 85, 105, 0.62);
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation: none !important;
+                transition: none !important;
+                scroll-behavior: auto !important;
+            }
         }
     </style>
 </head>
 
 <body>
-    <!-- Mobile Controls -->
-    <div class="mobile-controls" style="display: none;">
-        <a href="#" class="logout-btn" onclick="handleLogout(); return false;">
-            <i class="fas fa-sign-out-alt"></i>
-            <span>Logout</span>
-        </a>
-        <div class="theme-toggle" onclick="toggleTheme()">
-            <i class="fas fa-moon"></i>
-            <span>Dark</span>
-        </div>
-    </div>
+    <!-- Header & Sidebar -->
 
-    <!-- Desktop Controls -->
+    <!-- Global Controls -->
+    <div class="theme-toggle" id="theme-toggle" onclick="toggleTheme()">
+        <i class="fas fa-moon"></i>
+        <span>Dark Mode</span>
+    </div>
     <a href="#" class="logout-btn" onclick="handleLogout(); return false;">
         <i class="fas fa-sign-out-alt"></i>
         <span>Logout</span>
     </a>
 
-    <!-- Theme Toggle -->
-    <div class="theme-toggle" onclick="toggleTheme()">
-        <i class="fas fa-moon"></i>
-        <span>Dark Mode</span>
-    </div>
 
     <!-- Toast Container -->
     <div class="toast-container" id="toastContainer"></div>
@@ -894,14 +912,14 @@
                 <i class="fas fa-arrow-right card-arrow"></i>
             </a>
 
-            <a href="#" onclick="showNesstarUpload(); return false;" class="glass-card fade-in">
+            <a href="/admin/nesta-upload" onclick="openNesstarPage(event)" class="glass-card fade-in">
                 <i class="fas fa-box-open card-icon"></i>
                 <h3 class="card-title">Nesstar Upload</h3>
                 <p class="card-description">Upload Nesstar studies (.nesstar) or packages (.zip) with embedded metadata and data</p>
                 <i class="fas fa-arrow-right card-arrow"></i>
             </a>
 
-            <a href="#" onclick="showNadaIngest(); return false;" class="glass-card fade-in">
+            <a href="/admin/nada-import" class="glass-card fade-in">
                 <i class="fas fa-cloud-download-alt card-icon"></i>
                 <h3 class="card-title">NADA Import</h3>
                 <p class="card-description">Download datasets from NADA and ingest automatically</p>
@@ -917,10 +935,10 @@
             </a>
 
             <!-- View Metadata -->
-            <a href="#" onclick="openMetadataBrowser(); return false;" class="glass-card fade-in">
+            <a href="/admin/metadata-browser" class="glass-card fade-in">
                 <i class="fas fa-file-alt card-icon"></i>
                 <h3 class="card-title">View Metadata</h3>
-                <p class="card-description">Browse datasets and view structured DDI metadata</p>
+                <p class="card-description">Browse datasets and view structured DDI metadata in a dedicated browser</p>
                 <i class="fas fa-arrow-right card-arrow"></i>
             </a>
 
@@ -941,8 +959,8 @@
             </a>
 
             <!-- Survey Configuration Panel -->
-            <a href="#" onclick="showConfigureVariables(); return false;" class="glass-card fade-in">
-                <i class="fas fa-cogs card-icon"></i>
+            <a href="/admin/survey-config" class="glass-card fade-in">
+                <i class="fas fa-sliders-h card-icon"></i>
                 <h3 class="card-title">Survey Configuration Panel</h3>
                 <p class="card-description">Configure table visibility and variable response behavior for users</p>
                 <i class="fas fa-arrow-right card-arrow"></i>
@@ -957,7 +975,7 @@
             </a>
 
             <!-- User Management -->
-            <a href="#" onclick="showToast('User management feature coming soon!', 'info')" class="glass-card fade-in">
+            <a href="/admin/user-management" class="glass-card fade-in">
                 <i class="fas fa-users card-icon"></i>
                 <h3 class="card-title">User Management</h3>
                 <p class="card-description">Manage user accounts, permissions, and access controls</p>
@@ -965,7 +983,7 @@
             </a>
 
             <!-- System Settings -->
-            <a href="#" onclick="showToast('System settings feature coming soon!', 'info')" class="glass-card fade-in">
+            <a href="/admin/system-settings" class="glass-card fade-in">
                 <i class="fas fa-cog card-icon"></i>
                 <h3 class="card-title">System Settings</h3>
                 <p class="card-description">Configure platform settings, security, and system preferences</p>
@@ -996,67 +1014,6 @@
             </div>
         </div>
 
-        <!-- Survey Configuration Panel -->
-        <div class="config-section" id="configSection">
-            <h2><i class="fas fa-sliders-h"></i> Survey Configuration Panel</h2>
-
-            <div class="schema-selector" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; align-items: end;">
-                <div>
-                    <label for="surveySelectConfig"><i class="fas fa-folder-tree"></i> Survey:</label>
-                    <select id="surveySelectConfig" onchange="loadConfigDatasets()">
-                        <option value="">Loading surveys...</option>
-                    </select>
-                </div>
-                <div>
-                    <label for="datasetSelectConfig"><i class="fas fa-calendar"></i> Dataset:</label>
-                    <select id="datasetSelectConfig" onchange="loadConfigTables()">
-                        <option value="">Select a survey first...</option>
-                    </select>
-                </div>
-                <div>
-                    <label for="tableSelectConfig"><i class="fas fa-table"></i> Table:</label>
-                    <select id="tableSelectConfig" onchange="loadVariables()">
-                        <option value="">Select a dataset first...</option>
-                    </select>
-                </div>
-            </div>
-            <div id="schemaInfo" style="margin-bottom: 20px;">
-            </div>
-
-            <div id="variablesForm" style="display: none;">
-                <div style="position: sticky; top: 10px; z-index: 10; display: flex; justify-content: space-between; gap: 10px; align-items: center; margin-bottom: 16px; padding: 12px; background: rgba(8, 18, 40, 0.92); border: 1px solid rgba(100, 116, 139, 0.35); border-radius: 12px;">
-                    <label style="display:flex; align-items:center; gap:10px; font-weight: 600; flex-wrap: wrap;">
-                        <span style="display:flex; align-items:center; gap:8px;">
-                            <input id="showTableToUsers" type="checkbox" checked />
-                            <span>Show Table to Users</span>
-                        </span>
-                        <span style="display:flex; align-items:center; gap:8px;">
-                            <input id="includeAllVariablesInApi" type="checkbox" onchange="applyBulkVariableToggle('include_in_api', this.checked)" />
-                            <span>Include All Variables in API</span>
-                        </span>
-                        <span style="display:flex; align-items:center; gap:8px;">
-                            <input id="filterableAllVariables" type="checkbox" onchange="applyBulkVariableToggle('filterable', this.checked)" />
-                            <span>Filterable All Variables</span>
-                        </span>
-                    </label>
-                    <div style="display:flex; gap:10px;">
-                        <button type="button" class="btn btn-cancel" onclick="hideConfigureVariables()">
-                            <i class="fas fa-times"></i> Cancel
-                        </button>
-                        <button type="button" class="btn btn-secondary" onclick="saveAllConfigurations()">
-                            <i class="fas fa-save"></i> Save All Configurations
-                        </button>
-                    </div>
-                </div>
-
-                <div style="margin-bottom: 10px; padding: 10px 12px; border: 1px solid rgba(100, 116, 139, 0.35); border-radius: 10px; background: rgba(8, 18, 40, 0.75); color: rgba(255,255,255,0.9); font-weight: 600;">
-                    <i class="fas fa-sliders-h"></i> Configuration Editor
-                </div>
-                <div id="variablesGrid" style="display:grid; grid-template-columns: repeat(auto-fill,minmax(260px,1fr)); gap: 10px;">
-                </div>
-            </div>
-        </div>
-
         <div class="config-section" id="nesstarSection">
             <h2><i class="fas fa-box-open"></i> Nesstar Upload</h2>
 
@@ -1080,7 +1037,7 @@
             <div class="schema-selector">
                 <label for="nesstarFile"><i class="fas fa-file-archive"></i> Nesstar Study / Package (.nesstar or .zip):</label>
                 <input id="nesstarFile" type="file" class="form-select" accept=".nesstar,.zip" />
-                <div style="color: rgba(255,255,255,0.75); font-size: 0.9rem; margin-top: 6px;">
+                <div style="color: var(--text-secondary); font-size: 0.9rem; margin-top: 6px;">
                     No Nesstar application needed. The system detects and ingests metadata and data automatically.
                 </div>
             </div>
@@ -1095,109 +1052,24 @@
             </div>
 
             <div id="nesstarUploadStatus" style="display:none; margin-top: 20px;">
-                <div id="nesstarBanner" style="display:none; padding: 12px 14px; border-radius: 10px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); margin-bottom: 12px;">
-                    <div id="nesstarBannerText" style="color: rgba(255,255,255,0.9); font-weight: 600;">Converting dataset using Nesstar…</div>
+                <div id="nesstarBanner" style="display:none; padding: 12px 14px; border-radius: 10px; background: var(--surface-muted); border: 1px solid var(--glass-border); margin-bottom: 12px;">
+                    <div id="nesstarBannerText" style="color: var(--text-primary); font-weight: 600;">Converting dataset using Nesstar…</div>
                     <div style="margin-top: 10px;">
-                        <div style="height: 10px; background: rgba(255,255,255,0.12); border-radius: 999px; overflow: hidden;">
+                        <div style="height: 10px; background: rgba(148, 163, 184, 0.2); border-radius: 999px; overflow: hidden;">
                             <div id="nesstarProgressFill" style="height: 100%; width: 0%; background: linear-gradient(135deg, #64748b 0%, #475569 100%);"></div>
                         </div>
-                        <div style="display:flex; justify-content: space-between; margin-top: 8px; color: rgba(255,255,255,0.8); font-size: 0.9rem;">
+                        <div style="display:flex; justify-content: space-between; margin-top: 8px; color: var(--text-secondary); font-size: 0.9rem;">
                             <div id="nesstarStageText">QUEUED</div>
                             <div id="nesstarPctText">0%</div>
                         </div>
-                        <div id="nesstarFileText" style="margin-top: 6px; color: rgba(255,255,255,0.75); font-size: 0.9rem;"></div>
-                        <a id="nesstarDetailsLink" href="#" style="display:none; margin-top: 8px; color: rgba(255,255,255,0.9); text-decoration: underline;">Open detailed progress</a>
+                        <div id="nesstarFileText" style="margin-top: 6px; color: var(--text-secondary); font-size: 0.9rem;"></div>
+                        <a id="nesstarDetailsLink" href="#" style="display:none; margin-top: 8px; color: var(--primary-color); text-decoration: underline;">Open detailed progress</a>
                     </div>
                 </div>
-                <pre id="nesstarUploadStatusText" style="white-space: pre-wrap; color: rgba(255,255,255,0.85); margin: 0;"></pre>
+                <pre id="nesstarUploadStatusText" style="white-space: pre-wrap; color: var(--text-secondary); margin: 0;"></pre>
             </div>
         </div>
 
-        <div class="config-section" id="nadaSection">
-            <h2><i class="fas fa-cloud-download-alt"></i> NADA Import</h2>
-
-            <div class="schema-selector">
-                <label for="nadaApiKeyOverride"><i class="fas fa-key"></i> NADA API Key:</label>
-                <input id="nadaApiKeyOverride" type="password" class="form-select" placeholder="Optional override (otherwise server uses .env API_KEY / NADA_API_KEY)" />
-                <div style="color: rgba(255,255,255,0.75); font-size: 0.9rem; margin-top: 6px;">
-                    If you see ACCESS-DENIED, paste your NADA API key here.
-                </div>
-            </div>
-
-            <div class="schema-selector">
-                <label for="nadaSearch"><i class="fas fa-search"></i> Browse Datasets:</label>
-                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                    <input id="nadaSearch" class="form-select" placeholder="Filter loaded datasets..." oninput="renderNadaDatasets()" />
-                    <select id="nadaLimit" class="form-select" style="max-width: 120px;" onchange="setNadaLimit()">
-                        <option value="15">15</option>
-                        <option value="50" selected>50</option>
-                        <option value="100">100</option>
-                        <option value="200">200</option>
-                    </select>
-                    <button type="button" class="btn btn-secondary" onclick="loadNadaDatasets(true)">
-                        <i class="fas fa-download"></i> Load Datasets
-                    </button>
-                    <button type="button" class="btn btn-secondary" onclick="loadNadaDatasets(false, 1, true)">
-                        <i class="fas fa-plus"></i> Load More
-                    </button>
-                    <button type="button" class="btn" onclick="loadNadaDatasets(false, -1)">
-                        <i class="fas fa-chevron-left"></i> Prev
-                    </button>
-                    <button type="button" class="btn" onclick="loadNadaDatasets(false, 1)">
-                        <i class="fas fa-chevron-right"></i> Next
-                    </button>
-                </div>
-                <div id="nadaDatasetsMeta" style="margin-top: 10px; color: rgba(255,255,255,0.75);"></div>
-                <div id="nadaDatasetsList" style="margin-top: 12px;"></div>
-            </div>
-
-            <div class="schema-selector">
-                <label for="nadaDatasetId"><i class="fas fa-database"></i> Dataset ID:</label>
-                <input id="nadaDatasetId" class="form-select" placeholder="e.g. DDI-IND-MOSPI-NSS-HCES23-24" />
-            </div>
-
-            <div class="schema-selector">
-                <label for="nadaSchema"><i class="fas fa-layer-group"></i> Target Schema:</label>
-                <select id="nadaSchema" class="form-select">
-                    <option value="">Loading schemas...</option>
-                </select>
-            </div>
-
-            <div class="schema-selector">
-                <label for="nadaFileNos"><i class="fas fa-list-ol"></i> File Numbers (optional):</label>
-                <input id="nadaFileNos" class="form-select" placeholder="e.g. 1,2,3" />
-                <div style="margin-top: 10px; display: flex; gap: 10px; flex-wrap: wrap;">
-                    <button type="button" class="btn" onclick="loadNadaFilesList()">
-                        <i class="fas fa-list"></i> Load Files
-                    </button>
-                    <button type="button" class="btn btn-cancel" onclick="clearNadaFilesSelection()">
-                        <i class="fas fa-eraser"></i> Clear Selection
-                    </button>
-                </div>
-                <div id="nadaFilesList" style="margin-top: 12px;"></div>
-            </div>
-
-            <div class="schema-selector">
-                <label for="nadaJobId"><i class="fas fa-tasks"></i> Job ID:</label>
-                <input id="nadaJobId" class="form-select" placeholder="Created after starting an import" />
-            </div>
-
-            <div class="form-actions">
-                <button type="button" class="btn btn-cancel" onclick="hideNadaIngest()">
-                    <i class="fas fa-times"></i> Close
-                </button>
-                <button type="button" class="btn btn-secondary" onclick="startNadaImport()">
-                    <i class="fas fa-play"></i> Download + Ingest
-                </button>
-                <button type="button" class="btn" onclick="refreshNadaJob()">
-                    <i class="fas fa-sync"></i> Refresh Status
-                </button>
-            </div>
-
-            <div id="nadaJobStatus" style="margin-top: 16px; display: none;">
-                <pre id="nadaJobStatusText" style="white-space: pre-wrap;"></pre>
-            </div>
-        </div>
 
         <!-- Home Link -->
         <div class="home-link fade-in">
@@ -1209,32 +1081,37 @@
     </div>
 
     <script>
+        const THEME_KEY = 'admin_dashboard_theme';
+
         // Theme Toggle Functionality
         function toggleTheme() {
-            const body = document.body;
-            const themeToggle = document.querySelector('.theme-toggle span');
-            const themeIcon = document.querySelector('.theme-toggle i');
+            const html = document.documentElement;
+            const currentTheme = html.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            html.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            updateThemeUI(newTheme);
+        }
 
-            if (body.getAttribute('data-theme') === 'dark') {
-                body.removeAttribute('data-theme');
-                themeToggle.textContent = 'Dark Mode';
-                themeIcon.className = 'fas fa-moon';
-                localStorage.setItem('theme', 'light');
+        function updateThemeUI(theme) {
+            const toggle = document.getElementById('theme-toggle');
+            if(!toggle) return;
+            if(theme === 'dark') {
+                toggle.innerHTML = '<i class="fas fa-sun"></i> <span>Light Mode</span>';
             } else {
-                body.setAttribute('data-theme', 'dark');
-                themeToggle.textContent = 'Light Mode';
-                themeIcon.className = 'fas fa-sun';
-                localStorage.setItem('theme', 'dark');
+                toggle.innerHTML = '<i class="fas fa-moon"></i> <span>Dark Mode</span>';
             }
         }
 
+        // Initialize Theme
+        (function initTheme() {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            updateThemeUI(savedTheme);
+        })();
+
         // Load saved theme
         document.addEventListener('DOMContentLoaded', function () {
-            const savedTheme = localStorage.getItem('theme');
-            if (savedTheme === 'dark') {
-                toggleTheme();
-            }
-
             // Animate stats on load
             animateStats();
 
@@ -1271,10 +1148,10 @@
                 }, 50);
             });
         }
-
         // Toast Notification Function
         function showToast(message, type = 'success') {
             const toastContainer = document.getElementById('toastContainer');
+            if(!toastContainer) return;
             const toast = document.createElement('div');
             toast.className = `toast ${type}`;
 
@@ -1306,27 +1183,6 @@
         // Load schemas for configuration
         async function loadSchemas() {
             try {
-                const surveysRes = await fetch('/surveys');
-                const surveys = await surveysRes.json();
-                const surveySel = document.getElementById('surveySelectConfig');
-                const datasetSel = document.getElementById('datasetSelectConfig');
-                const tableSel = document.getElementById('tableSelectConfig');
-                if (surveySel) {
-                    surveySel.innerHTML = '<option value="" disabled selected>Select Survey...</option>';
-                    (Array.isArray(surveys) ? surveys : []).forEach(s => {
-                        const opt = document.createElement('option');
-                        opt.value = s.survey;
-                        opt.textContent = s.display_name;
-                        surveySel.appendChild(opt);
-                    });
-                }
-                if (datasetSel) {
-                    datasetSel.innerHTML = '<option value="" disabled selected>Select a survey first...</option>';
-                }
-                if (tableSel) {
-                    tableSel.innerHTML = '<option value="" disabled selected>Select a dataset first...</option>';
-                }
-
                 const schemasRes = await fetch('/schemas');
                 const schemas = await schemasRes.json();
                 const populateSchemas = (id, placeholder) => {
@@ -1351,854 +1207,6 @@
             }
         }
 
-        // Show Configure Variables section
-        function showConfigureVariables() {
-            const configSection = document.getElementById('configSection');
-            configSection.classList.add('active');
-            configSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-
-        // Hide Configure Variables section
-        function hideConfigureVariables() {
-            const configSection = document.getElementById('configSection');
-            configSection.classList.remove('active');
-            document.getElementById('variablesForm').style.display = 'none';
-            const surveySel = document.getElementById('surveySelectConfig');
-            const datasetSel = document.getElementById('datasetSelectConfig');
-            const tableSel = document.getElementById('tableSelectConfig');
-            if (surveySel) surveySel.value = '';
-            if (datasetSel) datasetSel.innerHTML = '<option value="" disabled selected>Select a survey first...</option>';
-            if (tableSel) tableSel.innerHTML = '<option value="" disabled selected>Select a dataset first...</option>';
-        }
-
-        let nadaJobPoller = null;
-        let nesstarJobPoller = null;
-        let nadaDatasetOffset = 0;
-        let nadaDatasetLimit = 50;
-        let nadaDatasetsCache = [];
-        let nadaFilesCache = [];
-        let nadaSelectedFileNos = new Set();
-
-        function showNesstarUpload() {
-            hideConfigureVariables();
-            hideNadaIngest();
-            const section = document.getElementById('nesstarSection');
-            section.classList.add('active');
-            section.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-
-        function hideNesstarUpload() {
-            const section = document.getElementById('nesstarSection');
-            section.classList.remove('active');
-            const statusBox = document.getElementById('nesstarUploadStatus');
-            statusBox.style.display = 'none';
-            document.getElementById('nesstarUploadStatusText').textContent = '';
-            const btn = document.getElementById('nesstarUploadBtn');
-            btn.disabled = false;
-            btn.innerHTML = '<i class="fas fa-upload"></i> Start Upload';
-            const fileInput = document.getElementById('nesstarFile');
-            const yearInput = document.getElementById('nesstarYear');
-            const datasetInput = document.getElementById('nesstarDataset');
-            fileInput.value = '';
-            if(yearInput) yearInput.value = '';
-            if(datasetInput) datasetInput.value = '';
-            
-            if (nesstarJobPoller) {
-                clearInterval(nesstarJobPoller);
-                nesstarJobPoller = null;
-            }
-        }
-        
-        async function pollNesstarJob(jobId) {
-            try {
-                const response = await fetch(`/admin/upload/status/${encodeURIComponent(jobId)}`);
-                if (!response.ok) return;
-                
-                const job = await response.json();
-                
-                const status = (job.status || '').toUpperCase();
-                const state = (job.current_state || '').toUpperCase();
-                const isCompleted = status === 'COMPLETED' || state === 'COMPLETED';
-                const isFailed = status === 'FAILED' || state === 'FAILED';
-
-                // Update Progress UI
-                let pct = job.progress || 0;
-                
-                if (isCompleted) pct = 100;
-
-                document.getElementById('nesstarProgressFill').style.width = `${pct}%`;
-                document.getElementById('nesstarPctText').textContent = `${pct}%`;
-                
-                // Update Stage/Status Text
-                // Map job status/message to UI
-                let stage = (job.current_state || job.status || 'PROCESSING').toUpperCase();
-                let message = job.message || job.error || stage;
-                
-                if (isCompleted) {
-                    stage = 'COMPLETED';
-                    message = 'Ingestion complete';
-                    document.getElementById('nesstarProgressFill').style.background = 'var(--success-color)';
-                } else if (isFailed) {
-                    document.getElementById('nesstarProgressFill').style.background = 'var(--danger-color)';
-                } else {
-                     // Reset to default gradient if running
-                     document.getElementById('nesstarProgressFill').style.background = 'linear-gradient(135deg, #64748b 0%, #475569 100%)';
-                }
-
-                document.getElementById('nesstarStageText').textContent = stage;
-                document.getElementById('nesstarFileText').textContent = message;
-                
-                // Show raw logs if available (optional)
-                if (job.logs && job.logs.length) {
-                    // Just show last few logs or keep it simple
-                }
-
-                if (isCompleted || isFailed) {
-                    if (nesstarJobPoller) {
-                        clearInterval(nesstarJobPoller);
-                        nesstarJobPoller = null;
-                    }
-                    
-                    const btn = document.getElementById('nesstarUploadBtn');
-                    btn.disabled = false;
-                    btn.innerHTML = '<i class="fas fa-upload"></i> Start Upload';
-                    
-                    if (isCompleted) {
-                        showToast('Upload and ingestion completed successfully!', 'success');
-                    } else {
-                        showToast(`Upload failed: ${job.error || 'Unknown error'}`, 'error');
-                    }
-                }
-            } catch (e) {
-                console.error("Polling error:", e);
-            }
-        }
-
-        function startNesstarUpload() {
-            const schema = (document.getElementById('nesstarSchema').value || '').trim();
-            const year = (document.getElementById('nesstarYear').value || '').trim();
-            const dataset = (document.getElementById('nesstarDataset').value || '').trim();
-            const fileInput = document.getElementById('nesstarFile');
-            const file = fileInput.files && fileInput.files[0];
-            const btn = document.getElementById('nesstarUploadBtn');
-            const statusBox = document.getElementById('nesstarUploadStatus');
-            const banner = document.getElementById('nesstarBanner');
-            const statusText = document.getElementById('nesstarUploadStatusText');
-
-            if (!schema) {
-                showToast('Please select a target schema', 'error');
-                return;
-            }
-            if (!year) {
-                showToast('Please enter a year', 'error');
-                return;
-            }
-            if (!dataset) {
-                showToast('Please enter a dataset name', 'error');
-                return;
-            }
-
-            if (!file) {
-                showToast('Please select a .nesstar or .zip file', 'error');
-                return;
-            }
-            const lower = file.name.toLowerCase();
-            if (!(lower.endsWith('.zip') || lower.endsWith('.nesstar'))) {
-                showToast('Please select a valid .nesstar or .zip file', 'error');
-                return;
-            }
-
-            btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading...';
-            statusBox.style.display = 'block';
-            banner.style.display = 'block';
-            statusText.textContent = '';
-            
-            // Reset UI
-            document.getElementById('nesstarProgressFill').style.width = '0%';
-            document.getElementById('nesstarProgressFill').style.background = 'linear-gradient(135deg, #64748b 0%, #475569 100%)';
-            document.getElementById('nesstarStageText').textContent = 'UPLOADING';
-            document.getElementById('nesstarPctText').textContent = '0%';
-            document.getElementById('nesstarFileText').textContent = 'Uploading file...';
-
-            const formData = new FormData();
-            formData.append('schema', schema);
-            formData.append('year', year);
-            formData.append('dataset', dataset);
-            formData.append('file', file);
-
-            const xhr = new XMLHttpRequest();
-            xhr.upload.addEventListener('progress', function (e) {
-                if (!e.lengthComputable) return;
-                const pct = Math.floor((e.loaded / e.total) * 100);
-                // Only go up to 99% during upload, wait for job to confirm
-                const displayPct = Math.min(pct, 99); 
-                document.getElementById('nesstarProgressFill').style.width = `${displayPct}%`;
-                document.getElementById('nesstarPctText').textContent = `${displayPct}%`;
-            });
-
-            xhr.addEventListener('load', function () {
-                if (xhr.status === 200) {
-                    try {
-                        const resp = JSON.parse(xhr.responseText);
-                        if (resp && resp.job_id) {
-                            showToast('Upload successful. Processing started...', 'info');
-                            document.getElementById('nesstarStageText').textContent = 'QUEUED';
-                            document.getElementById('nesstarFileText').textContent = 'Job queued for processing...';
-                            
-                            // Start polling
-                            if (nesstarJobPoller) clearInterval(nesstarJobPoller);
-                            nesstarJobPoller = setInterval(() => pollNesstarJob(resp.job_id), 2000);
-                            pollNesstarJob(resp.job_id); // Immediate check
-                            return;
-                        } else if (resp && resp.progress_url) {
-                             // Fallback for legacy behavior if any
-                            window.location.href = resp.progress_url;
-                            return;
-                        }
-                    } catch (e) {
-                        console.error(e);
-                    }
-                    // Fallthrough to error handling if JSON parse fails or no job_id
-                }
-
-                let msg = 'Upload failed. Please try again.';
-                try {
-                    const data = JSON.parse(xhr.responseText);
-                    if (data && data.error) msg = data.error;
-                    else if (data && data.detail) msg = typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail);
-                } catch (e) { }
-                
-                document.getElementById('nesstarFileText').textContent = msg;
-                showToast(msg, 'error');
-                btn.disabled = false;
-                btn.innerHTML = '<i class="fas fa-upload"></i> Start Upload';
-            });
-
-            xhr.addEventListener('error', function () {
-                const msg = 'Upload failed. Please check your connection.';
-                document.getElementById('nesstarFileText').textContent = msg;
-                showToast(msg, 'error');
-                btn.disabled = false;
-                btn.innerHTML = '<i class="fas fa-upload"></i> Start Upload';
-            });
-
-            xhr.open('POST', '/upload/?response=json');
-            xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
-            xhr.setRequestHeader('Accept', 'application/json');
-            xhr.send(formData);
-        }
-
-        function showNadaIngest() {
-            hideConfigureVariables();
-            hideNesstarUpload();
-            const nadaSection = document.getElementById('nadaSection');
-            nadaSection.classList.add('active');
-            nadaSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-
-        function hideNadaIngest() {
-            const nadaSection = document.getElementById('nadaSection');
-            nadaSection.classList.remove('active');
-            const statusBox = document.getElementById('nadaJobStatus');
-            statusBox.style.display = 'none';
-            if (nadaJobPoller) {
-                clearInterval(nadaJobPoller);
-                nadaJobPoller = null;
-            }
-        }
-
-        function getNadaApiKeyOverride() {
-            const v = document.getElementById('nadaApiKeyOverride')?.value;
-            return (v || '').trim();
-        }
-
-        function getNadaHeaders() {
-            const key = getNadaApiKeyOverride();
-            if (!key) return {};
-            return { 'X-API-KEY': key };
-        }
-
-        function setNadaLimit() {
-            const sel = document.getElementById('nadaLimit');
-            const val = Number(sel?.value || 50);
-            nadaDatasetLimit = Number.isFinite(val) ? Math.min(Math.max(val, 1), 200) : 50;
-            nadaDatasetOffset = 0;
-            nadaDatasetsCache = [];
-            renderNadaDatasets();
-        }
-
-        async function startNadaImport() {
-            const datasetId = document.getElementById('nadaDatasetId').value.trim();
-            const schema = document.getElementById('nadaSchema').value.trim();
-            const fileNos = document.getElementById('nadaFileNos').value.trim();
-
-            if (!datasetId) {
-                showToast('Please enter a dataset ID', 'error');
-                return;
-            }
-
-            if (!schema) {
-                showToast('Please select a target schema', 'error');
-                return;
-            }
-
-            try {
-                showToast('Starting NADA import...', 'info');
-                const url = new URL(`/admin/nada/datasets/${encodeURIComponent(datasetId)}/download`, window.location.origin);
-                url.searchParams.set('schema', schema);
-                url.searchParams.set('ingest', 'true');
-                if (fileNos) {
-                    url.searchParams.set('file_nos', fileNos);
-                }
-
-                const response = await fetch(url.toString(), { method: 'POST', headers: getNadaHeaders() });
-                const data = await response.json();
-
-                if (!response.ok) {
-                    throw new Error(data?.detail || 'Failed to start import');
-                }
-
-                if (data.job_id) {
-                    document.getElementById('nadaJobId').value = data.job_id;
-                    showToast(`Import queued: ${data.job_id}`, 'success');
-                    await refreshNadaJob();
-                    if (nadaJobPoller) {
-                        clearInterval(nadaJobPoller);
-                    }
-                    nadaJobPoller = setInterval(() => {
-                        refreshNadaJob();
-                    }, 2000);
-                } else {
-                    showToast('Import started, but no job ID returned', 'warning');
-                    document.getElementById('nadaJobStatusText').textContent = JSON.stringify(data, null, 2);
-                    document.getElementById('nadaJobStatus').style.display = 'block';
-                }
-            } catch (e) {
-                showToast(e.message || 'Failed to start import', 'error');
-            }
-        }
-
-        async function refreshNadaJob() {
-            const jobId = document.getElementById('nadaJobId').value.trim();
-            if (!jobId) {
-                showToast('Please enter a job ID', 'error');
-                return;
-            }
-
-            try {
-                const response = await fetch(`/admin/nada/jobs/${encodeURIComponent(jobId)}`);
-                const data = await response.json();
-                if (!response.ok) {
-                    throw new Error(data?.detail || 'Failed to fetch job status');
-                }
-
-                document.getElementById('nadaJobStatusText').textContent = JSON.stringify(data, null, 2);
-                document.getElementById('nadaJobStatus').style.display = 'block';
-
-                const status = (data.status || '').toUpperCase();
-                if (status && (status === 'COMPLETED' || status === 'FAILED')) {
-                    if (nadaJobPoller) {
-                        clearInterval(nadaJobPoller);
-                        nadaJobPoller = null;
-                    }
-                    showToast(`Job ${status}`, status === 'COMPLETED' ? 'success' : 'error');
-                }
-            } catch (e) {
-                showToast(e.message || 'Failed to fetch job status', 'error');
-            }
-        }
-
-        function _extractNadaDatasetRows(payload) {
-            if (!payload) return [];
-            if (Array.isArray(payload)) return payload;
-            if (typeof payload !== 'object') return [];
-            for (const key of ['result', 'data']) {
-                const inner = payload[key];
-                if (Array.isArray(inner)) return inner;
-                if (inner && typeof inner === 'object') {
-                    for (const listKey of ['rows', 'datasets', 'result', 'data']) {
-                        const maybeList = inner[listKey];
-                        if (Array.isArray(maybeList)) return maybeList;
-                    }
-                }
-            }
-            for (const listKey of ['rows', 'datasets', 'result', 'data']) {
-                const maybeList = payload[listKey];
-                if (Array.isArray(maybeList)) return maybeList;
-            }
-            return [];
-        }
-
-        function _getNadaDatasetId(row) {
-            if (!row || typeof row !== 'object') return '';
-            for (const k of ['id', 'dataset_id', 'datasetId', 'study_id', 'studyId', 'surveyid', 'survey_id']) {
-                const v = row[k];
-                if (v !== undefined && v !== null && String(v).trim()) return String(v).trim();
-            }
-            if (row.study && typeof row.study === 'object') {
-                for (const k of ['id', 'study_id', 'studyId']) {
-                    const v = row.study[k];
-                    if (v !== undefined && v !== null && String(v).trim()) return String(v).trim();
-                }
-            }
-            return '';
-        }
-
-        function _getNadaDatasetTitle(row) {
-            if (!row || typeof row !== 'object') return '';
-            for (const k of ['title', 'study_title', 'studyTitle', 'name']) {
-                const v = row[k];
-                if (v !== undefined && v !== null && String(v).trim()) return String(v).trim();
-            }
-            if (row.study && typeof row.study === 'object') {
-                for (const k of ['title', 'study_title', 'studyTitle', 'name']) {
-                    const v = row.study[k];
-                    if (v !== undefined && v !== null && String(v).trim()) return String(v).trim();
-                }
-            }
-            return '';
-        }
-
-        function renderNadaDatasets() {
-            const listEl = document.getElementById('nadaDatasetsList');
-            const metaEl = document.getElementById('nadaDatasetsMeta');
-            const q = (document.getElementById('nadaSearch')?.value || '').trim().toLowerCase();
-
-            const rows = nadaDatasetsCache || [];
-            const filtered = q
-                ? rows.filter(r => {
-                    const id = _getNadaDatasetId(r).toLowerCase();
-                    const title = _getNadaDatasetTitle(r).toLowerCase();
-                    return id.includes(q) || title.includes(q);
-                })
-                : rows;
-
-            const toRender = filtered.slice(0, 200);
-            const suffix = filtered.length > toRender.length ? ` (displaying first ${toRender.length})` : '';
-            metaEl.textContent = `Showing ${filtered.length} dataset(s) (offset ${nadaDatasetOffset}, limit ${nadaDatasetLimit})${suffix}`;
-
-            if (!toRender.length) {
-                listEl.innerHTML = '<div style="color: rgba(255,255,255,0.7);">No datasets loaded.</div>';
-                return;
-            }
-
-            const itemsHtml = toRender.map(r => {
-                const id = _getNadaDatasetId(r);
-                const title = _getNadaDatasetTitle(r);
-                const safeId = (id || '').replace(/"/g, '&quot;');
-                const safeTitle = (title || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-                return `
-                    <div style="background: rgba(255,255,255,0.06); border: 1px solid var(--glass-border); border-radius: 12px; padding: 12px; margin-bottom: 10px;">
-                        <div style="display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap;">
-                            <div style="min-width: 260px;">
-                                <div style="color: rgba(255,255,255,0.95); font-weight: 600;">${safeId || '(no id)'}</div>
-                                <div style="color: rgba(255,255,255,0.75); font-size: 0.95rem;">${safeTitle}</div>
-                            </div>
-                            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                                <button type="button" class="btn btn-secondary" onclick="useNadaDatasetId('${safeId}')">
-                                    <i class="fas fa-check"></i> Use
-                                </button>
-                                <button type="button" class="btn" onclick="useNadaDatasetId('${safeId}'); loadNadaFilesList();">
-                                    <i class="fas fa-list"></i> Files
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            }).join('');
-
-            listEl.innerHTML = itemsHtml;
-        }
-
-        function useNadaDatasetId(datasetId) {
-            if (!datasetId) return;
-            document.getElementById('nadaDatasetId').value = datasetId;
-            showToast(`Selected dataset: ${datasetId}`, 'success');
-        }
-
-        async function loadNadaDatasets(reset = false, pageDelta = 0, append = false) {
-            try {
-                if (reset) {
-                    nadaDatasetOffset = 0;
-                    nadaDatasetsCache = [];
-                } else if (pageDelta !== 0) {
-                    nadaDatasetOffset = Math.max(0, nadaDatasetOffset + pageDelta * nadaDatasetLimit);
-                }
-
-                showToast('Loading NADA datasets...', 'info');
-                const url = new URL('/admin/nada/datasets', window.location.origin);
-                url.searchParams.set('limit', String(nadaDatasetLimit));
-                url.searchParams.set('offset', String(nadaDatasetOffset));
-
-                const response = await fetch(url.toString());
-                const data = await response.json();
-                if (!response.ok) {
-                    throw new Error(data?.detail || 'Failed to load datasets');
-                }
-
-                const rows = _extractNadaDatasetRows(data);
-                if (append && nadaDatasetsCache.length) {
-                    const seen = new Set(nadaDatasetsCache.map(r => _getNadaDatasetId(r)).filter(Boolean));
-                    for (const r of rows) {
-                        const id = _getNadaDatasetId(r);
-                        if (!id || !seen.has(id)) {
-                            nadaDatasetsCache.push(r);
-                            if (id) seen.add(id);
-                        }
-                    }
-                } else {
-                    nadaDatasetsCache = rows;
-                }
-                renderNadaDatasets();
-                if (!nadaDatasetsCache.length && nadaDatasetOffset > 0) {
-                    showToast('No more datasets on this page', 'info');
-                }
-            } catch (e) {
-                showToast(e.message || 'Failed to load datasets', 'error');
-            }
-        }
-
-        function _extractNadaFilesRows(payload) {
-            if (!payload) return [];
-            if (Array.isArray(payload)) return payload;
-            if (typeof payload !== 'object') return [];
-            for (const key of ['result', 'data']) {
-                const inner = payload[key];
-                if (Array.isArray(inner)) return inner;
-                if (inner && typeof inner === 'object') {
-                    for (const listKey of ['files', 'rows', 'data', 'result']) {
-                        const maybeList = inner[listKey];
-                        if (Array.isArray(maybeList)) return maybeList;
-                    }
-                }
-            }
-            for (const listKey of ['files', 'rows', 'data', 'result']) {
-                const maybeList = payload[listKey];
-                if (Array.isArray(maybeList)) return maybeList;
-            }
-            return [];
-        }
-
-        function _getNadaFileNo(item) {
-            if (!item || typeof item !== 'object') return '';
-            for (const k of ['FileNo', 'file_no', 'fileNo', 'fileno', 'file_number', 'id']) {
-                const v = item[k];
-                if (v !== undefined && v !== null && String(v).trim()) return String(v).trim();
-            }
-            return '';
-        }
-
-        function _getNadaFileName(item) {
-            if (!item || typeof item !== 'object') return '';
-            for (const k of ['file_name', 'filename', 'FileName', 'name', 'title']) {
-                const v = item[k];
-                if (v !== undefined && v !== null && String(v).trim()) return String(v).trim();
-            }
-            return '';
-        }
-
-        function clearNadaFilesSelection() {
-            nadaSelectedFileNos = new Set();
-            document.getElementById('nadaFileNos').value = '';
-            const listEl = document.getElementById('nadaFilesList');
-            if (listEl) listEl.innerHTML = '';
-        }
-
-        function _syncNadaFileNosInput() {
-            const arr = Array.from(nadaSelectedFileNos);
-            arr.sort((a, b) => {
-                const na = Number(a), nb = Number(b);
-                if (!Number.isNaN(na) && !Number.isNaN(nb)) return na - nb;
-                return String(a).localeCompare(String(b));
-            });
-            document.getElementById('nadaFileNos').value = arr.join(',');
-        }
-
-        function toggleNadaFileNo(fileNo, checked) {
-            if (!fileNo) return;
-            if (checked) {
-                nadaSelectedFileNos.add(String(fileNo));
-            } else {
-                nadaSelectedFileNos.delete(String(fileNo));
-            }
-            _syncNadaFileNosInput();
-        }
-
-        async function loadNadaFilesList() {
-            const datasetId = document.getElementById('nadaDatasetId').value.trim();
-            if (!datasetId) {
-                showToast('Please enter a dataset ID', 'error');
-                return;
-            }
-
-            try {
-                showToast('Loading dataset files...', 'info');
-                const url = new URL(`/admin/nada/datasets/${encodeURIComponent(datasetId)}/fileslist`, window.location.origin);
-                const response = await fetch(url.toString(), { headers: getNadaHeaders() });
-                const data = await response.json();
-                if (!response.ok) {
-                    throw new Error(data?.detail || 'Failed to load fileslist');
-                }
-
-                nadaFilesCache = _extractNadaFilesRows(data);
-                const listEl = document.getElementById('nadaFilesList');
-                if (!nadaFilesCache.length) {
-                    listEl.innerHTML = '<div style="color: rgba(255,255,255,0.7);">No downloadable files found.</div>';
-                    return;
-                }
-
-                const html = nadaFilesCache.slice(0, 200).map(item => {
-                    const no = _getNadaFileNo(item);
-                    const name = _getNadaFileName(item) || '';
-                    const checked = nadaSelectedFileNos.has(String(no)) ? 'checked' : '';
-                    const safeNo = (no || '').replace(/"/g, '&quot;');
-                    const safeName = (name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-                    return `
-                        <div style="display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--glass-border); border-radius: 10px; margin-bottom: 8px; background: rgba(255,255,255,0.05);">
-                            <input type="checkbox" ${checked} onchange="toggleNadaFileNo('${safeNo}', this.checked)" />
-                            <div style="flex: 1; min-width: 240px;">
-                                <div style="color: rgba(255,255,255,0.95); font-weight: 600;">File #${safeNo || '?'}</div>
-                                <div style="color: rgba(255,255,255,0.75); font-size: 0.92rem;">${safeName}</div>
-                            </div>
-                        </div>
-                    `;
-                }).join('');
-                listEl.innerHTML = html;
-            } catch (e) {
-                showToast(e.message || 'Failed to load fileslist', 'error');
-            }
-        }
-
-        window.addEventListener('load', () => {
-            const sel = document.getElementById('nadaLimit');
-            const val = Number(sel?.value || nadaDatasetLimit);
-            nadaDatasetLimit = Number.isFinite(val) ? Math.min(Math.max(val, 1), 200) : nadaDatasetLimit;
-        });
-
-        let currentConfigPayload = null;
-
-        async function loadConfigDatasets() {
-            const surveySel = document.getElementById('surveySelectConfig');
-            const datasetSel = document.getElementById('datasetSelectConfig');
-            const tableSel = document.getElementById('tableSelectConfig');
-            if (!surveySel || !datasetSel) return;
-            const survey = surveySel.value;
-            datasetSel.innerHTML = '<option value="" disabled selected>Loading datasets...</option>';
-            if (tableSel) tableSel.innerHTML = '<option value="">Select a dataset first...</option>';
-            document.getElementById('variablesForm').style.display = 'none';
-            document.getElementById('schemaInfo').innerHTML = '';
-            currentConfigPayload = null;
-            try {
-                const res = await fetch(`/surveys/${survey}/datasets`);
-                const datasets = await res.json();
-                datasetSel.innerHTML = '';
-                const def = document.createElement('option');
-                def.value = '';
-                def.textContent = 'Select Dataset...';
-                def.disabled = true;
-                def.selected = true;
-                datasetSel.appendChild(def);
-                (Array.isArray(datasets) ? datasets : []).forEach(d => {
-                    const opt = document.createElement('option');
-                    opt.value = d.schema;
-                    opt.textContent = d.display_name;
-                    datasetSel.appendChild(opt);
-                });
-            } catch (e) {
-                datasetSel.innerHTML = '<option value="" disabled selected>Error loading datasets</option>';
-            }
-        }
-
-        async function loadConfigTables() {
-            const surveySel = document.getElementById('surveySelectConfig');
-            const datasetSel = document.getElementById('datasetSelectConfig');
-            const tableSel = document.getElementById('tableSelectConfig');
-            const survey = surveySel ? surveySel.value : '';
-            const dataset = datasetSel ? datasetSel.value : '';
-            tableSel.innerHTML = '<option value="" disabled selected>Loading tables...</option>';
-            document.getElementById('variablesForm').style.display = 'none';
-            currentConfigPayload = null;
-            if (!survey || !dataset) {
-                tableSel.innerHTML = '<option value="" disabled selected>Select dataset first...</option>';
-                return;
-            }
-            try {
-                const res = await fetch(`/surveys/${survey}/${encodeURIComponent(dataset)}/tables`);
-                const tables = await res.json();
-                tableSel.innerHTML = '';
-                const def = document.createElement('option');
-                def.value = '';
-                def.textContent = 'Select Table...';
-                def.disabled = true;
-                def.selected = true;
-                tableSel.appendChild(def);
-                (Array.isArray(tables) ? tables : []).forEach(t => {
-                    const opt = document.createElement('option');
-                    opt.value = t.table_name;
-                    opt.textContent = t.table_name;
-                    tableSel.appendChild(opt);
-                });
-            } catch (e) {
-                tableSel.innerHTML = '<option value="" disabled selected>Error loading tables</option>';
-            }
-        }
-
-        async function loadVariables() {
-            const datasetSel = document.getElementById('datasetSelectConfig');
-            const tableSel = document.getElementById('tableSelectConfig');
-            const selectedSchema = datasetSel ? datasetSel.value : '';
-            const selectedTable = tableSel ? tableSel.value : '';
-
-            if (!selectedSchema || !selectedTable) {
-                document.getElementById('variablesForm').style.display = 'none';
-                return;
-            }
-
-            try {
-                showToast('Loading variables...', 'info');
-                const response = await fetch(`/admin/schemas/${encodeURIComponent(selectedSchema)}/variables?table=${encodeURIComponent(selectedTable)}`);
-                const data = await response.json();
-
-                if (data.error) {
-                    throw new Error(data.error);
-                }
-
-                currentConfigPayload = data;
-                populateVariables(data.variables, selectedSchema);
-                document.getElementById('variablesForm').style.display = 'block';
-                document.getElementById('showTableToUsers').checked = !!data.show_table_to_users;
-                showToast(`Loaded ${data.total_variables} variables from table ${data.table}`, 'success');
-                const schemaInfo = document.getElementById('schemaInfo');
-                if (schemaInfo) {
-                    schemaInfo.innerHTML = `
-                <div style="background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); 
-                           border-radius: 10px; padding: 15px; margin-bottom: 20px;">
-                    <h4 style="color: #f59e0b; margin-bottom: 10px;">
-                        <i class="fas fa-info-circle"></i> Schema: ${data.schema} • Table: ${data.table}
-                    </h4>
-                    <p style="color: rgba(255,255,255,0.9); margin: 0;">
-                        <strong>${data.total_variables}</strong> variables loaded
-                    </p>
-                </div>
-            `;
-                }
-            } catch (error) {
-                console.error('Error loading variables:', error);
-                showToast(`Failed to load variables: ${error.message}`, 'error');
-            }
-        }
-
-        function populateVariables(variables, schema) {
-            const grid = document.getElementById('variablesGrid');
-            grid.innerHTML = '';
-            (Array.isArray(variables) ? variables : []).forEach(variable => {
-                const card = document.createElement('div');
-                card.className = 'variable-config-card';
-                card.style.cssText = 'background: rgba(8, 18, 40, 0.85); border: 1px solid rgba(100, 116, 139, 0.28); border-radius: 10px; padding: 10px;';
-                card.dataset.variable = variable.variable_name;
-                card.innerHTML = `
-                    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
-                        <div style="font-weight:700; color:#f8fafc; font-size:12px;">${variable.variable_name}</div>
-                        <span style="font-size:10px; padding:2px 6px; border-radius:999px; background:rgba(245,158,11,0.18); color:#f59e0b; border:1px solid rgba(245,158,11,0.35);">${variable.data_type || 'type'}</span>
-                    </div>
-                    <div style="display:grid; gap:8px;">
-                        <label style="display:flex; justify-content:space-between; align-items:center; font-size:12px;">
-                            <span>Include in API</span>
-                            <input type="checkbox" data-key="include_in_api" onchange="updateBulkToggleStates()" ${variable.include_in_api ? 'checked' : ''}>
-                        </label>
-                        <label style="display:flex; justify-content:space-between; align-items:center; font-size:12px;">
-                            <span>Filterable</span>
-                            <input type="checkbox" data-key="filterable" onchange="updateBulkToggleStates()" ${variable.filterable ? 'checked' : ''}>
-                        </label>
-                        <label style="display:flex; justify-content:space-between; align-items:center; font-size:12px;">
-                            <span>Sensitive</span>
-                            <input type="checkbox" data-key="is_sensitive" ${variable.is_sensitive ? 'checked' : ''}>
-                        </label>
-                        <label style="display:flex; justify-content:space-between; align-items:center; font-size:12px;">
-                            <span>Min Rows</span>
-                            <input type="number" data-key="min_rows" min="1" value="${variable.min_rows || 5}" style="max-width:90px;">
-                        </label>
-                    </div>
-                `;
-                grid.appendChild(card);
-            });
-            updateBulkToggleStates();
-        }
-
-        function applyBulkVariableToggle(key, checked) {
-            const cards = Array.from(document.querySelectorAll('.variable-config-card'));
-            cards.forEach(card => {
-                const el = card.querySelector(`[data-key="${key}"]`);
-                if (el) {
-                    el.checked = checked;
-                }
-            });
-            updateBulkToggleStates();
-        }
-
-        function updateBulkToggleStates() {
-            const syncOne = (key, targetId) => {
-                const target = document.getElementById(targetId);
-                if (!target) return;
-                const items = Array.from(document.querySelectorAll(`.variable-config-card [data-key="${key}"]`));
-                if (!items.length) {
-                    target.checked = false;
-                    target.indeterminate = false;
-                    return;
-                }
-                const checkedCount = items.filter(i => i.checked).length;
-                target.checked = checkedCount === items.length;
-                target.indeterminate = checkedCount > 0 && checkedCount < items.length;
-            };
-            syncOne('include_in_api', 'includeAllVariablesInApi');
-            syncOne('filterable', 'filterableAllVariables');
-        }
-
-        async function saveAllConfigurations() {
-            const datasetSel = document.getElementById('datasetSelectConfig');
-            const tableSel = document.getElementById('tableSelectConfig');
-            const schema = (datasetSel ? datasetSel.value : '').trim();
-            const table = (tableSel ? tableSel.value : '').trim();
-            if (!schema || !table) {
-                showToast('Select survey, dataset and table first', 'error');
-                return;
-            }
-            try {
-                showToast('Saving configurations...', 'info');
-                const cards = Array.from(document.querySelectorAll('.variable-config-card'));
-                const configs = cards.map(card => {
-                    const getEl = (k) => card.querySelector(`[data-key="${k}"]`);
-                    return {
-                        variable_name: card.dataset.variable,
-                        include_in_api: !!getEl('include_in_api')?.checked,
-                        filterable: !!getEl('filterable')?.checked,
-                        is_sensitive: !!getEl('is_sensitive')?.checked,
-                        min_rows: Number(getEl('min_rows')?.value || 5),
-                    };
-                });
-                const response = await fetch('/admin/update-variable-config', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        schema,
-                        table,
-                        show_table_to_users: !!document.getElementById('showTableToUsers').checked,
-                        configs
-                    })
-                });
-                const result = await response.json();
-                if (response.ok && !result.error) {
-                    showToast(`Saved ${result.updated_count} variable configurations`, 'success');
-                } else {
-                    throw new Error(result.error || `HTTP ${response.status}: ${response.statusText}`);
-                }
-            } catch (error) {
-                console.error('Full error details:', error);
-                showToast(`Failed to save: ${error.message}`, 'error');
-            }
-        }
-
         // Card hover effects
         document.querySelectorAll('.glass-card').forEach(card => {
             card.addEventListener('mouseenter', function () {
@@ -2213,8 +1221,8 @@
         // Mobile responsive controls
         function checkMobile() {
             const mobileControls = document.querySelector('.mobile-controls');
-            const desktopLogout = document.querySelector('.logout-btn:not(.mobile-controls .logout-btn)');
-            const desktopTheme = document.querySelector('.theme-toggle:not(.mobile-controls .theme-toggle)');
+            const desktopLogout = document.querySelector('body > .logout-btn');
+            const desktopTheme = document.getElementById('desktopThemeToggle');
 
             if (window.innerWidth <= 768) {
                 if (mobileControls) mobileControls.style.display = 'flex';
@@ -2233,11 +1241,7 @@
         // Keyboard navigation
         document.addEventListener('keydown', function (e) {
             if (e.key === 'Escape') {
-                if (document.getElementById('configSection').classList.contains('active')) {
-                    hideConfigureVariables();
-                } else {
-                    window.location.href = '/';
-                }
+                window.location.href = '/';
             }
         });
 
@@ -2245,8 +1249,7 @@
         async function handleLogout() {
             try {
                 const logoutBtn = document.querySelector('.logout-btn');
-                const originalContent = logoutBtn.innerHTML;
-
+                if(!logoutBtn) return;
                 logoutBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>Logging out...</span>';
                 logoutBtn.style.pointerEvents = 'none';
 
@@ -2273,20 +1276,22 @@
                 showToast('Logout failed. Please try again.', 'error');
 
                 const logoutBtn = document.querySelector('.logout-btn');
-                logoutBtn.innerHTML = '<i class="fas fa-sign-out-alt"></i><span>Logout</span>';
-                logoutBtn.style.pointerEvents = 'auto';
+                if(logoutBtn) {
+                    logoutBtn.innerHTML = '<i class="fas fa-sign-out-alt"></i><span>Logout</span>';
+                    logoutBtn.style.pointerEvents = 'auto';
+                }
             }
         }
 
         function openMetadataBrowser() {
             const modal = document.getElementById('metadataModal');
-            modal.style.display = 'block';
+            if(modal) modal.style.display = 'block';
             loadDashboardSchemas();
         }
 
         function closeMetadataBrowser() {
             const modal = document.getElementById('metadataModal');
-            modal.style.display = 'none';
+            if(modal) modal.style.display = 'none';
         }
 
         function _escapeHtml(s) {
@@ -2298,6 +1303,7 @@
                 const res = await fetch('/schemas');
                 const data = await res.json();
                 const select = document.getElementById('metadataSchema');
+                if(!select) return;
                 select.innerHTML = '';
 
                 const def = document.createElement('option');
@@ -2315,15 +1321,19 @@
                     select.appendChild(opt);
                 }
 
-                document.getElementById('metadataDatasetCards').innerHTML = '<div style="color: rgba(255,255,255,0.5); font-style: italic; font-size: 0.9rem;">Select a survey first...</div>';
+                const container = document.getElementById('metadataDatasetCards');
+                if(container) container.innerHTML = '<div style="color: rgba(255,255,255,0.5); font-style: italic; font-size: 0.9rem;">Select a survey first...</div>';
             } catch (e) {
                 showToast('Failed to load schemas for metadata', 'error');
             }
         }
 
         async function loadDashboardDatasets() {
-            const schema = document.getElementById('metadataSchema').value;
+            const select = document.getElementById('metadataSchema');
+            if(!select) return;
+            const schema = select.value;
             const container = document.getElementById('metadataDatasetCards');
+            if(!container) return;
             container.innerHTML = '<div style="color: rgba(255,255,255,0.75);">Loading datasets...</div>';
             try {
                 const res = await fetch(`/schemas/${schema}/datasets`);
@@ -2347,6 +1357,17 @@
                 container.innerHTML = '<div style="color: rgba(255,255,255,0.7);">Failed to load datasets.</div>';
             }
         }
+
+        // Functions for Nesstar/Nesta (simplified for the new direct links)
+        function hideNesstarUpload() {
+            const section = document.getElementById('nesstarSection');
+            if(section) section.classList.remove('active');
+        }
+
+        function openNesstarPage(e) {
+              // Now handled by direct link, but keeping this for potential logic
+        }
+
     </script>
 </body>
 

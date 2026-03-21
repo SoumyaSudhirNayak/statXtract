@@ -4,48 +4,67 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Advanced Data Analytics Platform</title>
+    <title>Advanced Data Analytics Platform - Query</title>
 
     <!-- CDN Libraries -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-zoom/2.0.1/chartjs-plugin-zoom.min.js"></script>
 
-    <!-- Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@700;800;900&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
 
     <style>
         :root {
-            /* Purple Color Scheme */
-            --primary-color: #64748b;
-            --primary-gradient: linear-gradient(135deg, #64748b 0%, #475569 100%);
-            --secondary-color: #f59e0b;
-            --secondary-gradient: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-            --success-color: #f59e0b;
+            /* Standard Theme Tokens */
+            --primary-color: #2E5BBA;
+            --primary-gradient: linear-gradient(135deg, #2E5BBA 0%, #1F3A5F 100%);
+            --secondary-color: #F4A300;
+            --secondary-gradient: linear-gradient(135deg, #F4A300 0%, #D97706 100%);
+            --success-color: #2E7D32;
+            --warning-color: #F4A300;
+            --danger-color: #D4183D;
+            --primary-color: #2e5bba;
+            --primary-gradient: linear-gradient(135deg, #2e5bba 0%, #1e3c72 100%);
+            --secondary-color: #64748b;
+            --success-color: #10b981;
+            --danger-color: #d4183d;
             --warning-color: #f59e0b;
-            --danger-color: #ef4444;
-            --dark-color: #2d3748;
-            --light-color: #f7fafc;
-            --text-light: #ffffff;
-            --text-dark: #2d3748;
+            
+            --bg-color: #f8fafc;
+            /* Main changes for Pure White */
+            --glass-bg: #ffffff;
+            --surface-bg: #ffffff;
+            --surface-muted: #f1f5f9; /* Solid background for inputs/columns grid */
+            --glass-border: rgba(226, 232, 240, 0.8);
+            
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --text-on-primary: #ffffff;
+            
+            --shadow-light: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+            --shadow-heavy: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
 
-            /* Glass morphism with purple colors */
-            --glass-bg: rgba(15, 23, 42, 0.7);
-            --glass-border: rgba(100, 116, 139, 0.25);
-            --shadow-light: 0 8px 32px rgba(15, 23, 42, 0.3);
-            --shadow-heavy: 0 20px 40px rgba(0, 0, 0, 0.4);
-            --border-radius: 20px;
-            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            --border-radius: 16px;
+            --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            
+            --font-head: 'Poppins', sans-serif;
+            --font-body: 'Inter', sans-serif;
         }
 
         [data-theme="dark"] {
-            --dark-color: #f7fafc;
-            --light-color: #1a202c;
-            --text-light: #f7fafc;
-            --text-dark: #1a202c;
-            --glass-bg: rgba(0, 0, 0, 0.15);
-            --glass-border: rgba(255, 255, 255, 0.1);
+            --primary-color: #6366F1;
+            --primary-gradient: linear-gradient(135deg, #6366F1 0%, #4F46E5 100%);
+            --text-main: #F8FAFC;
+            --text-muted: rgba(255, 255, 255, 0.7);
+            --bg-page: linear-gradient(135deg, #0F172A 0%, #1E293B 50%, #334155 100%);
+            --surface-bg: #0F172A;
+            --surface-muted: #1E293B;
+            --glass-bg: #0F172A;
+            --glass-border: rgba(100, 116, 139, 0.25);
+            --shadow-light: 0 8px 32px rgba(0, 0, 0, 0.3);
         }
 
         * {
@@ -55,531 +74,448 @@
         }
 
         body {
-            font-family: 'Inter', sans-serif;
-            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%);
+            font-family: var(--font-body);
+            background: var(--bg-page);
             min-height: 100vh;
-            color: var(--text-light);
+            color: var(--text-main);
             transition: var(--transition);
             overflow-x: hidden;
+            padding: 0;
+            margin: 0;
         }
 
-        /* Theme Toggle */
+        /* Standard Controls */
+        .logout-btn,
         .theme-toggle {
             position: fixed;
             top: 20px;
-            right: 20px;
+            z-index: 1100;
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: 50px;
+            padding: 10px 20px;
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-main);
+            font-weight: 600;
+            box-shadow: var(--shadow-light);
+            text-decoration: none;
+        }
+
+        .logout-btn { left: 20px; }
+        .theme-toggle { right: 20px; }
+
+        .logout-btn:hover,
+        .theme-toggle:hover {
+            transform: translateY(-2px);
+            background: var(--primary-color);
+            color: var(--text-on-primary);
+            box-shadow: var(--shadow-heavy);
+        }
+
+        .app-nav {
+            position: fixed;
+            top: 4px;
+            left: 50%;
+            transform: translateX(-50%);
             z-index: 1000;
             background: var(--glass-bg);
             backdrop-filter: blur(20px);
             border: 1px solid var(--glass-border);
             border-radius: 50px;
-            padding: 12px 20px;
-            cursor: pointer;
-            transition: var(--transition);
+            padding: 8px 24px;
+            box-shadow: var(--shadow-light);
             display: flex;
             align-items: center;
-            gap: 8px;
-            color: var(--text-light);
+            gap: 15px;
+        }
+
+        .crumb-icon {
+            color: var(--primary-color);
+            font-size: 0.9rem;
+        }
+
+        .crumb {
             font-weight: 500;
-        }
-
-        .theme-toggle:hover {
-            transform: translateY(-2px);
-            box-shadow: var(--shadow-light);
-        }
-
-        /* Sidebar Navigation */
-        .sidebar {
-            position: fixed;
-            left: 0;
-            top: 0;
-            width: 280px;
-            height: 100vh;
-            background: var(--glass-bg);
-            backdrop-filter: blur(20px);
-            border-right: 1px solid var(--glass-border);
-            padding: 30px 20px;
-            z-index: 999;
-            transform: translateX(-100%);
-            transition: var(--transition);
-            overflow-y: auto;
-        }
-
-        .sidebar.active {
-            transform: translateX(0);
-        }
-
-        .sidebar-header {
-            text-align: center;
-            margin-bottom: 40px;
-            color: var(--text-light);
-        }
-
-        .sidebar-header h2 {
-            font-size: 1.5rem;
-            font-weight: 700;
-            margin-bottom: 5px;
-            background: var(--primary-gradient);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-
-        .sidebar-nav {
-            list-style: none;
-        }
-
-        .sidebar-nav li {
-            margin-bottom: 10px;
-        }
-
-        .sidebar-nav a {
-            display: flex;
-            align-items: center;
-            padding: 15px 20px;
-            color: rgba(255, 255, 255, 0.8);
-            text-decoration: none;
-            border-radius: 15px;
-            transition: var(--transition);
-            gap: 15px;
-        }
-
-        .sidebar-nav a:hover {
-            background: rgba(255, 255, 255, 0.1);
-            color: var(--text-light);
-            transform: translateX(5px);
-        }
-
-        /* Main Container */
-        .main-container {
-            margin-left: 0;
-            padding: 30px;
-            min-height: 100vh;
-            transition: var(--transition);
-        }
-
-        .main-container.sidebar-open {
-            margin-left: 280px;
-        }
-
-        /* Header */
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 40px;
-            background: var(--glass-bg);
-            backdrop-filter: blur(20px);
-            border: 1px solid var(--glass-border);
-            border-radius: var(--border-radius);
-            padding: 25px 30px;
-            color: var(--text-light);
-        }
-
-        .header h1 {
-            font-size: 2rem;
-            font-weight: 700;
-            background: linear-gradient(135deg, #fff 0%, #f0f0f0 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-
-        .hamburger {
-            display: none;
-            background: none;
-            border: none;
-            color: var(--text-light);
-            font-size: 1.5rem;
-            cursor: pointer;
-            padding: 10px;
-            border-radius: 10px;
-            transition: var(--transition);
-        }
-
-        .hamburger:hover {
-            background: rgba(255, 255, 255, 0.1);
-        }
-
-        /* Glass Morphism Cards */
-        .glass-card {
-            background: var(--glass-bg);
-            backdrop-filter: blur(20px);
-            border: 1px solid var(--glass-border);
-            border-radius: var(--border-radius);
-            padding: 30px;
-            margin-bottom: 30px;
-            box-shadow: var(--shadow-light);
-            transition: var(--transition);
-            position: relative;
-            overflow: hidden;
-        }
-
-        .glass-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 1px;
-            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
-        }
-
-        .glass-card:hover {
-            transform: translateY(-5px);
-            box-shadow: var(--shadow-heavy);
-        }
-
-        /* Form Elements */
-        .form-group {
-            margin-bottom: 25px;
-            position: relative;
-        }
-
-        .form-label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 600;
-            color: var(--text-light);
+            color: var(--text-muted);
             font-size: 0.9rem;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
         }
 
-        .form-input,
-        .form-select {
-            width: 100%;
-            padding: 15px 20px;
-            background: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 15px;
-            color: var(--text-light);
-            font-size: 1rem;
-            transition: var(--transition);
-            backdrop-filter: blur(10px);
-        }
-
-        /* FIXED: Better visibility for form elements */
-        .form-select option {
-            background: var(--dark-color);
-            color: var(--text-light);
-            padding: 10px;
-        }
-
-        [data-theme="dark"] .form-select option {
-            background: var(--light-color);
-            color: var(--text-dark);
-        }
-
-        .form-input::placeholder {
-            color: rgba(255, 255, 255, 0.6);
-        }
-
-        .form-input:focus,
-        .form-select:focus {
-            outline: none;
-            border-color: var(--primary-color);
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.3);
-            transform: translateY(-2px);
-            background: rgba(255, 255, 255, 0.2);
-        }
-
-        /* Advanced Buttons */
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 12px 24px;
-            background: var(--primary-gradient);
-            color: var(--text-light);
-            border: none;
-            border-radius: 15px;
-            font-weight: 600;
-            text-decoration: none;
-            cursor: pointer;
-            transition: var(--transition);
-            position: relative;
-            overflow: hidden;
+        .crumb-active {
+            font-weight: 700;
+            color: var(--primary-color);
             font-size: 0.9rem;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
         }
 
-        .btn::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-            transition: var(--transition);
+        .chev {
+            color: var(--text-muted);
+            font-size: 0.7rem;
         }
 
-        .btn:hover::before {
-            left: 100%;
+        .page-shell {
+            max-width: 100%;
+            margin: 0;
+            padding: 0;
+            animation: fadeIn 0.8s ease-out;
         }
 
-        .btn:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
-        }
-
-        .btn-secondary {
-            background: var(--secondary-gradient);
-        }
-
-        .btn-success {
-            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-        }
-
-        .btn-warning {
-            background: linear-gradient(135deg, #ffd93d 0%, #ffb300 100%);
-        }
-
-        .btn-danger {
-            background: linear-gradient(135deg, #ff6b6b 0%, #ff5252 100%);
-        }
-
-        /* FIXED: Column Selection Grid */
-        .columns-grid {
+        .query-layout {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 15px;
-            margin-top: 20px;
-            max-height: 400px;
-            overflow-y: auto;
-            padding: 10px;
+            grid-template-columns: 360px 1fr;
+            gap: 0;
+            align-items: start;
+            min-height: 100vh;
         }
 
-        .column-item {
-            background: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 12px;
-            padding: 15px;
-            transition: var(--transition);
-            cursor: pointer;
+        .panel {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow-light);
+            padding: 24px;
+        }
+
+        .form-panel {
+            position: sticky;
+            top: 0;
+            left: 0;
+            height: 100vh;
+            max-height: 100vh;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            border-radius: 0;
+            border-top: none;
+            border-left: none;
+            border-bottom: none;
+            padding: 30px 24px;
+        }
+
+        .config-header {
+            padding: 0 0 20px 0;
+            margin-bottom: 20px;
+            border-bottom: 1px solid var(--glass-border);
             display: flex;
             align-items: center;
             gap: 12px;
-            overflow: hidden;
-            word-wrap: break-word;
-            min-height: 50px;
         }
 
-        .column-item:hover {
-            background: rgba(255, 255, 255, 0.2);
-            transform: scale(1.02);
+        .config-header h2 {
+            font-family: var(--font-head);
+            font-size: 1.1rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--primary-color);
+            margin: 0;
+        }
+
+        .form-stack {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .form-label {
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .form-select, .form-input, textarea.form-input {
+            width: 100%;
+            padding: 12px 16px;
+            background: var(--surface-muted);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            color: var(--text-main);
+            font-size: 0.95rem;
+            font-family: inherit;
+            transition: var(--transition);
+        }
+
+        .form-select:focus, .form-input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(46, 91, 186, 0.1);
+        }
+
+        .btn {
+            padding: 12px 20px;
+            border-radius: 10px;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: var(--transition);
+            font-family: inherit;
+            font-size: 0.9rem;
+        }
+
+        .btn-primary {
+            background: var(--primary-gradient);
+            color: var(--text-on-primary);
+        }
+
+        .btn-secondary {
+            background: var(--surface-muted);
+            color: var(--text-main);
+            border: 1px solid var(--glass-border);
+        }
+
+        .btn-success { background: var(--success-color); color: var(--text-on-primary); }
+        .btn-warning { background: var(--warning-color); color: var(--text-on-primary); }
+        .btn-danger { background: var(--danger-color); color: var(--text-on-primary); }
+
+        .btn-sm { padding: 8px 16px; font-size: 0.85rem; }
+
+        .columns-grid {
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            background: var(--surface-muted);
+            max-height: 200px;
+            overflow-y: auto;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .column-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.9rem;
+            padding: 4px 0;
+            color: var(--text-main);
         }
 
         .column-item input[type="checkbox"] {
             width: 18px;
             height: 18px;
             accent-color: var(--primary-color);
-            flex-shrink: 0;
-        }
-
-        .column-item label {
-            color: var(--text-light);
             cursor: pointer;
-            font-weight: 500;
-            flex: 1;
-            word-break: break-word;
-            overflow-wrap: break-word;
-            line-height: 1.4;
-            font-size: 0.9rem;
         }
 
-        /* Results Container */
-        .results-container {
+        .results-container, .table-results-container, .chart-results-container {
             background: var(--glass-bg);
             backdrop-filter: blur(20px);
             border: 1px solid var(--glass-border);
             border-radius: var(--border-radius);
-            overflow: hidden;
             box-shadow: var(--shadow-light);
+            overflow: hidden;
+            margin-bottom: 24px;
         }
 
         .results-header {
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--glass-border);
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 25px 30px;
-            background: rgba(255, 255, 255, 0.05);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
         }
 
         .results-header h3 {
-            color: var(--text-light);
-            font-size: 1.3rem;
-            font-weight: 600;
-        }
-
-        .view-toggle {
-            display: flex;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 12px;
-            padding: 5px;
-            gap: 5px;
-        }
-
-        .view-toggle button {
-            padding: 10px 20px;
-            background: transparent;
-            border: none;
-            color: rgba(255, 255, 255, 0.7);
-            border-radius: 8px;
-            cursor: pointer;
-            transition: var(--transition);
-            font-weight: 500;
-        }
-
-        .view-toggle button.active {
-            background: var(--primary-gradient);
-            color: var(--text-light);
-            transform: scale(1.05);
-        }
-
-        /* Chart Controls */
-        .chart-controls {
-            display: none;
-            background: rgba(255, 255, 255, 0.05);
-            padding: 20px 30px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-            flex-wrap: wrap;
-            gap: 20px;
-            align-items: center;
-        }
-
-        .chart-controls.active {
-            display: flex;
-        }
-
-        .chart-control-group {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-
-        .chart-control-group label {
-            color: var(--text-light);
-            font-size: 0.8rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .chart-control-group select {
-            min-width: 150px;
-            padding: 10px 15px;
-            background: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 10px;
-            color: var(--text-light);
-            font-size: 0.9rem;
-        }
-
-        .chart-control-group select option {
-            background: var(--dark-color);
-            color: var(--text-light);
-        }
-
-        [data-theme="dark"] .chart-control-group select option {
-            background: var(--light-color);
-            color: var(--text-dark);
-        }
-
-        /* Table Styles */
-        .table-container {
-            max-height: 600px;
-            overflow-x: auto;
-            overflow-y: auto;
-            padding: 30px;
-            background: rgba(15, 23, 42, 0.3);
-            border-radius: 15px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            font-family: var(--font-head);
+            font-weight: 700;
+            color: var(--text-main);
         }
 
         .data-table {
             width: 100%;
-            min-width: 1000px;
-            border-collapse: separate;
-            border-spacing: 0;
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 15px;
-            overflow: hidden;
+            border-collapse: collapse;
         }
 
         .data-table th {
-            background: rgba(255, 255, 255, 0.1);
-            color: var(--text-light);
-            padding: 15px 20px;
+            background: var(--surface-muted);
+            padding: 14px 20px;
             text-align: left;
             font-weight: 600;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            border-bottom: 2px solid var(--glass-border);
             position: sticky;
             top: 0;
-            z-index: 5;
+            z-index: 10;
             white-space: nowrap;
         }
 
         .data-table td {
             padding: 12px 20px;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-            color: var(--text-light);
-            transition: var(--transition);
-            white-space: nowrap;
+            border-bottom: 1px solid var(--glass-border);
+            font-size: 0.95rem;
+            color: var(--text-main);
         }
 
-        .data-table tbody tr:hover {
-            background: rgba(255, 255, 255, 0.1);
-        }
-
-        /* Chart Container */
-        .chart-container {
-            padding: 30px;
-            display: none;
-        }
-
-        .chart-container.active {
-            display: block;
-            animation: fadeIn 0.5s ease-in-out;
-        }
+        .data-table tr:hover { background: rgba(46, 91, 186, 0.03); }
 
         .chart-canvas-wrapper {
-            position: relative;
-            height: 500px;
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 15px;
-            padding: 20px;
+            padding: 24px;
+            background: var(--surface-bg);
+            min-height: 400px;
+            border-radius: 12px;
         }
 
-        /* Loading Animation */
+        .filter-mode-toggle {
+            display: flex;
+            background: var(--surface-muted);
+            border-radius: 10px;
+            padding: 4px;
+            gap: 4px;
+        }
+
+        .mode-btn {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            background: transparent;
+            color: var(--text-muted);
+            transition: var(--transition);
+        }
+
+        .mode-btn.active {
+            background: var(--primary-gradient);
+            color: var(--text-on-primary);
+        }
+
+        .filter-row {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            background: var(--surface-muted);
+            padding: 14px;
+            border-radius: 12px;
+            border: 1px solid var(--glass-border);
+            margin-bottom: 12px;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        .filter-main-controls {
+            display: grid;
+            grid-template-columns: 1fr 100px 32px;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .filter-value-container {
+            width: 100%;
+        }
+
+        /* Categorical Grid */
+        .cat-select-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            max-height: 150px;
+            overflow-y: auto;
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 10px;
+            padding: 8px;
+        }
+
+        .cat-option {
+            padding: 5px 12px;
+            background: var(--surface-muted);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            font-size: 0.78rem;
+            font-weight: 500;
+            color: var(--text-main);
+            cursor: pointer;
+            transition: var(--transition);
+            user-select: none;
+        }
+
+        .cat-option:hover {
+            border-color: var(--primary-color);
+            background: rgba(46, 91, 186, 0.05);
+        }
+
+        .cat-option.selected {
+            background: var(--primary-gradient);
+            color: white;
+            border-color: var(--primary-color);
+            box-shadow: 0 4px 10px rgba(46, 91, 186, 0.2);
+        }
+
+        .range-input-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .range-sep {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        .filter-remove-btn {
+            background: rgba(212, 24, 61, 0.1);
+            color: var(--danger-color);
+            border: none;
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            cursor: pointer;
+            display: grid;
+            place-items: center;
+            transition: var(--transition);
+        }
+
+        .filter-remove-btn:hover { background: var(--danger-color); color: white; }
+
+        /* Loader */
         .loading-spinner {
             display: none;
             justify-content: center;
             align-items: center;
             padding: 40px;
         }
-
         .loading-spinner.active {
             display: flex;
         }
-
         .spinner {
             width: 40px;
             height: 40px;
-            border: 4px solid rgba(255, 255, 255, 0.3);
+            border: 4px solid var(--surface-muted);
             border-top: 4px solid var(--primary-color);
             border-radius: 50%;
             animation: spin 1s linear infinite;
         }
 
-        /* Toast Notifications */
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Toast notifications */
         .toast-container {
             position: fixed;
-            top: 20px;
+            top: 100px;
             right: 20px;
-            z-index: 1001;
+            z-index: 2000;
             display: flex;
             flex-direction: column;
             gap: 10px;
@@ -589,927 +525,605 @@
             background: var(--glass-bg);
             backdrop-filter: blur(20px);
             border: 1px solid var(--glass-border);
-            border-radius: 15px;
-            padding: 15px 20px;
-            color: var(--text-light);
-            min-width: 300px;
-            transform: translateX(100%);
+            padding: 12px 24px;
+            border-radius: 50px;
+            box-shadow: var(--shadow-heavy);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: var(--text-main);
+            font-weight: 600;
             animation: slideIn 0.3s ease-out forwards;
+        }
+
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+        /* Button hover lift */
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-heavy);
+            filter: brightness(1.08);
+        }
+
+        /* Limit / Offset grid */
+        .limit-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        /* Action row (Execute + export) */
+        .action-row {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .execute-btn {
+            width: 100%;
+            padding: 14px 20px;
+            font-size: 1rem;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+        }
+
+        /* Progress bar */
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: var(--surface-muted);
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 16px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            width: 0%;
+            background: var(--primary-gradient);
+            border-radius: 10px;
+            transition: width 0.35s ease;
+        }
+
+        /* Results wrap */
+        .results-wrap {
+            min-width: 0; /* Fixes horizontal scroll blowout in grid */
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+            padding: 24px;
+            margin-top: 20px;
+        }
+
+        /* Table container */
+        .table-container {
+            max-height: 600px;
+            overflow-y: auto;
+            overflow-x: auto;
+            border-bottom-left-radius: 12px;
+            border-bottom-right-radius: 12px;
+        }
+
+        .table-view-shell {
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Pagination  */
+        .pagination-controls {
+            display: flex;
+            padding: 12px 24px;
+            border-bottom: 1px solid var(--glass-border);
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            background: var(--surface-muted);
+            align-items: center;
+        }
+
+        .pagination-controls span {
+            color: var(--text-main);
+        }
+
+        /* Chart controls area */
+        .chart-controls {
+            display: flex;
+            gap: 16px;
+            align-items: flex-end;
+            flex-wrap: wrap;
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--glass-border);
+            background: var(--surface-muted);
+        }
+
+        .chart-control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .chart-control-group label {
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+        }
+
+        .chart-control-group select {
+            min-width: 130px;
+            padding: 10px 14px;
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 10px;
+            color: var(--text-main);
+            font-size: 0.9rem;
+            font-family: inherit;
+            font-weight: 500;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .chart-control-group select:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(46, 91, 186, 0.1);
+        }
+
+        /* Chart container */
+        .chart-container {
+            padding: 24px;
+        }
+
+        /* FAB (scroll to top) */
+        .fab {
+            position: fixed;
+            right: 24px;
+            bottom: 24px;
+            width: 48px;
+            height: 48px;
+            border: none;
+            border-radius: 50%;
+            background: var(--primary-gradient);
+            color: var(--text-on-primary);
+            font-size: 1rem;
+            box-shadow: var(--shadow-heavy);
+            cursor: pointer;
+            z-index: 900;
+            transition: var(--transition);
+            display: grid;
+            place-items: center;
+        }
+
+        .fab:hover {
+            transform: translateY(-3px) scale(1.05);
+        }
+
+        /* Empty result banner */
+        .empty-result-banner {
+            text-align: center;
+            padding: 60px 24px;
+            color: var(--text-muted);
+        }
+
+        .empty-result-banner i {
+            display: block;
+            margin-bottom: 16px;
+            color: var(--primary-color);
+            font-size: 3rem;
+            opacity: 0.7;
+        }
+
+        .empty-result-banner p {
+            font-family: var(--font-head);
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: var(--text-main);
+            margin-bottom: 8px;
+        }
+
+        .empty-result-banner small {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+        }
+
+        /* Filter chips */
+        .filter-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            border-radius: 999px;
+            border: 1px solid var(--primary-color);
+            background: rgba(46, 91, 186, 0.08);
+            color: var(--primary-color);
+            font-size: 0.8rem;
+            font-weight: 600;
+            padding: 6px 14px;
+        }
+
+        .chip-remove {
+            width: 18px;
+            height: 18px;
+            border: 0;
+            border-radius: 999px;
+            display: grid;
+            place-items: center;
+            cursor: pointer;
+            background: rgba(212, 24, 61, 0.1);
+            color: var(--danger-color);
+            font-size: 0.6rem;
+            transition: var(--transition);
+        }
+
+        .chip-remove:hover {
+            background: var(--danger-color);
+            color: white;
+        }
+
+        /* Category select grid */
+        .cat-select-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            max-height: 130px;
+            overflow-y: auto;
+            padding: 4px 0;
+        }
+
+        .cat-option {
+            border: 1px solid var(--glass-border);
+            border-radius: 10px;
+            padding: 6px 14px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            background: var(--glass-bg);
+            color: var(--text-main);
+            transition: var(--transition);
+        }
+
+        .cat-option:hover {
+            border-color: var(--primary-color);
+        }
+
+        .cat-option.selected {
+            border-color: var(--primary-color);
+            background: rgba(46, 91, 186, 0.1);
+            color: var(--primary-color);
+            font-weight: 600;
+        }
+
+        /* Range inputs */
+        .range-input-group {
             display: flex;
             align-items: center;
             gap: 10px;
         }
 
-        .toast.success {
-            border-left: 4px solid var(--success-color);
+        .range-sep {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            font-weight: 600;
         }
 
-        .toast.error {
-            border-left: 4px solid var(--danger-color);
+        .slider-wrapper {
+            position: relative;
+            padding-top: 14px;
         }
 
-        .toast.warning {
-            border-left: 4px solid var(--warning-color);
-        }
-
-        /* Floating Action Button */
-        .fab {
-            position: fixed;
-            bottom: 30px;
-            right: 30px;
-            width: 60px;
-            height: 60px;
-            background: var(--primary-gradient);
-            border: none;
-            border-radius: 50%;
-            color: var(--text-light);
-            font-size: 1.5rem;
-            cursor: pointer;
-            box-shadow: var(--shadow-heavy);
-            transition: var(--transition);
-            z-index: 1000;
-        }
-
-        .fab:hover {
-            transform: scale(1.1) translateY(-3px);
-            box-shadow: 0 15px 35px rgba(102, 126, 234, 0.4);
-        }
-
-        /* Animations */
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: translateY(20px);
-            }
-
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        @keyframes slideIn {
-            from {
-                transform: translateX(100%);
-            }
-
-            to {
-                transform: translateX(0);
-            }
-        }
-
-        @keyframes spin {
-            from {
-                transform: rotate(0deg);
-            }
-
-            to {
-                transform: rotate(360deg);
-            }
-        }
-
-        /* Progress Bar */
-        .progress-bar {
+        .slider-wrapper input[type=range] {
+            -webkit-appearance: none;
+            appearance: none;
             width: 100%;
             height: 4px;
-            background: rgba(255, 255, 255, 0.2);
-            border-radius: 2px;
+            background: var(--glass-border);
+            border-radius: 999px;
+            position: absolute;
+            pointer-events: none;
+        }
+
+        .slider-wrapper input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            pointer-events: auto;
+            width: 16px;
+            height: 16px;
+            border-radius: 999px;
+            background: var(--primary-color);
+            cursor: pointer;
+        }
+
+        .slider-labels {
+            margin-top: 20px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        /* Smart filter sections */
+        #smartFilterSection {
+            max-height: 300px;
             overflow: hidden;
-            margin: 20px 0;
         }
 
-        .progress-fill {
-            height: 100%;
-            background: var(--primary-gradient);
-            width: 0%;
-            transition: width 0.3s ease;
-            border-radius: 2px;
+        #filterRows {
+            max-height: 220px;
+            overflow-y: auto;
+            padding-right: 4px;
         }
 
-        /* Responsive Design */
-        @media (max-width: 1024px) {
-            .main-container {
-                margin-left: 0;
-                padding: 20px;
-            }
+        /* View toggle (table/chart switch) */
+        .view-toggle {
+            display: none;
+        }
 
-            .hamburger {
-                display: block;
-            }
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(107, 114, 128, 0.2); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(107, 114, 128, 0.4); }
 
-            .columns-grid {
-                grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-            }
+        @media (max-width: 1100px) {
+            .query-layout { grid-template-columns: 1fr; }
+            .form-panel { position: static; max-height: none; }
         }
 
         @media (max-width: 768px) {
-            .header {
-                flex-direction: column;
-                gap: 20px;
-                text-align: center;
-            }
-
-            .results-header {
-                flex-direction: column;
-                gap: 15px;
-            }
-
             .chart-controls {
                 flex-direction: column;
                 align-items: stretch;
             }
-
-            .view-toggle {
-                width: 100%;
-                justify-content: center;
+            .results-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 12px;
             }
-
-            .theme-toggle {
-                position: static;
-                margin-bottom: 20px;
-            }
-
-            .columns-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .data-table th,
-            .data-table td {
-                max-width: 150px;
+            .logout-btn, .theme-toggle {
+                padding: 8px 14px;
                 font-size: 0.8rem;
             }
-        }
-
-        /* Hover Effects */
-        .hover-lift {
-            transition: var(--transition);
-        }
-
-        .hover-lift:hover {
-            transform: translateY(-3px);
-        }
-
-        /* Selection Highlight */
-        ::selection {
-            background: rgba(102, 126, 234, 0.3);
-        }
-
-        /* Scrollbar Styling */
-        ::-webkit-scrollbar {
-            width: 8px;
-        }
-
-        ::-webkit-scrollbar-track {
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 10px;
-        }
-
-        ::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, 0.3);
-            border-radius: 10px;
-        }
-
-        ::-webkit-scrollbar-thumb:hover {
-            background: rgba(255, 255, 255, 0.5);
-        }
-
-        /* User Controls Styling */
-        .user-controls {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 1000;
-            display: flex;
-            gap: 15px;
-            align-items: center;
-        }
-
-        /* Logout Button */
-        .logout-btn {
-            background: rgba(255, 107, 107, 0.2);
-            backdrop-filter: blur(20px);
-            border: 1px solid var(--danger-color, #ff6b6b);
-            border-radius: 50px;
-            padding: 12px 20px;
-            color: var(--text-light, #ffffff);
-            text-decoration: none;
-            font-weight: 500;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-family: 'Inter', sans-serif;
-        }
-
-        .logout-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(255, 107, 107, 0.4);
-            background: rgba(255, 107, 107, 0.3);
-            color: var(--text-light, #ffffff);
-        }
-
-        .logout-btn:active {
-            transform: translateY(0);
-        }
-
-        /* Theme Toggle for Users */
-        .theme-toggle {
-            background: rgba(255, 255, 255, 0.15);
-            backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 50px;
-            padding: 12px 20px;
-            cursor: pointer;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            color: var(--text-light, #ffffff);
-            font-weight: 500;
-        }
-
-        .theme-toggle:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 32px rgba(102, 126, 234, 0.37);
-        }
-
-        /* Mobile Responsive */
-        @media (max-width: 768px) {
-            .user-controls {
-                top: 10px;
-                right: 10px;
-                flex-direction: column;
-                gap: 10px;
+            .app-nav {
+                padding: 6px 16px;
+                font-size: 0.8rem;
             }
-
-            .logout-btn,
-            .theme-toggle {
-                padding: 10px 15px;
-                font-size: 0.9rem;
-            }
-        }
-
-        /* Logout Button Styling */
-        .logout-btn {
-            position: fixed;
-            top: 20px;
-            left: 20px;
-            z-index: 1000;
-            background: rgba(255, 107, 107, 0.2);
-            backdrop-filter: blur(20px);
-            border: 1px solid #ff6b6b;
-            border-radius: 50px;
-            padding: 12px 20px;
-            color: #ffffff;
-            text-decoration: none;
-            font-weight: 500;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-family: 'Inter', sans-serif;
-        }
-
-        .logout-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(255, 107, 107, 0.4);
-            background: rgba(255, 107, 107, 0.3);
-            color: #ffffff;
-        }
-
-        .logout-btn:active {
-            transform: translateY(0);
-        }
-
-        /* Mobile responsive */
-        @media (max-width: 768px) {
-            .logout-btn {
-                top: 10px;
-                left: 10px;
-                padding: 10px 15px;
-                font-size: 0.9rem;
-            }
-        }
-    
-        
-        /* Enhanced subtle theme with golden touch */
-        .glass-card {
-            background: rgba(15, 23, 42, 0.75);
-            backdrop-filter: blur(20px) saturate(120%);
-            border: 1px solid rgba(100, 116, 139, 0.25);
-        }
-
-        .glass-card:hover {
-            background: rgba(15, 23, 42, 0.85);
-            border-color: rgba(245, 158, 11, 0.3);
-            transform: translateY(-3px);
-            box-shadow: 0 12px 30px rgba(245, 158, 11, 0.1);
-        }
-
-        .btn {
-            background: var(--primary-gradient);
-            border: 1px solid rgba(100, 116, 139, 0.3);
-            box-shadow: 0 4px 12px rgba(15, 23, 42, 0.2);
-        }
-
-        .btn:hover {
-            box-shadow: 0 8px 20px rgba(15, 23, 42, 0.3);
-            transform: translateY(-2px);
-        }
-
-        /* Golden accent buttons */
-        .btn-secondary,
-        .btn.secondary {
-            background: var(--secondary-gradient);
-            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.2);
-        }
-
-        .btn-secondary:hover,
-        .btn.secondary:hover {
-            box-shadow: 0 8px 20px rgba(245, 158, 11, 0.3);
-        }
-
-        .form-input {
-            background: rgba(15, 23, 42, 0.6);
-            border: 1px solid rgba(100, 116, 139, 0.3);
-        }
-
-        .form-input:focus {
-            background: rgba(15, 23, 42, 0.8);
-            border-color: #f59e0b;
-            box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2);
-        }
-
-        /* Golden success states */
-        .success-message,
-        .toast.success {
-            background: rgba(245, 158, 11, 0.2);
-            border-color: var(--secondary-color);
-            color: #fbbf24;
-        }
-
-        /* Golden badges and highlights */
-        .stat-badge {
-            background: rgba(245, 158, 11, 0.2);
-            border: 1px solid var(--secondary-color);
-            color: #fbbf24;
-        }
-
-        /* Golden icon accents */
-        .card-icon,
-        .schema-icon,
-        .table-icon {
-            color: var(--secondary-color);
-        }
-
-        /* Subtle golden highlights */
-        .user-role {
-            background: rgba(245, 158, 11, 0.2);
-            border: 1px solid rgba(245, 158, 11, 0.3);
-            color: #fbbf24;
         }
     </style>
 </head>
 
 <body>
-    <!-- Add this logout button to your query_ui.html -->
-    <!-- You can place it in the top-right corner or wherever appropriate -->
-
-    <!-- Add this to your query_ui.html -->
-    <div class="user-controls">
-        <a href="#" class="logout-btn" onclick="handleLogout(); return false;">
-            <i class="fas fa-sign-out-alt"></i>
-            <span>Logout</span>
-        </a>
-    </div>
-
-
-    <!-- Theme Toggle (if you want) -->
-    <div class="theme-toggle" onclick="toggleTheme()">
-        <i class="fas fa-moon"></i>
-        <span>Dark Mode</span>
-    </div>
-    </div>
-
-    <!-- Theme Toggle -->
-    <div class="theme-toggle" onclick="toggleTheme()">
-        <i class="fas fa-moon"></i>
-        <span>Dark Mode</span>
-    </div>
-
-    <!-- Toast Container -->
     <div class="toast-container" id="toastContainer"></div>
 
-    <!-- Sidebar -->
-    <nav class="sidebar" id="sidebar">
-        <div class="sidebar-header">
-            <h2>statXtract</h2>
-            <p>Team KRYPTOS</p>
-        </div>
-        <ul class="sidebar-nav">
-            <li><a href="#dashboard"><i class="fas fa-chart-pie"></i> Dashboard</a></li>
-            <li><a href="#query"><i class="fas fa-search"></i> Query Builder</a></li>
-            <li><a href="#visualize"><i class="fas fa-chart-bar"></i> Visualizations</a></li>
-            <li><a href="#export"><i class="fas fa-download"></i> Export Data</a></li>
-            <li><a href="#settings"><i class="fas fa-cog"></i> Settings</a></li>
-        </ul>
-    </nav>
+    <header>
+        <nav class="app-nav">
+            <div class="crumb-icon"><i class="fas fa-chart-pie"></i></div>
+            <a href="/admin/dashboard" class="crumb" style="text-decoration:none;">Dashboard</a>
+            <span class="chev"><i class="fas fa-chevron-right"></i></span>
+            <span class="crumb-active">Advanced Query</span>
+        </nav>
 
-    <!-- Main Container -->
-    <div class="main-container" id="mainContainer">
-        <!-- Header -->
-        <header class="header">
-            <div style="display: flex; align-items: center; gap: 20px;">
-                <button class="hamburger" onclick="toggleSidebar()">
-                    <i class="fas fa-bars"></i>
-                </button>
-                <h1>STATXTRACT</h1>
-            </div>
-            <div style="display: flex; align-items: center; gap: 15px;">
-                <div style="color: rgba(255,255,255,0.8); font-size: 0.9rem;">
-                    <i class="fas fa-database"></i> Connected
+        <div class="theme-toggle" id="themeToggle" onclick="toggleTheme()">
+            <i class="fas fa-moon"></i>
+            <span>Dark Mode</span>
+        </div>
+    </header>
+
+    <div class="page-shell" id="mainContainer">
+        <div class="query-layout">
+            <div class="panel form-panel">
+                <div class="config-header">
+                    <i class="fas fa-sliders-h" style="color: var(--primary-color); font-size: 1.2rem;"></i>
+                    <h2>Config Panel</h2>
                 </div>
-            </div>
-            <!-- User Info Section (add this to your query page header) -->
-            <div class="user-info">
-                <div class="user-details">
-                    <div class="user-avatar">
-                        <i class="fas fa-user-circle"></i>
+                <div class="form-stack">
+                    <div class="form-group">
+                        <label class="form-label"><i class="fas fa-layer-group"></i> Select Survey</label>
+                        <select class="form-select" id="survey">
+                            <option selected disabled>Loading surveys...</option>
+                        </select>
                     </div>
-                    <div class="user-text">
-                        <span class="username">{{ username or "User" }}</span>
-                        <span class="user-email">{{ email or "user@example.com" }}</span>
-                        <span class="user-role">{{ (role or "user")|title }} Access</span>
+
+                    <div class="form-group">
+                        <label class="form-label"><i class="fas fa-calendar"></i> Select Dataset</label>
+                        <select class="form-select" id="dataset">
+                            <option selected disabled>Select a survey first...</option>
+                        </select>
                     </div>
-                </div>
-            </div>
 
-        </header>
+                    <div class="form-group">
+                        <label class="form-label"><i class="fas fa-table"></i> Select Table</label>
+                        <select class="form-select" id="table"></select>
+                    </div>
 
-        <!-- Survey Selection -->
-        <div class="glass-card hover-lift">
-            <div class="form-group">
-                <label class="form-label">
-                    <i class="fas fa-layer-group"></i> Select Survey
-                </label>
-                <select class="form-select" id="survey">
-                    <option selected disabled>Loading surveys...</option>
-                </select>
-            </div>
-        </div>
-
-        <!-- Dataset Selection -->
-        <div class="glass-card hover-lift">
-            <div class="form-group">
-                <label class="form-label">
-                    <i class="fas fa-calendar"></i> Select Dataset
-                </label>
-                <select class="form-select" id="dataset">
-                    <option selected disabled>Select a survey first...</option>
-                </select>
-            </div>
-        </div>
-
-        <!-- Table Selection -->
-        <div class="glass-card hover-lift">
-            <div class="form-group">
-                <label class="form-label">
-                    <i class="fas fa-table"></i> Select Table
-                </label>
-                <select class="form-select" id="table"></select>
-            </div>
-        </div>
-
-        <!-- Column Selection -->
-        <div class="glass-card hover-lift">
-            <div class="form-group">
-                <label class="form-label">
-                    <i class="fas fa-columns"></i> Select Columns
-                </label>
-                <div style="display: flex; gap: 10px; margin-bottom: 20px;">
-                    <button class="btn btn-sm" onclick="toggleAllColumns(true)">
-                        <i class="fas fa-check-double"></i> Select All
-                    </button>
-                    <button class="btn btn-secondary btn-sm" onclick="toggleAllColumns(false)">
-                        <i class="fas fa-times"></i> Deselect All
-                    </button>
-                </div>
-                <div class="columns-grid" id="columns-grid"></div>
-            </div>
-        </div>
-
-        <!-- Filter Builder -->
-        <div class="glass-card hover-lift" id="filterBuilderCard">
-            <div class="form-group">
-                <label class="form-label" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
-                    <span><i class="fas fa-filter"></i> Filters</span>
-                    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
-                        <!-- Mode Toggle -->
-                        <div class="filter-mode-toggle" id="filterModeToggle">
-                            <button class="mode-btn active" data-mode="smart" onclick="setFilterMode('smart')">
-                                <i class="fas fa-magic"></i> Smart
+                    <div class="form-group">
+                        <label class="form-label"><i class="fas fa-columns"></i> Select Columns</label>
+                        <div style="display:flex; gap:10px; margin-bottom:10px;">
+                            <button class="btn btn-primary btn-sm" onclick="toggleAllColumns(true)">
+                                <i class="fas fa-check-double"></i> Select All
                             </button>
-                            <button class="mode-btn" data-mode="manual" onclick="setFilterMode('manual')">
-                                <i class="fas fa-code"></i> Advanced
+                            <button class="btn btn-secondary btn-sm" onclick="toggleAllColumns(false)">
+                                <i class="fas fa-times"></i> Deselect All
                             </button>
                         </div>
-                        <select class="form-select" id="filterLogic" style="width:auto;padding:8px 14px;font-size:0.8rem;border-radius:10px;text-transform:none;letter-spacing:0;">
-                            <option value="AND">Match ALL (AND)</option>
-                            <option value="OR">Match ANY (OR)</option>
-                        </select>
+                        <div class="columns-grid" id="columns-grid"></div>
                     </div>
-                </label>
 
-                <!-- ▸ SMART MODE (default) -->
-                <div id="smartFilterSection">
-                    <!-- Active Filter Chips -->
-                    <div id="filterChips" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;min-height:0;transition:all .3s;"></div>
+                    <div class="form-group" id="filterBuilderCard">
+                        <label class="form-label" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:4px;">
+                            <span><i class="fas fa-filter"></i> Filters</span>
+                        </label>
+                        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
+                            <div class="filter-mode-toggle" id="filterModeToggle">
+                                <button class="mode-btn active" data-mode="smart" onclick="setFilterMode('smart')">
+                                    <i class="fas fa-magic"></i> Smart
+                                </button>
+                                <button class="mode-btn" data-mode="manual" onclick="setFilterMode('manual')">
+                                    <i class="fas fa-code"></i> Advanced
+                                </button>
+                            </div>
+                            <select class="form-select" id="filterLogic" style="width:auto;padding:5px 8px;font-size:11px;border-radius:7px;">
+                                <option value="AND">Match ALL (AND)</option>
+                                <option value="OR">Match ANY (OR)</option>
+                            </select>
+                        </div>
 
-                    <!-- Filter Rows Container -->
-                    <div id="filterRows" style="display:flex;flex-direction:column;gap:12px;"></div>
+                        <div id="smartFilterSection">
+                            <div id="filterChips" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;"></div>
+                            <div id="filterRows" style="display:flex;flex-direction:column;gap:12px;"></div>
+                            <div style="margin-top:14px;display:flex;gap:10px;align-items:center;">
+                                <button class="btn btn-primary btn-sm" onclick="addFilterRow()" id="addFilterBtn">
+                                    <i class="fas fa-plus"></i> Add Filter
+                                </button>
+                                <button class="btn btn-danger btn-sm" onclick="clearAllFilters()" id="clearFiltersBtn" style="display:none;">
+                                    <i class="fas fa-trash-alt"></i> Clear All
+                                </button>
+                            </div>
+                        </div>
 
-                    <!-- Add Filter Button -->
-                    <div style="margin-top:16px;display:flex;gap:12px;align-items:center;">
-                        <button class="btn" onclick="addFilterRow()" id="addFilterBtn" style="font-size:0.8rem;padding:10px 18px;">
-                            <i class="fas fa-plus"></i> Add Filter
+                        <div id="manualFilterSection" style="display:none;">
+                            <div style="margin-bottom:8px;display:flex;align-items:center;gap:8px;color:var(--text-secondary);">
+                                <i class="fas fa-terminal"></i>
+                                <span style="font-size:11px;font-weight:600;">Write SQL-style filter expressions</span>
+                            </div>
+                            <textarea class="form-input" id="manualFilters" rows="3" placeholder="Examples:&#10;age >= 18 AND gender = 'Female'&#10;state IN ('10', '11')" style="resize:vertical;min-height:66px;font-family:'Consolas',monospace;font-size:11px;line-height:1.35;"></textarea>
+                            <div id="manualFilterError" style="display:none;margin-top:8px;padding:8px 10px;background:rgba(212,24,61,0.1);border:1px solid rgba(212,24,61,0.35);border-radius:10px;color:#d4183d;font-size:11px;"></div>
+                            <div style="margin-top:8px;font-size:10px;color:var(--text-secondary);">
+                                <i class="fas fa-shield-alt" style="margin-right:4px;"></i>
+                                Supports: =, !=, &gt;, &lt;, &gt;=, &lt;=, BETWEEN, IN, LIKE, AND, OR. DML keywords are blocked.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="limit-grid">
+                        <div class="form-group">
+                            <label class="form-label"><i class="fas fa-sort-numeric-up"></i> Limit</label>
+                            <input type="number" class="form-input" id="limit" value="100" min="1">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label"><i class="fas fa-step-forward"></i> Offset</label>
+                            <input type="number" class="form-input" id="offset" value="0" min="0">
+                        </div>
+                    </div>
+
+                    <div class="action-row">
+                        <button class="btn btn-primary execute-btn" onclick="triggerNewQuery()">
+                            <i class="fas fa-play"></i> Execute Query
                         </button>
-                        <button class="btn btn-danger" onclick="clearAllFilters()" id="clearFiltersBtn" style="font-size:0.8rem;padding:10px 18px;display:none;">
-                            <i class="fas fa-trash-alt"></i> Clear All
+                        <div style="display:flex;gap:10px;">
+                            <button class="btn btn-secondary" style="flex:1;" onclick="downloadCSV()">
+                                <i class="fas fa-file-csv"></i> CSV
+                            </button>
+                            <button class="btn btn-secondary" style="flex:1;" onclick="downloadJSON()">
+                                <i class="fas fa-file-code"></i> JSON
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="results-wrap">
+                <div class="progress-bar" id="progressBar" style="display:none;">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+
+                <div class="table-results-container">
+                    <div class="results-header">
+                        <h3><i class="fas fa-table"></i> Table Results</h3>
+                        <div></div>
+                    </div>
+
+                    <div class="loading-spinner" id="loadingSpinner">
+                        <div class="spinner"></div>
+                    </div>
+
+                    <div id="tableView" class="table-view-shell" style="display:block;">
+                        <div id="tablePagination" class="pagination-controls" style="display:none; padding:8px 10px; justify-content:space-between; align-items:center;">
+                            <div class="pagination-info" style="font-size: 0.82rem;">
+                                Showing <span id="paginationRange">0 - 0</span> rows
+                            </div>
+                            <div class="pagination-actions" style="display: flex; gap: 8px; align-items: center;">
+                                <button class="btn btn-secondary btn-sm" onclick="prevPage()" id="prevPageBtn">
+                                    <i class="fas fa-chevron-left"></i> Previous
+                                </button>
+                                <span style="font-weight:600; padding:0 6px;">Page <span id="currentPageNum">1</span></span>
+                                <button class="btn btn-secondary btn-sm" onclick="nextPage()" id="nextPageBtn">
+                                    Next <i class="fas fa-chevron-right"></i>
+                                </button>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span style="font-size: 0.78rem;">Rows:</span>
+                                <select class="form-select" id="pageSizeSelect" onchange="updatePageSize()" style="width: 74px; padding: 4px 8px; font-size: 0.78rem;">
+                                    <option value="10">10</option>
+                                    <option value="25">25</option>
+                                    <option value="50" selected>50</option>
+                                    <option value="100">100</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="table-container">
+                            <table class="data-table">
+                                <thead id="tableHead"></thead>
+                                <tbody id="tableBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="chart-results-container">
+                    <div class="results-header">
+                        <h3><i class="fas fa-chart-area"></i> Chart</h3>
+                        <div></div>
+                    </div>
+
+                    <div class="chart-controls" id="chartControls">
+                        <div class="chart-control-group">
+                            <label>Chart Type</label>
+                            <select id="chartType" onchange="markChartDirty()">
+                                <option value="bar">Bar Chart</option>
+                                <option value="line">Line Chart</option>
+                                <option value="pie">Pie Chart</option>
+                                <option value="doughnut">Doughnut Chart</option>
+                                <option value="scatter">Scatter Plot</option>
+                            </select>
+                        </div>
+                        <div class="chart-control-group">
+                            <label>X-Axis</label>
+                            <select id="xAxis" onchange="markChartDirty()"></select>
+                        </div>
+                        <div class="chart-control-group">
+                            <label>Y-Axis</label>
+                            <select id="yAxis" onchange="markChartDirty()"></select>
+                        </div>
+                        <button class="btn btn-primary" id="generateChartBtn" onclick="generateChart()">
+                            <i class="fas fa-chart-line"></i>
+                            <span id="generateChartBtnText">Generate Chart</span>
                         </button>
+                        <span id="chartStateHint" style="font-size:0.8rem;color:var(--text-muted);font-weight:600;">Generate chart to visualize current query</span>
+                        <div style="margin-left: auto; display: flex; gap: 8px;">
+                            <button class="btn btn-secondary btn-sm" onclick="downloadChartPNG()">
+                                <i class="fas fa-image"></i> PNG
+                            </button>
+                            <button class="btn btn-secondary btn-sm" onclick="downloadChartJPEG()">
+                                <i class="fas fa-file-image"></i> JPEG
+                            </button>
+                            <button class="btn btn-secondary btn-sm" onclick="downloadChartSVG()">
+                                <i class="fas fa-vector-square"></i> SVG
+                            </button>
+                            <button class="btn btn-secondary btn-sm" onclick="downloadChartPDF()">
+                                <i class="fas fa-file-pdf"></i> PDF
+                            </button>
+                        </div>
+
                     </div>
-                </div>
-
-                <!-- ▸ MANUAL MODE (hidden by default) -->
-                <div id="manualFilterSection" style="display:none;">
-                    <div style="margin-bottom:8px;display:flex;align-items:center;gap:8px;">
-                        <i class="fas fa-terminal" style="color:#f59e0b;font-size:0.85rem;"></i>
-                        <span style="font-size:0.82rem;color:rgba(255,255,255,0.6);">Write SQL-style filter expressions</span>
+                    <div class="chart-container" id="chartView">
+                        <div class="chart-canvas-wrapper">
+                            <canvas id="myChart"></canvas>
+                        </div>
                     </div>
-                    <textarea class="form-input" id="manualFilters" rows="3" placeholder="e.g. age > 30 AND gender = '1' AND state IN ('10','11')" style="resize:vertical;min-height:60px;font-family:'Fira Code','Consolas',monospace;font-size:0.88rem;line-height:1.5;"></textarea>
-                    <div id="manualFilterError" style="display:none;margin-top:8px;padding:8px 14px;background:rgba(255,107,107,0.15);border:1px solid rgba(255,107,107,0.3);border-radius:10px;color:#ff6b6b;font-size:0.82rem;"></div>
-                    <div style="margin-top:8px;font-size:0.75rem;color:rgba(255,255,255,0.4);">
-                        <i class="fas fa-shield-alt" style="margin-right:4px;"></i>
-                        Supports: =, !=, &gt;, &lt;, &gt;=, &lt;=, BETWEEN, IN, LIKE, AND, OR. DML keywords are blocked.
-                    </div>
-                </div>
-            </div>
-
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:20px;">
-                <div class="form-group">
-                    <label class="form-label">
-                        <i class="fas fa-sort-numeric-up"></i> Limit
-                    </label>
-                    <input type="number" class="form-input" id="limit" value="100" min="1">
-                </div>
-                <div class="form-group">
-                    <label class="form-label">
-                        <i class="fas fa-step-forward"></i> Offset
-                    </label>
-                    <input type="number" class="form-input" id="offset" value="0" min="0">
-                </div>
-            </div>
-        </div>
-
-        <style>
-            /* ── Filter Mode Toggle ── */
-            .filter-mode-toggle {
-                display: flex;
-                background: rgba(255,255,255,0.08);
-                border-radius: 10px;
-                padding: 3px;
-                gap: 2px;
-            }
-            .filter-mode-toggle .mode-btn {
-                padding: 6px 14px;
-                background: transparent;
-                border: none;
-                border-radius: 8px;
-                color: rgba(255,255,255,0.55);
-                font-size: 0.78rem;
-                font-weight: 500;
-                cursor: pointer;
-                transition: all .25s ease;
-                display: flex;
-                align-items: center;
-                gap: 6px;
-                font-family: 'Inter', sans-serif;
-                text-transform: none;
-                letter-spacing: 0;
-            }
-            .filter-mode-toggle .mode-btn:hover {
-                color: rgba(255,255,255,0.8);
-                background: rgba(255,255,255,0.06);
-            }
-            .filter-mode-toggle .mode-btn.active {
-                background: rgba(245,158,11,0.2);
-                color: #fbbf24;
-                border: 1px solid rgba(245,158,11,0.35);
-            }
-
-            /* Manual filter textarea */
-            #manualFilters {
-                background: rgba(15,23,42,0.6);
-                border: 1px solid rgba(100,116,139,0.3);
-            }
-            #manualFilters:focus {
-                background: rgba(15,23,42,0.8);
-                border-color: #f59e0b;
-                box-shadow: 0 0 0 3px rgba(245,158,11,0.2);
-            }
-
-            /* Empty result banner */
-            .empty-result-banner {
-                text-align: center;
-                padding: 50px 30px;
-                color: rgba(255,255,255,0.5);
-            }
-            .empty-result-banner i {
-                font-size: 2.5rem;
-                color: rgba(245,158,11,0.4);
-                margin-bottom: 16px;
-                display: block;
-            }
-            .empty-result-banner p {
-                font-size: 1rem;
-                margin-bottom: 8px;
-                color: rgba(255,255,255,0.7);
-            }
-            .empty-result-banner small {
-                font-size: 0.82rem;
-                color: rgba(255,255,255,0.4);
-            }
-
-            /* ── Filter Builder Styles ── */
-            .filter-row {
-                display: grid;
-                grid-template-columns: 1fr auto 1.5fr auto;
-                gap: 10px;
-                align-items: start;
-                padding: 14px;
-                background: rgba(255,255,255,0.04);
-                border: 1px solid rgba(255,255,255,0.1);
-                border-radius: 14px;
-                transition: all .25s ease;
-                animation: filterRowIn .3s ease forwards;
-            }
-            .filter-row:hover { border-color: rgba(245,158,11,0.3); background: rgba(255,255,255,0.06); }
-            @keyframes filterRowIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
-
-            .filter-row .form-select, .filter-row .form-input {
-                padding: 10px 14px;
-                font-size: 0.88rem;
-                border-radius: 10px;
-            }
-
-            .filter-remove-btn {
-                background: rgba(255,107,107,0.15);
-                border: 1px solid rgba(255,107,107,0.3);
-                color: #ff6b6b;
-                width: 36px; height: 36px;
-                border-radius: 10px;
-                cursor: pointer;
-                display: flex; align-items: center; justify-content: center;
-                transition: all .2s;
-                flex-shrink: 0;
-                margin-top: 1px;
-            }
-            .filter-remove-btn:hover { background: rgba(255,107,107,0.3); transform: scale(1.1); }
-
-            .filter-chip {
-                display: inline-flex;
-                align-items: center;
-                gap: 8px;
-                padding: 7px 14px;
-                background: rgba(245,158,11,0.15);
-                border: 1px solid rgba(245,158,11,0.35);
-                border-radius: 20px;
-                font-size: 0.82rem;
-                color: #fbbf24;
-                font-weight: 500;
-                animation: chipIn .25s ease forwards;
-                cursor: default;
-            }
-            @keyframes chipIn { from { opacity:0; transform:scale(0.85); } to { opacity:1; transform:scale(1); } }
-
-            .filter-chip .chip-remove {
-                width: 18px; height: 18px;
-                border-radius: 50%;
-                background: rgba(255,107,107,0.25);
-                border: none;
-                color: #ff6b6b;
-                font-size: 0.65rem;
-                cursor: pointer;
-                display: flex; align-items: center; justify-content: center;
-                transition: all .2s;
-            }
-            .filter-chip .chip-remove:hover { background: rgba(255,107,107,0.5); transform: scale(1.15); }
-
-            /* Numeric range inputs */
-            .range-input-group {
-                display: flex;
-                gap: 8px;
-                align-items: center;
-            }
-            .range-input-group .form-input {
-                flex: 1;
-                min-width: 0;
-            }
-            .range-input-group .range-sep {
-                color: rgba(255,255,255,0.5);
-                font-size: 0.8rem;
-                flex-shrink: 0;
-            }
-
-            /* Dual range slider */
-            .slider-wrapper {
-                position: relative;
-                padding: 6px 0 2px;
-            }
-            .slider-wrapper input[type=range] {
-                -webkit-appearance: none;
-                width: 100%;
-                height: 4px;
-                background: rgba(255,255,255,0.15);
-                border-radius: 2px;
-                outline: none;
-                position: absolute;
-                pointer-events: none;
-            }
-            .slider-wrapper input[type=range]::-webkit-slider-thumb {
-                -webkit-appearance: none;
-                width: 16px; height: 16px;
-                border-radius: 50%;
-                background: #f59e0b;
-                cursor: pointer;
-                pointer-events: auto;
-                box-shadow: 0 2px 8px rgba(245,158,11,0.4);
-                transition: transform .15s;
-            }
-            .slider-wrapper input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.25); }
-            .slider-labels {
-                display: flex;
-                justify-content: space-between;
-                font-size: 0.75rem;
-                color: rgba(255,255,255,0.5);
-                margin-top: 20px;
-            }
-
-            /* Multi-select for categorical */
-            .cat-select-grid {
-                display: flex;
-                flex-wrap: wrap;
-                gap: 6px;
-                max-height: 130px;
-                overflow-y: auto;
-                padding: 4px;
-            }
-            .cat-option {
-                padding: 5px 12px;
-                border-radius: 8px;
-                background: rgba(255,255,255,0.08);
-                border: 1px solid rgba(255,255,255,0.15);
-                color: rgba(255,255,255,0.8);
-                font-size: 0.82rem;
-                cursor: pointer;
-                transition: all .2s;
-                user-select: none;
-            }
-            .cat-option:hover { background: rgba(255,255,255,0.15); }
-            .cat-option.selected {
-                background: rgba(245,158,11,0.2);
-                border-color: rgba(245,158,11,0.5);
-                color: #fbbf24;
-            }
-
-            @media (max-width: 768px) {
-                .filter-row { grid-template-columns: 1fr; gap: 8px; }
-                .filter-row .filter-remove-btn { justify-self: end; margin-top: 0; }
-            }
-        </style>
-
-        <!-- Action Buttons -->
-        <div class="glass-card hover-lift">
-            <div style="display: flex; flex-wrap: wrap; gap: 15px; justify-content: center;">
-                <button class="btn" onclick="triggerNewQuery()">
-                    <i class="fas fa-play"></i> Execute Query
-                </button>
-                <button class="btn btn-success" onclick="downloadCSV()">
-                    <i class="fas fa-file-csv"></i> Download CSV
-                </button>
-                <button class="btn btn-warning" onclick="downloadJSON()">
-                    <i class="fas fa-file-code"></i> Download JSON
-                </button>
-            </div>
-        </div>
-
-        <!-- Progress Bar -->
-        <div class="progress-bar" id="progressBar" style="display: none;">
-            <div class="progress-fill" id="progressFill"></div>
-        </div>
-
-        <!-- Results Container -->
-        <div class="results-container">
-            <div class="results-header">
-                <h3><i class="fas fa-chart-area"></i> Results</h3>
-                <div class="view-toggle">
-                    <button id="tableViewBtn" class="active" onclick="switchView('table')">
-                        <i class="fas fa-table"></i> Table
-                    </button>
-                    <button id="chartViewBtn" onclick="switchView('chart')">
-                        <i class="fas fa-chart-bar"></i> Chart
-                    </button>
-                </div>
-            </div>
-
-            <!-- Chart Controls -->
-            <div class="chart-controls" id="chartControls">
-                <div class="chart-control-group">
-                    <label>Chart Type</label>
-                    <select id="chartType" onchange="updateChart()">
-                        <option value="bar">Bar Chart</option>
-                        <option value="line">Line Chart</option>
-                        <option value="pie">Pie Chart</option>
-                        <option value="doughnut">Doughnut Chart</option>
-                        <option value="scatter">Scatter Plot</option>
-                    </select>
-                </div>
-                <div class="chart-control-group">
-                    <label>X-Axis</label>
-                    <select id="xAxis" onchange="updateChart()"></select>
-                </div>
-                <div class="chart-control-group">
-                    <label>Y-Axis</label>
-                    <select id="yAxis" onchange="updateChart()"></select>
-                </div>
-                <button class="btn btn-success" onclick="updateChart()">
-                    <i class="fas fa-sync-alt"></i> Update Chart
-                </button>
-                <div style="margin-left: auto; display: flex; gap: 10px;">
-                    <button class="btn btn-secondary" onclick="downloadChartPNG()">
-                        <i class="fas fa-image"></i> PNG
-                    </button>
-                    <button class="btn btn-secondary" onclick="downloadChartJPEG()">
-                        <i class="fas fa-file-image"></i> JPEG
-                    </button>
-                    <button class="btn btn-secondary" onclick="downloadChartSVG()">
-                        <i class="fas fa-vector-square"></i> SVG
-                    </button>
-                    <button class="btn btn-danger" onclick="downloadChartPDF()">
-                        <i class="fas fa-file-pdf"></i> PDF
-                    </button>
-                </div>
-            </div>
-
-            <!-- Loading Spinner -->
-            <div class="loading-spinner" id="loadingSpinner">
-                <div class="spinner"></div>
-            </div>
-
-            <!-- Table View -->
-            <div id="tableView" style="display: block;">
-                <!-- Row Pagination Controls (MOVED TO TOP) -->
-                <div id="tablePagination" class="pagination-controls" style="display: none; padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.02);">
-                    <div class="pagination-info" style="color: rgba(255,255,255,0.6); font-size: 0.9rem;">
-                        Showing <span id="paginationRange">0 - 0</span> rows
-                    </div>
-                    <div class="pagination-actions" style="display: flex; gap: 10px; align-items: center;">
-                        <button class="btn btn-secondary btn-sm" onclick="prevPage()" id="prevPageBtn">
-                            <i class="fas fa-chevron-left"></i> Previous
-                        </button>
-                        <span style="color: white; font-weight: 600; padding: 0 10px;">Page <span id="currentPageNum">1</span></span>
-                        <button class="btn btn-secondary btn-sm" onclick="nextPage()" id="nextPageBtn">
-                            Next <i class="fas fa-chevron-right"></i>
-                        </button>
-                    </div>
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                        <span style="color: rgba(255,255,255,0.6); font-size: 0.8rem;">Rows:</span>
-                        <select class="form-select" id="pageSizeSelect" onchange="updatePageSize()" style="width: 80px; padding: 5px 10px; font-size: 0.8rem;">
-                            <option value="10">10</option>
-                            <option value="25">25</option>
-                            <option value="50" selected>50</option>
-                            <option value="100">100</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div class="table-container">
-                    <table class="data-table">
-                        <thead id="tableHead"></thead>
-                        <tbody id="tableBody"></tbody>
-                    </table>
-                </div>
-            </div>
-
-            <!-- Chart View -->
-            <div class="chart-container" id="chartView">
-                <div class="chart-canvas-wrapper">
-                    <canvas id="myChart"></canvas>
                 </div>
             </div>
         </div>
     </div>
-
-    <!-- Floating Action Button -->
     <button class="fab" onclick="scrollToTop()" title="Back to Top">
         <i class="fas fa-arrow-up"></i>
     </button>
@@ -1519,9 +1133,36 @@
         let tableDataBySchema = {};
         let latestResults = [];
         let currentChart = null;
-        let currentView = 'table';
+        let chartDataRows = [];
+        let chartRequestCache = { key: '', rows: [] };
+        let chartNeedsRefresh = true;
+        let isGeneratingChart = false;
+        let hasQueryRun = false;
+        let currentView = 'both';
         let isDarkTheme = false;
         let filterMode = 'smart';  // 'smart' or 'manual'
+
+        // Theme Setup
+        function toggleTheme() {
+            const body = document.documentElement;
+            isDarkTheme = body.getAttribute('data-theme') !== 'dark';
+            if (isDarkTheme) {
+                body.setAttribute('data-theme', 'dark');
+                document.querySelector('.theme-toggle span').textContent = 'Light Mode';
+                document.querySelector('.theme-toggle i').className = 'fas fa-sun';
+            } else {
+                body.removeAttribute('data-theme');
+                document.querySelector('.theme-toggle span').textContent = 'Dark Mode';
+                document.querySelector('.theme-toggle i').className = 'fas fa-moon';
+            }
+            localStorage.setItem('theme', isDarkTheme ? 'dark' : 'light');
+
+            // Update Chart.js default colors and re-render if chart exists
+            Chart.defaults.color = isDarkTheme ? '#F8FAFC' : '#111827';
+            if (currentChart && chartDataRows.length > 0 && !isGeneratingChart) {
+                updateChart(chartDataRows, false); // re-render silently
+            }
+        }
 
         // ── Filter Builder State ──
         let filterMetadata = [];   // per-column metadata from /filter-metadata
@@ -1620,10 +1261,14 @@
             });
 
             row.innerHTML = `
-                <select class="form-select filter-col" onchange="onFilterColumnChange(${rowId})">${colOptions}</select>
-                <select class="form-select filter-op" style="min-width:90px;"><option value="" disabled selected>Op</option></select>
-                <div class="filter-value-container"><input class="form-input filter-val" placeholder="Select column first..." disabled></div>
-                <button class="filter-remove-btn" onclick="removeFilterRow(${rowId})" title="Remove filter"><i class="fas fa-times"></i></button>
+                <div class="filter-main-controls">
+                    <select class="form-select filter-col" style="padding: 8px 12px; height: 38px;" onchange="onFilterColumnChange(${rowId})">${colOptions}</select>
+                    <select class="form-select filter-op" style="padding: 8px 12px; height: 38px;"><option value="" disabled selected>Op</option></select>
+                    <button class="filter-remove-btn" onclick="removeFilterRow(${rowId})" title="Remove filter"><i class="fas fa-times"></i></button>
+                </div>
+                <div class="filter-value-container">
+                    <input class="form-input filter-val" style="padding: 8px 12px;" placeholder="Choose column..." disabled>
+                </div>
             `;
             container.appendChild(row);
             document.getElementById('clearFiltersBtn').style.display = 'inline-flex';
@@ -1951,25 +1596,43 @@
         document.addEventListener('DOMContentLoaded', function () {
             loadSchemas();
             initializeChartDefaults();
+            renderChartInfoState('fas fa-chart-line', 'Generate your chart', 'Configure axes and click Generate Chart to render visualization.');
+            renderTable([]);
         });
 
-        // Theme Toggle
+        // Theme Toggle Functionality
         function toggleTheme() {
-            isDarkTheme = !isDarkTheme;
-            document.body.setAttribute('data-theme', isDarkTheme ? 'dark' : 'light');
-            const themeToggle = document.querySelector('.theme-toggle span');
-            const themeIcon = document.querySelector('.theme-toggle i');
+            const html = document.documentElement;
+            const currentTheme = html.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            html.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            updateThemeUI(newTheme);
 
-            if (isDarkTheme) {
-                themeToggle.textContent = 'Light Mode';
-                themeIcon.className = 'fas fa-sun';
-            } else {
-                themeToggle.textContent = 'Dark Mode';
-                themeIcon.className = 'fas fa-moon';
+            if (currentChart && chartDataRows.length > 0) {
+                updateChart(chartDataRows, false);
             }
-
-            showToast('Theme changed successfully!', 'success');
         }
+
+        function updateThemeUI(theme) {
+            const toggle = document.querySelector('.theme-toggle span');
+            const icon = document.querySelector('.theme-toggle i');
+            if(!toggle) return;
+            if(theme === 'dark') {
+                toggle.textContent = 'Light Mode';
+                icon.className = 'fas fa-sun';
+            } else {
+                toggle.textContent = 'Dark Mode';
+                icon.className = 'fas fa-moon';
+            }
+        }
+
+        // Initialize Theme
+        (function initTheme() {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            updateThemeUI(savedTheme);
+        })();
 
         // Sidebar Toggle
         function toggleSidebar() {
@@ -2249,36 +1912,16 @@
             showToast(selectAll ? 'All columns selected' : 'All columns deselected', 'success');
         }
 
-        // Switch View with Animation
+        // Keep both views visible (table first, chart below)
         function switchView(view) {
-            currentView = view;
-
-            // Update button states
-            document.getElementById('tableViewBtn').classList.toggle('active', view === 'table');
-            document.getElementById('chartViewBtn').classList.toggle('active', view === 'chart');
-
-            // Update view visibility with animation
+            currentView = 'both';
             const tableView = document.getElementById('tableView');
             const chartView = document.getElementById('chartView');
             const chartControls = document.getElementById('chartControls');
-
-            if (view === 'table') {
-                chartView.classList.remove('active');
-                chartControls.classList.remove('active');
-                setTimeout(() => {
-                    tableView.style.display = 'block';
-                    tableView.style.animation = 'fadeIn 0.5s ease-in-out';
-                }, 100);
-            } else {
-                tableView.style.display = 'none';
-                chartControls.classList.add('active');
-                chartView.classList.add('active');
-                if (latestResults.length > 0) {
-                    setTimeout(() => updateChart(), 200);
-                }
-            }
-
-            showToast(`Switched to ${view} view`, 'success');
+            tableView.style.display = 'block';
+            chartControls.classList.add('active');
+            chartView.classList.add('active');
+            chartView.style.display = 'block';
         }
 
         function triggerNewQuery() {
@@ -2287,8 +1930,66 @@
             runQuery();
         }
 
+        function markChartDirty() {
+            chartNeedsRefresh = true;
+            const hint = document.getElementById('chartStateHint');
+            if (hint) {
+                hint.textContent = 'Chart settings changed. Click Generate Chart.';
+            }
+        }
+
+        function setGenerateChartLoading(isLoading) {
+            const btn = document.getElementById('generateChartBtn');
+            const txt = document.getElementById('generateChartBtnText');
+            if (!btn || !txt) return;
+            btn.disabled = isLoading;
+            btn.style.opacity = isLoading ? '0.8' : '1';
+            btn.style.cursor = isLoading ? 'not-allowed' : 'pointer';
+            if (isLoading) {
+                txt.textContent = 'Generating...';
+                btn.querySelector('i').className = 'fas fa-spinner fa-spin';
+            } else {
+                txt.textContent = 'Generate Chart';
+                btn.querySelector('i').className = 'fas fa-chart-line';
+            }
+        }
+
+        function renderChartInfoState(iconClass, title, desc) {
+            const chartWrapper = document.querySelector('.chart-canvas-wrapper');
+            if (!chartWrapper) return;
+            chartWrapper.innerHTML =
+                '<div style="display:flex;justify-content:center;align-items:center;height:100%;">' +
+                `<i class="${iconClass}" style="font-size:2.4rem;margin-right:16px;"></i>` +
+                `<div><h3>${title}</h3><p>${desc}</p></div></div>`;
+        }
+
+        function getQueryContext() {
+            const survey = document.getElementById('survey').value;
+            const dataset = document.getElementById('dataset').value;
+            const table = document.getElementById('table').value;
+            const columns = getSelectedColumns().join(',');
+            const filters = buildFilterString();
+            const limit = document.getElementById('limit').value;
+            const offset = document.getElementById('offset').value;
+
+            if (filters === '__BLOCKED__') return { blocked: true };
+            if (!survey || !dataset || !table) return { error: "Please select survey, dataset, and table." };
+
+            const params = new URLSearchParams();
+            if (columns) params.append("columns", columns);
+            if (filters) params.append("filters", filters);
+            if (limit) params.append("limit", limit);
+            if (offset) params.append("offset", offset);
+
+            const queryString = params.toString();
+            const endpoint = `/surveys/${survey}/${encodeURIComponent(dataset)}/${table}/query?${queryString}`;
+            const cacheKey = `${survey}|${dataset}|${table}|${queryString}`;
+            return { survey, dataset, table, queryString, endpoint, cacheKey };
+        }
+
         // Run Query with Progress
         async function runQuery() {
+            hasQueryRun = true;
             // Sync any un-committed filter rows before querying (smart mode)
             if (filterMode === 'smart') {
                 document.querySelectorAll('.filter-row').forEach(row => {
@@ -2297,48 +1998,45 @@
                 });
             }
 
-            const survey = document.getElementById('survey').value;
-            const dataset = document.getElementById('dataset').value;
-            const table = document.getElementById('table').value;
-            const columns = getSelectedColumns().join(',');
-            const filters = buildFilterString();
-            const limit = document.getElementById('limit').value;
+            const context = getQueryContext();
 
             // Block if manual filter validation failed
-            if (filters === '__BLOCKED__') {
+            if (context.blocked) {
                 showToast('Filter contains blocked SQL keywords. Please fix.', 'error');
                 return;
             }
-            const offset = document.getElementById('offset').value;
 
-            if (!survey || !dataset || !table) {
-                showToast("Please select survey, dataset, and table.", 'error');
+            if (context.error) {
+                showToast(context.error, 'error');
                 return;
             }
 
             showLoading(true);
             showProgress(true, 0);
 
-            const params = new URLSearchParams();
-            if (columns) params.append("columns", columns);
-            if (filters) params.append("filters", filters);
-            if (limit) params.append("limit", limit);
-            if (offset) params.append("offset", offset);
-
             try {
                 showProgress(true, 30);
-                const res = await fetch(`/surveys/${survey}/${encodeURIComponent(dataset)}/${table}/query?${params.toString()}`);
+                const res = await fetch(context.endpoint);
                 showProgress(true, 60);
                 const data = await res.json();
 
                 if (Array.isArray(data)) {
                     showProgress(true, 80);
                     latestResults = data;
+                    chartNeedsRefresh = true;
+                    chartDataRows = [];
+                    chartRequestCache = { key: '', rows: [] };
+                    if (currentChart) {
+                        currentChart.destroy();
+                        currentChart = null;
+                    }
+                    renderChartInfoState('fas fa-bolt', 'Chart ready to generate', 'Click Generate Chart to render visualization for current query.');
+                    const hint = document.getElementById('chartStateHint');
+                    if (hint) {
+                        hint.textContent = 'Query data updated. Click Generate Chart.';
+                    }
                     renderTable(data);
                     updatePaginationInfo(data.length);
-                    if (currentView === 'chart') {
-                        updateChart();
-                    }
                     showProgress(true, 100);
                     setTimeout(() => showProgress(false), 500);
                     showToast(`Query executed successfully! ${data.length} rows returned.`, 'success');
@@ -2356,25 +2054,97 @@
             }
         }
 
+        async function generateChart() {
+            if (isGeneratingChart) return;
+
+            const chartType = document.getElementById('chartType').value;
+            const xAxisCol = document.getElementById('xAxis').value;
+            const yAxisCol = document.getElementById('yAxis').value;
+
+            if (!xAxisCol || !yAxisCol) {
+                showToast('Please select both X and Y axis columns.', 'warning');
+                renderChartInfoState('fas fa-exclamation-triangle', 'Select axes', 'Choose both X and Y axis before generating chart.');
+                return;
+            }
+
+            const context = getQueryContext();
+            if (context.blocked) {
+                showToast('Filter contains blocked SQL keywords. Please fix.', 'error');
+                return;
+            }
+            if (context.error) {
+                showToast(context.error, 'error');
+                return;
+            }
+
+            isGeneratingChart = true;
+            setGenerateChartLoading(true);
+            renderChartInfoState('fas fa-spinner fa-spin', 'Generating chart', 'Fetching chart data for selected query...');
+
+            try {
+                let rows = [];
+                if (!chartNeedsRefresh && chartRequestCache.key === context.cacheKey && Array.isArray(chartRequestCache.rows)) {
+                    rows = chartRequestCache.rows;
+                } else {
+                    const response = await fetch(context.endpoint);
+                    if (!response.ok) {
+                        throw new Error(`Chart request failed with status ${response.status}`);
+                    }
+                    const data = await response.json();
+                    if (!Array.isArray(data)) {
+                        throw new Error(data?.error || 'Unexpected chart response format.');
+                    }
+                    rows = data;
+                    chartRequestCache = { key: context.cacheKey, rows };
+                }
+
+                chartDataRows = rows;
+                chartNeedsRefresh = false;
+                const hint = document.getElementById('chartStateHint');
+                if (hint) {
+                    hint.textContent = `Chart generated (${chartType.toUpperCase()})`;
+                }
+                updateChart(rows, true);
+            } catch (error) {
+                console.error('Chart generation error:', error);
+                renderChartInfoState('fas fa-circle-exclamation', 'Chart failed', 'Unable to fetch chart data. Please retry.');
+                showToast(`Failed to generate chart: ${error.message}`, 'error');
+            } finally {
+                isGeneratingChart = false;
+                setGenerateChartLoading(false);
+            }
+        }
+
         // Render Table with Animation
         function renderTable(data) {
             const tableHead = document.getElementById('tableHead');
             const tableBody = document.getElementById('tableBody');
+            const tableResultsContainer = document.querySelector('.table-results-container');
             tableHead.innerHTML = "";
             tableBody.innerHTML = "";
 
             if (data.length === 0) {
+                if (tableResultsContainer) {
+                    tableResultsContainer.classList.add('empty-state');
+                }
+                const emptyTitle = hasQueryRun ? 'No results found' : 'Run query to show results';
+                const emptyHint = hasQueryRun
+                    ? 'Try adjusting your filters, broadening the range, or removing some conditions.'
+                    : 'Select survey, dataset, table, then click Execute Query.';
                 tableBody.innerHTML = `<tr><td colspan='100%'>
                     <div class="empty-result-banner">
                         <i class="fas fa-search"></i>
-                        <p>No results found</p>
-                        <small>Try adjusting your filters, broadening the range, or removing some conditions.</small>
+                        <p>${emptyTitle}</p>
+                        <small>${emptyHint}</small>
                     </div>
                 </td></tr>`;
                 document.getElementById('tablePagination').style.display = 'none';
                 return;
             }
 
+            if (tableResultsContainer) {
+                tableResultsContainer.classList.remove('empty-state');
+            }
             const columns = Object.keys(data[0]);
             tableHead.innerHTML = "<tr>" + columns.map(col => `<th>${col}</th>`).join("") + "</tr>";
 
@@ -2443,7 +2213,7 @@
                 Chart.register(ChartZoom);
             }
             Chart.defaults.font.family = "'Inter', sans-serif";
-            Chart.defaults.color = 'rgba(255, 255, 255, 0.8)';
+            Chart.defaults.color = '#111827';
         }
 
         // Global map to store category indices for chart axes
@@ -2472,13 +2242,14 @@
         }
 
         // Update Chart with Animations
-        function updateChart() {
-            if (latestResults.length === 0) {
-                document.getElementById('myChart').style.display = 'none';
-                document.querySelector('.chart-canvas-wrapper').innerHTML =
-                    '<div style="display: flex; justify-content: center; align-items: center; height: 100%; color: rgba(255,255,255,0.6);">' +
-                    '<i class="fas fa-chart-bar" style="font-size: 3rem; margin-right: 20px;"></i>' +
-                    '<div><h3>No data to visualize</h3><p>Run a query first to see your data visualization</p></div></div>';
+        function updateChart(dataRows = chartDataRows, showSuccessToast = true) {
+            const chartWrapper = document.querySelector('.chart-canvas-wrapper');
+            if (!Array.isArray(dataRows) || dataRows.length === 0) {
+                if (currentChart) {
+                    currentChart.destroy();
+                    currentChart = null;
+                }
+                renderChartInfoState('fas fa-chart-bar', 'No data to visualize', 'Run query and click Generate Chart.');
                 return;
             }
 
@@ -2491,25 +2262,20 @@
             categoricalIndexCols = new Set();
 
             if (!xAxisCol || !yAxisCol) {
-                document.querySelector('.chart-canvas-wrapper').innerHTML =
-                    '<div style="display: flex; justify-content: center; align-items: center; height: 100%; color: rgba(255,255,255,0.6);">' +
-                    '<i class="fas fa-exclamation-triangle" style="font-size: 3rem; margin-right: 20px;"></i>' +
-                    '<div><h3>Select axes</h3><p>Please select both X and Y axis columns</p></div></div>';
+                if (currentChart) {
+                    currentChart.destroy();
+                    currentChart = null;
+                }
+                renderChartInfoState('fas fa-exclamation-triangle', 'Select axes', 'Please select both X and Y axis columns.');
                 return;
             }
 
-            // Show canvas
-            document.getElementById('myChart').style.display = 'block';
-
-            // Destroy existing chart
+            chartWrapper.innerHTML = '<canvas id="myChart"></canvas>';
             if (currentChart) {
                 currentChart.destroy();
             }
 
-            // Prepare data
-            const chartData = prepareChartData(latestResults, xAxisCol, yAxisCol, chartType);
-
-            // Create new chart with enhanced options
+            const chartData = prepareChartData(dataRows, xAxisCol, yAxisCol, chartType);
             const ctx = document.getElementById('myChart');
             currentChart = new Chart(ctx, {
                 type: chartType,
@@ -2517,11 +2283,21 @@
                 options: getEnhancedChartOptions(chartType, xAxisCol, yAxisCol)
             });
 
-            showToast('Chart updated successfully!', 'success');
+            if (showSuccessToast) {
+                showToast('Chart updated successfully!', 'success');
+            }
         }
 
         // Enhanced Chart Options
         function getEnhancedChartOptions(chartType, xCol, yCol) {
+            const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+            const textColor = isDark ? '#ffffff' : '#000000';
+            const axisTextColor = isDark ? 'rgba(255, 255, 255, 0.85)' : '#111827';
+            const gridColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(17, 24, 39, 0.12)';
+            const tooltipBg = isDark ? 'rgba(0, 0, 0, 0.8)' : 'rgba(255, 255, 255, 0.96)';
+            const tooltipText = isDark ? '#ffffff' : '#111827';
+            const tooltipBorder = isDark ? 'rgba(102, 126, 234, 0.5)' : '#D1D5DB';
+
             const baseOptions = {
                 responsive: true,
                 maintainAspectRatio: false,
@@ -2537,20 +2313,20 @@
                             size: 18,
                             weight: 'bold'
                         },
-                        color: 'rgba(255, 255, 255, 0.9)'
+                        color: textColor
                     },
                     legend: {
                         labels: {
-                            color: 'rgba(255, 255, 255, 0.8)',
+                            color: axisTextColor,
                             usePointStyle: true,
                             padding: 20
                         }
                     },
                     tooltip: {
-                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                        titleColor: 'white',
-                        bodyColor: 'rgba(255, 255, 255, 0.9)',
-                        borderColor: 'rgba(102, 126, 234, 0.5)',
+                        backgroundColor: tooltipBg,
+                        titleColor: tooltipText,
+                        bodyColor: tooltipText,
+                        borderColor: tooltipBorder,
                         borderWidth: 1,
                         cornerRadius: 10,
                         displayColors: true,
@@ -2584,14 +2360,14 @@
                         title: {
                             display: true,
                             text: xCol,
-                            color: 'rgba(255, 255, 255, 0.8)',
+                            color: axisTextColor,
                             font: {
                                 size: 14,
                                 weight: 'bold'
                             }
                         },
                         ticks: {
-                            color: 'rgba(255, 255, 255, 0.7)',
+                            color: axisTextColor,
                             callback: function(value, index, values) {
                                 if (categoryMaps[xCol] && categoryMaps[xCol][value]) {
                                     return categoryMaps[xCol][value];
@@ -2600,21 +2376,21 @@
                             }
                         },
                         grid: {
-                            color: 'rgba(255, 255, 255, 0.1)'
+                            color: gridColor
                         }
                     },
                     y: {
                         title: {
                             display: true,
                             text: yCol,
-                            color: 'rgba(255, 255, 255, 0.8)',
+                            color: axisTextColor,
                             font: {
                                 size: 14,
                                 weight: 'bold'
                             }
                         },
                         ticks: {
-                            color: 'rgba(255, 255, 255, 0.7)',
+                            color: axisTextColor,
                             callback: function(value, index, values) {
                                 if (categoricalIndexCols.has(yCol) && categoryMaps[yCol] && categoryMaps[yCol][value]) {
                                     return categoryMaps[yCol][value];
@@ -2623,7 +2399,7 @@
                             }
                         },
                         grid: {
-                            color: 'rgba(255, 255, 255, 0.1)'
+                            color: gridColor
                         }
                     }
                 };
@@ -2964,7 +2740,7 @@
                 toggleTheme();
             }
 
-            if (savedView && savedView !== currentView) {
+            if (savedView) {
                 switchView(savedView);
             }
         });
@@ -3071,7 +2847,6 @@
                 }, 2000);
             }
         });
-    </script>
     </script>
 </body>
 

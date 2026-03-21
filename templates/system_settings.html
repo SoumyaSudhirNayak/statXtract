@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Settings</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            /* Standard Theme Tokens */
+            --primary: #2E5BBA;
+            --primary-gradient: linear-gradient(135deg, #2E5BBA 0%, #1F3A5F 100%);
+            --secondary: #64748b;
+            --accent: #F4A300;
+            --text-main: #1C1C1C;
+            --text-muted: #6B7280;
+            --bg-page: linear-gradient(135deg, #F5F7FA 0%, #EEF3FB 55%, #E9EEF7 100%);
+            --glass-bg: rgba(255, 255, 255, 0.95);
+            --glass-border: rgba(209, 213, 219, 0.5);
+            --shadow-heavy: 0 12px 32px rgba(31, 58, 95, 0.1);
+            --radius: 20px;
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        [data-theme="dark"] {
+            --primary: #6366F1;
+            --text-main: #F8FAFC;
+            --text-muted: rgba(255, 255, 255, 0.7);
+            --bg-page: linear-gradient(135deg, #0F172A 0%, #1E293B 50%, #334155 100%);
+            --glass-bg: rgba(15, 23, 42, 0.78);
+            --glass-border: rgba(100, 116, 139, 0.25);
+            --shadow-heavy: 0 12px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        * { box-sizing: border-box; margin:0; padding:0; }
+
+        body {
+            font-family:'Inter',sans-serif;
+            background: var(--bg-page);
+            min-height:100vh;
+            color:var(--text-main);
+            padding:22px;
+            transition: var(--transition);
+        }
+
+        .wrap { max-width:1200px; margin:0 auto; padding-top:60px; }
+
+        .back {
+            position: fixed; top:16px; left:16px;
+            color: var(--text-main); text-decoration:none;
+            background:var(--glass-bg); border:1px solid var(--glass-border);
+            border-radius:999px; padding:10px 18px;
+            transition: var(--transition);
+        }
+
+        .back:hover { background: var(--primary); color: #fff; transform: translateX(-5px); }
+
+        .theme-toggle {
+            position: fixed; top:16px; right:16px;
+            color: var(--text-main); cursor: pointer;
+            background:var(--glass-bg); border:1px solid var(--glass-border);
+            border-radius:999px; padding:10px 18px;
+            transition: var(--transition);
+            display: flex; align-items: center; gap: 8px; font-weight: 500;
+        }
+
+        .theme-toggle:hover { background: var(--primary); color: #fff; transform: translateY(-2px); }
+
+        .head { background:var(--glass-bg); border:1px solid var(--glass-border); border-radius:var(--radius); padding:24px; margin-bottom:16px; box-shadow:var(--shadow-heavy); }
+        .head h1 { font-size:1.8rem; display:flex; gap:12px; align-items:center; color: var(--primary); }
+        .head p { color: var(--text-muted); margin-top:8px; }
+        .grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
+        .card { background:var(--glass-bg); border:1px solid var(--glass-border); border-radius:var(--radius); padding:20px; box-shadow:var(--shadow-heavy); }
+        .full { grid-column:1 / -1; }
+        .title { display:flex; align-items:center; gap:10px; font-size:1.1rem; font-weight: 700; margin-bottom:12px; color: var(--text-main); }
+        .row { display:grid; grid-template-columns: 1fr 1fr; gap:14px; margin-bottom:10px; }
+        label { font-size:.85rem; color: var(--text-muted); margin-bottom:6px; display:block; font-weight: 500; }
+        input, select, textarea {
+            width:100%; padding:12px;
+            background: var(--bg-page);
+            border:1px solid var(--glass-border);
+            border-radius:10px; color: var(--text-main); font-size:.86rem;
+            transition: var(--transition);
+        }
+        input:focus, select:focus, textarea:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 0 2px rgba(46, 91, 186, 0.1); }
+        textarea { min-height:88px; resize:vertical; }
+        .actions { margin-top:8px; display:flex; gap:10px; }
+        .btn {
+            background: var(--primary); color:#fff; border: none;
+            border-radius:10px; padding:12px 20px; font-size:.85rem;
+            cursor:pointer; font-weight: 600; transition: var(--transition);
+        }
+        .btn:hover { background: var(--primary-dark); transform: translateY(-2px); }
+        .meta { color: var(--text-muted); font-size:.8rem; margin-top:8px; }
+        @media (max-width: 980px) { .grid { grid-template-columns: 1fr; } .row { grid-template-columns:1fr; } }
+    </style>
+</head>
+<body>
+    <a class="back" href="/admin/dashboard"><i class="fas fa-arrow-left"></i> Dashboard</a>
+    <div class="theme-toggle" id="theme-toggle" onclick="toggleTheme()">
+        <i class="fas fa-moon"></i>
+        <span>Dark Mode</span>
+    </div>
+    <div class="wrap">
+        <div class="head">
+            <h1><i class="fas fa-cogs"></i> System Settings</h1>
+            <p>Platform, privacy, API, storage, features, and global payment settings</p>
+        </div>
+        <div class="grid">
+            <div class="card">
+                <div class="title"><i class="fas fa-sliders-h"></i> Platform Settings</div>
+                <div class="row">
+                    <div><label>Default Row Limit</label><input id="platform.default_row_limit" type="number"></div>
+                    <div><label>Default Query Limit</label><input id="platform.default_query_limit" type="number"></div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="title"><i class="fas fa-user-shield"></i> Privacy Settings</div>
+                <div class="row">
+                    <div><label>Min Rows Threshold</label><input id="privacy.min_rows_threshold" type="number"></div>
+                    <div><label>Enable Sensitive Columns</label><select id="privacy.enable_sensitive_columns"><option value="true">true</option><option value="false">false</option></select></div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="title"><i class="fas fa-plug"></i> API Settings</div>
+                <div class="row">
+                    <div><label>Default Rate Limits</label><input id="api.default_rate_limit" type="number"></div>
+                    <div><label>Timeout (seconds)</label><input id="api.timeout_seconds" type="number"></div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="title"><i class="fas fa-hdd"></i> Storage Settings</div>
+                <div class="row">
+                    <div><label>Max Upload Size (MB)</label><input id="storage.max_upload_size_mb" type="number"></div>
+                    <div><label>Auto Delete Uploads</label><select id="storage.auto_delete_uploads"><option value="true">true</option><option value="false">false</option></select></div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="title"><i class="fas fa-toggle-on"></i> Feature Toggles</div>
+                <div class="row">
+                    <div><label>Enable Charts</label><select id="features.enable_charts"><option value="true">true</option><option value="false">false</option></select></div>
+                    <div><label>Enable Downloads</label><select id="features.enable_downloads"><option value="true">true</option><option value="false">false</option></select></div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="title"><i class="fas fa-credit-card"></i> Global Payment Settings</div>
+                <div class="row">
+                    <div><label>Enable Payments</label><select id="payments.enabled"><option value="true">true</option><option value="false">false</option></select></div>
+                    <div><label>Default Plan Limits</label><input id="payments.default_plan_limits" type="text"></div>
+                </div>
+                <div><label>Pricing Config (UI)</label><textarea id="payments.pricing_config"></textarea></div>
+                <div class="meta">Format sample: free=0,pro=99,enterprise=499</div>
+            </div>
+            <div class="card full">
+                <div class="actions">
+                    <button class="btn" onclick="saveSettings()"><i class="fas fa-save"></i> Save Settings</button>
+                    <button class="btn" onclick="loadSettings()"><i class="fas fa-sync"></i> Reload</button>
+                </div>
+                <div class="meta" id="status">Ready</div>
+            </div>
+        </div>
+    </div>
+    <script>
+        const keys = [
+            "platform.default_row_limit",
+            "platform.default_query_limit",
+            "privacy.min_rows_threshold",
+            "privacy.enable_sensitive_columns",
+            "api.default_rate_limit",
+            "api.timeout_seconds",
+            "storage.max_upload_size_mb",
+            "storage.auto_delete_uploads",
+            "features.enable_charts",
+            "features.enable_downloads",
+            "payments.enabled",
+            "payments.default_plan_limits",
+            "payments.pricing_config"
+        ];
+        async function loadSettings() {
+            const res = await fetch("/admin/settings");
+            const data = await res.json();
+            const map = {};
+            (data.settings || []).forEach(s => map[s.key] = s.value);
+            keys.forEach(k => {
+                const el = document.getElementById(k);
+                if (!el) return;
+                if (map[k] !== undefined) el.value = map[k];
+            });
+            document.getElementById("status").textContent = `Loaded ${Object.keys(map).length} settings`;
+        }
+        async function saveSettings() {
+            const payload = {};
+            keys.forEach(k => {
+                const el = document.getElementById(k);
+                if (el) payload[k] = el.value;
+            });
+            const res = await fetch("/admin/settings/update", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ settings: payload }) });
+            if (res.ok) {
+                document.getElementById("status").textContent = "Settings saved";
+                await loadSettings();
+            } else {
+                const j = await res.json().catch(() => ({}));
+                document.getElementById("status").textContent = j.detail || j.error || "Save failed";
+            }
+        }
+        loadSettings();
+
+        // Theme Toggle Functionality
+        function toggleTheme() {
+            const html = document.documentElement;
+            const currentTheme = html.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            html.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            updateThemeUI(newTheme);
+        }
+
+        function updateThemeUI(theme) {
+            const toggle = document.getElementById('theme-toggle');
+            if(!toggle) return;
+            if(theme === 'dark') {
+                toggle.innerHTML = '<i class="fas fa-sun"></i> <span>Light Mode</span>';
+            } else {
+                toggle.innerHTML = '<i class="fas fa-moon"></i> <span>Dark Mode</span>';
+            }
+        }
+
+        // Initialize Theme
+        (function initTheme() {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            updateThemeUI(savedTheme);
+        })();
+    </script>
+</body>
+</html>

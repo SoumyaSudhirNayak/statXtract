@@ -38,6 +38,25 @@ async def get_current_user(request: Request) -> TokenData:
         role = payload.get("role")
         if email is None or role is None:
             raise HTTPException(status_code=401, detail="Invalid token payload")
+        try:
+            pool = getattr(request.app.state, "db", None)
+            if pool is not None:
+                async with pool.acquire() as conn:
+                    blocked = await conn.fetchval(
+                        """
+                        SELECT COALESCE(is_blocked, FALSE)
+                        FROM users
+                        WHERE email = $1
+                        LIMIT 1
+                        """,
+                        email,
+                    )
+                    if blocked:
+                        raise HTTPException(status_code=403, detail="User blocked")
+        except HTTPException:
+            raise
+        except Exception:
+            pass
         return TokenData(username=email, role=role)
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid token")

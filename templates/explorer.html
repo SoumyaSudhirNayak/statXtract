@@ -11,14 +11,50 @@
 
     <style>
         :root {
+            /* Light Theme (Default) - Based on Pure White system */
+            --primary-color: #2E5BBA;
+            --secondary-color: #F4A300;
+            --text-main: #1C1C1C;
+            --text-muted: #6B7280;
+            --bg-page: #F8FAFC;
+            --bg-gradient: #F8FAFC;
+            --glass-bg: rgba(255, 255, 255, 0.98);
+            --glass-border: rgba(201, 210, 227, 0.4);
+            --shadow-light: 0 10px 30px rgba(31, 58, 95, 0.07);
+            --card-bg: rgba(255, 255, 255, 0.98);
+            --card-hover-bg: #ffffff;
+            --border-radius: 16px;
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            --header-gradient: linear-gradient(135deg, #1F3A5F 0%, #2E5BBA 100%);
+            --header-text-fill: transparent;
+            --input-bg: #ffffff;
+            --breadcrumb-text: #6B7280;
+            --breadcrumb-active: #1C1C1C;
+            --breadcrumb-sep: rgba(75, 85, 99, 0.3);
+            --badge-bg: #FFF3CD;
+            --badge-text: #9a6000;
+        }
+
+        [data-theme="dark"] {
+            /* Dark Theme (Original) */
             --primary-color: #64748b;
             --secondary-color: #f59e0b;
-            --text-light: #ffffff;
+            --text-main: #ffffff;
+            --text-muted: rgba(255, 255, 255, 0.7);
+            --bg-gradient: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%);
             --glass-bg: rgba(15, 23, 42, 0.7);
             --glass-border: rgba(100, 116, 139, 0.25);
             --shadow-light: 0 8px 32px rgba(15, 23, 42, 0.3);
-            --border-radius: 20px;
-            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            --card-bg: rgba(15, 23, 42, 0.75);
+            --card-hover-bg: rgba(15, 23, 42, 0.85);
+            --header-gradient: linear-gradient(135deg, #fff 0%, #f0f0f0 100%);
+            --header-text-fill: transparent;
+            --input-bg: rgba(0, 0, 0, 0.2);
+            --breadcrumb-text: rgba(255, 255, 255, 0.7);
+            --breadcrumb-active: #ffffff;
+            --breadcrumb-sep: rgba(255, 255, 255, 0.3);
+            --badge-bg: rgba(245, 158, 11, 0.2);
+            --badge-text: #fbbf24;
         }
 
         * {
@@ -29,17 +65,17 @@
         }
 
         body {
-            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%);
+            background: var(--bg-gradient);
             min-height: 100vh;
-            color: var(--text-light);
+            color: var(--text-main);
             padding: 30px;
             padding-top: 80px;
+            transition: background 0.5s ease;
         }
 
-        .back-btn {
+        .back-btn, .theme-toggle {
             position: fixed;
             top: 20px;
-            left: 20px;
             z-index: 1000;
             background: var(--glass-bg);
             backdrop-filter: blur(20px);
@@ -51,15 +87,19 @@
             display: flex;
             align-items: center;
             gap: 8px;
-            color: var(--text-light);
+            color: var(--text-main);
             font-weight: 500;
             text-decoration: none;
+            box-shadow: var(--shadow-light);
         }
 
-        .back-btn:hover {
+        .back-btn { left: 20px; }
+        .theme-toggle { right: 20px; }
+
+        .back-btn:hover, .theme-toggle:hover {
             transform: translateY(-2px);
-            box-shadow: var(--shadow-light);
-            color: var(--text-light);
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.1);
+            color: var(--primary-color);
         }
 
         .main-container {
@@ -81,9 +121,9 @@
         .header-title {
             font-size: 2rem;
             font-weight: 700;
-            background: linear-gradient(135deg, #fff 0%, #f0f0f0 100%);
+            background: var(--header-gradient);
             -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+            -webkit-text-fill-color: var(--header-text-fill);
             margin-bottom: 20px;
             display: flex;
             align-items: center;
@@ -96,7 +136,7 @@
             flex-wrap: wrap;
             gap: 10px;
             font-size: 1.1rem;
-            color: rgba(255, 255, 255, 0.7);
+            color: var(--breadcrumb-text);
         }
 
         .crumb-item {
@@ -108,7 +148,7 @@
         }
 
         .crumb-item.active {
-            color: var(--text-light);
+            color: var(--breadcrumb-active);
             font-weight: 600;
         }
 
@@ -117,7 +157,7 @@
         }
 
         .crumb-separator {
-            color: rgba(255, 255, 255, 0.3);
+            color: var(--breadcrumb-sep);
             font-size: 0.9rem;
         }
 
@@ -145,9 +185,9 @@
 
         /* OLD SCHEMA-CARD STYLES (Requested by User) */
         .schema-card {
-            background: rgba(15, 23, 42, 0.75);
+            background: var(--card-bg);
             backdrop-filter: blur(20px) saturate(120%);
-            border: 1px solid rgba(100, 116, 139, 0.25);
+            border: 1px solid var(--glass-border);
             border-radius: var(--border-radius);
             padding: 35px;
             box-shadow: var(--shadow-light);
@@ -168,10 +208,10 @@
         }
 
         .schema-card:hover {
-            background: rgba(15, 23, 42, 0.85);
-            border-color: rgba(245, 158, 11, 0.3);
+            background: var(--card-hover-bg);
+            border-color: var(--secondary-color);
             transform: translateY(-8px);
-            box-shadow: 0 12px 30px rgba(245, 158, 11, 0.1);
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.1);
         }
 
         .schema-card:hover .schema-icon {
@@ -195,7 +235,7 @@
             font-size: 1.4rem;
             font-weight: 700;
             margin-bottom: 8px;
-            color: var(--text-light);
+            color: var(--text-main);
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
@@ -209,16 +249,16 @@
 
         .schema-description {
             font-size: 0.95rem;
-            color: rgba(255, 255, 255, 0.8);
+            color: var(--text-muted);
             line-height: 1.6;
             margin-bottom: 15px;
         }
 
         .schema-category {
             display: inline-block;
-            background: rgba(245, 158, 11, 0.2);
-            border: 1px solid rgba(245, 158, 11, 0.3);
-            color: #fbbf24;
+            background: var(--badge-bg);
+            border: 1px solid var(--secondary-color);
+            color: var(--badge-text);
             padding: 4px 12px;
             border-radius: 15px;
             font-size: 0.8rem;
@@ -234,13 +274,13 @@
 
         .metadata-tooltip {
             position: absolute;
-            background: rgba(15, 23, 42, 0.95);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            color: white;
+            background: var(--glass-bg);
+            backdrop-filter: blur(15px);
+            border: 1px solid var(--glass-border);
+            color: var(--text-main);
             padding: 15px;
             border-radius: 12px;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
             width: 300px;
             z-index: 1000;
             opacity: 0;
@@ -261,9 +301,9 @@
             transform: translateX(-50%) rotate(45deg);
             width: 12px;
             height: 12px;
-            background: rgba(15, 23, 42, 0.95);
-            border-right: 1px solid rgba(255, 255, 255, 0.1);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            background: var(--glass-bg);
+            border-right: 1px solid var(--glass-border);
+            border-bottom: 1px solid var(--glass-border);
         }
 
         .tooltip-container:hover .metadata-tooltip {
@@ -286,7 +326,7 @@
         }
 
         .tt-label {
-            color: rgba(255, 255, 255, 0.6);
+            color: var(--text-muted);
             min-width: 80px;
         }
 
@@ -313,16 +353,16 @@
             left: 15px;
             top: 50%;
             transform: translateY(-50%);
-            color: rgba(255, 255, 255, 0.5);
+            color: var(--text-muted);
         }
 
         .search-input {
             width: 100%;
-            background: rgba(0, 0, 0, 0.2);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: var(--input-bg);
+            border: 1px solid var(--glass-border);
             border-radius: 50px;
             padding: 12px 15px 12px 45px;
-            color: white;
+            color: var(--text-main);
             font-size: 1rem;
             transition: var(--transition);
         }
@@ -351,8 +391,8 @@
         }
 
         .table-row:hover {
-            border-color: rgba(245, 158, 11, 0.3);
-            background: rgba(15, 23, 42, 0.85);
+            border-color: var(--secondary-color);
+            background: var(--card-hover-bg);
         }
 
         .table-info {
@@ -373,7 +413,7 @@
         }
 
         .table-meta {
-            color: rgba(255, 255, 255, 0.6);
+            color: var(--text-muted);
             font-size: 0.9rem;
             display: flex;
             gap: 15px;
@@ -399,35 +439,50 @@
         }
 
         .btn-data {
-            background: rgba(59, 130, 246, 0.15);
-            color: #60a5fa;
+            background: rgba(59, 130, 246, 0.1);
+            color: #2563eb;
             border-color: rgba(59, 130, 246, 0.3);
         }
 
+        [data-theme="dark"] .btn-data {
+            color: #60a5fa;
+            background: rgba(59, 130, 246, 0.15);
+        }
+
         .btn-data:hover {
-            background: rgba(59, 130, 246, 0.25);
+            background: #2563eb;
             color: #fff;
         }
 
         .btn-meta {
-            background: rgba(16, 185, 129, 0.15);
-            color: #34d399;
+            background: rgba(16, 185, 129, 0.1);
+            color: #059669;
             border-color: rgba(16, 185, 129, 0.3);
         }
 
+        [data-theme="dark"] .btn-meta {
+            color: #34d399;
+            background: rgba(16, 185, 129, 0.15);
+        }
+
         .btn-meta:hover {
-            background: rgba(16, 185, 129, 0.25);
+            background: #059669;
             color: #fff;
         }
 
         .btn-query {
-            background: rgba(245, 158, 11, 0.15);
-            color: #fbbf24;
+            background: rgba(245, 158, 11, 0.1);
+            color: #d97706;
             border-color: rgba(245, 158, 11, 0.3);
         }
 
+        [data-theme="dark"] .btn-query {
+            color: #fbbf24;
+            background: rgba(245, 158, 11, 0.15);
+        }
+
         .btn-query:hover {
-            background: rgba(245, 158, 11, 0.25);
+            background: #d97706;
             color: #fff;
         }
 
@@ -454,7 +509,7 @@
             background: var(--glass-bg);
             border-radius: var(--border-radius);
             border: 1px solid var(--glass-border);
-            color: rgba(255, 255, 255, 0.6);
+            color: var(--text-muted);
         }
 
         .empty-state i {
@@ -471,6 +526,11 @@
         <i class="fas fa-arrow-left"></i>
         <span>Back</span>
     </a>
+
+    <button id="theme-toggle" class="theme-toggle" onclick="toggleTheme()">
+        <i class="fas fa-moon"></i>
+        <span>Dark Mode</span>
+    </button>
 
     <div class="main-container">
         <!-- Header & Breadcrumbs -->
@@ -696,6 +756,11 @@
                 card.onclick = () => loadTables(ds);
                 
                 card.innerHTML = `
+                    <div style="position: absolute; top: 15px; right: 15px; z-index: 10;">
+                        <a href="/metadata-detail/${state.selectedSchema.survey}/${ds.schema}" class="action-btn btn-meta" onclick="event.stopPropagation()" title="View Detailed Metadata">
+                            <i class="fas fa-info-circle"></i> Info
+                        </a>
+                    </div>
                     <i class="fas fa-folder-open schema-icon"></i>
                     <div class="schema-info">
                         <div class="schema-name">${ds.display_name}</div>
@@ -841,6 +906,35 @@
             
             bc.innerHTML = html;
         }
+
+        // Theme Toggle Functionality
+        function toggleTheme() {
+            const html = document.documentElement;
+            const currentTheme = html.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            
+            html.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            updateThemeUI(newTheme);
+        }
+
+        function updateThemeUI(theme) {
+            const toggle = document.getElementById('theme-toggle');
+            if(!toggle) return;
+            
+            if(theme === 'dark') {
+                toggle.innerHTML = '<i class="fas fa-sun"></i> <span>Light Mode</span>';
+            } else {
+                toggle.innerHTML = '<i class="fas fa-moon"></i> <span>Dark Mode</span>';
+            }
+        }
+
+        // Initialize Theme
+        (function initTheme() {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            updateThemeUI(savedTheme);
+        })();
 
     </script>
 </body>

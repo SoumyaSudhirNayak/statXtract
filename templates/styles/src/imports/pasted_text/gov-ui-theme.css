@@ -1,0 +1,215 @@
+Design a clean, modern government-style web UI theme inspired by official Indian government 
+platforms like MoSPI. The interface should feel trustworthy, structured, and professional, 
+while incorporating a subtle modern (Gen Z-friendly) touch.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+COLOUR PALETTE — 16 TOKENS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Primary Blues (structure & action):
+  --blue-900:  #1F3A5F  → Navbar, hero bg, topbar, footer
+  --blue-700:  #2E5BBA  → Buttons, links, active nav, focus rings
+  --blue-hover: #16324F → Button hover state, hero gradient end
+  --blue-50:   #EBF1FA  → Card icon bg, info alert bg, chip hover
+
+Trust Greens (data, growth, verification):
+  --green-700: #2E7D32  → Verified badges, success alerts, progress bars
+  --green-50:  #E8F5E9  → Success pill bg, verified chip bg
+
+Saffron Accent (Indian identity — use sparingly):
+  --saffron:       #F4A300  → Topbar bottom border, eyebrow badge, warning alert
+  --saffron-light: #FFF3CD  → Warning alert bg, saffron chip bg
+
+Text:
+  --text-primary:   #1C1C1C  → All primary headings and body text
+  --text-secondary: #6B7280  → Captions, hints, metadata, nav subtext
+  --text-muted:     #9CA3AF  → Placeholder text, optional form labels
+
+Backgrounds:
+  --bg-white:   #FFFFFF   → Cards, navbar, form inputs
+  --bg-section: #F5F7FA   → Page background, table headers, section breaks
+  --bg-subtle:  #EEF1F6   → Progress bar tracks, input hover bg
+
+Borders:
+  --border:        #E5E7EB  → Card borders, input default borders, table rows
+  --border-strong: #D1D5DB  → Input hover/focus borders
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TYPOGRAPHY — 2 FONT FAMILIES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Display / Headings → Source Serif 4 (Google Fonts, serif)
+  Purpose: All headings, section titles, KPI stat numbers, hero H1.
+  Adds authority, editorial gravitas, and a trustworthy newspaper feel.
+
+Body / UI → DM Sans (Google Fonts, sans-serif)
+  Purpose: Nav links, buttons, body copy, form labels, table cells, 
+  breadcrumbs, footer links, alerts, chips, badge text.
+  Adds modern clarity without being sterile or cold.
+
+Import:
+  @import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@400;600;700&family=DM+Sans:wght@400;500;600&display=swap');
+  --font-head: 'Source Serif 4', serif;
+  --font-body: 'DM Sans', sans-serif;
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TYPE SCALE — 17 STEPS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Hero H1 .............. Source Serif 4, 38px, weight 700, line-height 1.2
+Section Title (h2) ... Source Serif 4, 24px, weight 700
+KPI Stat Number ...... Source Serif 4, 32px, weight 700, line-height 1
+Hero Overlay Stat .... Source Serif 4, 28px, weight 700, line-height 1
+Navbar Brand Name .... DM Sans, 15px, weight 600
+Card/Table Title ..... DM Sans, 15px, weight 600
+Nav Links ............ DM Sans, 14px, weight 500
+Body Copy ............ DM Sans, 15px, weight 400, line-height 1.6
+Button Label ......... DM Sans, 14px, weight 500
+Table Cell ........... DM Sans, 14px, weight 400
+Form Input ........... DM Sans, 14px, weight 400
+Form Label ........... DM Sans, 13px, weight 600
+Section Eyebrow ...... DM Sans, 11.5px, weight 600, UPPERCASE, letter-spacing 1px
+Table Column Head .... DM Sans, 12px, weight 600, UPPERCASE, letter-spacing 0.5px
+Status / Badge ....... DM Sans, 12px, weight 600
+Helper / Hint Text ... DM Sans, 12px, weight 400, color --text-muted
+Micro / Topbar ....... DM Sans, 12px, weight 400
+
+Use only weights 400, 500, 600 in DM Sans. 
+Use weight 700 only in Source Serif 4 display headings.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SHAPE & SPACING TOKENS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+--radius-btn:   7px   → All buttons
+--radius-card:  10px  → Cards, form wrappers, containers
+--radius-badge: 20px  → Pills, chips, status badges (full pill)
+
+Shadows (soft, non-flashy):
+  --shadow-card: 0 1px 4px rgba(0,0,0,0.07), 0 4px 16px rgba(31,58,95,0.06)
+  --shadow-nav:  0 2px 8px rgba(31,58,95,0.12)
+
+Animations:
+  --transition: 0.22s ease   → All hover transitions
+  Fade-in on page load: opacity 0→1, translateY 6px→0, duration 0.5s ease
+  Button hover: background darkens to --blue-hover, 
+                box-shadow adds 0 2px 8px rgba(31,58,95,0.2)
+  Card hover: translateY(-1px), shadow deepens to 0 4px 20px rgba(31,58,95,0.1)
+  No bouncy, springy, or playful animations. All easing: ease or ease-in-out only.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+GLASSMORPHISM LAYER
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Apply glass effects ONLY on dark/coloured backgrounds (e.g. hero section, 
+dark overlays, stat cards on the hero). Never apply glass on white/light surfaces.
+
+Glass card recipe (for hero stat cards, floating overlays, modal-style panels on dark bg):
+  background:       rgba(255, 255, 255, 0.07)
+  border:           1px solid rgba(255, 255, 255, 0.12)
+  backdrop-filter:  blur(10px) saturate(1.4)
+  -webkit-backdrop-filter: blur(10px) saturate(1.4)
+  border-radius:    var(--radius-card)  → 10px
+  box-shadow:       0 4px 24px rgba(0, 0, 0, 0.15)
+
+Glass nav variant (sticky navbar when scrolled over a dark hero):
+  background:       rgba(255, 255, 255, 0.72)
+  backdrop-filter:  blur(16px) saturate(1.8)
+  border-bottom:    1px solid rgba(255, 255, 255, 0.3)
+
+Glass badge / eyebrow pill (on dark hero bg):
+  background:       rgba(244, 163, 0, 0.15)   → saffron-tinted glass
+  border:           1px solid rgba(244, 163, 0, 0.30)
+  backdrop-filter:  blur(6px)
+  color:            #F4A300
+
+Glass modal/sidebar overlay:
+  background:       rgba(31, 58, 95, 0.55)    → blue-tinted dark glass
+  backdrop-filter:  blur(20px) saturate(1.2)
+  border:           1px solid rgba(255, 255, 255, 0.08)
+
+Rules for glass usage:
+  - Only use on dark (#1F3A5F, #16324F) or semi-dark coloured backgrounds
+  - Never on white cards, white navbar in default state, or light page bg
+  - Text inside glass panels must stay white or rgba(255,255,255,0.85)
+  - Keep blur values between 8px–20px; above 20px becomes too heavy
+  - Always pair with a subtle border (rgba white, 0.10–0.15 opacity)
+  - On mobile/low-end: provide fallback with rgba background only (no backdrop-filter)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BUTTON VARIANTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Primary:    bg #2E5BBA, color white, hover bg #16324F
+Secondary:  bg transparent, color #2E5BBA, border 1.5px solid #2E5BBA, hover bg #EBF1FA
+Ghost:      bg transparent, color #6B7280, border 1.5px solid #E5E7EB, hover bg #F5F7FA
+White:      bg white, color #1F3A5F, hover bg #f0f4fa  (for use on dark hero bg)
+Outline-White: bg transparent, color white, border 1.5px solid rgba(255,255,255,0.4)
+              hover bg rgba(255,255,255,0.10)
+
+Sizes:
+  Small:   padding 6px 14px, font-size 13px
+  Default: padding 9px 20px, font-size 14px
+  Large:   padding 12px 28px, font-size 15px
+
+No gradients on buttons. Flat background only. Transitions: 0.22s ease.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+COMPONENT COLOUR RULES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Topbar:       bg #1F3A5F, text rgba(255,255,255,0.75), 
+              bottom border 2px solid #F4A300
+
+Navbar:       bg #FFFFFF, shadow --shadow-nav
+
+Hero:         bg linear-gradient(135deg, #1F3A5F 0%, #16324F 100%)
+              Stat cards on hero: use glassmorphism recipe above
+
+Section bg:   alternate between #FFFFFF and #F5F7FA for visual separation
+
+Cards:        bg white, border 1px solid #E5E7EB, shadow --shadow-card
+              hover: translateY(-1px), deeper shadow
+
+Table head:   bg #F5F7FA, text #6B7280, UPPERCASE 12px
+Table rows:   border-bottom 1px solid #E5E7EB, hover bg #F5F7FA
+
+Status pills:
+  Verified:   bg #E8F5E9, color #2E7D32
+  Pending:    bg #FFF3CD, color #9a6000
+  Review:     bg #EBF1FA, color #2E5BBA
+
+Alert panels:
+  Info:       bg #EBF1FA, left-border 4px solid #2E5BBA, text #1a3a6e
+  Success:    bg #E8F5E9, left-border 4px solid #2E7D32, text #1b5e20
+  Warning:    bg #FFF3CD, left-border 4px solid #F4A300, text #7a4f00
+
+Progress bars:
+  Track:      bg #EEF1F6, height 6px, border-radius 4px
+  Blue fill:  #2E5BBA
+  Green fill: #2E7D32
+  Saffron:    #F4A300
+
+Footer:       bg #1F3A5F, text rgba(255,255,255,0.65)
+              links hover to #F4A300
+              top section divider: 1px solid rgba(255,255,255,0.10)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+OVERALL FEEL & RULES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  70% professional government UI  — structured, trustworthy, data-centric
+  30% modern clean youthful feel  — DM Sans, subtle glass, smooth transitions
+
+  ✓ Flat colours only (no gradients on surfaces except hero bg)
+  ✓ Glass only on dark/coloured backgrounds
+  ✓ Saffron used maximum 3–4 places per page (topbar, badge, warning, 1 accent)
+  ✓ Soft shadows, never harsh drop-shadows
+  ✓ All border-radius values follow token system
+  ✓ All transitions: 0.22s ease — no bounce, no spring
+  ✓ Icons: outline style, 16–20px, stroke-width 1.8–2
+  ✗ No neon colours
+  ✗ No heavy gradients
+  ✗ No playful or bouncy animations
+  ✗ No glass on white/light backgrounds
+  ✗ No weights above 700 in any font

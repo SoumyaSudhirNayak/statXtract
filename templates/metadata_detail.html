@@ -9,12 +9,27 @@
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         :root {
+            /* Light Theme Tokens - Based on app design system */
+            --primary: #2E5BBA;
+            --primary-dark: #1F3A5F;
+            --secondary: #64748b;
+            --accent: #F4A300;
+            --bg-page: #F8FAFC;
+            --glass-bg: rgba(255, 255, 255, 0.95);
+            --glass-border: rgba(209, 213, 219, 0.5);
+            --text-main: #1C1C1C;
+            --text-muted: #6B7280;
+            --shadow-heavy: 0 10px 30px rgba(31, 58, 95, 0.07);
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        [data-theme="dark"] {
             --primary: #6366f1;
             --primary-dark: #4f46e5;
             --secondary: #64748b;
             --accent: #10b981;
-            --bg-dark: #0f172a;
-            --glass-bg: rgba(30, 41, 59, 0.7);
+            --bg-page: #0f172a;
+            --glass-bg: rgba(30, 41, 59, 0.85);
             --glass-border: rgba(255, 255, 255, 0.1);
             --text-main: rgba(255, 255, 255, 0.95);
             --text-muted: rgba(255, 255, 255, 0.7);
@@ -29,13 +44,22 @@
         }
 
         body {
-            background: var(--bg-dark);
-            background-image: 
-                radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 50%),
-                radial-gradient(at 100% 0%, rgba(16, 185, 129, 0.1) 0px, transparent 50%);
+            background: var(--bg-page);
+            background-image: var(--body-bg-gradient);
             min-height: 100vh;
             color: var(--text-main);
             padding: 40px 20px;
+            transition: var(--transition);
+        }
+
+        :root {
+            --body-bg-gradient: radial-gradient(at 0% 0%, rgba(46, 91, 186, 0.08) 0px, transparent 50%),
+                                radial-gradient(at 100% 0%, rgba(244, 163, 0, 0.05) 0px, transparent 50%);
+        }
+
+        [data-theme="dark"] {
+            --body-bg-gradient: radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 50%),
+                                radial-gradient(at 100% 0%, rgba(16, 185, 129, 0.1) 0px, transparent 50%);
         }
 
         .container {
@@ -65,8 +89,30 @@
         }
 
         .btn-back:hover {
-            background: rgba(255, 255, 255, 0.1);
+            background: var(--primary);
+            color: #fff;
             transform: translateX(-5px);
+        }
+
+        /* Theme Toggle */
+        .theme-toggle {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            color: var(--text-main);
+            cursor: pointer;
+            font-weight: 600;
+            transition: var(--transition);
+        }
+
+        .theme-toggle:hover {
+            transform: translateY(-2px);
+            background: var(--primary);
+            color: #fff;
         }
 
         .metadata-card {
@@ -90,6 +136,10 @@
         .card-title {
             font-size: 1.5rem;
             font-weight: 800;
+            color: var(--text-main);
+        }
+
+        [data-theme="dark"] .card-title {
             background: linear-gradient(135deg, #fff 0%, #cbd5e1 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
@@ -130,14 +180,18 @@
             display: flex;
             align-items: center;
             gap: 10px;
-            border-bottom: 1px solid rgba(99, 102, 241, 0.2);
+            border-bottom: 1px solid var(--glass-border);
             padding-bottom: 8px;
+        }
+
+        [data-theme="dark"] .section-title {
+            border-bottom: 1px solid rgba(99, 102, 241, 0.2);
         }
 
         .meta-row {
             display: flex;
             padding: 12px 0;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            border-bottom: 1px solid var(--glass-border);
         }
 
         .meta-label {
@@ -203,9 +257,13 @@
 <body>
     <div class="container">
         <div class="header">
-            <a href="/admin" class="btn-back">
-                <i class="fas fa-arrow-left"></i> Back to Dashboard
+            <a href="javascript:history.back()" class="btn-back">
+                <i class="fas fa-arrow-left"></i> Back
             </a>
+            <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()">
+                <i class="fas fa-moon"></i>
+                <span>Dark Mode</span>
+            </button>
         </div>
 
         <div class="metadata-card">
@@ -320,6 +378,35 @@
         }
 
         window.onload = loadMetadata;
+
+        // Theme Toggle Functionality
+        function toggleTheme() {
+            const html = document.documentElement;
+            const currentTheme = html.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            
+            html.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            updateThemeUI(newTheme);
+        }
+
+        function updateThemeUI(theme) {
+            const toggle = document.getElementById('theme-toggle');
+            if(!toggle) return;
+            
+            if(theme === 'dark') {
+                toggle.innerHTML = '<i class="fas fa-sun"></i> <span>Light Mode</span>';
+            } else {
+                toggle.innerHTML = '<i class="fas fa-moon"></i> <span>Dark Mode</span>';
+            }
+        }
+
+        // Initialize Theme
+        (function initTheme() {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            updateThemeUI(savedTheme);
+        })();
     </script>
 </body>
 

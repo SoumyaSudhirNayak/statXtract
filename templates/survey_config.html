@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Survey Configuration - Data Analytics Platform</title>
+
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+
+    <style>
+        :root {
+            /* Standard Theme Tokens */
+            --primary-color: #2E5BBA;
+            --primary-gradient: linear-gradient(135deg, #2E5BBA 0%, #1F3A5F 100%);
+            --secondary-color: #F4A300;
+            --secondary-gradient: linear-gradient(135deg, #F4A300 0%, #D97706 100%);
+            --success-color: #2E7D32;
+            --warning-color: #F4A300;
+            --danger-color: #D4183D;
+            --text-main: #1C1C1C;
+            --text-muted: #6B7280;
+            --bg-page: linear-gradient(135deg, #F5F7FA 0%, #EEF3FB 55%, #E9EEF7 100%);
+            --surface-bg: rgba(255, 255, 255, 0.88);
+            --surface-muted: #F8FAFC;
+            --glass-bg: rgba(255, 255, 255, 0.95);
+            --glass-border: rgba(209, 213, 219, 0.5);
+            --shadow-light: 0 8px 32px rgba(31, 58, 95, 0.07);
+            --shadow-heavy: 0 16px 40px rgba(31, 58, 95, 0.12);
+            --border-radius: 20px;
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            --text-on-primary: #FFFFFF;
+        }
+
+        [data-theme="dark"] {
+            --primary-color: #6366F1;
+            --primary-gradient: linear-gradient(135deg, #6366F1 0%, #4F46E5 100%);
+            --text-main: #F8FAFC;
+            --text-muted: rgba(255, 255, 255, 0.7);
+            --bg-page: linear-gradient(135deg, #0F172A 0%, #1E293B 50%, #334155 100%);
+            --surface-bg: rgba(15, 23, 42, 0.78);
+            --surface-muted: rgba(30, 41, 59, 0.9);
+            --glass-bg: rgba(15, 23, 42, 0.78);
+            --glass-border: rgba(100, 116, 139, 0.25);
+            --shadow-light: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-page);
+            min-height: 100vh;
+            color: var(--text-main);
+            transition: var(--transition);
+            overflow-x: hidden;
+            padding: 40px 20px;
+        }
+
+        /* Theme Toggle */
+        .theme-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: 50px;
+            padding: 12px 20px;
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-main);
+            font-weight: 600;
+            box-shadow: var(--shadow-light);
+        }
+
+        /* Back Button */
+        .back-btn {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: 50px;
+            padding: 12px 24px;
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-main);
+            font-weight: 600;
+            text-decoration: none;
+            box-shadow: var(--shadow-light);
+        }
+
+        .back-btn:hover {
+            transform: translateX(-5px);
+            background: var(--primary-color);
+            color: var(--text-on-primary);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            margin-top: 60px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--text-main);
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: var(--text-muted);
+            font-size: 1.1rem;
+        }
+
+        .card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--border-radius);
+            padding: 30px;
+            box-shadow: var(--shadow-light);
+            margin-bottom: 30px;
+        }
+
+        /* Form Elements */
+        .config-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .form-group label {
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .form-select {
+            width: 100%;
+            padding: 14px 18px;
+            background: var(--surface-muted);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            color: var(--text-main);
+            font-size: 1rem;
+            font-family: inherit;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .form-select:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(46, 91, 186, 0.1);
+        }
+
+        /* Variables Form Toolbar */
+        .toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px;
+            background: var(--surface-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 15px;
+            margin-bottom: 25px;
+            position: sticky;
+            top: 80px;
+            z-index: 100;
+            box-shadow: var(--shadow-light);
+        }
+
+        .bulk-controls {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 500;
+            font-size: 0.95rem;
+            cursor: pointer;
+            color: var(--text-main);
+        }
+
+        .checkbox-label input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+        .action-btns {
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border-radius: 10px;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: var(--transition);
+            font-family: inherit;
+        }
+
+        .btn-primary {
+            background: var(--primary-gradient);
+            color: var(--text-on-primary);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-heavy);
+        }
+
+        .btn-secondary {
+            background: var(--secondary-gradient);
+            color: var(--text-on-primary);
+        }
+
+        .variables-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 15px;
+        }
+
+        .variable-card {
+            background: var(--surface-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            padding: 18px;
+            transition: var(--transition);
+        }
+
+        .variable-card:hover {
+            border-color: var(--primary-color);
+            box-shadow: var(--shadow-light);
+        }
+
+        .var-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--glass-border);
+        }
+
+        .var-name {
+            font-weight: 700;
+            font-size: 0.95rem;
+            color: var(--text-main);
+            word-break: break-all;
+        }
+
+        .var-type {
+            font-size: 0.75rem;
+            padding: 2px 8px;
+            background: rgba(46, 91, 186, 0.1);
+            color: var(--primary-color);
+            border-radius: 20px;
+            font-weight: 600;
+        }
+
+        .var-options {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .var-option {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.9rem;
+            color: var(--text-main);
+        }
+
+        .var-input-num {
+            width: 70px;
+            padding: 4px 8px;
+            border: 1px solid var(--glass-border);
+            border-radius: 6px;
+            background: var(--surface-muted);
+            color: var(--text-main);
+        }
+
+        /* Toast notifications */
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 2000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .toast {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            padding: 15px 30px;
+            border-radius: 50px;
+            box-shadow: var(--shadow-heavy);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            animation: slideDown 0.3s ease-out;
+            color: var(--text-main);
+            font-weight: 500;
+        }
+
+        @keyframes slideDown {
+            from { transform: translateY(-100%); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .toast.success { border-left: 4px solid var(--success-color); }
+        .toast.error { border-left: 4px solid var(--danger-color); }
+        .toast.info { border-left: 4px solid var(--primary-color); }
+
+        /* Loader */
+        .loader {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-muted);
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Theme Toggle -->
+    <div class="theme-toggle" onclick="toggleTheme()">
+        <i class="fas fa-moon"></i>
+        <span>Dark Mode</span>
+    </div>
+
+    <!-- Back Button -->
+    <a href="/admin/dashboard" class="back-btn">
+        <i class="fas fa-arrow-left"></i>
+        <span>Back to Dashboard</span>
+    </a>
+
+    <div class="toast-container" id="toastContainer"></div>
+
+    <div class="container">
+        <div class="header">
+            <h1><i class="fas fa-sliders-h"></i> Survey Configuration</h1>
+            <p>Configure table visibility and variable response behavior for users</p>
+        </div>
+
+        <div class="card">
+            <div class="config-grid">
+                <div class="form-group">
+                    <label for="surveySelectConfig"><i class="fas fa-folder-tree"></i> Survey</label>
+                    <select id="surveySelectConfig" class="form-select" onchange="loadConfigDatasets()">
+                        <option value="" disabled selected>Loading surveys...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="datasetSelectConfig"><i class="fas fa-calendar"></i> Dataset</label>
+                    <select id="datasetSelectConfig" class="form-select" onchange="loadConfigTables()">
+                        <option value="">Select a survey first...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="tableSelectConfig"><i class="fas fa-table"></i> Table</label>
+                    <select id="tableSelectConfig" class="form-select" onchange="loadVariables()">
+                        <option value="">Select a dataset first...</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="schemaInfo"></div>
+        </div>
+
+        <div id="variablesForm" style="display: none;">
+            <div class="toolbar">
+                <div class="bulk-controls">
+                    <label class="checkbox-label">
+                        <input id="showTableToUsers" type="checkbox" checked />
+                        <span>Show Table to Users</span>
+                    </label>
+                    <label class="checkbox-label">
+                        <input id="includeAllVariablesInApi" type="checkbox" onchange="applyBulkVariableToggle('include_in_api', this.checked)" />
+                        <span>Include All in API</span>
+                    </label>
+                    <label class="checkbox-label">
+                        <input id="filterableAllVariables" type="checkbox" onchange="applyBulkVariableToggle('filterable', this.checked)" />
+                        <span>Filterable All</span>
+                    </label>
+                </div>
+                <div class="action-btns">
+                    <button type="button" class="btn btn-secondary" onclick="saveAllConfigurations()">
+                        <i class="fas fa-save"></i> Save All
+                    </button>
+                </div>
+            </div>
+
+            <div class="variables-grid" id="variablesGrid"></div>
+        </div>
+    </div>
+
+    <script>
+        // Theme Management
+        function toggleTheme() {
+            const html = document.documentElement;
+            const currentTheme = html.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            html.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            updateThemeUI(newTheme);
+        }
+
+        function updateThemeUI(theme) {
+            const toggleText = document.querySelector('.theme-toggle span');
+            const toggleIcon = document.querySelector('.theme-toggle i');
+            if (theme === 'dark') {
+                toggleText.textContent = 'Light Mode';
+                toggleIcon.className = 'fas fa-sun';
+            } else {
+                toggleText.textContent = 'Dark Mode';
+                toggleIcon.className = 'fas fa-moon';
+            }
+        }
+
+        // Initialize Theme
+        (function() {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            updateThemeUI(savedTheme);
+        })();
+
+        // Survey Config Logic
+        let currentConfigPayload = null;
+
+        async function loadSurveys() {
+            try {
+                const res = await fetch('/surveys');
+                const surveys = await res.json();
+                const sel = document.getElementById('surveySelectConfig');
+                sel.innerHTML = '<option value="" disabled selected>Select Survey...</option>';
+                (Array.isArray(surveys) ? surveys : []).forEach(s => {
+                    const opt = document.createElement('option');
+                    opt.value = s.survey;
+                    opt.textContent = s.display_name;
+                    sel.appendChild(opt);
+                });
+            } catch (e) {
+                showToast('Failed to load surveys', 'error');
+            }
+        }
+
+        async function loadConfigDatasets() {
+            const survey = document.getElementById('surveySelectConfig').value;
+            const datasetSel = document.getElementById('datasetSelectConfig');
+            const tableSel = document.getElementById('tableSelectConfig');
+            
+            datasetSel.innerHTML = '<option value="" disabled selected>Loading datasets...</option>';
+            tableSel.innerHTML = '<option value="">Select a dataset first...</option>';
+            document.getElementById('variablesForm').style.display = 'none';
+            document.getElementById('schemaInfo').innerHTML = '';
+
+            try {
+                const res = await fetch(`/surveys/${survey}/datasets`);
+                const datasets = await res.json();
+                datasetSel.innerHTML = '<option value="" disabled selected>Select Dataset...</option>';
+                (Array.isArray(datasets) ? datasets : []).forEach(d => {
+                    const opt = document.createElement('option');
+                    opt.value = d.schema;
+                    opt.textContent = d.display_name;
+                    datasetSel.appendChild(opt);
+                });
+            } catch (e) {
+                showToast('Failed to load datasets', 'error');
+            }
+        }
+
+        async function loadConfigTables() {
+            const survey = document.getElementById('surveySelectConfig').value;
+            const dataset = document.getElementById('datasetSelectConfig').value;
+            const tableSel = document.getElementById('tableSelectConfig');
+            
+            tableSel.innerHTML = '<option value="" disabled selected>Loading tables...</option>';
+            document.getElementById('variablesForm').style.display = 'none';
+
+            try {
+                const res = await fetch(`/surveys/${survey}/${encodeURIComponent(dataset)}/tables`);
+                const tables = await res.json();
+                tableSel.innerHTML = '<option value="" disabled selected>Select Table...</option>';
+                (Array.isArray(tables) ? tables : []).forEach(t => {
+                    const opt = document.createElement('option');
+                    opt.value = t.table_name;
+                    opt.textContent = t.table_name;
+                    tableSel.appendChild(opt);
+                });
+            } catch (e) {
+                showToast('Failed to load tables', 'error');
+            }
+        }
+
+        async function loadVariables() {
+            const schema = document.getElementById('datasetSelectConfig').value;
+            const table = document.getElementById('tableSelectConfig').value;
+
+            if (!schema || !table) return;
+
+            try {
+                showToast('Loading variables...', 'info');
+                const res = await fetch(`/admin/schemas/${encodeURIComponent(schema)}/variables?table=${encodeURIComponent(table)}`);
+                const data = await res.json();
+
+                if (data.error) throw new Error(data.error);
+
+                currentConfigPayload = data;
+                renderVariables(data.variables);
+                document.getElementById('variablesForm').style.display = 'block';
+                document.getElementById('showTableToUsers').checked = !!data.show_table_to_users;
+                
+                document.getElementById('schemaInfo').innerHTML = `
+                    <div style="margin-top:20px; color:var(--text-muted); font-size:0.9rem;">
+                        <i class="fas fa-info-circle"></i> ${data.total_variables} variables found in ${table}
+                    </div>
+                `;
+                showToast('Variables loaded successfully', 'success');
+            } catch (e) {
+                showToast(e.message, 'error');
+            }
+        }
+
+        function renderVariables(variables) {
+            const grid = document.getElementById('variablesGrid');
+            grid.innerHTML = '';
+            variables.forEach(v => {
+                const card = document.createElement('div');
+                card.className = 'variable-card';
+                card.dataset.variable = v.variable_name;
+                card.innerHTML = `
+                    <div class="var-header">
+                        <span class="var-name">${v.variable_name}</span>
+                        <span class="var-type">${v.data_type || 'N/A'}</span>
+                    </div>
+                    <div class="var-options">
+                        <label class="var-option">
+                            <span>Include in API</span>
+                            <input type="checkbox" data-key="include_in_api" onchange="syncBulkStates()" ${v.include_in_api ? 'checked' : ''}>
+                        </label>
+                        <label class="var-option">
+                            <span>Filterable</span>
+                            <input type="checkbox" data-key="filterable" onchange="syncBulkStates()" ${v.filterable ? 'checked' : ''}>
+                        </label>
+                        <label class="var-option">
+                            <span>Is Sensitive</span>
+                            <input type="checkbox" data-key="is_sensitive" ${v.is_sensitive ? 'checked' : ''}>
+                        </label>
+                        <label class="var-option">
+                            <span>Min Rows</span>
+                            <input type="number" data-key="min_rows" class="var-input-num" value="${v.min_rows || 5}">
+                        </label>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+            syncBulkStates();
+        }
+
+        function applyBulkVariableToggle(key, checked) {
+            document.querySelectorAll(`.variable-card [data-key="${key}"]`).forEach(el => el.checked = checked);
+            syncBulkStates();
+        }
+
+        function syncBulkStates() {
+            const sync = (key, bulkId) => {
+                const items = Array.from(document.querySelectorAll(`.variable-card [data-key="${key}"]`));
+                const checked = items.filter(i => i.checked).length;
+                const bulk = document.getElementById(bulkId);
+                bulk.checked = checked === items.length;
+                bulk.indeterminate = checked > 0 && checked < items.length;
+            };
+            sync('include_in_api', 'includeAllVariablesInApi');
+            sync('filterable', 'filterableAllVariables');
+        }
+
+        async function saveAllConfigurations() {
+            const schema = document.getElementById('datasetSelectConfig').value;
+            const table = document.getElementById('tableSelectConfig').value;
+            
+            const configs = Array.from(document.querySelectorAll('.variable-card')).map(card => ({
+                variable_name: card.dataset.variable,
+                include_in_api: card.querySelector('[data-key="include_in_api"]').checked,
+                filterable: card.querySelector('[data-key="filterable"]').checked,
+                is_sensitive: card.querySelector('[data-key="is_sensitive"]').checked,
+                min_rows: parseInt(card.querySelector('[data-key="min_rows"]').value) || 5
+            }));
+
+            const payload = {
+                schema: schema,
+                table: table,
+                show_table_to_users: document.getElementById('showTableToUsers').checked,
+                configs: configs
+            };
+
+            try {
+                showToast('Saving configurations...', 'info');
+                const res = await fetch('/admin/update-variable-config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                if (res.ok) {
+                    showToast('Configurations saved successfully!', 'success');
+                } else {
+                    const err = await res.json();
+                    throw new Error(err.detail || 'Failed to save');
+                }
+            } catch (e) {
+                showToast(e.message, 'error');
+            }
+        }
+
+        function showToast(message, type) {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            const icon = type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle';
+            toast.innerHTML = `<i class="fas fa-${icon}"></i><span>${message}</span>`;
+            container.appendChild(toast);
+            setTimeout(() => toast.remove(), 4000);
+        }
+
+        // Init
+        window.onload = loadSurveys;
+    </script>
+</body>
+</html>

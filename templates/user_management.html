@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Management</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            /* Standard Theme Tokens */
+            --primary: #2E5BBA;
+            --primary-gradient: linear-gradient(135deg, #2E5BBA 0%, #1F3A5F 100%);
+            --secondary: #64748b;
+            --accent: #F4A300;
+            --text-main: #1C1C1C;
+            --text-muted: #6B7280;
+            --bg-page: linear-gradient(135deg, #F5F7FA 0%, #EEF3FB 55%, #E9EEF7 100%);
+            --glass-bg: rgba(255, 255, 255, 0.95);
+            --glass-border: rgba(209, 213, 219, 0.5);
+            --shadow-heavy: 0 12px 32px rgba(31, 58, 95, 0.1);
+            --radius: 20px;
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        [data-theme="dark"] {
+            --primary: #6366F1;
+            --text-main: #F8FAFC;
+            --text-muted: rgba(255, 255, 255, 0.7);
+            --bg-page: linear-gradient(135deg, #0F172A 0%, #1E293B 50%, #334155 100%);
+            --glass-bg: rgba(15, 23, 42, 0.78);
+            --glass-border: rgba(100, 116, 139, 0.25);
+            --shadow-heavy: 0 12px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-page);
+            min-height:100vh;
+            color:var(--text-main);
+            padding:22px;
+            transition: var(--transition);
+        }
+
+        .wrap { max-width: 1500px; margin: 0 auto; padding-top: 60px; }
+
+        .back {
+            position: fixed; top:16px; left:16px;
+            color: var(--text-main); text-decoration:none;
+            background:var(--glass-bg); border:1px solid var(--glass-border);
+            border-radius:999px; padding:10px 18px;
+            transition: var(--transition);
+        }
+        .back:hover { background: var(--primary); color: #fff; transform: translateX(-5px); }
+
+        .theme-toggle {
+            position: fixed; top:16px; right:16px;
+            color: var(--text-main); cursor: pointer;
+            background:var(--glass-bg); border:1px solid var(--glass-border);
+            border-radius:999px; padding:10px 18px;
+            transition: var(--transition);
+            display: flex; align-items: center; gap: 8px; font-weight: 500;
+        }
+        .theme-toggle:hover { background: var(--primary); color: #fff; transform: translateY(-2px); }
+
+        .head { background:var(--glass-bg); border:1px solid var(--glass-border); border-radius:var(--radius); padding:24px; margin-bottom:16px; box-shadow:var(--shadow-heavy); }
+        .head h1 { font-size: 1.8rem; display:flex; gap:12px; align-items:center; color: var(--primary); }
+        .head p { color: var(--text-muted); margin-top: 8px; }
+
+        .grid { display:grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap:14px; }
+        .card { background:var(--glass-bg); border:1px solid var(--glass-border); border-radius:var(--radius); padding:20px; box-shadow:var(--shadow-heavy); }
+        .full { grid-column: 1 / -1; }
+        .title { display:flex; align-items:center; gap:10px; font-size:1.1rem; font-weight: 700; margin-bottom:12px; color: var(--text-main); }
+
+        table { width:100%; border-collapse:collapse; background: var(--bg-page); border:1px solid var(--glass-border); border-radius:12px; overflow:hidden; }
+        th, td { padding:12px; text-align:left; font-size:.85rem; border-bottom:1px solid var(--glass-border); color: var(--text-main); }
+        th { background: rgba(46, 91, 186, 0.05); color: var(--primary); font-weight: 600; }
+        tr:hover td { background: rgba(46, 91, 186, 0.02); }
+
+        .btn {
+            background: var(--primary); color:#fff; border: none;
+            border-radius:8px; padding:8px 14px; font-size:.78rem;
+            cursor:pointer; font-weight: 600; transition: var(--transition);
+            margin-right: 4px;
+        }
+        .btn:hover { background: var(--primary-dark); transform: translateY(-1px); }
+
+        .btn.red { background: #ef4444; }
+        .btn.red:hover { background: #dc2626; }
+
+        .meta { color: var(--text-muted); font-size:.8rem; margin-top:8px; }
+        .pill { padding:4px 10px; border-radius:999px; font-size:.75rem; font-weight: 600; border:1px solid var(--glass-border); }
+        .active { background: rgba(34, 197, 94, 0.1); color: #22c55e; border-color: rgba(34, 197, 94, 0.2); }
+        .blocked { background: rgba(239, 68, 68, 0.1); color: #ef4444; border-color: rgba(239, 68, 68, 0.2); }
+
+        select { padding: 4px 8px; border-radius: 6px; border: 1px solid var(--glass-border); background: var(--bg-page); color: var(--text-main); font-size: 0.8rem; }
+
+        @media (max-width:1100px) { .grid { grid-template-columns:1fr; } }
+    </style>
+</head>
+<body>
+    <a class="back" href="/admin/dashboard"><i class="fas fa-arrow-left"></i> Dashboard</a>
+    <div class="theme-toggle" id="theme-toggle" onclick="toggleTheme()">
+        <i class="fas fa-moon"></i>
+        <span>Dark Mode</span>
+    </div>
+    <div class="wrap">
+        <div class="head">
+            <h1><i class="fas fa-users-cog"></i> User Management</h1>
+            <p>Users, verification, requests, suspicious activity, rate limits, plans, and payments</p>
+        </div>
+        <div class="grid">
+            <div class="card full">
+                <div class="title"><i class="fas fa-user-friends"></i> User List</div>
+                <table>
+                    <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Verified</th><th>Status</th><th>Plan</th><th>Actions</th></tr></thead>
+                    <tbody id="usersRows"></tbody>
+                </table>
+            </div>
+            <div class="card">
+                <div class="title"><i class="fas fa-id-card"></i> Verification Panel</div>
+                <table>
+                    <thead><tr><th>User</th><th>Document</th><th>Status</th><th>Action</th></tr></thead>
+                    <tbody id="docsRows"></tbody>
+                </table>
+            </div>
+            <div class="card">
+                <div class="title"><i class="fas fa-inbox"></i> Dataset Requests</div>
+                <table>
+                    <thead><tr><th>User</th><th>Requested Dataset</th><th>Status</th><th>Action</th></tr></thead>
+                    <tbody id="requestsRows"></tbody>
+                </table>
+            </div>
+            <div class="card">
+                <div class="title"><i class="fas fa-comment-dots"></i> User Feedback</div>
+                <table>
+                    <thead><tr><th>User</th><th>Message</th><th>Timestamp</th></tr></thead>
+                    <tbody id="feedbackRows"></tbody>
+                </table>
+            </div>
+            <div class="card">
+                <div class="title"><i class="fas fa-shield-alt"></i> Suspicious Activity</div>
+                <table>
+                    <thead><tr><th>User</th><th>High Query Count</th><th>Rows Accessed</th></tr></thead>
+                    <tbody id="suspiciousRows"></tbody>
+                </table>
+            </div>
+            <div class="card">
+                <div class="title"><i class="fas fa-tachometer-alt"></i> Rate Limiting</div>
+                <table>
+                    <thead><tr><th>User</th><th>Max Queries/Day</th><th>Max Rows/Day</th></tr></thead>
+                    <tbody id="limitRows"></tbody>
+                </table>
+                <div class="meta">Limits are read from user profile settings and used for policy UI alignment.</div>
+            </div>
+            <div class="card full">
+                <div class="title"><i class="fas fa-credit-card"></i> Payments & Plans</div>
+                <table>
+                    <thead><tr><th>User</th><th>Plan</th><th>Expiry</th><th>Assign Plan</th></tr></thead>
+                    <tbody id="planRows"></tbody>
+                </table>
+                <div style="height:10px"></div>
+                <table>
+                    <thead><tr><th>Transaction ID</th><th>User</th><th>Amount</th><th>Status</th><th>Time</th></tr></thead>
+                    <tbody id="txnRows"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <script>
+        const row = (vals) => `<tr>${vals.map(v => `<td>${v}</td>`).join("")}</tr>`;
+        const dt = (v) => v ? new Date(v).toLocaleString() : "-";
+        const esc = (s) => String(s ?? "").replace(/"/g, "&quot;");
+        async function post(url, body) {
+            const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+            if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.detail || j.error || `HTTP ${r.status}`); }
+            return r.json();
+        }
+        async function loadAll() {
+            const [usersRes, reqRes, payRes] = await Promise.all([
+                fetch("/admin/users").then(r => r.json()),
+                fetch("/admin/requests").then(r => r.json()),
+                fetch("/admin/payments").then(r => r.json())
+            ]);
+            const users = usersRes.users || [];
+            document.getElementById("usersRows").innerHTML = users.slice(0, 80).map(u => row([
+                esc(u.username || "-"),
+                esc(u.email || "-"),
+                `<select onchange="changeRole('${esc(u.email)}', this.value)"><option ${u.role==='admin'?'selected':''}>admin</option><option ${u.role==='analyst'?'selected':''}>analyst</option><option ${u.role==='user'?'selected':''}>user</option></select>`,
+                u.is_verified ? "Yes" : "No",
+                `<span class="pill ${u.status==='blocked'?'blocked':'active'}">${esc(u.status || "active")}</span>`,
+                esc(u.plan || "free"),
+                `<button class="btn ${u.status==='blocked'?'':'red'}" onclick="toggleBlock('${esc(u.email)}', ${u.status!=='blocked'})">${u.status==='blocked'?'Unblock':'Block'}</button>
+                 ${(!u.is_verified && u.document_uploaded) ? `<button class="btn" onclick="verifyUser('${esc(u.email)}', true)">Verify</button>` : ""}`
+            ])).join("") || row(["-", "-", "-", "-", "-", "-", "-"]);
+            const docs = reqRes.documents || [];
+            document.getElementById("docsRows").innerHTML = docs.slice(0, 40).map(d => row([
+                esc(d.user_email),
+                esc(d.document_name),
+                esc(d.status || "pending"),
+                `<button class="btn" onclick="verifyDoc('${esc(d.user_email)}', ${d.id}, true)">Approve</button><button class="btn red" onclick="verifyDoc('${esc(d.user_email)}', ${d.id}, false)">Reject</button>`
+            ])).join("") || row(["-", "-", "-", "-"]);
+            const reqs = reqRes.dataset_requests || [];
+            document.getElementById("requestsRows").innerHTML = reqs.slice(0, 40).map(r => row([
+                esc(r.user_email), esc(r.requested_dataset || "-"), esc(r.status || "pending"),
+                `<button class="btn" onclick="requestAction(${r.id}, 'approved')">Approve</button><button class="btn red" onclick="requestAction(${r.id}, 'rejected')">Reject</button>`
+            ])).join("") || row(["-", "-", "-", "-"]);
+            const fb = reqRes.feedback || [];
+            document.getElementById("feedbackRows").innerHTML = fb.slice(0, 40).map(f => row([esc(f.user_email), esc(f.message || "-"), dt(f.created_at)])).join("") || row(["-", "-", "-"]);
+            const sp = reqRes.suspicious_activity || [];
+            document.getElementById("suspiciousRows").innerHTML = sp.slice(0, 40).map(s => row([esc(s.user_email), s.query_count || 0, Number(s.rows_accessed || 0).toLocaleString()])).join("") || row(["-", "-", "-"]);
+            document.getElementById("limitRows").innerHTML = users.slice(0, 40).map(u => row([esc(u.email), Number(u.max_queries_day || 0).toLocaleString(), Number(u.max_rows_day || 0).toLocaleString()])).join("") || row(["-", "-", "-"]);
+            const plans = payRes.user_plans || [];
+            document.getElementById("planRows").innerHTML = plans.slice(0, 80).map(p => row([
+                esc(p.user_email),
+                esc(p.plan || "free"),
+                dt(p.plan_expiry),
+                `<select onchange="assignPlan('${esc(p.user_email)}', this.value)"><option ${p.plan==='free'?'selected':''}>free</option><option ${p.plan==='pro'?'selected':''}>pro</option></select>`
+            ])).join("") || row(["-", "-", "-", "-"]);
+            const txns = payRes.transactions || [];
+            document.getElementById("txnRows").innerHTML = txns.slice(0, 80).map(t => row([esc(t.transaction_id), esc(t.user_email), Number(t.amount || 0).toLocaleString(), esc(t.status || "-"), dt(t.created_at)])).join("") || row(["-", "-", "-", "-", "-"]);
+        }
+        async function changeRole(email, role) { await post("/admin/users/update-role", { email, role }); await loadAll(); }
+        async function toggleBlock(email, blocked) { await post("/admin/users/block", { email, blocked, reason: blocked ? "Admin action" : "" }); await loadAll(); }
+        async function verifyUser(email, approved) { await post("/admin/users/verify", { email, approved }); await loadAll(); }
+        async function verifyDoc(email, id, approved) { await post("/admin/users/verify", { email, approved, document_id: id }); await loadAll(); }
+        async function requestAction(id, status) { await post("/admin/requests/action", { id, status, action_type: "dataset_request" }); await loadAll(); }
+        async function assignPlan(email, plan) { await post("/admin/users/assign-plan", { email, plan }); await loadAll(); }
+        loadAll();
+
+        // Theme Toggle Functionality
+        function toggleTheme() {
+            const html = document.documentElement;
+            const currentTheme = html.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            html.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            updateThemeUI(newTheme);
+        }
+
+        function updateThemeUI(theme) {
+            const toggle = document.getElementById('theme-toggle');
+            if(!toggle) return;
+            if(theme === 'dark') {
+                toggle.innerHTML = '<i class="fas fa-sun"></i> <span>Light Mode</span>';
+            } else {
+                toggle.innerHTML = '<i class="fas fa-moon"></i> <span>Dark Mode</span>';
+            }
+        }
+
+        // Initialize Theme
+        (function initTheme() {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            updateThemeUI(savedTheme);
+        })();
+    </script>
+</body>
+</html>
