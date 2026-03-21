@@ -7,40 +7,48 @@
     <title>Upload Dataset - Data Analytics Platform</title>
 
     <!-- Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@700;800;900&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
 
     <style>
         :root {
-            /* Purple Color Scheme */
-            --primary-color: #64748b;
-            --primary-gradient: linear-gradient(135deg, #64748b 0%, #475569 100%);
-            --secondary-color: #f59e0b;
-            --secondary-gradient: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-            --success-color: #f59e0b;
-            --warning-color: #f59e0b;
-            --danger-color: #ef4444;
-            --dark-color: #2d3748;
-            --light-color: #f7fafc;
-            --text-light: #ffffff;
-            --text-dark: #2d3748;
-
-            /* Glass morphism with purple colors */
-            --glass-bg: rgba(15, 23, 42, 0.7);
-            --glass-border: rgba(100, 116, 139, 0.25);
-            --shadow-light: 0 8px 32px rgba(15, 23, 42, 0.3);
-            --shadow-heavy: 0 20px 40px rgba(0, 0, 0, 0.4);
+            --font-head: 'Poppins', sans-serif;
+            --font-body: 'Inter', sans-serif;
+            --primary-color: #2E5BBA;
+            --primary: #2E5BBA;
+            --primary-gradient: linear-gradient(135deg, #2E5BBA 0%, #1F3A5F 100%);
+            --secondary-color: #F4A300;
+            --secondary-gradient: linear-gradient(135deg, #F4A300 0%, #D97706 100%);
+            --success-color: #2E7D32;
+            --warning-color: #F4A300;
+            --danger-color: #D4183D;
+            --dark-color: #0F172A;
+            --light-color: #F8FAFC;
+            --text-light: #1C1C1C;
+            --text-dark: #1C1C1C;
+            --text-muted: #6B7280;
+            --page-bg: linear-gradient(135deg, #F5F7FA 0%, #EEF3FB 55%, #E9EEF7 100%);
+            --glass-bg: rgba(255, 255, 255, 0.88);
+            --glass-border: rgba(209, 213, 219, 0.95);
+            --surface-strong: #FFFFFF;
+            --surface-muted: #F8FAFC;
+            --shadow-light: 0 8px 26px rgba(31, 58, 95, 0.08);
+            --shadow-heavy: 0 16px 36px rgba(31, 58, 95, 0.16);
             --border-radius: 20px;
             --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
         [data-theme="dark"] {
-            --dark-color: #f7fafc;
-            --light-color: #1a202c;
-            --text-light: #f7fafc;
-            --text-dark: #1a202c;
-            --glass-bg: rgba(0, 0, 0, 0.15);
-            --glass-border: rgba(255, 255, 255, 0.1);
+            --text-light: #F8FAFC;
+            --text-dark: #0F172A;
+            --text-muted: rgba(255, 255, 255, 0.72);
+            --page-bg: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%);
+            --glass-bg: rgba(15, 23, 42, 0.78);
+            --glass-border: rgba(100, 116, 139, 0.35);
+            --surface-strong: rgba(15, 23, 42, 0.92);
+            --surface-muted: rgba(30, 41, 59, 0.9);
+            --shadow-light: 0 8px 28px rgba(0, 0, 0, 0.35);
+            --shadow-heavy: 0 20px 42px rgba(0, 0, 0, 0.5);
         }
 
         * {
@@ -50,8 +58,8 @@
         }
 
         body {
-            font-family: 'Inter', sans-serif;
-            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%);
+            font-family: var(--font-body);
+            background: var(--page-bg);
             min-height: 100vh;
             color: var(--text-light);
             transition: var(--transition);
@@ -77,11 +85,38 @@
             gap: 8px;
             color: var(--text-light);
             font-weight: 500;
+            box-shadow: var(--shadow-light);
         }
 
         .theme-toggle:hover {
             transform: translateY(-2px);
             box-shadow: var(--shadow-light);
+        }
+
+        .back-btn {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: 50px;
+            padding: 12px 18px;
+            cursor: pointer;
+            transition: var(--transition);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-light);
+            font-weight: 600;
+            text-decoration: none;
+        }
+
+        .back-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-light);
+            color: var(--text-light);
         }
 
         /* Main Container */
@@ -106,17 +141,15 @@
 
         .header h1 {
             font-size: 2.5rem;
-            font-weight: 700;
-            background: linear-gradient(135deg, #fff 0%, #f0f0f0 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
+            font-family: var(--font-head);
+            font-weight: 800;
+            color: var(--text-light);
             margin-bottom: 10px;
         }
 
         .header p {
             font-size: 1.1rem;
-            color: rgba(255, 255, 255, 0.8);
+            color: var(--text-muted);
             font-weight: 400;
         }
 
@@ -172,8 +205,8 @@
         .form-input {
             width: 100%;
             padding: 18px 24px;
-            background: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: var(--surface-strong);
+            border: 1px solid var(--glass-border);
             border-radius: 15px;
             color: var(--text-light);
             font-size: 1.1rem;
@@ -183,7 +216,7 @@
         }
 
         .form-select option {
-            background: var(--dark-color);
+            background: var(--surface-strong);
             color: var(--text-light);
             padding: 15px;
             font-size: 1rem;
@@ -200,7 +233,7 @@
             border-color: var(--primary-color);
             box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.3);
             transform: translateY(-2px);
-            background: rgba(255, 255, 255, 0.2);
+            background: var(--surface-strong);
         }
 
         /* File Input Styling */
@@ -208,8 +241,8 @@
             position: relative;
             overflow: hidden;
             cursor: pointer;
-            background: rgba(255, 255, 255, 0.1);
-            border: 2px dashed rgba(255, 255, 255, 0.3);
+            background: var(--surface-strong);
+            border: 2px dashed var(--glass-border);
             border-radius: 15px;
             padding: 40px;
             text-align: center;
@@ -219,13 +252,13 @@
 
         .file-input-wrapper:hover {
             border-color: var(--primary-color);
-            background: rgba(255, 255, 255, 0.15);
+            background: var(--surface-muted);
             transform: translateY(-2px);
         }
 
         .file-input-wrapper.drag-over {
             border-color: var(--success-color);
-            background: rgba(79, 172, 254, 0.1);
+            background: rgba(46, 125, 50, 0.08);
             transform: scale(1.02);
         }
 
@@ -261,15 +294,15 @@
 
         .file-input-subtext {
             font-size: 1rem;
-            color: rgba(255, 255, 255, 0.7);
+            color: var(--text-muted);
         }
 
         .file-selected {
             margin-top: 15px;
             padding: 15px;
-            background: rgba(79, 172, 254, 0.2);
+            background: rgba(46, 91, 186, 0.08);
             border-radius: 10px;
-            border: 1px solid var(--success-color);
+            border: 1px solid var(--primary-color);
             display: none;
         }
 
@@ -345,7 +378,7 @@
         .upload-status-container {
             margin-top: 30px;
             display: none;
-            background: rgba(255, 255, 255, 0.05);
+            background: var(--surface-muted);
             border-radius: 15px;
             padding: 20px;
             border: 1px solid var(--glass-border);
@@ -396,9 +429,9 @@
             justify-content: space-between;
             align-items: center;
             padding: 10px 15px;
-            background: rgba(255, 255, 255, 0.05);
+            background: var(--surface-strong);
             border-radius: 10px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            border: 1px solid var(--glass-border);
             font-size: 0.9rem;
         }
 
@@ -478,10 +511,11 @@
 
         /* Upload Instructions */
         .upload-instructions {
-            background: rgba(255, 255, 255, 0.05);
+            background: var(--surface-muted);
             border-radius: 15px;
             padding: 25px;
             margin-bottom: 20px;
+            border: 1px solid var(--glass-border);
         }
 
         .upload-instructions h3 {
@@ -495,13 +529,58 @@
         }
 
         .upload-instructions ul {
-            color: rgba(255, 255, 255, 0.8);
+            color: var(--text-muted);
             padding-left: 20px;
             line-height: 1.8;
         }
 
         .upload-instructions li {
             margin-bottom: 8px;
+        }
+
+        .nesstar-nav-card {
+            margin-top: 16px;
+            border: 2px solid #D1D5DB;
+            border-radius: 14px;
+            background: var(--surface-strong);
+            padding: 16px 18px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+        }
+
+        .nesstar-nav-title {
+            color: var(--text-light);
+            font-size: 0.95rem;
+            font-weight: 700;
+            margin-bottom: 2px;
+        }
+
+        .nesstar-nav-desc {
+            color: var(--text-muted);
+            font-size: 0.86rem;
+        }
+
+        .btn-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 14px;
+            border-radius: 10px;
+            border: 2px solid #D1D5DB;
+            background: #FFFFFF;
+            color: #1C1C1C;
+            font-weight: 700;
+            text-decoration: none;
+            transition: var(--transition);
+            white-space: nowrap;
+        }
+
+        .btn-link:hover {
+            border-color: var(--primary-color);
+            color: var(--primary-color);
+            transform: translateY(-1px);
         }
 
         /* Animations */
@@ -640,18 +719,15 @@
         }
     
         
-        /* Enhanced subtle theme with golden touch */
-        .glass-card {
-            background: rgba(15, 23, 42, 0.75);
-            backdrop-filter: blur(20px) saturate(120%);
-            border: 1px solid rgba(100, 116, 139, 0.25);
+        [data-theme="dark"] .glass-card {
+            background: rgba(15, 23, 42, 0.78);
+            border-color: rgba(100, 116, 139, 0.35);
         }
 
-        .glass-card:hover {
-            background: rgba(15, 23, 42, 0.85);
+        [data-theme="dark"] .glass-card:hover {
+            background: rgba(15, 23, 42, 0.9);
             border-color: rgba(245, 158, 11, 0.3);
-            transform: translateY(-3px);
-            box-shadow: 0 12px 30px rgba(245, 158, 11, 0.1);
+            box-shadow: 0 12px 30px rgba(245, 158, 11, 0.14);
         }
 
         .btn {
@@ -677,20 +753,22 @@
             box-shadow: 0 8px 20px rgba(245, 158, 11, 0.3);
         }
 
-        .form-input {
+        [data-theme="dark"] .form-input,
+        [data-theme="dark"] .form-select {
             background: rgba(15, 23, 42, 0.6);
-            border: 1px solid rgba(100, 116, 139, 0.3);
+            border-color: rgba(100, 116, 139, 0.3);
         }
 
-        .form-input:focus {
+        [data-theme="dark"] .form-input:focus,
+        [data-theme="dark"] .form-select:focus {
             background: rgba(15, 23, 42, 0.8);
             border-color: #f59e0b;
             box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2);
         }
 
         /* Golden success states */
-        .success-message,
-        .toast.success {
+        [data-theme="dark"] .success-message,
+        [data-theme="dark"] .toast.success {
             background: rgba(245, 158, 11, 0.2);
             border-color: var(--secondary-color);
             color: #fbbf24;
@@ -716,10 +794,37 @@
             border: 1px solid rgba(245, 158, 11, 0.3);
             color: #fbbf24;
         }
+
+        [data-theme="dark"] .upload-instructions ul,
+        [data-theme="dark"] .header p,
+        [data-theme="dark"] .file-input-subtext {
+            color: rgba(255, 255, 255, 0.75);
+        }
+
+        [data-theme="dark"] .nesstar-nav-card {
+            background: rgba(15, 23, 42, 0.86);
+            border-color: rgba(100, 116, 139, 0.35);
+        }
+
+        [data-theme="dark"] .btn-link {
+            background: rgba(15, 23, 42, 0.9);
+            color: #FFFFFF;
+            border-color: rgba(100, 116, 139, 0.35);
+        }
+
+        [data-theme="dark"] .btn-link:hover {
+            border-color: #F4A300;
+            color: #F4A300;
+        }
     </style>
 </head>
 
 <body>
+    <a href="/admin/dashboard" class="back-btn" onclick="goBack(event)">
+        <i class="fas fa-arrow-left"></i>
+        <span>Back</span>
+    </a>
+
     <!-- Theme Toggle -->
     <div class="theme-toggle" onclick="toggleTheme()">
         <i class="fas fa-moon"></i>
@@ -784,12 +889,31 @@
                         <li>Select the appropriate data category before uploading</li>
                     </ul>
                 </div>
+                <div class="nesstar-nav-card" id="nesstarNavCard">
+                    <div>
+                        <div class="nesstar-nav-title"><i class="fas fa-box-open"></i> Uploading Nesstar Study?</div>
+                        <div class="nesstar-nav-desc">Use dedicated Nesstar upload page for .nesstar workflows.</div>
+                    </div>
+                    <a href="/upload?mode=nesstar" class="btn-link" onclick="openNesstarUploadPage(event)">
+                        <i class="fas fa-arrow-up-right-from-square"></i> Open Nesstar Page
+                    </a>
+                </div>
+
+                <div class="nesstar-nav-card" id="nadaNavCard" style="margin-top: 15px;">
+                    <div>
+                        <div class="nesstar-nav-title"><i class="fas fa-cloud-download-alt"></i> Using NADA Dataset?</div>
+                        <div class="nesstar-nav-desc">Import datasets directly from NADA using API key.</div>
+                    </div>
+                    <a href="/admin/nada-import" class="btn-link">
+                        <i class="fas fa-arrow-up-right-from-square"></i> Open NADA Page
+                    </a>
+                </div>
             </div>
 
             <!-- File Upload -->
             <div class="glass-card hover-lift">
                 <div class="form-group">
-                    <label class="form-label">
+                    <label class="form-label" id="fileInputLabel">
                         <i class="fas fa-file-archive"></i> Dataset File (.zip)
                     </label>
                     <div class="file-input-wrapper" id="fileInputWrapper">
@@ -868,8 +992,38 @@
             }
         }
 
+        function goBack(event) {
+            if (event) event.preventDefault();
+            window.location.href = '/admin/dashboard';
+        }
+
+        const pageParams = new URLSearchParams(window.location.search);
+        const pageMode = pageParams.get('mode');
+
         // Load saved theme
         document.addEventListener('DOMContentLoaded', function () {
+            if (pageMode === 'nesstar') {
+                const title = document.querySelector('.header h1');
+                const subtitle = document.querySelector('.header p');
+                const fileLabel = document.getElementById('fileInputLabel');
+                const fileText = document.querySelector('.file-input-text');
+                const fileSubtext = document.querySelector('.file-input-subtext');
+                const nesstarCard = document.getElementById('nesstarNavCard');
+                if (title) title.innerHTML = '<i class="fas fa-box-open"></i> Nesstar Upload';
+                if (subtitle) subtitle.textContent = 'Upload Nesstar studies and related ZIP packages';
+                if (fileLabel) fileLabel.innerHTML = '<i class="fas fa-file-archive"></i> Nesstar Study / Package (.nesstar or .zip)';
+                if (fileText) fileText.textContent = 'Drag & Drop your .nesstar or .zip file here';
+                if (fileSubtext) fileSubtext.textContent = 'or click to browse dedicated Nesstar upload';
+                if (nesstarCard) nesstarCard.style.display = 'none';
+            }
+
+            const schemaQ = pageParams.get('schema');
+            const yearQ = pageParams.get('year');
+            const datasetQ = pageParams.get('dataset');
+            if (schemaQ) document.getElementById('schema').value = schemaQ;
+            if (yearQ) document.getElementById('year').value = yearQ;
+            if (datasetQ) document.getElementById('dataset').value = datasetQ;
+
             const savedTheme = localStorage.getItem('theme');
             if (savedTheme === 'dark') {
                 toggleTheme();
@@ -923,6 +1077,18 @@
         });
 
         // Form Submission with AJAX (No Redirect)
+        function openNesstarUploadPage(event, prefill = {}) {
+            if (event) event.preventDefault();
+            const theme = document.body.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+            const url = new URL('/upload', window.location.origin);
+            url.searchParams.set('mode', 'nesstar');
+            url.searchParams.set('theme', theme);
+            if (prefill.schema) url.searchParams.set('schema', prefill.schema);
+            if (prefill.year) url.searchParams.set('year', prefill.year);
+            if (prefill.dataset) url.searchParams.set('dataset', prefill.dataset);
+            window.location.href = url.toString();
+        }
+
         document.getElementById('uploadForm').addEventListener('submit', function (e) {
             e.preventDefault(); // Prevent default form submission
 
@@ -954,6 +1120,12 @@
             const lower = file.name.toLowerCase();
             if (!(lower.endsWith('.zip') || lower.endsWith('.nesstar'))) {
                 showToast('Please select a valid ZIP or Nesstar Study (.nesstar) file.', 'error');
+                return;
+            }
+
+            if (lower.endsWith('.nesstar') && pageMode !== 'nesstar') {
+                showToast('Redirecting to dedicated Nesstar upload page...', 'info');
+                openNesstarUploadPage(null, { schema, year, dataset });
                 return;
             }
 
@@ -1346,6 +1518,7 @@
         }
 
         // File Size Validation
+        // File Size Validation
         fileInput.addEventListener('change', function () {
             const file = this.files[0];
             if (file) {
@@ -1357,6 +1530,36 @@
                 }
             }
         });
+
+        // Theme Toggle Functionality
+        function toggleTheme() {
+            const html = document.documentElement;
+            const currentTheme = html.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            html.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            updateThemeUI(newTheme);
+        }
+
+        function updateThemeUI(theme) {
+            const toggle = document.querySelector('.theme-toggle span');
+            const icon = document.querySelector('.theme-toggle i');
+            if(!toggle) return;
+            if(theme === 'dark') {
+                toggle.textContent = 'Light Mode';
+                icon.className = 'fas fa-sun';
+            } else {
+                toggle.textContent = 'Dark Mode';
+                icon.className = 'fas fa-moon';
+            }
+        }
+
+        // Initialize Theme
+        (function initTheme() {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            updateThemeUI(savedTheme);
+        })();
     </script>
 </body>
 

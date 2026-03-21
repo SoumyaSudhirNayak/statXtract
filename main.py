@@ -387,6 +387,23 @@ async def admin_dashboard(
     )
 
 
+@app.get("/admin/survey-config", response_class=HTMLResponse)
+async def survey_config_page(
+    request: Request,
+    current_user: TokenData = Depends(
+        get_current_active_user_with_role(["1", "2"])
+    ),
+):
+    return templates.TemplateResponse(
+        "survey_config.html",
+        {
+            "request": request,
+            "username": current_user.username,
+            "role": current_user.role,
+        },
+    )
+
+
 @app.get("/query", response_class=HTMLResponse)
 async def query_page(
     request: Request,
@@ -459,6 +476,22 @@ async def metadata_detail_page(
         "metadata_detail.html",
         {"request": request, "schema": schema, "dataset": dataset}
     )
+
+
+@app.get("/admin/metadata-browser", response_class=HTMLResponse)
+async def metadata_browser_page(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
+):
+    return templates.TemplateResponse("metadata_browser.html", {"request": request})
+
+
+@app.get("/admin/nada-import", response_class=HTMLResponse)
+async def nada_import_page(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
+):
+    return templates.TemplateResponse("nada_import.html", {"request": request})
 
 
 # =================== API ROUTES ===================
@@ -714,6 +747,103 @@ async def get_variable_configs(schema: str, table: str) -> dict[str, dict]:
     return out
 
 
+async def _get_system_setting(conn: asyncpg.Connection, key: str, default: str) -> str:
+    try:
+        val = await conn.fetchval("SELECT value FROM system_settings WHERE key = $1 LIMIT 1", key)
+        if val is None:
+            return default
+        return str(val)
+    except Exception:
+        return default
+
+
+async def apply_admin_rules(conn: asyncpg.Connection, user, query_context: dict | None = None) -> dict:
+    context = query_context or {}
+    user_email = str(getattr(user, "username", "") or "")
+    role_name = _normalize_role(getattr(user, "role", "user"))
+
+    row = await conn.fetchrow(
+        """
+        SELECT
+            COALESCE(is_blocked, FALSE) AS is_blocked,
+            COALESCE(plan, 'free') AS plan,
+            plan_expiry,
+            COALESCE(max_queries_per_day, max_queries_day, 1000) AS max_queries_per_day,
+            COALESCE(max_rows_per_day, max_rows_day, 100000) AS max_rows_per_day
+        FROM users
+        WHERE email = $1
+        LIMIT 1
+        """,
+        user_email,
+    )
+
+    is_blocked = bool(row["is_blocked"]) if row else False
+    if is_blocked:
+        raise HTTPException(status_code=403, detail="User blocked")
+
+    if role_name == "admin":
+        return {"ok": True}
+
+    plan = (str(row["plan"]) if row else "free").strip().lower()
+    plan_expiry = row["plan_expiry"] if row else None
+    max_queries = int(row["max_queries_per_day"] or 1000) if row else 1000
+    max_rows = int(row["max_rows_per_day"] or 100000) if row else 100000
+
+    if plan == "free":
+        max_queries = min(max_queries, 200)
+        max_rows = min(max_rows, 50000)
+    elif plan == "pro":
+        max_queries = max(max_queries, 5000)
+        max_rows = max(max_rows, 500000)
+
+    if plan_expiry and plan_expiry < datetime.utcnow():
+        plan = "free"
+        max_queries = min(max_queries, 200)
+        max_rows = min(max_rows, 50000)
+
+    default_rate_limit = await _get_system_setting(conn, "default_rate_limit", "1000")
+    try:
+        max_queries = min(max_queries, max(1, int(default_rate_limit)))
+    except Exception:
+        pass
+
+    action = str(context.get("action") or "").lower()
+    if action == "download":
+        downloads_enabled = (await _get_system_setting(conn, "enable_downloads", "true")).strip().lower() == "true"
+        if not downloads_enabled:
+            raise HTTPException(status_code=403, detail="Downloads are disabled by system settings")
+
+    daily = await conn.fetchrow(
+        """
+        SELECT
+            COUNT(*) AS daily_queries,
+            COALESCE(SUM(rows_returned), 0) AS daily_rows
+        FROM usage_logs
+        WHERE user_email = $1
+          AND queried_at >= CURRENT_DATE
+        """,
+        user_email,
+    )
+    daily_queries = int(daily["daily_queries"] or 0) if daily else 0
+    daily_rows = int(daily["daily_rows"] or 0) if daily else 0
+
+    if action == "query":
+        requested_rows = int(context.get("requested_rows") or 0)
+        if daily_queries >= max_queries:
+            raise HTTPException(status_code=429, detail="Daily query limit exceeded")
+        if (daily_rows + max(0, requested_rows)) > max_rows:
+            raise HTTPException(status_code=429, detail="Daily rows limit exceeded")
+
+    return {
+        "ok": True,
+        "plan": plan,
+        "max_queries_per_day": max_queries,
+        "max_rows_per_day": max_rows,
+        "daily_queries": daily_queries,
+        "daily_rows": daily_rows,
+    }
+
+
 async def apply_config(schema, table, user, columns, rows):
     conn = _CFG_CONN.get(None)
     filters = _CFG_FILTERS.get()
@@ -739,6 +869,14 @@ async def apply_config(schema, table, user, columns, rows):
         return [], None
 
     var_cfg = await get_variable_configs(schema, table)
+    sensitive_enabled = (
+        await _get_system_setting(conn, "enable_sensitive_columns", await _get_system_setting(conn, "privacy.enable_sensitive_columns", "false"))
+    ).strip().lower() == "true"
+    global_min_rows_raw = await _get_system_setting(conn, "min_rows_threshold", await _get_system_setting(conn, "privacy.min_rows_threshold", "5"))
+    try:
+        global_min_rows = max(1, int(global_min_rows_raw))
+    except Exception:
+        global_min_rows = 5
 
     allowed_columns = []
     min_rows_required = 0
@@ -746,7 +884,7 @@ async def apply_config(schema, table, user, columns, rows):
         cfg = var_cfg.get(col)
         if cfg and cfg.get("include_in_api") is False:
             continue
-        if cfg and cfg.get("is_sensitive") and user_role != "admin":
+        if cfg and cfg.get("is_sensitive") and user_role != "admin" and not sensitive_enabled:
             continue
         if cfg and cfg.get("is_sensitive"):
             try:
@@ -783,6 +921,7 @@ async def apply_config(schema, table, user, columns, rows):
             filtered[col] = val
         result.append(filtered)
 
+    min_rows_required = max(min_rows_required, global_min_rows)
     if user_role != "admin" and min_rows_required > 0 and len(result) < min_rows_required:
         raise HTTPException(status_code=403, detail="Suppressed")
 
@@ -793,6 +932,7 @@ async def apply_config(schema, table, user, columns, rows):
 async def list_surveys(request: Request, current_user=Depends(get_current_user)):
     pool = request.app.state.db
     async with pool.acquire() as conn:
+        await apply_admin_rules(conn, current_user, {"action": "dataset_access"})
         grouped = await _group_schemas_by_survey(conn)
         out = []
         for v in grouped.values():
@@ -836,6 +976,7 @@ async def list_surveys(request: Request, current_user=Depends(get_current_user))
 async def list_survey_datasets(request: Request, survey: str, current_user=Depends(get_current_user)):
     pool = request.app.state.db
     async with pool.acquire() as conn:
+        await apply_admin_rules(conn, current_user, {"action": "dataset_access"})
         grouped = await _group_schemas_by_survey(conn)
         g = grouped.get(survey)
         if not g:
@@ -880,6 +1021,7 @@ async def list_survey_datasets(request: Request, survey: str, current_user=Depen
 async def list_survey_tables(request: Request, survey: str, dataset: str, current_user=Depends(get_current_user)):
     pool = request.app.state.db
     async with pool.acquire() as conn:
+        await apply_admin_rules(conn, current_user, {"action": "dataset_access"})
         grouped = await _group_schemas_by_survey(conn)
         g = grouped.get(survey)
         if not g:
@@ -1116,6 +1258,7 @@ async def list_datasets_v2(
 ):
     pool = request.app.state.db
     async with pool.acquire() as conn:
+        await apply_admin_rules(conn, current_user, {"action": "dataset_access"})
         row = await _resolve_registry_schema(conn, schema)
         if not row:
             raise HTTPException(status_code=404, detail="Schema not found")
@@ -1173,6 +1316,7 @@ async def list_tables_v2(
 ):
     pool = request.app.state.db
     async with pool.acquire() as conn:
+        await apply_admin_rules(conn, current_user, {"action": "dataset_access"})
         row = await _resolve_registry_schema(conn, schema)
         if not row:
             raise HTTPException(status_code=404, detail="Schema not found")
@@ -1243,6 +1387,7 @@ async def get_metadata_v2(
 ):
     pool = request.app.state.db
     async with pool.acquire() as conn:
+        await apply_admin_rules(conn, current_user, {"action": "dataset_access"})
         row = await _resolve_registry_schema(conn, schema)
         if not row:
             raise HTTPException(status_code=404, detail="Schema not found")
@@ -1277,8 +1422,9 @@ async def get_metadata_v2(
             stats = []
 
     dataset_folder = dataset_schema.split("__", 1)[1] if "__" in dataset_schema else dataset_schema
-    ddi_url = f"/downloads/{schema_db}/{dataset_schema}/ddi"
-    micro_url = f"/downloads/{schema_db}/{dataset_schema}/microdata.zip"
+    downloads_enabled = (await _get_system_setting(conn, "enable_downloads", await _get_system_setting(conn, "features.enable_downloads", "true"))).strip().lower() == "true"
+    ddi_url = f"/downloads/{schema_db}/{dataset_schema}/ddi" if downloads_enabled else None
+    micro_url = f"/downloads/{schema_db}/{dataset_schema}/microdata.zip" if downloads_enabled else None
 
     return {
         "survey": {"db_name": schema_db, "display_name": row["display_name"]},
@@ -1292,27 +1438,45 @@ async def get_metadata_v2(
 
 
 @app.get("/downloads/{schema}/{dataset}/ddi")
-async def download_ddi(schema: str, dataset: str, current_user=Depends(get_current_user)):
+async def download_ddi(request: Request, schema: str, dataset: str, current_user=Depends(get_current_user)):
     survey_schema = (schema or "").strip()
     dataset_schema = (dataset or "").strip()
     if not survey_schema or not dataset_schema:
         raise HTTPException(status_code=400, detail="Invalid request")
 
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        await apply_admin_rules(conn, current_user, {"action": "download", "requested_rows": 0})
     dataset_folder = dataset_schema.split("__", 1)[1] if "__" in dataset_schema else dataset_schema
     upload_root = Path(os.getenv("UPLOAD_DIR") or "uploads").resolve()
     ddi_path = upload_root / survey_schema / dataset_folder / "ddi.xml"
     if not ddi_path.exists():
         raise HTTPException(status_code=404, detail="DDI not found")
+    try:
+        async with pool.acquire() as conn:
+            size_bytes = ddi_path.stat().st_size
+            await conn.execute(
+                "INSERT INTO download_logs (file_name, user_email, size_bytes, created_at) VALUES ($1, $2, $3, NOW())",
+                "ddi.xml",
+                current_user.username,
+                size_bytes,
+            )
+            await log_usage(conn, current_user.username, "/downloads/ddi", schema, dataset, 0, size_bytes)
+    except Exception:
+        pass
     return FileResponse(str(ddi_path), filename="ddi.xml")
 
 
 @app.get("/downloads/{schema}/{dataset}/microdata.zip")
-async def download_microdata(schema: str, dataset: str, current_user=Depends(get_current_user)):
+async def download_microdata(request: Request, schema: str, dataset: str, current_user=Depends(get_current_user)):
     survey_schema = (schema or "").strip()
     dataset_schema = (dataset or "").strip()
     if not survey_schema or not dataset_schema:
         raise HTTPException(status_code=400, detail="Invalid request")
 
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        await apply_admin_rules(conn, current_user, {"action": "download", "requested_rows": 0})
     dataset_folder = dataset_schema.split("__", 1)[1] if "__" in dataset_schema else dataset_schema
     upload_root = Path(os.getenv("UPLOAD_DIR") or "uploads").resolve()
     processed_dir = upload_root / survey_schema / dataset_folder / "processed"
@@ -1326,6 +1490,18 @@ async def download_microdata(schema: str, dataset: str, current_user=Depends(get
             if p.is_file():
                 zf.write(p, arcname=str(p.relative_to(processed_dir)))
 
+    try:
+        async with pool.acquire() as conn:
+            size_bytes = zip_path.stat().st_size
+            await conn.execute(
+                "INSERT INTO download_logs (file_name, user_email, size_bytes, created_at) VALUES ($1, $2, $3, NOW())",
+                zip_path.name,
+                current_user.username,
+                size_bytes,
+            )
+            await log_usage(conn, current_user.username, "/downloads/microdata.zip", schema, dataset, 0, size_bytes)
+    except Exception:
+        pass
     return FileResponse(str(zip_path), filename=zip_path.name)
 
 
@@ -1354,6 +1530,7 @@ async def list_datasets(
 ):
     pool = request.app.state.db
     async with pool.acquire() as conn:
+        await apply_admin_rules(conn, current_user, {"action": "dataset_access"})
         row = await _resolve_registry_schema(conn, schema)
         if not row:
             raise HTTPException(status_code=404, detail="Schema not found")
@@ -1409,6 +1586,7 @@ async def list_tables(
 ):
     pool = request.app.state.db
     async with pool.acquire() as conn:
+        await apply_admin_rules(conn, current_user, {"action": "dataset_access"})
         row = await _resolve_registry_schema(conn, schema)
         if not row:
             raise HTTPException(status_code=404, detail="Schema not found")
@@ -1477,6 +1655,7 @@ async def query_dataset_table(
 ):
     pool = request.app.state.db
     async with pool.acquire() as conn:
+        await apply_admin_rules(conn, current_user, {"action": "query", "requested_rows": int(limit)})
         schema_row = await _resolve_registry_schema(conn, schema)
         if not schema_row:
             raise HTTPException(status_code=404, detail="Schema not found")
@@ -1584,7 +1763,16 @@ async def query_dataset_table(
 
         where_sql = "" if not where_parts else " WHERE " + " AND ".join(where_parts)
         max_limit = 1000
-        safe_limit = max(1, min(int(limit), max_limit))
+        default_row_limit = await _get_system_setting(conn, "default_row_limit", await _get_system_setting(conn, "platform.default_row_limit", "1000"))
+        try:
+            configured_limit = max(1, min(int(default_row_limit), max_limit))
+        except Exception:
+            configured_limit = max_limit
+        role_name = _normalize_role(getattr(current_user, "role", "user"))
+        if role_name == "admin":
+            safe_limit = max(1, min(int(limit), max_limit))
+        else:
+            safe_limit = max(1, min(int(limit), configured_limit))
         safe_offset = max(0, int(offset))
         sql = f'SELECT {", ".join(select_cols)} FROM "{schema_db}"."{table}"{where_sql} LIMIT {safe_limit} OFFSET {safe_offset}'
         rows = await conn.fetch(sql, *values)
@@ -1693,6 +1881,7 @@ async def list_schemas_and_tables(request: Request, current_user=Depends(get_cur
     try:
         pool = request.app.state.db
         async with pool.acquire() as conn:
+            await apply_admin_rules(conn, current_user, {"action": "dataset_access"})
             all_schemas = await conn.fetch("""
                 SELECT schema_name
                 FROM information_schema.schemata
@@ -1963,6 +2152,7 @@ async def query_table(
     try:
         pool = request.app.state.db
         async with pool.acquire() as conn:
+            await apply_admin_rules(conn, current_user, {"action": "query", "requested_rows": int(limit)})
             table_check = await conn.fetch(
                 """
                 SELECT table_name FROM information_schema.tables 
@@ -2074,7 +2264,19 @@ async def query_table(
             query = f'SELECT {", ".join(col_list)} FROM "{schema}"."{table}"'
             if fixed_filters:
                 query += f" WHERE {fixed_filters}"
-            query += f" LIMIT {limit} OFFSET {offset}"
+            max_limit = 1000
+            default_row_limit = await _get_system_setting(conn, "default_row_limit", await _get_system_setting(conn, "platform.default_row_limit", "1000"))
+            try:
+                configured_limit = max(1, min(int(default_row_limit), max_limit))
+            except Exception:
+                configured_limit = max_limit
+            role_name = _normalize_role(getattr(current_user, "role", "user"))
+            if role_name == "admin":
+                safe_limit = max(1, min(int(limit), max_limit))
+            else:
+                safe_limit = max(1, min(int(limit), configured_limit))
+            safe_offset = max(0, int(offset))
+            query += f" LIMIT {safe_limit} OFFSET {safe_offset}"
 
             print(f"DEBUG: Executing query: {query}")
             rows = await conn.fetch(query)
@@ -2103,6 +2305,15 @@ async def query_table(
             finally:
                 _reset_apply_context(tokens)
 
+            await log_usage(
+                conn,
+                current_user.username,
+                f"/datasets/{schema}/{table}/query",
+                schema,
+                table,
+                len(filtered),
+                len(json.dumps(filtered, default=str).encode()),
+            )
             print(f"DEBUG: Query returned {len(filtered)} rows")
             return filtered
 
@@ -2917,44 +3128,685 @@ async def usage_logs_page(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
 ):
-    """Display usage logs page for admin"""
-    try:
-        pool = request.app.state.db
-        async with pool.acquire() as conn:
-            # Mock usage data - replace with your actual usage logs table
-            # You'll need to create this table structure based on your needs
-
-            # For now, returning mock data
-            mock_logs = [
-                 
-        {"user_email": "statathon12@gmail.com", "day": today, "rows": 1378},
-        {"user_email": "statathon12@gmail.com", "day": today, "rows": 2805},
-    
-                
-            ]
-
-            # In production, replace with actual database query:
-            # logs = await conn.fetch("""
-            #     SELECT
-            #         u.email as user_email,
-            #         DATE(created_at) as day,
-            #         SUM(rows_returned) as rows
-            #     FROM usage_logs ul
-            #     JOIN users u ON ul.user_id = u.id
-            #     GROUP BY u.email, DATE(created_at)
-            #     ORDER BY day DESC, u.email
-            #     LIMIT 100
-            # """)
-
-            usage_data = mock_logs
-
-    except Exception as e:
-        print(f"Error fetching usage logs: {e}")
-        usage_data = []
-
     return templates.TemplateResponse(
-        "usage.html", {"request": request, "logs": usage_data}
+        "usage.html",
+        {
+            "request": request,
+            "username": current_user.username,
+            "email": current_user.username,
+            "role": current_user.role,
+        },
     )
+
+
+@app.get("/admin/user-management", response_class=HTMLResponse)
+async def user_management_page(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
+):
+    return templates.TemplateResponse(
+        "user_management.html",
+        {
+            "request": request,
+            "username": current_user.username,
+            "email": current_user.username,
+            "role": current_user.role,
+        },
+    )
+
+
+@app.get("/admin/system-settings", response_class=HTMLResponse)
+async def system_settings_page(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
+):
+    return templates.TemplateResponse(
+        "system_settings.html",
+        {
+            "request": request,
+            "username": current_user.username,
+            "email": current_user.username,
+            "role": current_user.role,
+        },
+    )
+
+
+@app.get("/admin/usage/logs")
+async def admin_usage_logs_api(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
+):
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        usage_cols = {
+            r["column_name"]
+            for r in await conn.fetch(
+                """
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_schema = 'public' AND table_name = 'usage_logs'
+                """
+            )
+        }
+        query_cols = {
+            r["column_name"]
+            for r in await conn.fetch(
+                """
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_schema = 'public' AND table_name = 'query_logs'
+                """
+            )
+        }
+        download_cols = {
+            r["column_name"]
+            for r in await conn.fetch(
+                """
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_schema = 'public' AND table_name = 'download_logs'
+                """
+            )
+        }
+
+        usage_time_col = "queried_at" if "queried_at" in usage_cols else ("created_at" if "created_at" in usage_cols else None)
+        usage_rows_col = "rows_returned" if "rows_returned" in usage_cols else None
+        usage_endpoint_col = "endpoint" if "endpoint" in usage_cols else None
+        usage_bytes_col = "bytes_sent" if "bytes_sent" in usage_cols else None
+        usage_has_identity = "user_email" in usage_cols
+        usage_has_dataset = "schema_name" in usage_cols and "table_name" in usage_cols
+
+        query_time_col = "created_at" if "created_at" in query_cols else ("queried_at" if "queried_at" in query_cols else None)
+        query_rows_col = "rows_returned" if "rows_returned" in query_cols else None
+        query_has_identity = "user_email" in query_cols
+        query_has_dataset = "dataset_name" in query_cols and "table_name" in query_cols
+        query_has_filters = "filters" in query_cols
+
+        download_time_col = "created_at" if "created_at" in download_cols else ("queried_at" if "queried_at" in download_cols else None)
+        download_size_col = "size_bytes" if "size_bytes" in download_cols else ("bytes_sent" if "bytes_sent" in download_cols else None)
+        download_has_file = "file_name" in download_cols
+        download_has_identity = "user_email" in download_cols
+
+        query_logs = []
+        if usage_time_col and usage_has_identity:
+            try:
+                query_logs = await conn.fetch(
+                    f"""
+                    SELECT
+                        user_email,
+                        CASE
+                            WHEN COALESCE(NULLIF(schema_name, ''), '') = '' AND COALESCE(NULLIF(table_name, ''), '') = '' THEN COALESCE(endpoint, '-')
+                            ELSE COALESCE(NULLIF(schema_name, ''), '-') || '/' || COALESCE(NULLIF(table_name, ''), '-')
+                        END AS dataset_table,
+                        '-' AS filters,
+                        COALESCE({usage_rows_col or '0'}, 0) AS rows_returned,
+                        {usage_time_col} AS time
+                    FROM usage_logs
+                    ORDER BY {usage_time_col} DESC
+                    LIMIT 100
+                    """
+                )
+            except Exception:
+                query_logs = []
+        if not query_logs and query_time_col and query_has_identity:
+            try:
+                dataset_expr = "COALESCE(dataset_name, '-') || '/' || COALESCE(table_name, '-')" if query_has_dataset else "'-'"
+                filters_expr = "COALESCE(filters, '-')" if query_has_filters else "'-'"
+                query_logs = await conn.fetch(
+                    f"""
+                    SELECT
+                        user_email,
+                        {dataset_expr} AS dataset_table,
+                        {filters_expr} AS filters,
+                        COALESCE({query_rows_col or '0'}, 0) AS rows_returned,
+                        {query_time_col} AS time
+                    FROM query_logs
+                    ORDER BY {query_time_col} DESC
+                    LIMIT 100
+                    """
+                )
+            except Exception:
+                query_logs = []
+
+        usage_downloads = []
+        if usage_time_col and usage_has_identity and usage_endpoint_col:
+            try:
+                usage_downloads = await conn.fetch(
+                    f"""
+                    SELECT
+                        COALESCE(NULLIF(split_part(endpoint, '/', 4), ''), 'download') AS file_name,
+                        user_email,
+                        COALESCE({usage_bytes_col or '0'}, 0) AS size_bytes,
+                        {usage_time_col} AS time
+                    FROM usage_logs
+                    WHERE endpoint ILIKE '/downloads/%'
+                    ORDER BY {usage_time_col} DESC
+                    LIMIT 100
+                    """
+                )
+            except Exception:
+                usage_downloads = []
+
+        table_downloads = []
+        if download_time_col and download_has_file and download_has_identity:
+            try:
+                table_downloads = await conn.fetch(
+                    f"""
+                    SELECT
+                        file_name,
+                        user_email,
+                        COALESCE({download_size_col or '0'}, 0) AS size_bytes,
+                        {download_time_col} AS time
+                    FROM download_logs
+                    ORDER BY {download_time_col} DESC
+                    LIMIT 100
+                    """
+                )
+            except Exception:
+                table_downloads = []
+
+        merged_downloads = [dict(r) for r in usage_downloads]
+        existing = {(d.get("file_name"), d.get("user_email"), str(d.get("time"))) for d in merged_downloads}
+        for r in table_downloads:
+            d = dict(r)
+            key = (d.get("file_name"), d.get("user_email"), str(d.get("time")))
+            if key not in existing:
+                merged_downloads.append(d)
+
+        total_queries = 0
+        active_users = 0
+        rows_accessed = 0
+        queries_over_time = []
+        top_users = []
+
+        if usage_time_col and usage_has_identity:
+            try:
+                total_queries = await conn.fetchval("SELECT COUNT(*) FROM usage_logs")
+                active_users = await conn.fetchval("SELECT COUNT(DISTINCT user_email) FROM usage_logs")
+                rows_accessed = await conn.fetchval(f"SELECT COALESCE(SUM({usage_rows_col or '0'}), 0) FROM usage_logs")
+                queries_over_time = await conn.fetch(
+                    f"""
+                    SELECT TO_CHAR(DATE({usage_time_col}), 'YYYY-MM-DD') AS day, COUNT(*) AS count
+                    FROM usage_logs
+                    WHERE {usage_time_col} >= NOW() - INTERVAL '14 days'
+                    GROUP BY DATE({usage_time_col})
+                    ORDER BY DATE({usage_time_col})
+                    """
+                )
+                top_users = await conn.fetch(
+                    """
+                    SELECT user_email, COUNT(*) AS count
+                    FROM usage_logs
+                    GROUP BY user_email
+                    ORDER BY count DESC
+                    LIMIT 8
+                    """
+                )
+            except Exception:
+                total_queries = 0
+                active_users = 0
+                rows_accessed = 0
+                queries_over_time = []
+                top_users = []
+
+        if (not total_queries) and query_time_col and query_has_identity:
+            try:
+                total_queries = await conn.fetchval("SELECT COUNT(*) FROM query_logs")
+                active_users = await conn.fetchval("SELECT COUNT(DISTINCT user_email) FROM query_logs")
+                rows_accessed = await conn.fetchval(f"SELECT COALESCE(SUM({query_rows_col or '0'}), 0) FROM query_logs")
+                queries_over_time = await conn.fetch(
+                    f"""
+                    SELECT TO_CHAR(DATE({query_time_col}), 'YYYY-MM-DD') AS day, COUNT(*) AS count
+                    FROM query_logs
+                    WHERE {query_time_col} >= NOW() - INTERVAL '14 days'
+                    GROUP BY DATE({query_time_col})
+                    ORDER BY DATE({query_time_col})
+                    """
+                )
+                top_users = await conn.fetch(
+                    """
+                    SELECT user_email, COUNT(*) AS count
+                    FROM query_logs
+                    GROUP BY user_email
+                    ORDER BY count DESC
+                    LIMIT 8
+                    """
+                )
+            except Exception:
+                pass
+
+    return {
+        "query_logs": [dict(r) for r in query_logs],
+        "download_logs": merged_downloads[:100],
+        "metrics": {
+            "total_queries": int(total_queries or 0),
+            "active_users": int(active_users or 0),
+            "rows_accessed": int(rows_accessed or 0),
+        },
+        "charts": {
+            "queries_over_time": [dict(r) for r in queries_over_time],
+            "top_users": [dict(r) for r in top_users],
+        },
+    }
+
+
+@app.get("/admin/users")
+async def admin_users_api(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
+):
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        users = await conn.fetch(
+            """
+            SELECT
+                u.username,
+                u.email,
+                COALESCE(r.name, 'user') AS role,
+                COALESCE(u.is_verified, FALSE) AS is_verified,
+                COALESCE(u.document_uploaded, FALSE) AS document_uploaded,
+                COALESCE(u.is_blocked, FALSE) AS is_blocked,
+                CASE WHEN COALESCE(u.is_blocked, FALSE) THEN 'blocked' ELSE 'active' END AS status,
+                COALESCE(u.plan, 'free') AS plan,
+                u.plan_expiry,
+                COALESCE(u.max_queries_per_day, u.max_queries_day, 1000) AS max_queries_day,
+                COALESCE(u.max_rows_per_day, u.max_rows_day, 100000) AS max_rows_day,
+                COALESCE(u.blocked_reason, '') AS blocked_reason
+            FROM users u
+            LEFT JOIN roles r ON r.id = u.role_id
+            ORDER BY u.created_at DESC
+            """
+        )
+    return {"users": [dict(r) for r in users]}
+
+
+@app.post("/admin/users/update-role")
+async def admin_update_role_api(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
+):
+    body = await request.json()
+    email = (body.get("email") or "").strip()
+    role = (body.get("role") or "").strip().lower()
+    plan = (body.get("plan") or "").strip().lower()
+    if not email:
+        raise HTTPException(status_code=400, detail="Invalid payload")
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        if role:
+            if role not in {"admin", "analyst", "user"}:
+                raise HTTPException(status_code=400, detail="Invalid role")
+            role_id = await conn.fetchval("SELECT id FROM roles WHERE lower(name) = $1 LIMIT 1", role)
+            if not role_id:
+                raise HTTPException(status_code=404, detail="Role not found")
+            await conn.execute("UPDATE users SET role_id = $1 WHERE email = $2", role_id, email)
+        if plan:
+            await conn.execute("UPDATE users SET plan = $1 WHERE email = $2", plan, email)
+    return {"ok": True}
+
+
+@app.post("/admin/users/block")
+async def admin_block_user_api(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
+):
+    body = await request.json()
+    email = (body.get("email") or "").strip()
+    blocked = bool(body.get("blocked", True))
+    reason = (body.get("reason") or "").strip()
+    if not email:
+        raise HTTPException(status_code=400, detail="email is required")
+    status = "blocked" if blocked else "active"
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            UPDATE users
+            SET status = $1,
+                is_blocked = $2,
+                blocked_reason = $3
+            WHERE email = $4
+            """,
+            status,
+            blocked,
+            reason if blocked else "",
+            email
+        )
+    return {"ok": True}
+
+
+@app.post("/admin/users/verify")
+async def admin_verify_user_api(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
+):
+    body = await request.json()
+    email = (body.get("email") or "").strip()
+    approved = bool(body.get("approved", False))
+    document_id = body.get("document_id")
+    if not email:
+        raise HTTPException(status_code=400, detail="email is required")
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        can_verify = await conn.fetchval(
+            """
+            SELECT CASE
+                     WHEN COALESCE(is_verified, FALSE) = FALSE
+                      AND COALESCE(document_uploaded, FALSE) = TRUE
+                     THEN TRUE ELSE FALSE
+                   END
+            FROM users
+            WHERE email = $1
+            LIMIT 1
+            """,
+            email,
+        )
+        if not can_verify:
+            raise HTTPException(status_code=400, detail="User cannot be verified")
+        await conn.execute("UPDATE users SET is_verified = $1 WHERE email = $2", approved, email)
+        if document_id:
+            await conn.execute(
+                "UPDATE user_documents SET status = $1, updated_at = NOW() WHERE id = $2",
+                "approved" if approved else "rejected",
+                int(document_id),
+            )
+    return {"ok": True}
+
+
+@app.post("/admin/users/set-limits")
+async def admin_set_limits_api(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
+):
+    body = await request.json()
+    email = (body.get("email") or "").strip()
+    max_queries_per_day = int(body.get("max_queries_per_day") or 0)
+    max_rows_per_day = int(body.get("max_rows_per_day") or 0)
+    if not email or max_queries_per_day <= 0 or max_rows_per_day <= 0:
+        raise HTTPException(status_code=400, detail="Invalid payload")
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            UPDATE users
+            SET max_queries_per_day = $1,
+                max_rows_per_day = $2,
+                max_queries_day = $1,
+                max_rows_day = $2
+            WHERE email = $3
+            """,
+            max_queries_per_day,
+            max_rows_per_day,
+            email,
+        )
+    return {"ok": True}
+
+
+@app.post("/admin/users/assign-plan")
+async def admin_assign_plan_api(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
+):
+    body = await request.json()
+    email = (body.get("email") or "").strip()
+    plan = (body.get("plan") or "").strip().lower()
+    plan_expiry = (body.get("plan_expiry") or "").strip()
+    if not email or plan not in {"free", "pro"}:
+        raise HTTPException(status_code=400, detail="Invalid payload")
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        if plan_expiry:
+            await conn.execute(
+                "UPDATE users SET plan = $1, plan_expiry = $2::timestamp WHERE email = $3",
+                plan,
+                plan_expiry,
+                email,
+            )
+        else:
+            await conn.execute(
+                "UPDATE users SET plan = $1 WHERE email = $2",
+                plan,
+                email,
+            )
+    return {"ok": True}
+
+
+@app.get("/admin/requests")
+async def admin_requests_api(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
+):
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        try:
+            dataset_requests = await conn.fetch(
+                """
+                SELECT id, user_email, requested_dataset, status, created_at
+                FROM user_requests
+                WHERE request_type = 'dataset_request'
+                ORDER BY created_at DESC
+                LIMIT 100
+                """
+            )
+        except Exception:
+            dataset_requests = []
+        try:
+            feedback = await conn.fetch(
+                """
+                SELECT id, user_email, message, created_at
+                FROM user_requests
+                WHERE request_type = 'feedback'
+                ORDER BY created_at DESC
+                LIMIT 100
+                """
+            )
+        except Exception:
+            feedback = []
+        try:
+            docs = await conn.fetch(
+                """
+                SELECT d.id, d.user_email, d.document_name, d.document_url, d.status, d.created_at
+                FROM user_documents d
+                JOIN users u ON u.email = d.user_email
+                WHERE COALESCE(u.is_verified, FALSE) = FALSE
+                  AND COALESCE(u.document_uploaded, FALSE) = TRUE
+                ORDER BY d.created_at DESC
+                LIMIT 100
+                """
+            )
+        except Exception:
+            docs = []
+        suspicious = await conn.fetch(
+            """
+            SELECT user_email, COUNT(*) AS query_count, COALESCE(SUM(rows_returned), 0) AS rows_accessed
+            FROM usage_logs
+            WHERE endpoint ILIKE '%query%'
+              AND queried_at >= NOW() - INTERVAL '24 hours'
+            GROUP BY user_email
+            HAVING COUNT(*) > 50
+            ORDER BY query_count DESC
+            LIMIT 30
+            """
+        )
+    return {
+        "dataset_requests": [dict(r) for r in dataset_requests],
+        "feedback": [dict(r) for r in feedback],
+        "documents": [dict(r) for r in docs],
+        "suspicious_activity": [dict(r) for r in suspicious],
+    }
+
+
+@app.post("/admin/requests/action")
+async def admin_requests_action_api(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
+):
+    body = await request.json()
+    request_id = int(body.get("id") or 0)
+    status = (body.get("status") or "").strip().lower()
+    action_type = (body.get("action_type") or "dataset_request").strip().lower()
+    if request_id <= 0 or status not in {"approved", "rejected", "pending"}:
+        raise HTTPException(status_code=400, detail="Invalid payload")
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE user_requests SET status = $1, updated_at = NOW() WHERE id = $2",
+            status,
+            request_id,
+        )
+        if action_type == "dataset_request" and status == "approved":
+            row = await conn.fetchrow(
+                "SELECT requested_dataset FROM user_requests WHERE id = $1",
+                request_id,
+            )
+            req_name = row["requested_dataset"] if row else f"request_{request_id}"
+            create_job("dataset_request_ingestion", req_name)
+    return {"ok": True}
+
+
+@app.get("/admin/payments")
+async def admin_payments_api(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
+):
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        plans = await conn.fetch(
+            """
+            SELECT email AS user_email, COALESCE(plan, 'free') AS plan, plan_expiry
+            FROM users
+            ORDER BY email
+            LIMIT 500
+            """
+        )
+        try:
+            txns = await conn.fetch(
+                """
+                SELECT transaction_id, user_email, amount, status, created_at
+                FROM payments
+                ORDER BY created_at DESC
+                LIMIT 200
+                """
+            )
+        except Exception:
+            txns = []
+    return {"user_plans": [dict(r) for r in plans], "transactions": [dict(r) for r in txns]}
+
+
+@app.get("/admin/settings")
+async def admin_settings_api(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
+):
+    defaults = {
+        "default_row_limit": "1000",
+        "min_rows_threshold": "5",
+        "default_rate_limit": "60",
+        "enable_downloads": "true",
+        "enable_charts": "true",
+        "enable_sensitive_columns": "false",
+        "platform.default_row_limit": "1000",
+        "platform.default_query_limit": "100",
+        "privacy.min_rows_threshold": "5",
+        "privacy.enable_sensitive_columns": "false",
+        "api.default_rate_limit": "60",
+        "api.timeout_seconds": "30",
+        "storage.max_upload_size_mb": "512",
+        "storage.auto_delete_uploads": "false",
+        "features.enable_charts": "true",
+        "features.enable_downloads": "true",
+        "payments.enabled": "false",
+        "payments.default_plan_limits": "free:1000,pro:100000",
+        "payments.pricing_config": "free=0,pro=99",
+    }
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        for k, v in defaults.items():
+            await conn.execute(
+                """
+                INSERT INTO system_settings (key, value, updated_at)
+                VALUES ($1, $2, NOW())
+                ON CONFLICT (key) DO NOTHING
+                """,
+                k,
+                v,
+            )
+        try:
+            rows = await conn.fetch("SELECT key, value, updated_at FROM system_settings ORDER BY key")
+        except Exception:
+            rows = []
+    settings_map = {r["key"]: str(r["value"]) for r in rows}
+    return {
+        "settings": [dict(r) for r in rows],
+        "effective": {
+            "default_row_limit": settings_map.get("default_row_limit") or settings_map.get("platform.default_row_limit", "1000"),
+            "min_rows_threshold": settings_map.get("min_rows_threshold") or settings_map.get("privacy.min_rows_threshold", "5"),
+            "default_rate_limit": settings_map.get("default_rate_limit") or settings_map.get("api.default_rate_limit", "60"),
+            "enable_downloads": settings_map.get("enable_downloads") or settings_map.get("features.enable_downloads", "true"),
+            "enable_charts": settings_map.get("enable_charts") or settings_map.get("features.enable_charts", "true"),
+        },
+    }
+
+
+@app.post("/admin/settings/update")
+async def admin_settings_update_api(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
+):
+    body = await request.json()
+    settings = body.get("settings")
+    if settings is None:
+        keys = ["default_row_limit", "min_rows_threshold", "default_rate_limit", "enable_downloads", "enable_charts"]
+        settings = {k: body[k] for k in keys if k in body}
+    settings = settings or {}
+    if not isinstance(settings, dict):
+        raise HTTPException(status_code=400, detail="settings must be an object")
+    pool = request.app.state.db
+    aliases = {
+        "platform.default_row_limit": "default_row_limit",
+        "default_row_limit": "platform.default_row_limit",
+        "privacy.min_rows_threshold": "min_rows_threshold",
+        "min_rows_threshold": "privacy.min_rows_threshold",
+        "api.default_rate_limit": "default_rate_limit",
+        "default_rate_limit": "api.default_rate_limit",
+        "features.enable_downloads": "enable_downloads",
+        "enable_downloads": "features.enable_downloads",
+        "features.enable_charts": "enable_charts",
+        "enable_charts": "features.enable_charts",
+        "privacy.enable_sensitive_columns": "enable_sensitive_columns",
+        "enable_sensitive_columns": "privacy.enable_sensitive_columns",
+    }
+    async with pool.acquire() as conn:
+        for k, v in settings.items():
+            key = str(k).strip()
+            if not key:
+                continue
+            val = str(v)
+            await conn.execute(
+                """
+                INSERT INTO system_settings (key, value, updated_at)
+                VALUES ($1, $2, NOW())
+                ON CONFLICT (key) DO UPDATE SET
+                    value = EXCLUDED.value,
+                    updated_at = NOW()
+                """,
+                key,
+                val,
+            )
+            mirror = aliases.get(key)
+            if mirror:
+                await conn.execute(
+                    """
+                    INSERT INTO system_settings (key, value, updated_at)
+                    VALUES ($1, $2, NOW())
+                    ON CONFLICT (key) DO UPDATE SET
+                        value = EXCLUDED.value,
+                        updated_at = NOW()
+                    """,
+                    mirror,
+                    val,
+                )
+    return {"ok": True}
 
 
 # =================== OPENAPI CUSTOMIZATION ===================

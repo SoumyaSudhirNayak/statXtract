@@ -5,24 +5,29 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Upload Progress - {{ filename }}</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@700;800;900&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
         :root {
-            --primary-color: #64748b;
-            --primary-gradient: linear-gradient(135deg, #64748b 0%, #475569 100%);
-            --secondary-color: #f59e0b;
-            --success-color: #10b981;
-            --danger-color: #ef4444;
-            --text-dark: #2d3748;
-            --glass-bg: rgba(255, 255, 255, 0.9);
-            --border-radius: 12px;
-            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            --font-head: 'Poppins', sans-serif;
+            --font-body: 'Inter', sans-serif;
+            --primary-color: #2E5BBA;
+            --primary-gradient: linear-gradient(135deg, #2E5BBA 0%, #1F3A5F 100%);
+            --secondary-color: #F4A300;
+            --success-color: #2E7D32;
+            --danger-color: #D4183D;
+            --text-dark: #1C1C1C;
+            --text-muted: #6B7280;
+            --border: #D1D5DB;
+            --surface: #FFFFFF;
+            --surface-muted: #F8FAFC;
+            --border-radius: 16px;
+            --shadow: 0 12px 30px rgba(31, 58, 95, 0.1);
         }
 
         body {
-            font-family: 'Inter', sans-serif;
-            background-color: #f1f5f9;
+            font-family: var(--font-body);
+            background: linear-gradient(135deg, #F5F7FA 0%, #EEF3FB 55%, #E9EEF7 100%);
             color: var(--text-dark);
             min-height: 100vh;
             display: flex;
@@ -31,18 +36,47 @@
             padding: 2rem;
         }
 
+        .page-back-btn {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255, 255, 255, 0.9);
+            border: 1px solid var(--border);
+            border-radius: 50px;
+            padding: 10px 16px;
+            color: var(--text-dark);
+            text-decoration: none;
+            font-weight: 600;
+            box-shadow: 0 8px 22px rgba(31, 58, 95, 0.12);
+            transition: all 0.2s ease;
+        }
+
+        .page-back-btn:hover {
+            transform: translateY(-1px);
+            border-color: var(--primary-color);
+            color: var(--primary-color);
+        }
+
         .container {
             width: 100%;
-            max-width: 800px;
-            background: white;
-            padding: 2rem;
+            max-width: 920px;
+            background: var(--surface);
+            padding: 2.25rem;
             border-radius: var(--border-radius);
             box-shadow: var(--shadow);
+            border: 1px solid var(--border);
         }
 
         h2 {
             margin-bottom: 1.5rem;
             color: var(--primary-color);
+            font-family: var(--font-head);
+            font-size: 2rem;
+            font-weight: 800;
         }
 
         .progress-container {
@@ -51,10 +85,11 @@
 
         .progress-bar-bg {
             width: 100%;
-            height: 1.5rem;
-            background-color: #e2e8f0;
+            height: 1rem;
+            background-color: #E5E7EB;
             border-radius: 9999px;
             overflow: hidden;
+            border: 1px solid var(--border);
         }
 
         .progress-bar {
@@ -72,8 +107,8 @@
 
         .status-message {
             margin-top: 0.5rem;
-            font-size: 0.875rem;
-            color: #64748b;
+            font-size: 0.9rem;
+            color: var(--text-muted);
         }
 
         .file-list {
@@ -84,18 +119,24 @@
             width: 100%;
             border-collapse: collapse;
             font-size: 0.875rem;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
         }
 
         th, td {
-            padding: 0.75rem 1rem;
+            padding: 0.8rem 1rem;
             text-align: left;
-            border-bottom: 1px solid #e2e8f0;
+            border-bottom: 1px solid #E5E7EB;
         }
 
         th {
             font-weight: 600;
-            color: #64748b;
-            background-color: #f8fafc;
+            color: #FFFFFF;
+            background-color: #1F3A5F;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            font-size: 0.78rem;
         }
 
         .badge {
@@ -119,20 +160,29 @@
             background: var(--primary-gradient);
             color: white;
             text-decoration: none;
-            border-radius: 8px;
-            font-weight: 500;
-            transition: opacity 0.2s;
+            border-radius: 10px;
+            font-weight: 700;
+            transition: all 0.2s ease;
+            border: 1px solid transparent;
         }
         
-        .back-btn:hover { opacity: 0.9; }
+        .back-btn:hover {
+            opacity: 0.95;
+            transform: translateY(-1px);
+            border-color: var(--secondary-color);
+        }
         .back-btn.disabled { pointer-events: none; opacity: 0.5; background: #94a3b8; }
-        .step { padding: 8px 10px; border-radius: 10px; background: #f8fafc; border: 1px solid #e2e8f0; color: #64748b; }
-        .step.active { background: #dbeafe; border-color: #93c5fd; color: #1d4ed8; font-weight: 600; }
-        .step.done { background: #d1fae5; border-color: #6ee7b7; color: #065f46; }
+        .step { padding: 8px 10px; border-radius: 10px; background: var(--surface-muted); border: 1px solid #E5E7EB; color: var(--text-muted); }
+        .step.active { background: #DBEAFE; border-color: #93C5FD; color: #1D4ED8; font-weight: 600; }
+        .step.done { background: #DCFCE7; border-color: #86EFAC; color: #166534; }
 
     </style>
 </head>
 <body>
+<a href="/admin/dashboard" class="page-back-btn" onclick="goBack(event)">
+    <i class="fas fa-arrow-left"></i>
+    <span>Back</span>
+</a>
 
 <div class="container">
     <h2><i class="fas fa-cloud-upload-alt"></i> Uploading: {{ filename }}</h2>
@@ -187,6 +237,11 @@
 </div>
 
 <script>
+    function goBack(event) {
+        if (event) event.preventDefault();
+        window.location.href = '/admin/dashboard';
+    }
+
     const jobId = "{{ job_id }}";
     const statusUrl = `/admin/upload/status/${jobId}`;
     const eventsUrl = `/admin/upload/events/${jobId}`;

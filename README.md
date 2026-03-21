@@ -1,4 +1,4 @@
-﻿﻿# StatXtract – Statathon Dataset API Gateway
+﻿# StatXtract – Statathon Dataset API Gateway
 
 StatXtract is a FastAPI-based gateway for exploring official survey microdata in a safe and structured way.  
 It focuses on:
@@ -178,6 +178,20 @@ After upload, the ingestion pipeline in [utils/ingestion_pipeline.py](file:///e:
     - bytes sent
 
 See [usage.md](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/statathon-docs-only/docs/usage.md) for details.
+
+---
+
+## Navigation Flow (Back Buttons)
+
+- **Main dashboard page (`/admin/dashboard`)**
+  - No back button is shown on the dashboard interface.
+- **All other template back buttons**
+  - Unified behavior redirects to `/admin/dashboard`.
+  - This applies to upload, progress, query, schema, dataset, usage, settings, metadata/admin utility pages that expose a back control.
+- **Explorer exception**
+  - The back button in [explorer.html](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/templates/explorer.html) keeps its existing behavior by design.
+
+This keeps navigation predictable for admins by standardizing back actions to the dashboard as the primary return point.
 
 ---
 

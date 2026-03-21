@@ -75,10 +75,41 @@ async def ensure_core_tables(conn: asyncpg.Connection) -> None:
             email VARCHAR(255) UNIQUE NOT NULL,
             hashed_password TEXT NOT NULL,
             role_id INTEGER REFERENCES roles(id),
+            is_verified BOOLEAN DEFAULT FALSE,
+            document_uploaded BOOLEAN DEFAULT FALSE,
+            is_blocked BOOLEAN DEFAULT FALSE,
+            status TEXT DEFAULT 'active',
+            plan TEXT DEFAULT 'free',
+            plan_expiry TIMESTAMP,
+            max_queries_per_day INTEGER DEFAULT 1000,
+            max_rows_per_day BIGINT DEFAULT 100000,
+            max_queries_day INTEGER DEFAULT 1000,
+            max_rows_day BIGINT DEFAULT 100000,
+            blocked_reason TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
         """
     )
+
+    for col_def in [
+        ("is_verified", "BOOLEAN DEFAULT FALSE"),
+        ("document_uploaded", "BOOLEAN DEFAULT FALSE"),
+        ("is_blocked", "BOOLEAN DEFAULT FALSE"),
+        ("status", "TEXT DEFAULT 'active'"),
+        ("plan", "TEXT DEFAULT 'free'"),
+        ("plan_expiry", "TIMESTAMP"),
+        ("max_queries_per_day", "INTEGER DEFAULT 1000"),
+        ("max_rows_per_day", "BIGINT DEFAULT 100000"),
+        ("max_queries_day", "INTEGER DEFAULT 1000"),
+        ("max_rows_day", "BIGINT DEFAULT 100000"),
+        ("blocked_reason", "TEXT"),
+    ]:
+        try:
+            await conn.execute(
+                f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {col_def[0]} {col_def[1]}"
+            )
+        except Exception:
+            pass
 
     await conn.execute(
         """
@@ -98,6 +129,33 @@ async def ensure_core_tables(conn: asyncpg.Connection) -> None:
             rows_returned INTEGER,
             bytes_sent BIGINT,
             queried_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """
+    )
+
+    await conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS query_logs (
+            id SERIAL PRIMARY KEY,
+            user_email TEXT NOT NULL,
+            dataset_name TEXT,
+            table_name TEXT,
+            filters TEXT,
+            rows_returned INTEGER DEFAULT 0,
+            query_time_ms INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """
+    )
+
+    await conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS download_logs (
+            id SERIAL PRIMARY KEY,
+            file_name TEXT NOT NULL,
+            user_email TEXT NOT NULL,
+            size_bytes BIGINT DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
         """
     )
@@ -187,6 +245,58 @@ async def ensure_core_tables(conn: asyncpg.Connection) -> None:
             dataset_schema TEXT UNIQUE NOT NULL,
             dataset_display_name TEXT NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """
+    )
+
+    await conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS user_requests (
+            id SERIAL PRIMARY KEY,
+            user_email TEXT NOT NULL,
+            request_type TEXT NOT NULL,
+            requested_dataset TEXT,
+            message TEXT,
+            status TEXT DEFAULT 'pending',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """
+    )
+
+    await conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS user_documents (
+            id SERIAL PRIMARY KEY,
+            user_email TEXT NOT NULL,
+            document_name TEXT NOT NULL,
+            document_url TEXT,
+            status TEXT DEFAULT 'pending',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """
+    )
+
+    await conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS payments (
+            id SERIAL PRIMARY KEY,
+            transaction_id TEXT UNIQUE NOT NULL,
+            user_email TEXT NOT NULL,
+            amount NUMERIC(12,2) DEFAULT 0,
+            status TEXT DEFAULT 'pending',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """
+    )
+
+    await conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS system_settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
         """
     )
