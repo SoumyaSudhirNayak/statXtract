@@ -210,9 +210,17 @@ async def debug_routes():
 # =================== AUTHENTICATION ROUTES ===================
 
 
-@app.get("/", include_in_schema=False)
-async def root():
-    return RedirectResponse("/login")
+@app.get("/", response_class=HTMLResponse, include_in_schema=False)
+async def root(request: Request):
+    return templates.TemplateResponse("splashscreen.html", {"request": request})
+
+@app.get("/module-selection", response_class=HTMLResponse)
+async def module_selection(request: Request):
+    return templates.TemplateResponse("module_selection.html", {"request": request})
+
+@app.get("/user/module-selection", response_class=HTMLResponse)
+async def user_module_selection(request: Request):
+    return templates.TemplateResponse("user_module_selection.html", {"request": request})
 
 
 @app.get("/login", response_class=HTMLResponse)
@@ -238,7 +246,7 @@ async def login_post(
             data={"sub": user["email"], "role": user["role_id"]}
         )
         response = RedirectResponse(
-            url="/admin/dashboard" if str(user["role_id"]) == "1" else "/query",
+            url="/admin/dashboard" if str(user["role_id"]) == "1" else "/user/dashboard",
             status_code=302,
         )
         response.set_cookie("access_token", access_token, httponly=True)
@@ -320,6 +328,130 @@ async def logout(response: Response):
             "message": "Logout completed",
             "status": "success",
         }  # Always return success
+
+
+# =================== USER DASHBOARD ROUTES ===================
+
+
+@app.get("/user/login", response_class=HTMLResponse)
+async def user_login_page(request: Request):
+    return templates.TemplateResponse("USER_PAGES/user_login.html", {"request": request})
+
+
+@app.get("/user/register", response_class=HTMLResponse)
+async def user_register_page(request: Request):
+    return templates.TemplateResponse("USER_PAGES/user_register.html", {"request": request})
+
+
+@app.get("/user/dashboard", response_class=HTMLResponse)
+async def user_dashboard_page(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
+):
+    return templates.TemplateResponse(
+        "USER_PAGES/user_dashboard.html",
+        {
+            "request": request,
+            "username": current_user.username,
+            "email": current_user.username,
+            "role": current_user.role,
+        },
+    )
+
+
+@app.get("/user/profile", response_class=HTMLResponse)
+async def user_profile_page(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
+):
+    return templates.TemplateResponse(
+        "USER_PAGES/user_profile.html", 
+        {
+            "request": request,
+            "username": current_user.username,
+            "email": current_user.username,
+            "role": current_user.role,
+        }
+    )
+
+
+@app.get("/user/history", response_class=HTMLResponse)
+async def user_history_page(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
+):
+    return templates.TemplateResponse(
+        "USER_PAGES/user_history.html", 
+        {
+            "request": request,
+            "username": current_user.username,
+            "email": current_user.username,
+            "role": current_user.role,
+        }
+    )
+
+
+@app.get("/user/downloads", response_class=HTMLResponse)
+async def user_downloads_page(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
+):
+    return templates.TemplateResponse(
+        "USER_PAGES/user_downloads.html", 
+        {
+            "request": request,
+            "username": current_user.username,
+            "email": current_user.username,
+            "role": current_user.role,
+        }
+    )
+
+
+@app.get("/user/plans", response_class=HTMLResponse)
+async def user_plans_page(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
+):
+    return templates.TemplateResponse(
+        "USER_PAGES/user_plans.html", 
+        {
+            "request": request,
+            "username": current_user.username,
+            "email": current_user.username,
+            "role": current_user.role,
+        }
+    )
+
+
+@app.get("/user/settings", response_class=HTMLResponse)
+async def user_settings_page(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
+):
+    return templates.TemplateResponse(
+        "USER_PAGES/user_settings.html", 
+        {
+            "request": request,
+            "username": current_user.username,
+            "email": current_user.username,
+            "role": current_user.role,
+        }
+    )
+
+@app.get("/user/usage", response_class=HTMLResponse)
+async def user_usage_page(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
+):
+    return templates.TemplateResponse(
+        "USER_PAGES/user_usage.html", 
+        {
+            "request": request,
+            "username": current_user.username,
+            "email": current_user.username,
+            "role": current_user.role,
+        }
+    )
 
 
 # =================== DASHBOARD ROUTES ===================

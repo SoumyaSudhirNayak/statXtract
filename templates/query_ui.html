@@ -896,7 +896,7 @@
     <header>
         <nav class="app-nav">
             <div class="crumb-icon"><i class="fas fa-chart-pie"></i></div>
-            <a href="/admin/dashboard" class="crumb" style="text-decoration:none;">Dashboard</a>
+            <a href="{% if role == '1' %}/admin/dashboard{% else %}/user/dashboard{% endif %}" class="crumb" style="text-decoration:none;">Dashboard</a>
             <span class="chev"><i class="fas fa-chevron-right"></i></span>
             <span class="crumb-active">Advanced Query</span>
         </nav>

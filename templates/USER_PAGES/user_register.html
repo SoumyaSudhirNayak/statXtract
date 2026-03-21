@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Create Account — STATXTRACT User Portal</title>
+  <meta name="description" content="Register for a STATXTRACT account to access 150+ verified government datasets.">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/user_styles.css">
+  <style>
+    body {
+      min-height: 100vh;
+      background: linear-gradient(135deg, #F0F4FF 0%, #E8F5E9 50%, #FFF8E1 100%);
+      display: flex;
+      flex-direction: column;
+    }
+    .bg-canvas { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+    .bg-orb { position: absolute; border-radius: 50%; filter: blur(80px); animation: orbFloat 22s ease-in-out infinite alternate; opacity: 0.1; }
+    .bg-orb-1 { width: 600px; height: 600px; background: #2E7D32; top: -150px; left: -200px; }
+    .bg-orb-2 { width: 450px; height: 450px; background: #7B1FA2; bottom: -100px; right: -100px; animation-delay: -6s; opacity: 0.07; }
+    @keyframes orbFloat { from { transform: translate(0,0) scale(1); } to { transform: translate(30px, 50px) scale(1.06); } }
+
+    .page-wrapper {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 40px 20px 60px;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* ── BRAND ── */
+    .brand-header { text-align: center; margin-bottom: 28px; }
+    .brand-logo {
+      font-family: var(--font-head);
+      font-size: 40px;
+      font-weight: 900;
+      color: var(--navy);
+      letter-spacing: -1.5px;
+      text-decoration: none;
+      display: inline-block;
+      transition: opacity 0.2s;
+    }
+    .brand-logo:hover { opacity: 0.85; }
+    .brand-logo span { color: var(--green); }
+    .brand-tagline { font-size: 13px; color: var(--text-muted); margin-top: 6px; }
+
+    /* ── STEPS INDICATOR ── */
+    .steps-bar {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+      margin-bottom: 32px;
+    }
+    .step-item { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+    .step-circle {
+      width: 44px; height: 44px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      background: #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 900; font-size: 15px;
+      color: var(--text-muted);
+      font-family: var(--font-head);
+      transition: all 0.35s ease;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    .step-item.active .step-circle  { background: var(--green); border-color: var(--green); color: #fff; box-shadow: 0 4px 18px rgba(46,125,50,0.45); }
+    .step-item.done   .step-circle  { background: var(--green-dark); border-color: var(--green-dark); color: #fff; }
+    .step-label { font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.6px; }
+    .step-item.active .step-label   { color: var(--green); }
+    .step-item.done   .step-label   { color: var(--green-dark); }
+    .step-connector  { width: 70px; height: 2px; background: var(--border); margin: 0 4px; margin-bottom: 22px; transition: background 0.35s; }
+    .step-connector.done { background: var(--green-dark); }
+
+    /* ── AUTH CARD ── */
+    .auth-container { width: 100%; max-width: 700px; }
+    .auth-card {
+      background: rgba(255,255,255,0.93);
+      backdrop-filter: blur(20px);
+      border: 2px solid rgba(255,255,255,0.8);
+      border-radius: 24px;
+      padding: 48px 44px;
+      box-shadow: 0 32px 80px rgba(31,58,95,0.16);
+      position: relative;
+      overflow: hidden;
+      transition: box-shadow 0.4s;
+    }
+    .auth-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; height: 4px;
+      background: linear-gradient(90deg, var(--green), var(--saffron), var(--green));
+      background-size: 200% 100%;
+      animation: shimmer 3s ease infinite;
+    }
+    @keyframes shimmer { 0%{background-position:0% 50%;} 50%{background-position:100% 50%;} 100%{background-position:0% 50%;} }
+
+    /* ── PANELS ── */
+    .step-panel { display: none; }
+    .step-panel.active { display: block; animation: fadeUp 0.35s ease; }
+    .hidden { display: none !important; }
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+
+    .panel-title {
+      font-family: var(--font-head);
+      font-size: 26px;
+      font-weight: 800;
+      color: var(--text-main);
+      margin-top: 12px; margin-bottom: 4px;
+    }
+    .panel-sub { font-size: 13px; color: var(--text-muted); margin-bottom: 28px; }
+
+    /* ── FORM GRID ── */
+    .form-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media(max-width:600px) { .form-grid-2 { grid-template-columns: 1fr; } }
+
+    /* ── INPUT STYLES ── */
+    .field-wrap { margin-bottom: 18px; }
+    .field-label { display: block; font-size: 12px; font-weight: 700; color: var(--text-main); text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 7px; }
+    .field-input, .field-select, .field-textarea {
+      width: 100%;
+      padding: 14px 18px;
+      border: 2px solid var(--border);
+      border-radius: 12px;
+      background: #fff;
+      font-family: var(--font-body);
+      font-size: 15px;
+      color: var(--text-main);
+      transition: all 0.3s;
+      outline: none;
+    }
+    .field-input:focus, .field-select:focus, .field-textarea:focus {
+      border-color: var(--green);
+      box-shadow: 0 0 0 3px rgba(46,125,50,0.14);
+    }
+    .field-textarea { resize: vertical; min-height: 80px; }
+
+    /* ── PASSWORD STRENGTH ── */
+    .pw-strength-bar { height: 4px; background: var(--border); border-radius: 2px; margin-top: 8px; overflow: hidden; }
+    .pw-strength-fill { height: 100%; border-radius: 2px; width: 0; transition: width 0.3s, background 0.3s; }
+
+    /* ── ORG CARDS ── */
+    .org-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 16px 0 24px; }
+    @media(max-width:540px) { .org-grid { grid-template-columns: 1fr; } }
+    .org-card {
+      border: 2px solid var(--border);
+      border-radius: 16px;
+      padding: 24px 18px;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.3s ease;
+      background: var(--bg-white);
+      position: relative;
+      overflow: hidden;
+      user-select: none;
+    }
+    .org-card:hover { transform: translateY(-3px); }
+    .org-card.selected { transform: translateY(-2px); }
+    .org-icon {
+      width: 60px; height: 60px;
+      border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 12px;
+      transition: all 0.3s;
+      font-size: 26px;
+    }
+    .org-title { font-family: var(--font-head); font-size: 16px; font-weight: 800; color: var(--text-main); }
+    .org-desc  { font-size: 12px; color: var(--text-muted); margin-top: 4px; line-height: 1.4; }
+    .org-accent {
+      position: absolute; bottom: -24px; right: -24px;
+      width: 80px; height: 80px; border-radius: 50%; opacity: 0.1;
+      transition: transform 0.4s ease;
+    }
+    .org-card:hover .org-accent { transform: scale(1.5); }
+    .org-card.selected .org-accent { transform: scale(1.5); opacity: 0.15; }
+    .org-check {
+      position: absolute; top: 10px; right: 10px;
+      width: 22px; height: 22px; border-radius: 50%;
+      background: var(--green); display: flex; align-items: center; justify-content: center;
+      opacity: 0; transition: opacity 0.2s;
+    }
+    .org-card.selected .org-check { opacity: 1; }
+    /* Per-org colors */
+    .org-student:hover,  .org-student.selected  { border-color: #D32F2F; box-shadow: 0 8px 28px rgba(211,47,47,0.16); }
+    .org-student.selected .org-icon    { background: #D32F2F !important; color: #fff; }
+    .org-researcher:hover, .org-researcher.selected { border-color: #1976D2; box-shadow: 0 8px 28px rgba(25,118,210,0.16); }
+    .org-researcher.selected .org-icon { background: #1976D2 !important; color: #fff; }
+    .org-private:hover,  .org-private.selected   { border-color: #7B1FA2; box-shadow: 0 8px 28px rgba(123,31,162,0.16); }
+    .org-private.selected .org-icon    { background: #7B1FA2 !important; color: #fff; }
+    .org-analyst:hover,  .org-analyst.selected   { border-color: #F57C00; box-shadow: 0 8px 28px rgba(245,124,0,0.16); }
+    .org-analyst.selected .org-icon    { background: #F57C00 !important; color: #fff; }
+
+    /* ── SUBMIT BUTTON ── */
+    .auth-btn {
+      width: 100%; padding: 15px;
+      background: var(--green); color: #fff;
+      border: 2px solid var(--green);
+      border-radius: 12px;
+      font-family: var(--font-body); font-weight: 800; font-size: 16px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      margin-top: 16px;
+      position: relative; overflow: hidden;
+      transition: all 0.3s ease;
+    }
+    .auth-btn::before {
+      content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+      transition: left 0.4s;
+    }
+    .auth-btn:hover::before { left: 100%; }
+    .auth-btn:hover { background: var(--green-dark); border-color: var(--saffron); box-shadow: 0 8px 28px rgba(46,125,50,0.5); transform: translateY(-2px); }
+    .auth-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+    /* ── BACK BUTTON ── */
+    .btn-back {
+      display: inline-flex; align-items: center; gap: 7px;
+      background: none; border: none; font-size: 13px;
+      color: var(--text-muted); cursor: pointer; font-family: var(--font-body);
+      font-weight: 600; padding: 0; transition: color 0.2s;
+    }
+    .btn-back:hover { color: var(--text-main); }
+
+    /* ── ERROR / SUCCESS ── */
+    .error-alert {
+      background: #FFEBEE; border: 1px solid #FFCDD2; color: var(--danger);
+      padding: 12px 16px; border-radius: 10px; font-size: 13px; font-weight: 500;
+      display: flex; align-items: center; gap: 8px; margin-bottom: 18px;
+    }
+    .success-msg {
+      text-align: center; padding: 40px 20px;
+      animation: fadeUp 0.5s ease;
+    }
+    .success-emoji { font-size: 64px; margin-bottom: 16px; }
+    .success-title { font-family: var(--font-head); font-size: 28px; font-weight: 800; color: var(--green-dark); margin-bottom: 8px; }
+    .success-sub   { font-size: 15px; color: var(--text-muted); }
+
+    /* ── SUMMARY CARD ── */
+    .summary-card {
+      background: var(--bg-section);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    .summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .sum-label { font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+    .sum-value { font-weight: 700; color: var(--text-main); font-size: 15px; }
+
+    /* ── AUTH FOOTER ── */
+    .auth-footer-link { text-align: center; margin-top: 20px; font-size: 14px; color: var(--text-muted); }
+    .auth-footer-link a { color: var(--green); font-weight: 700; text-decoration: none; }
+    .auth-footer-link a:hover { text-decoration: underline; }
+
+    /* ── TOAST ── */
+    .toast-container { position: fixed; top: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 10px; }
+    .toast { min-width: 300px; background: #fff; border-radius: 12px; padding: 14px 18px; display: flex; align-items: center; gap: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.12); border: 1px solid var(--border); font-size: 14px; font-weight: 500; animation: slideIn 0.3s ease; }
+    .toast.success { border-left: 4px solid var(--green); }
+    .toast.error   { border-left: 4px solid var(--danger); }
+    @keyframes slideIn { from{ transform: translateX(120px); opacity: 0; } to{ transform: none; opacity: 1; } }
+    @keyframes slideOut { from{ transform: none; opacity: 1; } to{ transform: translateX(120px); opacity: 0; } }
+
+    .security-note { text-align:center; margin-top:18px; font-size:12px; color:var(--text-muted); }
+  </style>
+</head>
+<body>
+  <div class="bg-canvas">
+    <div class="bg-orb bg-orb-1"></div>
+    <div class="bg-orb bg-orb-2"></div>
+  </div>
+  <div class="toast-container" id="toastContainer"></div>
+
+  <div class="page-wrapper">
+    <div class="auth-container">
+
+      <!-- Brand -->
+      <div class="brand-header">
+        <a href="/" class="brand-logo">STAT<span>XTRACT</span></a>
+        <p class="brand-tagline">🇮🇳 Create your free account — access 150+ verified government datasets instantly</p>
+      </div>
+
+      <!-- Steps Bar -->
+      <div class="steps-bar" id="stepsBar">
+        <div class="step-item active" id="step1Ind">
+          <div class="step-circle">1</div>
+          <span class="step-label">Basic Info</span>
+        </div>
+        <div class="step-connector" id="conn1"></div>
+        <div class="step-item" id="step2Ind">
+          <div class="step-circle">2</div>
+          <span class="step-label">Organization</span>
+        </div>
+        <div class="step-connector" id="conn2"></div>
+        <div class="step-item" id="step3Ind">
+          <div class="step-circle">3</div>
+          <span class="step-label">Confirm</span>
+        </div>
+      </div>
+
+      <!-- Auth Card -->
+      <div class="auth-card">
+
+        <!-- ── STEP 1: Basic Info ── -->
+        <div class="step-panel active" id="panel1">
+          <button class="btn-back" onclick="window.location.href='/user/module-selection'">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+            Back
+          </button>
+          <h2 class="panel-title">Create Your Account</h2>
+          <p class="panel-sub">Step 1 of 3 — Enter your basic information</p>
+
+          <div class="error-alert hidden" id="errStep1">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+            <span id="errStep1Text">Please fill in all required fields.</span>
+          </div>
+
+          <div class="form-grid-2">
+            <div class="field-wrap">
+              <label class="field-label" for="fullName">Full Name *</label>
+              <input type="text" id="fullName" class="field-input" placeholder="Your full name" autocomplete="name" required>
+            </div>
+            <div class="field-wrap">
+              <label class="field-label" for="regEmail">Email Address *</label>
+              <input type="email" id="regEmail" class="field-input" placeholder="you@example.com" autocomplete="email" required>
+            </div>
+          </div>
+          <div class="form-grid-2">
+            <div class="field-wrap">
+              <label class="field-label" for="phone">Phone Number</label>
+              <input type="tel" id="phone" class="field-input" placeholder="+91 98765 43210" autocomplete="tel">
+            </div>
+            <div class="field-wrap">
+              <label class="field-label" for="orgName">Organization / Institution</label>
+              <input type="text" id="orgName" class="field-input" placeholder="Company or university">
+            </div>
+          </div>
+          <div class="form-grid-2">
+            <div class="field-wrap">
+              <label class="field-label" for="regPw">Password *</label>
+              <input type="password" id="regPw" class="field-input" placeholder="Min. 8 characters" required oninput="updatePwStrength(this.value)">
+              <div class="pw-strength-bar"><div class="pw-strength-fill" id="pwStrengthFill"></div></div>
+            </div>
+            <div class="field-wrap">
+              <label class="field-label" for="regPwConfirm">Confirm Password *</label>
+              <input type="password" id="regPwConfirm" class="field-input" placeholder="Repeat password" required>
+            </div>
+          </div>
+          <div class="field-wrap">
+            <label class="field-label" for="purpose">Purpose of Data Access</label>
+            <input type="text" id="purpose" class="field-input" placeholder="e.g. Academic research, policy analysis, coursework...">
+          </div>
+
+          <button class="auth-btn" id="nextStep1Btn" type="button">
+            <span>Continue to Next Step</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+
+          <p class="auth-footer-link" style="margin-top:16px;">Already have an account? <a href="/user/login">Sign In</a></p>
+        </div>
+
+        <!-- ── STEP 2: Organization Type ── -->
+        <div class="step-panel" id="panel2">
+          <button class="btn-back" id="backStep2Btn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+            Back
+          </button>
+          <h2 class="panel-title">Tell Us Who You Are</h2>
+          <p class="panel-sub">Step 2 of 3 — Select your organization type for tailored data access</p>
+
+          <div class="org-grid">
+            <!-- Student -->
+            <div class="org-card org-student" data-org="Student" onclick="selectOrg(this,'#D32F2F')">
+              <div class="org-check"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div>
+              <div class="org-icon" style="background:#FFEBEE; color:#D32F2F;"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></div>
+              <div class="org-title">Student</div>
+              <div class="org-desc">Academic students pursuing research or coursework</div>
+              <div class="org-accent" style="background:#D32F2F;"></div>
+            </div>
+            <!-- Researcher -->
+            <div class="org-card org-researcher" data-org="Researcher" onclick="selectOrg(this,'#1976D2')">
+              <div class="org-check"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div>
+              <div class="org-icon" style="background:#E3F2FD; color:#1976D2;"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2v-4M9 21H5a2 2 0 0 1-2-2v-4m0 0h18"/></svg></div>
+              <div class="org-title">Researcher</div>
+              <div class="org-desc">Professional researchers and academic faculty</div>
+              <div class="org-accent" style="background:#1976D2;"></div>
+            </div>
+            <!-- Private Org -->
+            <div class="org-card org-private" data-org="Private Organization" onclick="selectOrg(this,'#7B1FA2')">
+              <div class="org-check"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div>
+              <div class="org-icon" style="background:#F3E5F5; color:#7B1FA2;"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg></div>
+              <div class="org-title">Private Organization</div>
+              <div class="org-desc">Private companies and corporate entities</div>
+              <div class="org-accent" style="background:#7B1FA2;"></div>
+            </div>
+            <!-- Analyst -->
+            <div class="org-card org-analyst" data-org="Analyst" onclick="selectOrg(this,'#F57C00')">
+              <div class="org-check"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div>
+              <div class="org-icon" style="background:#FFF3E0; color:#F57C00;"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+              <div class="org-title">Analyst</div>
+              <div class="org-desc">Independent data analysts and consultants</div>
+              <div class="org-accent" style="background:#F57C00;"></div>
+            </div>
+          </div>
+
+          <button class="auth-btn" id="nextStep2Btn" type="button">
+            <span>Continue to Review</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        </div>
+
+        <!-- ── STEP 3: Verification Details ── -->
+        <div class="step-panel" id="panel3">
+          <button class="btn-back" id="backStep3Btn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+            Back
+          </button>
+          <h2 class="panel-title">Verification Details</h2>
+          <p class="panel-sub">Step 3 of 3 — Provide details for <span id="selectedOrgDisplay" style="font-weight:700;">your organization</span></p>
+
+          <div class="error-alert hidden" id="errStep3">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+            <span id="errStep3Text">Information is missing. Please review inputs.</span>
+          </div>
+
+          <!-- Dynamic forms wrapper -->
+          <div id="dynamicForms">
+            <!-- Student Form -->
+            <div id="formStudent" class="org-form hidden">
+              <div class="field-wrap">
+                <label class="field-label" for="instName">Institution Name *</label>
+                <input type="text" id="instName" class="field-input" placeholder="University or College Name">
+              </div>
+              <div class="form-grid-2">
+                <div class="field-wrap">
+                  <label class="field-label" for="studentIdName">Student Name (on ID) *</label>
+                  <input type="text" id="studentIdName" class="field-input">
+                </div>
+                <div class="field-wrap">
+                  <label class="field-label" for="studentIdNumber">Student ID Number *</label>
+                  <input type="text" id="studentIdNumber" class="field-input">
+                </div>
+              </div>
+              <div class="form-grid-2">
+                <div class="field-wrap">
+                  <label class="field-label" for="courseName">Course Name *</label>
+                  <input type="text" id="courseName" class="field-input">
+                </div>
+                <div class="field-wrap">
+                  <label class="field-label" for="yearOfStudy">Year of Study *</label>
+                  <input type="text" id="yearOfStudy" class="field-input">
+                </div>
+              </div>
+              <div class="field-wrap">
+                <label class="field-label" for="instEmail">Institutional Email *</label>
+                <input type="email" id="instEmail" class="field-input">
+              </div>
+              <div class="field-wrap">
+                <label class="field-label" for="studentProof">Upload Student ID (PDF/Image) *</label>
+                <input type="file" id="studentProof" class="field-input" style="padding:10px;">
+              </div>
+            </div>
+
+            <!-- Researcher Form -->
+            <div id="formResearcher" class="org-form hidden">
+              <div class="field-wrap">
+                <label class="field-label" for="researchArea">Research Area *</label>
+                <input type="text" id="researchArea" class="field-input" placeholder="e.g. Data Science, Economics, etc.">
+              </div>
+              <div class="field-wrap">
+                <label class="field-label" for="researchDesig">Designation *</label>
+                <input type="text" id="researchDesig" class="field-input" placeholder="e.g. Senior Researcher, Lead Analyst">
+              </div>
+              <div class="field-wrap">
+                <label class="field-label" for="researchId">Research ID / License Number *</label>
+                <input type="text" id="researchId" class="field-input">
+              </div>
+              <div class="field-wrap">
+                <label class="field-label" for="researchEmail">Institutional Email *</label>
+                <input type="email" id="researchEmail" class="field-input">
+              </div>
+              <div class="field-wrap">
+                <label class="field-label" for="researchProof">Upload Research Credentials (PDF/Image) *</label>
+                <input type="file" id="researchProof" class="field-input" style="padding:10px;">
+              </div>
+            </div>
+
+            <!-- Private Org Form -->
+            <div id="formPrivate" class="org-form hidden">
+              <div class="field-wrap">
+                <label class="field-label" for="companyName">Company Name *</label>
+                <input type="text" id="companyName" class="field-input" placeholder="e.g. Acme Corp, Global Tech">
+              </div>
+              <div class="form-grid-2">
+                <div class="field-wrap">
+                  <label class="field-label" for="companyDesig">Designation *</label>
+                  <input type="text" id="companyDesig" class="field-input">
+                </div>
+                <div class="field-wrap">
+                  <label class="field-label" for="employeeId">Employee ID *</label>
+                  <input type="text" id="employeeId" class="field-input">
+                </div>
+              </div>
+              <div class="field-wrap">
+                <label class="field-label" for="workEmail">Work Email *</label>
+                <input type="email" id="workEmail" class="field-input">
+              </div>
+              <div class="field-wrap">
+                <label class="field-label" for="companyAddress">Company Address *</label>
+                <input type="text" id="companyAddress" class="field-input">
+              </div>
+              <div class="field-wrap">
+                <label class="field-label" for="companyProof">Upload Employment Proof (PDF/Image) *</label>
+                <input type="file" id="companyProof" class="field-input" style="padding:10px;">
+              </div>
+            </div>
+
+            <!-- Analyst Form -->
+            <div id="formAnalyst" class="org-form hidden">
+              <div class="field-wrap">
+                <label class="field-label" for="portfolioLink">Portfolio Link (LinkedIn/Website) *</label>
+                <input type="url" id="portfolioLink" class="field-input" placeholder="https://linkedin.com/in/username">
+              </div>
+              <div class="field-wrap">
+                <label class="field-label" for="experience">Years of Experience *</label>
+                <input type="text" id="experience" class="field-input" placeholder="e.g. 5 Years">
+              </div>
+              <div class="field-wrap">
+                <label class="field-label" for="areaOfAnalysis">Primary Area of Analysis *</label>
+                <input type="text" id="areaOfAnalysis" class="field-input" placeholder="e.g. Financial Data, Market Research">
+              </div>
+              <div class="field-wrap">
+                <label class="field-label" for="analystProof">Upload Certification/Credentials (PDF/Image) *</label>
+                <input type="file" id="analystProof" class="field-input" style="padding:10px;">
+              </div>
+            </div>
+          </div>
+
+          <!-- Terms -->
+          <div style="display:flex; align-items:flex-start; gap:10px; margin-top:20px; margin-bottom:16px;">
+            <input type="checkbox" id="agreeTerms" style="margin-top:3px; width:16px; height:16px; accent-color:var(--green); cursor:pointer; flex-shrink:0;">
+            <label for="agreeTerms" style="font-size:13px; color:var(--text-muted); cursor:pointer; line-height:1.5;">
+              I agree to the <a href="#" style="color:var(--green); font-weight:700;">Terms of Service</a> and <a href="#" style="color:var(--green); font-weight:700;">Privacy Policy</a>. I confirm that the information provided is accurate and complete.
+            </label>
+          </div>
+
+          <button class="auth-btn" id="submitRegBtn" type="button">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/></svg>
+            <span>Complete Verification & Create Account</span>
+          </button>
+        </div>
+
+      </div><!-- /auth-card -->
+
+      <div class="security-note">🔒 Your data is protected under STATXTRACT's privacy policy · Encrypted in transit</div>
+
+    </div>
+  </div><!-- /page-wrapper -->
+
+  <script>
+    let currentStep     = 1;
+    let selectedOrgType = null;
+
+    // ── Step navigation ──
+    function goToStep(step) {
+      document.querySelectorAll('.step-panel').forEach(p => p.classList.remove('active'));
+      document.getElementById(`panel${step}`).classList.add('active');
+      [1,2,3].forEach(i => {
+        const ind  = document.getElementById(`step${i}Ind`);
+        const conn = document.getElementById(`conn${i}`);
+        ind.classList.remove('active','done');
+        if (conn) conn.classList.remove('done');
+        if (i < step)  { ind.classList.add('done');   if (conn) conn.classList.add('done'); }
+        if (i === step)  ind.classList.add('active');
+      });
+      currentStep = step;
+    }
+
+    // ── Password strength ──
+    function updatePwStrength(pw) {
+      const fill  = document.getElementById('pwStrengthFill');
+      let score = 0;
+      if (pw.length >= 8)  score++;
+      if (/[A-Z]/.test(pw)) score++;
+      if (/[0-9]/.test(pw)) score++;
+      if (/[^A-Za-z0-9]/.test(pw)) score++;
+      const widths = ['0%','25%','50%','75%','100%'];
+      const colors = ['','#D32F2F','#F57C00','#F4A300','#2E7D32'];
+      fill.style.width  = widths[score];
+      fill.style.background = colors[score];
+    }
+
+    // ── Step 1 → 2 ──
+    document.getElementById('nextStep1Btn').addEventListener('click', () => {
+      const name  = document.getElementById('fullName').value.trim();
+      const email = document.getElementById('regEmail').value.trim();
+      const pw    = document.getElementById('regPw').value;
+      const cpw   = document.getElementById('regPwConfirm').value;
+      const err1  = document.getElementById('errStep1');
+      const err1t = document.getElementById('errStep1Text');
+      const hideErr = () => err1.classList.add('hidden');
+
+      if (!name || !email) { err1t.textContent = 'Full name and email are required.'; err1.classList.remove('hidden'); return; }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { err1t.textContent = 'Please enter a valid email address.'; err1.classList.remove('hidden'); return; }
+      if (!pw || pw.length < 8) { err1t.textContent = 'Password must be at least 8 characters.'; err1.classList.remove('hidden'); return; }
+      if (pw !== cpw) { err1t.textContent = 'Passwords do not match.'; err1.classList.remove('hidden'); return; }
+      hideErr();
+      goToStep(2);
+    });
+
+    // ── Step 2 → 3 ──
+    document.getElementById('nextStep2Btn').addEventListener('click', () => {
+      if (!selectedOrgType) { showToast('Please select an organization type.', 'error'); return; }
+      
+      document.getElementById('selectedOrgDisplay').textContent = selectedOrgType;
+      
+      // Hide all dynamic forms, then show the selected one
+      document.querySelectorAll('.org-form').forEach(f => f.classList.add('hidden'));
+      const orgKey = selectedOrgType.split(' ')[0]; // Gets "Student", "Researcher", "Private", "Analyst"
+      const targetForm = document.getElementById('form' + orgKey);
+      if(targetForm) targetForm.classList.remove('hidden');
+
+      goToStep(3);
+    });
+
+    // ── Back buttons ──
+    document.getElementById('backStep2Btn').addEventListener('click', () => goToStep(1));
+    document.getElementById('backStep3Btn').addEventListener('click', () => goToStep(2));
+
+    // ── Org type selection ──
+    function selectOrg(card, color) {
+      document.querySelectorAll('.org-card').forEach(c => c.classList.remove('selected'));
+      card.classList.add('selected');
+      selectedOrgType = card.dataset.org;
+      card.querySelector('.org-icon').style.background = color;
+    }
+
+    // ── Final Submit ──
+    document.getElementById('submitRegBtn').addEventListener('click', async () => {
+      if (!document.getElementById('agreeTerms').checked) { showToast('Please agree to the Terms of Service.', 'error'); return; }
+
+      const btn   = document.getElementById('submitRegBtn');
+      const err3  = document.getElementById('errStep3');
+      const err3t = document.getElementById('errStep3Text');
+
+      btn.disabled = true;
+      btn.innerHTML = `<span class="spinner"></span><span>Creating Account...</span>`;
+      err3.classList.add('hidden');
+
+      const username = document.getElementById('fullName').value.trim().replace(/\s+/g,'_').toLowerCase();
+      const email    = document.getElementById('regEmail').value.trim();
+      const password = document.getElementById('regPw').value;
+
+      try {
+        const res = await fetch('/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ username, email, password, role: 'user' }),
+          redirect: 'follow',
+        });
+
+        if (res.redirected || res.ok) {
+          document.getElementById('panel3').innerHTML = `
+            <div class="success-msg">
+              <div class="success-emoji">🎉</div>
+              <h3 class="success-title">Account Created!</h3>
+              <p class="success-sub">Welcome to STATXTRACT, ${document.getElementById('fullName').value.split(' ')[0]}! Redirecting to sign in...</p>
+            </div>`;
+          setTimeout(() => window.location.href = '/user/login', 2500);
+        } else {
+          const data = await res.json().catch(() => ({ detail: 'Registration failed. Please try again.' }));
+          err3t.textContent = data.detail || 'Registration failed.';
+          err3.classList.remove('hidden');
+          btn.disabled = false;
+          btn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/></svg><span>Create My Account</span>`;
+        }
+      } catch(e) {
+        const f = document.createElement('form');
+        f.method = 'POST'; f.action = '/register';
+        [['username',username],['email',email],['password',password],['role','user']].forEach(([n,v]) => {
+          const i = document.createElement('input'); i.type='hidden'; i.name=n; i.value=v; f.appendChild(i);
+        });
+        document.body.appendChild(f); f.submit();
+      }
+    });
+
+    // ── Toast ──
+    function showToast(msg, type='info') {
+      const tc = document.getElementById('toastContainer');
+      const t  = document.createElement('div');
+      t.className = `toast ${type}`;
+      const icons = { success:'✅', error:'❌', info:'ℹ️' };
+      t.innerHTML = `<span>${icons[type]}</span><span>${msg}</span>`;
+      tc.appendChild(t);
+      setTimeout(() => { t.style.animation='slideOut 0.3s ease forwards'; setTimeout(()=>t.remove(),300); }, 4000);
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Plans & Pricing — STATXTRACT</title>
+  <link rel="stylesheet" href="/static/user_styles.css">
+  <style>
+    .billing-toggle { display:inline-flex; background:var(--bg-section); padding:6px; border-radius:var(--radius-full); margin-bottom:40px; }
+    .billing-btn { padding:10px 24px; border-radius:var(--radius-full); border:none; background:transparent; font-size:15px; font-weight:700; cursor:pointer; color:var(--text-muted); transition:var(--transition); }
+    .billing-btn.active { background:var(--navy); color:#fff; box-shadow:var(--shadow-sm); }
+
+    .pricing-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:32px; max-width:1200px; margin:0 auto; width:100%; align-items:start; }
+    
+    .plan-card-pro { 
+      background:#fff; border:2px solid var(--border-soft); border-radius:24px; padding:40px 32px; display:flex; flex-direction:column; transition:var(--transition); position:relative; overflow:hidden;
+    }
+    .plan-card-pro:hover { box-shadow:var(--shadow-xl); transform:translateY(-8px); border-color:var(--royal); }
+    .plan-card-pro.premium { border-color:var(--green); background:linear-gradient(180deg, #F1F8F1 0%, #FFFFFF 100%); transform:scale(1.05); box-shadow:0 20px 60px rgba(46,125,50,0.15); }
+    .plan-card-pro.premium:hover { transform:scale(1.05) translateY(-8px); }
+    
+    .popular-tag { position:absolute; top:0; right:0; background:var(--green); color:#fff; font-size:12px; font-weight:800; text-transform:uppercase; padding:6px 24px; border-bottom-left-radius:16px; letter-spacing:1px; }
+
+    .plan-name { font-size:24px; font-weight:800; font-family:var(--font-head); margin-bottom:12px; color:var(--text-main); }
+    .plan-desc { color:var(--text-muted); font-size:15px; margin-bottom:32px; min-height:48px; }
+    
+    .plan-price-group { display:flex; align-items:baseline; gap:8px; margin-bottom:32px; }
+    .plan-currency { font-size:24px; font-weight:700; color:var(--text-main); }
+    .plan-amount { font-size:56px; font-weight:900; font-family:var(--font-head); color:var(--text-main); line-height:1; letter-spacing:-1px; }
+    .plan-period { font-size:16px; color:var(--text-muted); font-weight:600; }
+
+    .plan-features { list-style:none; padding:0; margin:0 0 40px; display:flex; flex-direction:column; gap:16px; }
+    .plan-features li { display:flex; align-items:flex-start; gap:12px; font-size:15px; font-weight:500; color:var(--text-main); line-height:1.4; }
+    .feature-icon { width:20px; height:20px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0; font-weight:900; font-size:12px; }
+    .feature-yes { background:var(--green-light); color:var(--green); }
+    .feature-no { color:var(--text-light); }
+
+    .btn-upgrade { width:100%; padding:16px; border-radius:var(--radius-md); font-size:16px; font-weight:800; transition:var(--transition); cursor:pointer; border:2px solid; }
+    .btn-upgrade-free { background:transparent; color:var(--text-muted); border-color:var(--border); cursor:not-allowed; }
+    .btn-upgrade-pro { background:var(--green); color:#fff; border-color:var(--green); }
+    .btn-upgrade-pro:hover { box-shadow:0 8px 30px rgba(46,125,50,0.3); background:var(--green-dark); }
+    .btn-upgrade-ent { background:var(--navy); color:#fff; border-color:var(--navy); }
+    .btn-upgrade-ent:hover { background:transparent; color:var(--navy); }
+    
+    .faq-section { max-width:800px; margin:80px auto 40px; }
+    .faq-title { font-family:var(--font-head); font-size:32px; font-weight:800; text-align:center; margin-bottom:40px; }
+    .faq-item { background:#fff; border:2px solid var(--border-soft); border-radius:var(--radius-md); padding:24px; margin-bottom:16px; cursor:pointer; transition:var(--transition); }
+    .faq-item:hover { border-color:var(--royal); }
+    .faq-question { font-size:18px; font-weight:700; color:var(--text-main); display:flex; justify-content:space-between; align-items:center; }
+    .faq-answer { margin-top:16px; color:var(--text-muted); font-size:16px; line-height:1.6; display:none; }
+  </style>
+</head>
+<body>
+  <div class="animated-bg"></div>
+
+  <header class="site-header">
+    <a href="/user/dashboard" class="site-logo">STATXTRACT</a>
+    <div class="header-right">
+      <button class="profile-btn" onclick="window.location.href='/user/profile'">
+        <div class="avatar">👤</div>
+        My Profile
+      </button>
+    </div>
+  </header>
+
+  <div style="display: flex;">
+    <aside class="sidebar expanded" id="sidebar">
+      <button class="sidebar-toggle" onclick="document.getElementById('sidebar').classList.toggle('collapsed');"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg></button>
+      <nav class="sidebar-nav">
+        <a href="/user/dashboard" class="nav-item"><div class="nav-icon">📊</div><span class="nav-label">Dashboard</span></a>
+        <a href="/query" class="nav-item"><div class="nav-icon">🔍</div><span class="nav-label">Advanced Query</span></a>
+        <a href="/user/history" class="nav-item"><div class="nav-icon">⏱️</div><span class="nav-label">Query History</span></a>
+        <a href="/user/downloads" class="nav-item"><div class="nav-icon">⬇️</div><span class="nav-label">My Downloads</span></a>
+        <a href="/user/plans" class="nav-item active"><div class="nav-icon">💎</div><span class="nav-label">Plans & Pricing</span></a>
+        <a href="/user/settings" class="nav-item"><div class="nav-icon">⚙️</div><span class="nav-label">Settings</span></a>
+      </nav>
+    </aside>
+
+    <main style="flex:1; padding: 40px; overflow-y:auto; max-height:calc(100vh - 72px);">
+      <div style="text-align:center; margin-bottom:20px;">
+        <h2 style="font-family:var(--font-head); font-size:46px; font-weight:900; color:var(--text-main); margin-bottom:16px; letter-spacing:-1px;">Scale your data analysis.</h2>
+        <p style="font-size:18px; color:var(--text-muted); max-width:600px; margin:0 auto;">Upgrade your STATXTRACT tier to unlock complete dataset access, massive extraction pipelines, and premium API routing.</p>
+      </div>
+
+      <div style="text-align:center;">
+        <div class="billing-toggle">
+          <button class="billing-btn active">Monthly Billing</button>
+          <button class="billing-btn">Annual Billing <span style="color:var(--green); font-size:12px; margin-left:4px;">Save 20%</span></button>
+        </div>
+      </div>
+
+      <div class="pricing-grid">
+        
+        <!-- FREE TIER -->
+        <div class="plan-card-pro">
+          <div class="plan-name">Student / Explorer</div>
+          <div class="plan-desc">Perfect for academic research, basic data exploring, and light downloading.</div>
+          <div class="plan-price-group">
+            <span class="plan-currency">₹</span><span class="plan-amount">0</span><span class="plan-period">/mo</span>
+          </div>
+          <ul class="plan-features">
+            <li><div class="feature-icon feature-yes">✓</div> <span>Access <strong>15%</strong> of public datasets</span></li>
+            <li><div class="feature-icon feature-yes">✓</div> <span>Max <strong>100</strong> rows per query map</span></li>
+            <li><div class="feature-icon feature-yes">✓</div> <span>Standard CSV exports</span></li>
+            <li style="color:var(--text-light);"><div class="feature-icon feature-no">×</div> <span>No programmatic API access</span></li>
+            <li style="color:var(--text-light);"><div class="feature-icon feature-no">×</div> <span>No geospatial visualization</span></li>
+          </ul>
+          <button class="btn-upgrade btn-upgrade-free" disabled>Current Active Plan</button>
+        </div>
+
+        <!-- PRO TIER -->
+        <div class="plan-card-pro premium">
+          <div class="popular-tag">Most Powerful</div>
+          <div class="plan-name" style="color:var(--green-dark);">Professional Analyst</div>
+          <div class="plan-desc" style="color:rgba(27,94,32,0.8);">Engineered for serious analysts, financial quants, and policy researchers demanding raw capabilities.</div>
+          <div class="plan-price-group" style="color:var(--green-dark);">
+            <span class="plan-currency">₹</span><span class="plan-amount">899</span><span class="plan-period" style="color:rgba(27,94,32,0.7);">/mo</span>
+          </div>
+          <ul class="plan-features">
+            <li><div class="feature-icon feature-yes" style="background:var(--green); color:#fff;">✓</div> <span>Access <strong>100%</strong> of protected datasets</span></li>
+            <li><div class="feature-icon feature-yes" style="background:var(--green); color:#fff;">✓</div> <span>Max <strong>50,000</strong> rows per query execution</span></li>
+            <li><div class="feature-icon feature-yes" style="background:var(--green); color:#fff;">✓</div> <span>Advanced JSON and raw SQL exports</span></li>
+            <li><div class="feature-icon feature-yes" style="background:var(--green); color:#fff;">✓</div> <span>Standard REST API token (100 req/hr)</span></li>
+            <li><div class="feature-icon feature-yes" style="background:var(--green); color:#fff;">✓</div> <span>Exclusive Geospatial Mapping Tools</span></li>
+          </ul>
+          <button class="btn-upgrade btn-upgrade-pro" onclick="alert('Proceed to Stripe Checkout')">Upgrade to Pro</button>
+        </div>
+
+        <!-- ENTERPRISE TIER -->
+        <div class="plan-card-pro">
+          <div class="plan-name">Enterprise / Agency</div>
+          <div class="plan-desc">Dedicated infrastructure, unlimited programmatic endpoints, and compliance logging.</div>
+          <div class="plan-price-group">
+            <span class="plan-currency">₹</span><span class="plan-amount">2,499</span><span class="plan-period">/mo</span>
+          </div>
+          <ul class="plan-features">
+            <li><div class="feature-icon feature-yes" style="background:var(--navy); color:#fff;">✓</div> <span>Unlimited execution thresholds</span></li>
+            <li><div class="feature-icon feature-yes" style="background:var(--navy); color:#fff;">✓</div> <span>Unlimited REST API Tokens</span></li>
+            <li><div class="feature-icon feature-yes" style="background:var(--navy); color:#fff;">✓</div> <span>Webhooks for Real-Time Event triggers</span></li>
+            <li><div class="feature-icon feature-yes" style="background:var(--navy); color:#fff;">✓</div> <span>SSO Integration & Audit Logging</span></li>
+            <li><div class="feature-icon feature-yes" style="background:var(--navy); color:#fff;">✓</div> <span>24/7 Dedicated Account Manager</span></li>
+          </ul>
+          <button class="btn-upgrade btn-upgrade-ent" onclick="window.location.href='mailto:enterprise@statxtract.in'">Contact Enterprise Sales</button>
+        </div>
+
+      </div>
+
+      <!-- FAQ -->
+      <div class="faq-section">
+        <h3 class="faq-title">Frequently Asked Questions</h3>
+        <div class="faq-item" onclick="this.querySelector('.faq-answer').style.display = this.querySelector('.faq-answer').style.display === 'block' ? 'none' : 'block';">
+          <div class="faq-question">Can I cancel my subscription at any time? <span>+</span></div>
+          <div class="faq-answer">Yes! You can downgrade your plan directly from the Dashboard Settings anytime. You will retain Pro access until your current billing cycle expires.</div>
+        </div>
+        <div class="faq-item" onclick="this.querySelector('.faq-answer').style.display = this.querySelector('.faq-answer').style.display === 'block' ? 'none' : 'block';">
+          <div class="faq-question">What counts as an API request for the Professional plan? <span>+</span></div>
+          <div class="faq-answer">Any programmatic GET request made to `api.statxtract.in/*` using your private integration token will count towards the 100 requests/hour limit. Manual queries through the Web Dashboard do not consume this quota.</div>
+        </div>
+        <div class="faq-item" onclick="this.querySelector('.faq-answer').style.display = this.querySelector('.faq-answer').style.display === 'block' ? 'none' : 'block';">
+          <div class="faq-question">Is the data up to date? <span>+</span></div>
+          <div class="faq-answer">We directly ingest datasets securely via official APIs and Government pipelines exactly as they update. However, data frequency relies wholly on the individual Indian dataset publish schedules.</div>
+        </div>
+      </div>
+      
+    </main>
+  </div>
+</body>
+</html>

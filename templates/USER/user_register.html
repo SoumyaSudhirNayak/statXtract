@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Create Account — STATXTRACT User Portal</title>
+  <meta name="description" content="Register for a STATXTRACT account to access verified government data and analytics tools.">
+  <link rel="stylesheet" href="/static/user_styles.css">
+  <style>
+    body {
+      min-height: 100vh;
+      background: linear-gradient(135deg, #F5F7FA 0%, #EEF3FB 55%, #E9EEF7 100%);
+      display: flex;
+      flex-direction: column;
+    }
+    .page-wrapper {
+      flex: 1;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 40px 20px 60px;
+      position: relative;
+      z-index: 1;
+    }
+    .auth-container { width: 100%; max-width: 700px; }
+
+    .brand-header { text-align: center; margin-bottom: 28px; }
+    .brand-logo {
+      font-family: var(--font-head);
+      font-size: 38px; font-weight: 900;
+      color: var(--navy); letter-spacing: -1px; cursor: pointer; transition: opacity 0.2s;
+    }
+    .brand-logo:hover { opacity: 0.85; }
+    .brand-tagline { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+
+    /* ── STEPS INDICATOR ── */
+    .steps-bar {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+      margin-bottom: 32px;
+    }
+    .step-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+    .step-circle {
+      width: 40px; height: 40px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      background: var(--bg-white);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 15px;
+      color: var(--text-muted);
+      transition: var(--transition);
+      font-family: var(--font-head);
+    }
+    .step-item.active .step-circle {
+      background: var(--green);
+      border-color: var(--green);
+      color: #fff;
+      box-shadow: 0 4px 15px rgba(46,125,50,0.4);
+    }
+    .step-item.done .step-circle {
+      background: var(--green-dark);
+      border-color: var(--green-dark);
+      color: #fff;
+    }
+    .step-label {
+      font-size: 12px; font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase; letter-spacing: 0.5px;
+    }
+    .step-item.active .step-label { color: var(--green); }
+    .step-connector {
+      width: 60px; height: 2px;
+      background: var(--border);
+      margin: 0 4px;
+      margin-bottom: 20px;
+      transition: background 0.3s;
+    }
+    .step-connector.done { background: var(--green); }
+
+    /* ── AUTH CARD ── */
+    .auth-card {
+      background: rgba(255,255,255,0.92);
+      backdrop-filter: blur(16px);
+      border: 2px solid var(--border);
+      border-radius: var(--radius-xl);
+      padding: 44px 40px;
+      box-shadow: var(--shadow-xl);
+      transition: var(--transition);
+      position: relative;
+      overflow: hidden;
+    }
+    .auth-card::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0; height: 3px;
+      background: linear-gradient(90deg, var(--green), var(--saffron), var(--green));
+      background-size: 200% 100%;
+      animation: gradientShift 3s ease infinite;
+    }
+    @keyframes gradientShift {
+      0%   { background-position: 0% 50%; }
+      50%  { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+    .auth-card:hover {
+      border-color: var(--green);
+      box-shadow: 0 25px 70px rgba(46,125,50,0.16);
+      transform: translateY(-2px);
+    }
+    .step-panel { display: none; }
+    .step-panel.active { display: block; }
+
+    .form-grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    @media(max-width:600px) { .form-grid-2 { grid-template-columns: 1fr; } }
+
+    /* ── ORG TYPE CARDS ── */
+    .org-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin: 16px 0;
+    }
+    @media(max-width:540px) { .org-grid { grid-template-columns: 1fr; } }
+    .org-card {
+      border: 2px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 24px 16px;
+      cursor: pointer;
+      text-align: center;
+      transition: var(--transition);
+      background: var(--bg-white);
+      position: relative;
+      overflow: hidden;
+    }
+    .org-card:hover {
+      transform: translateY(-3px);
+    }
+    .org-card.selected {
+      transform: translateY(-2px);
+    }
+    .org-card .org-icon {
+      width: 64px; height: 64px;
+      border-radius: var(--radius-md);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 28px;
+      margin: 0 auto 12px;
+      transition: var(--transition);
+    }
+    .org-card .org-title {
+      font-family: var(--font-head);
+      font-size: 16px; font-weight: 800;
+      color: var(--text-main);
+    }
+    .org-card .org-desc {
+      font-size: 12px; color: var(--text-muted);
+      margin-top: 4px; line-height: 1.4;
+    }
+    .org-card .org-accent {
+      position: absolute;
+      bottom: -24px; right: -24px;
+      width: 80px; height: 80px;
+      border-radius: 50%;
+      opacity: 0.1;
+      transition: transform 0.4s ease;
+    }
+    .org-card:hover .org-accent { transform: scale(1.5); }
+    .org-card.selected .org-accent { transform: scale(1.5); opacity: 0.15; }
+
+    /* Student — Red */
+    .org-student { --org-c: #D32F2F; }
+    .org-student:hover, .org-student.selected { border-color: #D32F2F; box-shadow: 0 10px 30px rgba(211,47,47,0.18); }
+    .org-student.selected .org-icon { background: #D32F2F !important; }
+    /* Researcher — Blue */
+    .org-researcher { --org-c: #1976D2; }
+    .org-researcher:hover, .org-researcher.selected { border-color: #1976D2; box-shadow: 0 10px 30px rgba(25,118,210,0.18); }
+    .org-researcher.selected .org-icon { background: #1976D2 !important; }
+    /* Private — Purple */
+    .org-private { --org-c: #7B1FA2; }
+    .org-private:hover, .org-private.selected { border-color: #7B1FA2; box-shadow: 0 10px 30px rgba(123,31,162,0.18); }
+    .org-private.selected .org-icon { background: #7B1FA2 !important; }
+    /* Analyst — Orange */
+    .org-analyst { --org-c: #F57C00; }
+    .org-analyst:hover, .org-analyst.selected { border-color: #F57C00; box-shadow: 0 10px 30px rgba(245,124,0,0.18); }
+    .org-analyst.selected .org-icon { background: #F57C00 !important; }
+
+    .org-card.selected .org-icon svg { color: #fff !important; }
+    .org-checkmark {
+      position: absolute; top: 10px; right: 10px;
+      width: 22px; height: 22px;
+      background: var(--green);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+    .org-card.selected .org-checkmark { opacity: 1; }
+
+    .auth-btn {
+      width: 100%; padding: 15px;
+      background: var(--green); color: #fff;
+      border: 2px solid var(--green);
+      border-radius: var(--radius-md);
+      font-family: var(--font-body); font-weight: 800; font-size: 16px;
+      cursor: pointer; transition: var(--transition);
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      margin-top: 16px; position: relative; overflow: hidden;
+    }
+    .auth-btn:hover {
+      border-color: var(--saffron);
+      box-shadow: 0 8px 30px rgba(46,125,50,0.5), 0 0 40px rgba(144,238,144,0.3);
+      transform: translateY(-2px);
+    }
+    .auth-btn:disabled { opacity: 0.7; cursor: not-allowed; transform: none; }
+    .btn-back {
+      display: flex; align-items: center; gap: 8px;
+      background: none; border: none; font-size: 14px;
+      color: var(--text-muted); cursor: pointer; font-family: var(--font-body);
+      font-weight: 600; padding: 6px 0; transition: color 0.2s;
+    }
+    .btn-back:hover { color: var(--text-main); }
+
+    .auth-footer { text-align: center; margin-top: 20px; font-size: 14px; color: var(--text-muted); }
+    .auth-footer a { color: var(--green); font-weight: 700; }
+    .auth-footer a:hover { color: var(--green-dark); }
+
+    .error-message {
+      background: #FFEBEE; border: 1px solid #FFCDD2; color: var(--danger);
+      padding: 12px 16px; border-radius: var(--radius-md);
+      font-size: 14px; font-weight: 500;
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 20px;
+    }
+    .success-message {
+      background: var(--green-light); border: 1px solid #A5D6A7; color: var(--green-dark);
+      padding: 16px; border-radius: var(--radius-md);
+      text-align: center; animation: fadeInUp 0.4s ease;
+    }
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+  <!-- Animated Background -->
+  <div class="animated-bg">
+    <div class="animated-bg-blob" style="width:600px;height:600px;background:radial-gradient(circle,#2E7D32,transparent 70%);top:-150px;left:-200px;"></div>
+    <div class="animated-bg-blob" style="width:450px;height:450px;background:radial-gradient(circle,#7B1FA2,transparent 70%);bottom:-80px;right:-80px;opacity:0.05;animation-duration:28s;animation-delay:-8s;"></div>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <div class="page-wrapper">
+    <div class="auth-container" style="position:relative;z-index:1;">
+      <!-- Brand -->
+      <div class="brand-header">
+        <a href="/" class="brand-logo">STATXTRACT</a>
+        <p class="brand-tagline">🇮🇳 Create your free account — access 150+ verified datasets</p>
+      </div>
+
+      <!-- Steps Bar -->
+      <div class="steps-bar" id="stepsBar">
+        <div class="step-item active" id="step1Ind">
+          <div class="step-circle">1</div>
+          <span class="step-label">Basic Info</span>
+        </div>
+        <div class="step-connector" id="conn1"></div>
+        <div class="step-item" id="step2Ind">
+          <div class="step-circle">2</div>
+          <span class="step-label">Organization</span>
+        </div>
+        <div class="step-connector" id="conn2"></div>
+        <div class="step-item" id="step3Ind">
+          <div class="step-circle">3</div>
+          <span class="step-label">Confirm</span>
+        </div>
+      </div>
+
+      <!-- Auth Card -->
+      <div class="auth-card">
+
+        <!-- ── STEP 1: Basic Info ── -->
+        <div class="step-panel active" id="panel1">
+          <button class="btn-back" type="button" onclick="window.location.href='/user/module-selection'">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+            Back
+          </button>
+          <h2 class="section-title" style="margin-top:12px;margin-bottom:4px;">Create Your Account</h2>
+          <p style="color:var(--text-muted);font-size:14px;margin-bottom:24px;">Step 1 of 3 — Enter your basic information</p>
+
+          <div class="error-message hidden" id="errStep1">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+            <span id="errStep1Text">Please fill in all required fields.</span>
+          </div>
+
+          <div class="form-grid-2">
+            <div class="form-field">
+              <label class="form-label" for="fullName">Full Name *</label>
+              <input type="text" id="fullName" class="form-input" placeholder="Your full name" autocomplete="name" required>
+            </div>
+            <div class="form-field">
+              <label class="form-label" for="email">Email Address *</label>
+              <input type="email" id="regEmail" class="form-input" placeholder="you@example.com" autocomplete="email" required>
+            </div>
+          </div>
+          <div class="form-grid-2">
+            <div class="form-field">
+              <label class="form-label" for="phone">Phone Number</label>
+              <input type="tel" id="phone" class="form-input" placeholder="+91 98765 43210" autocomplete="tel">
+            </div>
+            <div class="form-field">
+              <label class="form-label" for="orgName">Organization / Institution</label>
+              <input type="text" id="orgName" class="form-input" placeholder="Company or university">
+            </div>
+          </div>
+          <div class="form-grid-2">
+            <div class="form-field">
+              <label class="form-label" for="regPw">Password *</label>
+              <input type="password" id="regPw" class="form-input" placeholder="Min. 8 characters" required>
+            </div>
+            <div class="form-field">
+              <label class="form-label" for="regPwConfirm">Confirm Password *</label>
+              <input type="password" id="regPwConfirm" class="form-input" placeholder="Repeat password" required>
+            </div>
+          </div>
+          <div class="form-field">
+            <label class="form-label" for="purpose">Purpose of Data Access</label>
+            <input type="text" id="purpose" class="form-input" placeholder="Research, analysis, coursework, etc.">
+          </div>
+
+          <button class="auth-btn" id="nextStep1Btn" type="button">
+            <span>Continue to Next Step</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+
+          <p class="auth-footer" style="margin-top:16px;">
+            Already have an account? <a href="/user/login">Sign In</a>
+          </p>
+        </div>
+
+        <!-- ── STEP 2: Organization Type ── -->
+        <div class="step-panel" id="panel2">
+          <button class="btn-back" type="button" id="backStep2Btn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+            Back
+          </button>
+          <h2 class="section-title" style="margin-top:12px;margin-bottom:4px;">Tell Us Who You Are</h2>
+          <p style="color:var(--text-muted);font-size:14px;margin-bottom:20px;">Step 2 of 3 — Select your organization type</p>
+
+          <div class="org-grid" id="orgGrid">
+            <!-- Student -->
+            <div class="org-card org-student" data-org="Student" onclick="selectOrg(this,'#D32F2F')">
+              <div class="org-checkmark">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+              </div>
+              <div class="org-icon" style="background:#FFEBEE;">
+                <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#D32F2F" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
+              </div>
+              <div class="org-title">Student</div>
+              <div class="org-desc">Academic students pursuing research or coursework</div>
+              <div class="org-accent" style="background:#D32F2F;"></div>
+            </div>
+
+            <!-- Researcher -->
+            <div class="org-card org-researcher" data-org="Researcher" onclick="selectOrg(this,'#1976D2')">
+              <div class="org-checkmark">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+              </div>
+              <div class="org-icon" style="background:#E3F2FD;">
+                <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#1976D2" stroke-width="2"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2v-4M9 21H5a2 2 0 0 1-2-2v-4m0 0h18"/></svg>
+              </div>
+              <div class="org-title">Researcher</div>
+              <div class="org-desc">Professional researchers and academicians</div>
+              <div class="org-accent" style="background:#1976D2;"></div>
+            </div>
+
+            <!-- Private Org -->
+            <div class="org-card org-private" data-org="Private Organization" onclick="selectOrg(this,'#7B1FA2')">
+              <div class="org-checkmark">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+              </div>
+              <div class="org-icon" style="background:#F3E5F5;">
+                <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#7B1FA2" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+              </div>
+              <div class="org-title">Private Organization</div>
+              <div class="org-desc">Private companies and corporations</div>
+              <div class="org-accent" style="background:#7B1FA2;"></div>
+            </div>
+
+            <!-- Analyst -->
+            <div class="org-card org-analyst" data-org="Analyst" onclick="selectOrg(this,'#F57C00')">
+              <div class="org-checkmark">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+              </div>
+              <div class="org-icon" style="background:#FFF3E0;">
+                <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#F57C00" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+              </div>
+              <div class="org-title">Analyst</div>
+              <div class="org-desc">Independent data analysts and consultants</div>
+              <div class="org-accent" style="background:#F57C00;"></div>
+            </div>
+          </div>
+
+          <button class="auth-btn" id="nextStep2Btn" type="button">
+            <span>Continue</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        </div>
+
+        <!-- ── STEP 3: Confirm & Submit ── -->
+        <div class="step-panel" id="panel3">
+          <button class="btn-back" type="button" id="backStep3Btn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+            Back
+          </button>
+          <h2 class="section-title" style="margin-top:12px;margin-bottom:4px;">Confirm &amp; Create Account</h2>
+          <p style="color:var(--text-muted);font-size:14px;margin-bottom:20px;">Step 3 of 3 — Review your details</p>
+
+          <div class="error-message hidden" id="errStep3">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+            <span id="errStep3Text">Registration failed. Please try again.</span>
+          </div>
+
+          <!-- Summary Card -->
+          <div style="background:var(--bg-section);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;margin-bottom:20px;">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              <div>
+                <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:4px;">Full Name</div>
+                <div style="font-weight:700;" id="sumName">—</div>
+              </div>
+              <div>
+                <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:4px;">Email</div>
+                <div style="font-weight:700;" id="sumEmail">—</div>
+              </div>
+              <div>
+                <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:4px;">Phone</div>
+                <div style="font-weight:700;" id="sumPhone">—</div>
+              </div>
+              <div>
+                <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:4px;">Organization Type</div>
+                <div style="font-weight:700;" id="sumOrg">—</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Terms -->
+          <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:16px;">
+            <input type="checkbox" id="agreeTerms" style="margin-top:2px;width:16px;height:16px;accent-color:var(--green);cursor:pointer;">
+            <label for="agreeTerms" style="font-size:13px;color:var(--text-muted);cursor:pointer;line-height:1.5;">
+              I agree to the <a href="#" style="color:var(--green);font-weight:700;">Terms of Service</a> and <a href="#" style="color:var(--green);font-weight:700;">Privacy Policy</a>. I confirm that the information provided is accurate.
+            </label>
+          </div>
+
+          <button class="auth-btn" id="submitRegBtn" type="button">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/></svg>
+            <span>Create My Account</span>
+          </button>
+        </div>
+
+      </div>
+
+      <p style="text-align:center;margin-top:20px;font-size:12px;color:var(--text-muted);">
+        🔒 Your data is protected under STATXTRACT's privacy policy
+      </p>
+    </div>
+  </div>
+
+  <script>
+    // ── State ──
+    let currentStep = 1;
+    let selectedOrgType = null;
+
+    // ── Navigation ──
+    function goToStep(step) {
+      document.querySelectorAll('.step-panel').forEach(p => p.classList.remove('active'));
+      document.getElementById(`panel${step}`).classList.add('active');
+
+      // Update indicators
+      [1,2,3].forEach(i => {
+        const ind  = document.getElementById(`step${i}Ind`);
+        const conn = document.getElementById(`conn${i}`);
+        ind.classList.remove('active','done');
+        if (conn) conn.classList.remove('done');
+        if (i < step)  { ind.classList.add('done'); if (conn) conn.classList.add('done'); }
+        if (i === step) ind.classList.add('active');
+      });
+
+      currentStep = step;
+    }
+
+    // ── Step 1 → 2 ──
+    document.getElementById('nextStep1Btn').addEventListener('click', () => {
+      const name  = document.getElementById('fullName').value.trim();
+      const email = document.getElementById('regEmail').value.trim();
+      const pw    = document.getElementById('regPw').value;
+      const cpw   = document.getElementById('regPwConfirm').value;
+      const err1  = document.getElementById('errStep1');
+      const err1t = document.getElementById('errStep1Text');
+
+      if (!name || !email) {
+        err1t.textContent = 'Full name and email are required.'; err1.classList.remove('hidden'); return;
+      }
+      const ere = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!ere.test(email)) {
+        err1t.textContent = 'Please enter a valid email address.'; err1.classList.remove('hidden'); return;
+      }
+      if (!pw || pw.length < 8) {
+        err1t.textContent = 'Password must be at least 8 characters.'; err1.classList.remove('hidden'); return;
+      }
+      if (pw !== cpw) {
+        err1t.textContent = 'Passwords do not match.'; err1.classList.remove('hidden'); return;
+      }
+      err1.classList.add('hidden');
+      goToStep(2);
+    });
+
+    // ── Step 2 → 3 ──
+    document.getElementById('nextStep2Btn').addEventListener('click', () => {
+      if (!selectedOrgType) {
+        showToast('Please select an organization type.', 'error'); return;
+      }
+      // Populate summary
+      document.getElementById('sumName').textContent  = document.getElementById('fullName').value.trim();
+      document.getElementById('sumEmail').textContent = document.getElementById('regEmail').value.trim();
+      document.getElementById('sumPhone').textContent = document.getElementById('phone').value.trim() || '—';
+      document.getElementById('sumOrg').textContent   = selectedOrgType;
+      goToStep(3);
+    });
+
+    // ── Back buttons ──
+    document.getElementById('backStep2Btn').addEventListener('click', () => goToStep(1));
+    document.getElementById('backStep3Btn').addEventListener('click', () => goToStep(2));
+
+    // ── Select Org Type ──
+    function selectOrg(card, color) {
+      document.querySelectorAll('.org-card').forEach(c => c.classList.remove('selected'));
+      card.classList.add('selected');
+      selectedOrgType = card.dataset.org;
+      // Color the icon background
+      card.querySelector('.org-icon').style.background = color;
+    }
+
+    // ── Final Submit ──
+    document.getElementById('submitRegBtn').addEventListener('click', async () => {
+      if (!document.getElementById('agreeTerms').checked) {
+        showToast('Please agree to the Terms of Service.', 'error'); return;
+      }
+
+      const btn  = document.getElementById('submitRegBtn');
+      const err3 = document.getElementById('errStep3');
+      const err3t= document.getElementById('errStep3Text');
+
+      btn.disabled = true;
+      btn.innerHTML = `<span class="spinner"></span><span>Creating Account...</span>`;
+      err3.classList.add('hidden');
+
+      const username = document.getElementById('fullName').value.trim().replace(/\s+/g,'_').toLowerCase();
+      const email    = document.getElementById('regEmail').value.trim();
+      const password = document.getElementById('regPw').value;
+
+      try {
+        const res = await fetch('/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ username, email, password, role: 'user' }),
+          redirect: 'follow',
+        });
+
+        if (res.redirected || res.ok) {
+          // Success — show message and redirect
+          document.getElementById('panel3').innerHTML = `
+            <div class="success-message">
+              <div style="font-size:40px;margin-bottom:12px;">🎉</div>
+              <h3 style="font-family:var(--font-head);font-size:22px;font-weight:800;color:var(--green-dark);margin-bottom:8px;">Account Created!</h3>
+              <p style="color:var(--green-dark);font-size:14px;">Welcome to STATXTRACT. Redirecting to sign in...</p>
+            </div>`;
+          setTimeout(() => { window.location.href = '/user/login'; }, 2000);
+        } else {
+          const data = await res.json().catch(() => ({ detail: 'Registration failed. Please try again.' }));
+          err3t.textContent = data.detail || 'Registration failed.';
+          err3.classList.remove('hidden');
+          btn.disabled = false;
+          btn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/></svg><span>Create My Account</span>`;
+        }
+      } catch(e) {
+        // Fallback: standard form submit
+        const f = document.createElement('form');
+        f.method = 'POST'; f.action = '/register';
+        [['username', username],['email',email],['password',password],['role','user']].forEach(([n,v]) => {
+          const i = document.createElement('input'); i.type='hidden'; i.name=n; i.value=v; f.appendChild(i);
+        });
+        document.body.appendChild(f); f.submit();
+      }
+    });
+
+    // ── Toast ──
+    function showToast(msg, type='info') {
+      const tc = document.getElementById('toastContainer');
+      const t  = document.createElement('div');
+      t.className = `toast ${type}`;
+      const icons = {success:'✅',error:'❌',info:'ℹ️'};
+      t.innerHTML = `<span>${icons[type]}</span><span>${msg}</span>`;
+      tc.appendChild(t);
+      setTimeout(() => { t.style.animation='slideOutRight 0.3s ease forwards'; setTimeout(() => t.remove(),300); },4000);
+    }
+  </script>
+</body>
+</html>

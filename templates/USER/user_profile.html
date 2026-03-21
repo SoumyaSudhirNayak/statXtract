@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Profile — STATXTRACT</title>
+  <link rel="stylesheet" href="/static/user_styles.css">
+  <style>
+    .grid-profile { display:grid; grid-template-columns: 320px 1fr; gap:32px; align-items:start; }
+    @media(max-width:900px) { .grid-profile { grid-template-columns: 1fr; } }
+    
+    .profile-card { padding:40px; background:rgba(255,255,255,0.9); backdrop-filter:blur(10px); border:2px solid var(--border); border-radius:var(--radius-lg); text-align:center; position:relative; overflow:hidden; }
+    .profile-card::before { content:''; position:absolute; top:0; left:0; width:100%; height:120px; background:linear-gradient(135deg, var(--green), var(--saffron)); z-index:0; }
+    
+    .avatar-lg { width:120px; height:120px; border-radius:50%; background:#fff; border:4px solid #fff; box-shadow:var(--shadow-lg); color:var(--green); font-size:48px; font-weight:900; font-family:var(--font-head); display:flex; align-items:center; justify-content:center; margin:40px auto 16px; position:relative; z-index:1; }
+    .profile-name { font-family:var(--font-head); font-size:26px; font-weight:800; color:var(--text-main); margin-bottom:4px; position:relative; z-index:1; }
+    .profile-email { font-size:15px; color:var(--text-muted); margin-bottom:16px; position:relative; z-index:1; }
+    
+    .usage-meter { width:100%; height:8px; background:var(--border-soft); border-radius:4px; overflow:hidden; margin:12px 0; }
+    .usage-fill { height:100%; background:var(--green); border-radius:4px; width:45%; transition:width 1s ease; }
+    .usage-label { display:flex; justify-content:space-between; font-size:13px; font-weight:600; color:var(--text-muted); }
+
+    .form-panel { background:var(--bg-white); border:2px solid var(--border); border-radius:var(--radius-lg); padding:32px; margin-bottom:24px; }
+    .form-panel h3 { font-family:var(--font-head); font-size:20px; margin-bottom:24px; padding-bottom:16px; border-bottom:1px solid var(--border-soft); }
+    
+    .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+    @media(max-width:600px){ .grid-2 { grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+  <div class="animated-bg"></div>
+
+  <header class="site-header">
+    <a href="/user/dashboard" class="site-logo">STATXTRACT</a>
+    <div class="header-right">
+      <button class="profile-btn" onclick="window.location.href='/user/profile'">
+        <div class="avatar">👤</div>
+        {{ username | default('My Profile') }}
+      </button>
+    </div>
+  </header>
+
+  <div style="display: flex;">
+    <aside class="sidebar expanded" id="sidebar">
+      <button class="sidebar-toggle" onclick="document.getElementById('sidebar').classList.toggle('collapsed');"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg></button>
+      <nav class="sidebar-nav">
+        <a href="/user/dashboard" class="nav-item"><div class="nav-icon">📊</div><span class="nav-label">Dashboard</span></a>
+        <a href="/query" class="nav-item"><div class="nav-icon">🔍</div><span class="nav-label">Advanced Query</span></a>
+        <a href="/user/history" class="nav-item"><div class="nav-icon">⏱️</div><span class="nav-label">Query History</span></a>
+        <a href="/user/downloads" class="nav-item"><div class="nav-icon">⬇️</div><span class="nav-label">My Downloads</span></a>
+        <a href="/user/plans" class="nav-item"><div class="nav-icon">💎</div><span class="nav-label">Plans & Pricing</span></a>
+        <a href="/user/settings" class="nav-item"><div class="nav-icon">⚙️</div><span class="nav-label">Settings</span></a>
+      </nav>
+    </aside>
+
+    <main style="flex:1; padding: 40px; overflow-y:auto; max-height:calc(100vh - 72px);">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:28px;">
+        <h2 class="section-title" style="margin:0;">My Profile</h2>
+        <button class="btn btn-outline-blue">Download My Data</button>
+      </div>
+      
+      <div class="grid-profile">
+        <!-- Sidebar Profile -->
+        <div style="display:flex; flex-direction:column; gap:24px;">
+          <div class="profile-card">
+            <div class="avatar-lg" style="text-transform:uppercase;">{{ username[0] if username else 'U' }}</div>
+            <div class="profile-name">{{ username | default('Analyst User') }}</div>
+            <div class="profile-email">{{ email | default('analyst@statxtract.in') }}</div>
+            <div style="margin-bottom:24px;"><span class="badge badge-orange" style="padding:8px 16px; font-size:14px;">Role ID: {{ role | default('User') }}</span></div>
+            
+            <div style="text-align:left; background:var(--bg-section); padding:20px; border-radius:var(--radius-md);">
+              <div style="font-size:13px; font-weight:700; color:var(--text-main); margin-bottom:8px;">Plan Usage (Current Cycle)</div>
+              <div class="usage-meter"><div class="usage-fill"></div></div>
+              <div class="usage-label"><span>90 Queries</span><span>200 Limit</span></div>
+            </div>
+          </div>
+
+          <!-- Quick Stats Side -->
+          <div class="form-panel" style="padding:24px;">
+            <h3 style="margin-bottom:16px;">Activity Snapshot</h3>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+              <span style="color:var(--text-muted); font-size:14px; font-weight:600;">Member Since</span>
+              <span style="font-weight:700; color:var(--text-main);">Jan 2026</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+              <span style="color:var(--text-muted); font-size:14px; font-weight:600;">Last Sign In</span>
+              <span style="font-weight:700; color:var(--text-main);">Today, 09:00 AM</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span style="color:var(--text-muted); font-size:14px; font-weight:600;">API Keys</span>
+              <span class="badge badge-green">1 Active</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Main Forms -->
+        <div>
+          <!-- Personal Info -->
+          <div class="form-panel">
+            <h3>Personal Information</h3>
+            <form>
+              <div class="grid-2">
+                <div class="form-field">
+                  <label class="form-label">Full Name</label>
+                  <input type="text" class="form-input" value="{{ username | default('Analyst User') }}">
+                </div>
+                <div class="form-field">
+                  <label class="form-label">Email Address</label>
+                  <input type="email" class="form-input" value="{{ email | default('analyst@example.com') }}" disabled style="background:var(--bg-section); cursor:not-allowed;">
+                </div>
+              </div>
+              <div class="grid-2">
+                <div class="form-field">
+                  <label class="form-label">Phone Number</label>
+                  <input type="tel" class="form-input" value="+91 98765 43210">
+                </div>
+                <div class="form-field">
+                  <label class="form-label">Organization Type</label>
+                  <select class="form-select">
+                    <option>Student</option>
+                    <option>Researcher</option>
+                    <option selected>Analyst</option>
+                    <option>Private Organization</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-field">
+                <label class="form-label">Bio / Custom Notes</label>
+                <textarea class="form-textarea" rows="4" placeholder="Brief info about your research goals..."></textarea>
+              </div>
+              <div style="display:flex; justify-content:flex-end;">
+                <button type="button" class="btn btn-primary" onclick="alert('Profile Saved')">Save Changes</button>
+              </div>
+            </form>
+          </div>
+
+          <!-- Password Mgt -->
+          <div class="form-panel">
+            <h3>Change Password</h3>
+            <form>
+              <div class="grid-2">
+                <div class="form-field">
+                  <label class="form-label">Current Password</label>
+                  <input type="password" class="form-input" placeholder="••••••••">
+                </div>
+                <div class="form-field">
+                  <label class="form-label">New Password</label>
+                  <input type="password" class="form-input" placeholder="••••••••">
+                </div>
+              </div>
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;">
+                <a href="#" style="font-size:13px; font-weight:600; color:var(--royal);">Forgot password?</a>
+                <button type="button" class="btn btn-outline-blue">Update Password</button>
+              </div>
+            </form>
+          </div>
+
+          <div class="form-panel" style="border-color:rgba(211,47,47,0.3); background:#FFEBEE;">
+            <h3 style="color:var(--danger); border-color:rgba(211,47,47,0.2);">Account Actions</h3>
+            <div style="display:flex; align-items:center; justify-content:space-between;">
+              <div>
+                <div style="font-size:16px; font-weight:700; color:var(--text-main); margin-bottom:4px;">Sign Out</div>
+                <div style="font-size:13px; color:var(--text-muted);">Securely log out of all active sessions.</div>
+              </div>
+              <form action="/auth/logout" method="POST">
+                <button type="submit" class="btn btn-danger" style="background:transparent; color:var(--danger); border-color:var(--danger);">Sign Out Everywhere</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

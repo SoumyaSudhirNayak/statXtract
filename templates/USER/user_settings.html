@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Settings — STATXTRACT</title>
+  <link rel="stylesheet" href="/static/user_styles.css">
+  <style>
+    .settings-layout { display:grid; grid-template-columns: 280px 1fr; gap: 40px; align-items:start; }
+    @media(max-width:900px) { .settings-layout { grid-template-columns: 1fr; } }
+    
+    .settings-nav { background:rgba(255,255,255,0.95); backdrop-filter:blur(10px); border:2px solid var(--border); border-radius:var(--radius-lg); padding:20px 16px; position:sticky; top:40px; display:flex; flex-direction:column; gap:8px; }
+    .s-nav-btn { width:100%; padding:14px 16px; border:none; background:transparent; font-size:15px; font-weight:700; color:var(--text-main); font-family:var(--font-body); text-align:left; border-radius:var(--radius-md); cursor:pointer; transition:var(--transition); display:flex; align-items:center; gap:12px; }
+    .s-nav-btn:hover { background:var(--bg-section); color:var(--royal); }
+    .s-nav-btn.active { background:rgba(46,91,186,0.08); color:var(--royal); border-left:4px solid var(--royal); }
+    
+    .settings-panel { background:rgba(255,255,255,0.95); backdrop-filter:blur(10px); border:2px solid var(--border); border-radius:var(--radius-lg); padding:40px; margin-bottom:24px; box-shadow:var(--shadow-md); display:none; }
+    .settings-panel.active { display:block; animation:fadePanel 0.3s ease; }
+    @keyframes fadePanel { from{opacity:0; transform:translateY(10px);} to{opacity:1; transform:translateY(0);} }
+
+    .panel-header { margin-bottom:32px; padding-bottom:20px; border-bottom:1px solid var(--border-soft); }
+    .panel-title { font-family:var(--font-head); font-size:26px; font-weight:800; color:var(--text-main); margin-bottom:8px; }
+    .panel-desc { font-size:15px; color:var(--text-muted); }
+
+    .setting-block { margin-bottom:40px; }
+    .setting-info { flex:1; }
+    .setting-title { font-size:16px; font-weight:700; color:var(--text-main); margin-bottom:4px; }
+    .setting-sub { font-size:14px; color:var(--text-muted); line-height:1.5; }
+    
+    .toggle-row { display:flex; justify-content:space-between; align-items:center; padding:20px; background:var(--bg-section); border:1px solid var(--border-soft); border-radius:var(--radius-md); margin-bottom:16px; transition:var(--transition); }
+    .toggle-row:hover { border-color:var(--royal); }
+    
+    /* Toggle Switch */
+    .switch { position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink:0; margin-left:20px; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: var(--border); transition: 0.4s; border-radius: 34px; }
+    .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: 0.4s; border-radius: 50%; box-shadow:0 2px 4px rgba(0,0,0,0.2); }
+    input:checked + .slider { background-color: var(--green); }
+    input:checked + .slider:before { transform: translateX(20px); }
+
+    .api-key-box { background:#1E293B; color:#00FF41; padding:16px; border-radius:6px; font-family:monospace; font-size:14px; display:flex; justify-content:space-between; align-items:center; margin-top:12px; border:1px solid #334155; }
+    .copy-btn { background:rgba(255,255,255,0.1); border:none; color:#fff; padding:6px 12px; border-radius:4px; cursor:pointer; font-weight:700; font-size:12px; transition:background 0.2s; }
+    .copy-btn:hover { background:rgba(255,255,255,0.2); }
+  </style>
+</head>
+<body>
+  <div class="animated-bg"></div>
+
+  <header class="site-header">
+    <a href="/user/dashboard" class="site-logo">STATXTRACT</a>
+    <div class="header-right">
+      <button class="profile-btn" onclick="window.location.href='/user/profile'">
+        <div class="avatar">👤</div>
+        My Profile
+      </button>
+    </div>
+  </header>
+
+  <div style="display: flex;">
+    <aside class="sidebar expanded" id="sidebar">
+      <button class="sidebar-toggle" onclick="document.getElementById('sidebar').classList.toggle('collapsed');"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg></button>
+      <nav class="sidebar-nav">
+        <a href="/user/dashboard" class="nav-item"><div class="nav-icon">📊</div><span class="nav-label">Dashboard</span></a>
+        <a href="/query" class="nav-item"><div class="nav-icon">🔍</div><span class="nav-label">Advanced Query</span></a>
+        <a href="/user/history" class="nav-item"><div class="nav-icon">⏱️</div><span class="nav-label">Query History</span></a>
+        <a href="/user/downloads" class="nav-item"><div class="nav-icon">⬇️</div><span class="nav-label">My Downloads</span></a>
+        <a href="/user/plans" class="nav-item"><div class="nav-icon">💎</div><span class="nav-label">Plans & Pricing</span></a>
+        <a href="/user/settings" class="nav-item active"><div class="nav-icon">⚙️</div><span class="nav-label">Settings</span></a>
+      </nav>
+    </aside>
+
+    <main style="flex:1; padding: 40px; overflow-y:auto; max-height:calc(100vh - 72px);">
+      <h2 class="section-title" style="margin-bottom:32px;">Application Configurations</h2>
+      
+      <div class="settings-layout">
+        
+        <!-- Navigation Sidebar -->
+        <div class="settings-nav">
+          <button class="s-nav-btn active" onclick="switchTab('sec')"><span>🔒</span> Security & Authentication</button>
+          <button class="s-nav-btn" onclick="switchTab('not')"><span>🔔</span> Automation & Alerts</button>
+          <button class="s-nav-btn" onclick="switchTab('api')"><span>🔑</span> API & Developer Keys</button>
+          <button class="s-nav-btn" onclick="switchTab('ui')"><span>🎨</span> Interface Preferences</button>
+        </div>
+
+        <!-- Setting Panels -->
+        <div>
+          
+          <!-- SECURITY TAB -->
+          <div class="settings-panel active" id="tab-sec">
+            <div class="panel-header">
+              <h3 class="panel-title">Security & Authentication</h3>
+              <p class="panel-desc">Manage cryptographic safeguards, password protocols, and session controls.</p>
+            </div>
+            
+            <div class="setting-block">
+              <div class="toggle-row">
+                <div class="setting-info">
+                  <div class="setting-title">Two-Factor Authentication (OTP System)</div>
+                  <div class="setting-sub">Require an SMS or Authenticator App heavily encrypted 6-digit code during every sign-in attempt.</div>
+                </div>
+                <label class="switch"><input type="checkbox"><span class="slider"></span></label>
+              </div>
+              <div class="toggle-row">
+                <div class="setting-info">
+                  <div class="setting-title">Login Alert E-mails</div>
+                  <div class="setting-sub">Receive instant email alerts globally whenever your account is authenticated from an unrecognized IP.</div>
+                </div>
+                <label class="switch"><input type="checkbox" checked><span class="slider"></span></label>
+              </div>
+            </div>
+
+            <div class="setting-block">
+              <h4 class="setting-title" style="font-size:18px; margin-bottom:16px;">Active Authenticated Sessions</h4>
+              <div style="border:1px solid var(--border-soft); border-radius:var(--radius-lg); overflow:hidden;">
+                <!-- Current Session -->
+                <div style="display:flex; justify-content:space-between; align-items:center; padding:20px; background:var(--bg-section); border-bottom:1px solid var(--border-soft);">
+                  <div style="display:flex; gap:16px; align-items:center;">
+                    <div style="font-size:24px;">💻</div>
+                    <div>
+                      <div style="font-weight:700; color:var(--text-main);">Windows 11 · Chrome (Local IP)</div>
+                      <div style="font-size:13px; color:var(--text-muted); margin-top:2px;">Mumbai, India (Active right now)</div>
+                    </div>
+                  </div>
+                  <span class="badge badge-green">Current</span>
+                </div>
+                <!-- Dead Session -->
+                <div style="display:flex; justify-content:space-between; align-items:center; padding:20px; background:#fff;">
+                  <div style="display:flex; gap:16px; align-items:center;">
+                    <div style="font-size:24px;">📱</div>
+                    <div>
+                      <div style="font-weight:700; color:var(--text-main);">iOS 16 · Safari OS Mobile</div>
+                      <div style="font-size:13px; color:var(--text-muted); margin-top:2px;">Bangalore, India (Mar 12, 10:45 AM)</div>
+                    </div>
+                  </div>
+                  <button class="btn btn-ghost" style="padding:6px 12px; font-size:12px; color:var(--danger); border-color:var(--danger);">Revoke</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- NOTIFICATIONS TAB -->
+          <div class="settings-panel" id="tab-not">
+            <div class="panel-header">
+              <h3 class="panel-title">Automation & Alerts</h3>
+              <p class="panel-desc">Configure automated e-mail behaviors and extraction logs notifications.</p>
+            </div>
+            
+            <div class="setting-block">
+              <div class="toggle-row">
+                <div class="setting-info">
+                  <div class="setting-title">Query Completion E-mails</div>
+                  <div class="setting-sub">Send a direct message when heavy asynchronous queries (>100s execution) finish analyzing.</div>
+                </div>
+                <label class="switch"><input type="checkbox" checked><span class="slider"></span></label>
+              </div>
+              <div class="toggle-row">
+                <div class="setting-info">
+                  <div class="setting-title">Monthly Usage Report</div>
+                  <div class="setting-sub">Receive aggregated PDF statistics directly via encrypted email channels each month.</div>
+                </div>
+                <label class="switch"><input type="checkbox"><span class="slider"></span></label>
+              </div>
+            </div>
+          </div>
+
+          <!-- API TAB -->
+          <div class="settings-panel" id="tab-api">
+            <div class="panel-header">
+              <h3 class="panel-title">API & Developer Authentication</h3>
+              <p class="panel-desc">Manage API endpoints, REST integration tokens, and automated SDK connections.</p>
+            </div>
+            
+            <div class="setting-block">
+              <h4 class="setting-title" style="font-size:18px; margin-bottom:12px;">Production Ready Bearer Token</h4>
+              <p class="setting-sub" style="margin-bottom:16px;">This token yields unrestricted query mapping and REST endpoint interaction based on your billing tier privileges. Do <strong>NOT</strong> leak this into client-side code.</p>
+              
+              <div class="api-key-box" id="keyWrap">
+                <span>sk_live_StATxT34r93jd081_******************</span>
+                <button class="copy-btn" onclick="revealKey(this)">Reveal Key</button>
+              </div>
+            </div>
+
+            <button class="btn btn-primary" style="background:#0F172A; border-color:#0F172A;">Regenerate Integration Key</button>
+          </div>
+
+          <!-- UI PREFS TAB -->
+          <div class="settings-panel" id="tab-ui">
+            <div class="panel-header">
+              <h3 class="panel-title">Interface Configuration</h3>
+              <p class="panel-desc">Control explicit Web App visuals and UI constraints natively across sessions.</p>
+            </div>
+            
+            <div class="setting-block">
+              <h4 class="setting-title" style="font-size:18px; margin-bottom:16px;">Dashboard Density</h4>
+              <select class="form-select" style="max-width:300px;">
+                <option>Comfortable (Default)</option>
+                <option>Compact (Data Dense)</option>
+              </select>
+            </div>
+
+            <div class="setting-block">
+              <div class="toggle-row">
+                <div class="setting-info">
+                  <div class="setting-title">Auto-Collapse Global Sidebar</div>
+                  <div class="setting-sub">Minimize the lateral Navigation Menu automatically for maximized canvas viewing size.</div>
+                </div>
+                <label class="switch"><input type="checkbox"><span class="slider"></span></label>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+      
+    </main>
+  </div>
+
+  <script>
+    // Tab Switching Logic
+    function switchTab(target) {
+      document.querySelectorAll('.s-nav-btn').forEach(btn => btn.classList.remove('active'));
+      event.currentTarget.classList.add('active');
+      document.querySelectorAll('.settings-panel').forEach(panel => panel.classList.remove('active'));
+      document.getElementById('tab-' + target).classList.add('active');
+    }
+
+    // Reveal API key mockup logic
+    function revealKey(btn) {
+      const box = btn.parentElement.querySelector('span');
+      if(box.textContent.includes('***')) {
+        box.textContent = 'sk_live_StATxT34r93jd081_f92bA4cF8LmqzT0';
+        btn.textContent = 'Copy to Clipboard';
+      } else {
+        alert('Copied to clipboard globally!');
+        btn.textContent = 'Copied!';
+        setTimeout(() => btn.textContent = 'Copy to Clipboard', 2000);
+      }
+    }
+  </script>
+</body>
+</html>

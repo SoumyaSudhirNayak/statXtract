@@ -66,12 +66,17 @@
             padding: 20px;
         }
 
-        /* Theme Toggle */
-        .theme-toggle {
+        /* Top Actions */
+        .top-actions {
             position: fixed;
             top: 20px;
             right: 20px;
             z-index: 1000;
+            display: flex;
+            gap: 15px;
+        }
+
+        .action-btn {
             background: var(--glass-bg);
             backdrop-filter: blur(20px);
             border: 1px solid var(--glass-border);
@@ -82,11 +87,12 @@
             display: flex;
             align-items: center;
             gap: 8px;
-            color: var(--text-light);
+            color: var(--text-main);
             font-weight: 500;
+            text-decoration: none;
         }
 
-        .theme-toggle:hover {
+        .action-btn:hover {
             transform: translateY(-2px);
             box-shadow: var(--shadow-light);
         }
@@ -439,10 +445,16 @@
 </head>
 
 <body>
-    <!-- Theme Toggle -->
-    <div class="theme-toggle" onclick="toggleTheme()">
-        <i class="fas fa-moon"></i>
-        <span>Dark Mode</span>
+    <!-- Top Actions -->
+    <div class="top-actions">
+        <a href="/module-selection" class="action-btn">
+            <i class="fas fa-arrow-left"></i>
+            <span>Back</span>
+        </a>
+        <div class="action-btn theme-toggle" onclick="toggleTheme()" style="position:static;">
+            <i class="fas fa-moon"></i>
+            <span id="themeToggleText">Dark Mode</span>
+        </div>
     </div>
 
     <!-- Toast Container -->
@@ -525,7 +537,7 @@
         }
 
         function updateThemeUI(theme) {
-            const toggle = document.querySelector('.theme-toggle span');
+            const toggle = document.querySelector('#themeToggleText');
             const icon = document.querySelector('.theme-toggle i');
             if(!toggle) return;
             if(theme === 'dark') {
