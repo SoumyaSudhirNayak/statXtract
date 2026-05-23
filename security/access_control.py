@@ -86,9 +86,8 @@ async def check_user_access(
 
         # Enforce Request Rate Limiting System (excluding admin)
         if role_name != "admin":
-            rate_limits = {"free": 5, "pro": 30, "enterprise": 100}
             plan_name = plan_limits.get("plan", "free")
-            requests_limit = rate_limits.get(plan_name, 5)
+            requests_limit = plan_limits.get("rate_limit", 5)
 
             recent_count = await conn.fetchval(
                 """

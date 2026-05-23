@@ -536,12 +536,20 @@
                     
                     <div class="user-stats-strip">
                         <div class="stat-item">
-                            <span class="stat-label">Queries Run Today</span>
-                            <span class="stat-value">${u.queries_today || 0} / ${u.max_queries_day || 0}</span>
+                            <span class="stat-label">Queries (Today / Limit)</span>
+                            <span class="stat-value">${u.queries_today || 0} / ${(u.max_queries_day || 0).toLocaleString()}</span>
                         </div>
                         <div class="stat-item">
-                            <span class="stat-label">Rows Scanned Today</span>
+                            <span class="stat-label">Rows (Today / Limit)</span>
                             <span class="stat-value">${(u.rows_today || 0).toLocaleString()} / ${(u.max_rows_day || 0).toLocaleString()}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Rate Limit</span>
+                            <span class="stat-value">${u.rate_limit || 5} req/min</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Downloads</span>
+                            <span class="stat-value">${u.downloads_today || 0} / ${u.max_downloads || 0} ${u.downloads_allowed ? '✅' : '❌'}</span>
                         </div>
                     </div>
 

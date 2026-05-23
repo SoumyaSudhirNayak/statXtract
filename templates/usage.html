@@ -100,6 +100,10 @@
             <h1><i class="fas fa-chart-line"></i> Usage Logs</h1>
             <p>Query activity, downloads, and usage metrics</p>
         </div>
+        <div class="card" style="margin-bottom:18px; display:flex; align-items:center; gap:12px;">
+            <i class="fas fa-search" style="color:var(--primary); font-size:1.1rem; padding-left:8px;"></i>
+            <input type="text" id="globalSearch" placeholder="Global search user emails, datasets, status or filters..." style="flex:1; border:none; background:transparent; font-size:1rem; color:var(--text-main); outline:none; padding:10px 0;" oninput="debounceSearch()">
+        </div>
         <div class="stats">
             <div class="card"><div id="mQueries" class="num">0</div><div class="label">Total Queries</div></div>
             <div class="card"><div id="mUsers" class="num">0</div><div class="label">Active Users</div></div>
@@ -148,8 +152,17 @@
         };
         const row = (vals) => `<tr>${vals.map(v => `<td>${v}</td>`).join("")}</tr>`;
         
+        let searchTimeout = null;
+        function debounceSearch() {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                loadUsage();
+            }, 300);
+        }
+
         async function loadUsage() {
-            const res = await fetch("/admin/usage/logs", { credentials: "same-origin" });
+            const q = document.getElementById("globalSearch") ? document.getElementById("globalSearch").value : "";
+            const res = await fetch("/admin/usage/logs?q=" + encodeURIComponent(q), { credentials: "same-origin" });
             const data = await res.json();
             if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
             

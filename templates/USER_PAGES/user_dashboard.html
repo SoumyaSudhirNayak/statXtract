@@ -441,7 +441,7 @@
       if (!ts) return '-';
       let dateString = ts;
       if (typeof ts === 'string' && !ts.endsWith('Z') && !ts.includes('+') && !ts.includes('GMT')) {
-        dateString = ts.replace(' ', 'T') + 'Z';
+        dateString = ts.replace(' ', 'T');
       }
       const d = new Date(dateString);
       if (isNaN(d)) return ts;
@@ -450,14 +450,11 @@
       const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
       const yesterdayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-      const tomorrowEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 2);
       
       const timeStr = d.toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit'});
       
       if (d >= todayStart && d < todayEnd) {
         return 'Today, ' + timeStr;
-      } else if (d >= todayEnd && d < tomorrowEnd) {
-        return 'Tomorrow, ' + timeStr;
       } else if (d >= yesterdayStart && d < todayStart) {
         return 'Yesterday, ' + timeStr;
       } else {
@@ -471,12 +468,14 @@
 
     async function loadDashboardData() {
       try {
-        const [govRes, histRes] = await Promise.all([
+        const [govRes, histRes, chartRes] = await Promise.all([
           fetch('/api/user/governance'),
-          fetch('/api/user/query-history?per_page=5')
+          fetch('/api/user/query-history?per_page=5'),
+          fetch('/api/user/query-history?per_page=200')
         ]);
         const gov = await govRes.json();
         const hist = await histRes.json();
+        const chartHist = await chartRes.json();
 
         if (gov.error) {
           showToast('Failed to load governance data', 'warning');
@@ -552,9 +551,32 @@
           tbody.innerHTML = '<tr><td colspan="4" class="empty-state">No queries yet. Start by running your first query!</td></tr>';
         } else {
           tbody.innerHTML = items.map(q => {
-            const statusBadge = q.status === 'success'
-              ? `<span class="badge badge-green">Success</span>`
-              : `<span class="badge badge-orange">${q.status}</span>`;
+            let badgeClass = 'badge-green';
+            let badgeText = 'Success';
+            const statusLower = (q.status || 'success').toLowerCase();
+            if (statusLower === 'success' || statusLower === 'completed') {
+              badgeClass = 'badge-green';
+              badgeText = 'Completed';
+            } else if (statusLower === 'failed' || statusLower === 'error' || statusLower.startsWith('fail')) {
+              badgeClass = 'badge-red';
+              badgeText = 'Failed';
+            } else if (statusLower === 'blocked') {
+              badgeClass = 'badge-red';
+              badgeText = 'Blocked';
+            } else if (statusLower === 'suspicious') {
+              badgeClass = 'badge-red';
+              badgeText = 'Suspicious';
+            } else if (statusLower === 'suppressed') {
+              badgeClass = 'badge-orange';
+              badgeText = 'Suppressed';
+            } else if (statusLower === 'rate_limited') {
+              badgeClass = 'badge-orange';
+              badgeText = 'Rate Limited';
+            } else {
+              badgeClass = 'badge-orange';
+              badgeText = q.status;
+            }
+            const statusBadge = `<span class="badge ${badgeClass}">${badgeText}</span>`;
             const timeStr = q.query_time_ms ? `(${q.query_time_ms}ms)` : '';
             return `<tr>
               <td>${statusBadge}</td>
@@ -568,8 +590,8 @@
           }).join('');
         }
 
-        // ── Charts ──
-        buildCharts(items, hist);
+        // ── Charts ── (use full chart data for richer analytics)
+        buildCharts(items, chartHist);
 
         showToast('Dashboard loaded with real-time data', 'success');
       } catch (e) {

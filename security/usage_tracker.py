@@ -187,13 +187,17 @@ async def check_download_limits(conn, user_email: str, limits: dict):
     Check if the user has remaining download credits for this month.
     Raises HTTPException 429 if exceeded.
     """
-    if not limits.get("downloads_allowed", False):
+    max_downloads = limits.get("max_downloads_per_month", limits.get("max_downloads_per_day", 10))
+    downloads_are_allowed = (
+        limits.get("downloads_allowed", False) or 
+        max_downloads > 0 or 
+        len(limits.get("export_formats", [])) > 0
+    )
+    if not downloads_are_allowed:
         raise HTTPException(
             status_code=403,
             detail="Access Denied: File downloads and data exports are restricted on your current subscription plan. Please upgrade."
         )
-
-    max_downloads = limits.get("max_downloads_per_month", limits.get("max_downloads_per_day", 10))
     monthly_downloads = await conn.fetchval(
         """
         SELECT COUNT(*) FROM download_logs

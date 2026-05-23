@@ -127,7 +127,10 @@
           </div>
           <div class="strip-card">
             <div class="strip-icon" style="background:#FFEBEE; color:var(--danger);">📅</div>
-            <div><div class="strip-num" id="statResetTime" style="font-size:20px;">Midnight</div><div class="strip-lbl">Quota Resets</div></div>
+            <div>
+              <div class="strip-num" id="statNextReset">-</div>
+              <div class="strip-lbl">Monthly Reset</div>
+            </div>
           </div>
         </div>
 
@@ -221,7 +224,6 @@
 
     window.addEventListener('load', () => {
       loadUsagePage();
-      startResetTimer();
     });
 
     async function loadUsagePage() {
@@ -238,10 +240,23 @@
         document.getElementById('statUsedQueries').textContent = usage.queries_used || 0;
         document.getElementById('statRowsAccessed').textContent = formatNum(usage.rows_accessed || 0);
 
+        // Monthly reset countdown
+        const now = new Date();
+        const nextReset = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+        const daysLeft = Math.ceil((nextReset - now) / (1000 * 60 * 60 * 24));
+        const resetEl = document.getElementById('statNextReset');
+        if (resetEl) {
+          if (daysLeft <= 1) {
+            resetEl.textContent = 'Today';
+          } else {
+            resetEl.textContent = daysLeft + ' days';
+          }
+        }
+
         // 2. Query processing card
-        const qPct = limits.max_queries_per_day > 0 ? (usage.queries_used / limits.max_queries_per_day) * 100 : 0;
+        const qPct = limits.max_queries_per_month > 0 ? (usage.queries_used / limits.max_queries_per_month) * 100 : 0;
         document.getElementById('queriesUsedTxt').textContent = usage.queries_used || 0;
-        document.getElementById('queriesLimitTxt').textContent = limits.max_queries_per_day || 0;
+        document.getElementById('queriesLimitTxt').textContent = limits.max_queries_per_month || 0;
         document.getElementById('queryProgressFill').style.width = `${Math.min(qPct, 100)}%`;
         
         const qStatus = document.getElementById('queryStatusBadge');
@@ -274,9 +289,9 @@
         }
 
         // 4. Rows card
-        const rPct = limits.max_rows_per_day > 0 ? (usage.rows_accessed / limits.max_rows_per_day) * 100 : 0;
+        const rPct = limits.max_rows_per_month > 0 ? (usage.rows_accessed / limits.max_rows_per_month) * 100 : 0;
         document.getElementById('rowsUsedTxt').textContent = formatNum(usage.rows_accessed || 0);
-        document.getElementById('rowsLimitTxt').textContent = formatNum(limits.max_rows_per_day || 0);
+        document.getElementById('rowsLimitTxt').textContent = formatNum(limits.max_rows_per_month || 0);
         document.getElementById('rowProgressFill').style.width = `${Math.min(rPct, 100)}%`;
         
         const rStatus = document.getElementById('rowStatusBadge');
@@ -294,9 +309,9 @@
         const dlStatus = document.getElementById('downloadStatusBadge');
         const dlFill = document.getElementById('downloadProgressFill');
         if (limits.downloads_allowed) {
-          const dPct = limits.max_downloads_per_day > 0 ? (usage.downloads_used / limits.max_downloads_per_day) * 100 : 0;
+          const dPct = limits.max_downloads_per_month > 0 ? (usage.downloads_used / limits.max_downloads_per_month) * 100 : 0;
           document.getElementById('downloadsUsedTxt').textContent = usage.downloads_used || 0;
-          document.getElementById('downloadsLimitTxt').textContent = limits.max_downloads_per_day || 0;
+          document.getElementById('downloadsLimitTxt').textContent = limits.max_downloads_per_month || 0;
           dlFill.style.width = `${Math.min(dPct, 100)}%`;
           
           if (dPct > 80) {
@@ -379,24 +394,7 @@
       return num;
     }
 
-    function startResetTimer() {
-      const lbl = document.getElementById('statResetTime');
-      
-      function updateTimer() {
-        const now = new Date();
-        const midnight = new Date();
-        midnight.setHours(24, 0, 0, 0); // Next midnight
-        
-        const diffMs = midnight - now;
-        const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
-        const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-        
-        lbl.textContent = `in ${diffHrs}h ${diffMins}m`;
-      }
-      
-      updateTimer();
-      setInterval(updateTimer, 60000); // Update every minute
-    }
+
   </script>
 </body>
 </html>

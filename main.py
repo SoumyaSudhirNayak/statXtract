@@ -68,6 +68,57 @@ from security.privacy_guard import check_columns_and_filters, apply_privacy_and_
 today = date.today().isoformat()
 START_TIME = datetime.now()
 
+from datetime import timezone
+
+try:
+    from zoneinfo import ZoneInfo
+    DB_TZ = ZoneInfo("Asia/Kolkata")
+except Exception:
+    from datetime import timezone as dt_tz, timedelta
+    DB_TZ = dt_tz(timedelta(hours=5, minutes=30))
+
+def format_local_timestamp_to_utc_iso(dt) -> str:
+    """Converts a database local naive timestamp to UTC and formats it with 'Z'."""
+    if not dt:
+        return None
+    if isinstance(dt, str):
+        for fmt in ('%Y-%m-%d %H:%M:%S.%f', '%Y-%m-%d %H:%M:%S', '%Y-%m-%dT%H:%M:%S.%f', '%Y-%m-%dT%H:%M:%S'):
+            try:
+                dt = datetime.strptime(dt.split('+')[0].split('Z')[0].strip(), fmt)
+                break
+            except ValueError:
+                continue
+        if isinstance(dt, str):
+            if not dt.endswith('Z') and not '+' in dt:
+                return dt + 'Z'
+            return dt
+    # If naive, assume it is in the database timezone (Asia/Kolkata)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=DB_TZ)
+    # Convert to UTC and format
+    return dt.astimezone(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+
+def format_utc_timestamp_to_utc_iso(dt) -> str:
+    """Converts a database UTC naive timestamp (like freeze_until) to UTC and formats it with 'Z'."""
+    if not dt:
+        return None
+    if isinstance(dt, str):
+        for fmt in ('%Y-%m-%d %H:%M:%S.%f', '%Y-%m-%d %H:%M:%S', '%Y-%m-%dT%H:%M:%S.%f', '%Y-%m-%dT%H:%M:%S'):
+            try:
+                dt = datetime.strptime(dt.split('+')[0].split('Z')[0].strip(), fmt)
+                break
+            except ValueError:
+                continue
+        if isinstance(dt, str):
+            if not dt.endswith('Z') and not '+' in dt:
+                return dt + 'Z'
+            return dt
+    # If naive, assume it is already in UTC
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    # Convert to UTC and format
+    return dt.astimezone(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+
 # ── Internal / metadata tables that should NOT appear in user-facing dropdowns ──
 _INTERNAL_TABLE_NAMES = {
     "datasets", "dataset_files", "dataset_metadata", "dataset_registry", "dataset_tables",
@@ -719,18 +770,14 @@ async def api_user_governance(
         # Get governance notices
         notices = await get_user_governance_notices(conn, user_email)
 
-        # Check testing mode
-        testing_mode = await _get_system_setting(conn, "governance.testing_mode", "false")
-        is_testing = str(testing_mode).strip().lower() in ("true", "1", "yes", "on")
-
         return {
             "plan": plan_name,
             "role": role_name,
             "is_verified": bool(user_row["is_verified"]),
             "is_blocked": bool(user_row["is_blocked"]),
             "status": str(user_row["status"]),
-            "plan_expiry": str(user_row["plan_expiry"]) if user_row["plan_expiry"] else None,
-            "testing_mode": is_testing,
+            "plan_expiry": format_local_timestamp_to_utc_iso(user_row["plan_expiry"]),
+            "testing_mode": False,
             "limits": {
                 "max_queries_per_day": plan_limits.get("max_queries_per_day", 1000),
                 "max_rows_per_day": plan_limits.get("max_rows_per_day", 100000),
@@ -748,7 +795,7 @@ async def api_user_governance(
             "warnings": warnings,
             "warning_count": int(user_row["warning_count"]),
             "suspicious_score": int(user_row["suspicious_score"]),
-            "freeze_until": user_row["freeze_until"].isoformat() + "Z" if user_row["freeze_until"] else None,
+            "freeze_until": format_utc_timestamp_to_utc_iso(user_row["freeze_until"]),
             "governance_notices": notices,
         }
 
@@ -758,6 +805,8 @@ async def api_user_query_history(
     request: Request,
     page: int = 1,
     per_page: int = 20,
+    q: str = "",
+    status: str = "all",
     current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
 ):
     """Real query history from usage_logs for the current user."""
@@ -766,13 +815,37 @@ async def api_user_query_history(
     async with pool.acquire() as conn:
         user_email = current_user.username
 
+        conditions = ["user_email = $1"]
+        params = [user_email]
+
+        if q:
+            search_param = f"%{q}%"
+            params.append(search_param)
+            conditions.append(f"(schema_name ILIKE ${len(params)} OR table_name ILIKE ${len(params)} OR filters ILIKE ${len(params)} OR status ILIKE ${len(params)})")
+
+        if status and status != "all":
+            if status == "success":
+                conditions.append("status IN ('success', 'completed')")
+            elif status == "failed":
+                conditions.append("(status ILIKE 'fail%' OR status = 'error')")
+            else:
+                params.append(status)
+                conditions.append(f"status = ${len(params)}")
+
+        where_clause = "WHERE " + " AND ".join(conditions)
+
         total = await conn.fetchval(
-            "SELECT COUNT(*) FROM usage_logs WHERE user_email = $1",
-            user_email
+            f"SELECT COUNT(*) FROM usage_logs {where_clause}",
+            *params
         ) or 0
 
+        params.append(per_page)
+        limit_param = len(params)
+        params.append(offset)
+        offset_param = len(params)
+
         rows = await conn.fetch(
-            """
+            f"""
             SELECT
                 COALESCE(schema_name, '-') AS dataset,
                 COALESCE(table_name, '-') AS table_name,
@@ -783,18 +856,25 @@ async def api_user_query_history(
                 queried_at AS timestamp,
                 endpoint
             FROM usage_logs
-            WHERE user_email = $1
+            {where_clause}
             ORDER BY queried_at DESC
-            LIMIT $2 OFFSET $3
+            LIMIT ${limit_param} OFFSET ${offset_param}
             """,
-            user_email, per_page, offset
+            *params
         )
+
+        history_list = []
+        for r in rows:
+            d = dict(r)
+            if "timestamp" in d:
+                d["timestamp"] = format_local_timestamp_to_utc_iso(d["timestamp"])
+            history_list.append(d)
 
         return {
             "total": int(total),
             "page": page,
             "per_page": per_page,
-            "history": [dict(r) for r in rows],
+            "history": history_list,
         }
 
 
@@ -803,6 +883,7 @@ async def api_user_download_history(
     request: Request,
     page: int = 1,
     per_page: int = 20,
+    q: str = "",
     current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
 ):
     """Real download history from download_logs for the current user."""
@@ -811,13 +892,28 @@ async def api_user_download_history(
     async with pool.acquire() as conn:
         user_email = current_user.username
 
+        conditions = ["user_email = $1"]
+        params = [user_email]
+
+        if q:
+            search_param = f"%{q}%"
+            params.append(search_param)
+            conditions.append(f"(file_name ILIKE ${len(params)} OR dataset_schema ILIKE ${len(params)} OR export_format ILIKE ${len(params)} OR status ILIKE ${len(params)})")
+
+        where_clause = "WHERE " + " AND ".join(conditions)
+
         total = await conn.fetchval(
-            "SELECT COUNT(*) FROM download_logs WHERE user_email = $1",
-            user_email
+            f"SELECT COUNT(*) FROM download_logs {where_clause}",
+            *params
         ) or 0
 
+        params.append(per_page)
+        limit_param = len(params)
+        params.append(offset)
+        offset_param = len(params)
+
         rows = await conn.fetch(
-            """
+            f"""
             SELECT
                 file_name,
                 COALESCE(dataset_schema, '-') AS dataset,
@@ -827,18 +923,25 @@ async def api_user_download_history(
                 COALESCE(status, 'success') AS status,
                 created_at AS timestamp
             FROM download_logs
-            WHERE user_email = $1
+            {where_clause}
             ORDER BY created_at DESC
-            LIMIT $2 OFFSET $3
+            LIMIT ${limit_param} OFFSET ${offset_param}
             """,
-            user_email, per_page, offset
+            *params
         )
+
+        downloads_list = []
+        for r in rows:
+            d = dict(r)
+            if "timestamp" in d:
+                d["timestamp"] = format_local_timestamp_to_utc_iso(d["timestamp"])
+            downloads_list.append(d)
 
         return {
             "total": int(total),
             "page": page,
             "per_page": per_page,
-            "downloads": [dict(r) for r in rows],
+            "downloads": downloads_list,
         }
 
 
@@ -950,18 +1053,51 @@ async def admin_user_governance_detail(
             email
         )
 
+        user_dict = dict(user_row)
+        user_dict["freeze_until"] = format_utc_timestamp_to_utc_iso(user_dict["freeze_until"])
+        user_dict["last_active"] = format_local_timestamp_to_utc_iso(user_dict["last_active"])
+        user_dict["created_at"] = format_local_timestamp_to_utc_iso(user_dict["created_at"])
+
+        recent_queries_list = []
+        for r in recent_queries:
+            d = dict(r)
+            if "queried_at" in d:
+                d["queried_at"] = format_local_timestamp_to_utc_iso(d["queried_at"])
+            recent_queries_list.append(d)
+
+        recent_downloads_list = []
+        for r in recent_downloads:
+            d = dict(r)
+            if "created_at" in d:
+                d["created_at"] = format_local_timestamp_to_utc_iso(d["created_at"])
+            recent_downloads_list.append(d)
+
+        suspicious_list = []
+        for r in suspicious:
+            d = dict(r)
+            if "created_at" in d:
+                d["created_at"] = format_local_timestamp_to_utc_iso(d["created_at"])
+            suspicious_list.append(d)
+
+        gov_logs_list = []
+        for r in gov_logs:
+            d = dict(r)
+            if "created_at" in d:
+                d["created_at"] = format_local_timestamp_to_utc_iso(d["created_at"])
+            gov_logs_list.append(d)
+
         return {
-            "user": dict(user_row),
+            "user": user_dict,
             "usage_today": {
                 "queries": int(usage_today["queries"] or 0) if usage_today else 0,
                 "rows": int(usage_today["rows"] or 0) if usage_today else 0,
                 "downloads": int(downloads_today),
             },
-            "recent_queries": [dict(r) for r in recent_queries],
-            "recent_downloads": [dict(r) for r in recent_downloads],
+            "recent_queries": recent_queries_list,
+            "recent_downloads": recent_downloads_list,
             "warnings": warnings,
-            "suspicious_activity": [dict(r) for r in suspicious],
-            "governance_logs": [dict(r) for r in gov_logs],
+            "suspicious_activity": suspicious_list,
+            "governance_logs": gov_logs_list,
         }
 
 
@@ -996,8 +1132,15 @@ async def admin_suspicious_activity_feed(
             """
         )
 
+        activities_list = []
+        for r in activities:
+            d = dict(r)
+            if "created_at" in d:
+                d["created_at"] = format_local_timestamp_to_utc_iso(d["created_at"])
+            activities_list.append(d)
+
         return {
-            "activities": [dict(r) for r in activities],
+            "activities": activities_list,
             "risky_users": [dict(r) for r in risky_users],
         }
 
@@ -4009,6 +4152,7 @@ async def system_settings_page(
 @app.get("/admin/usage/logs")
 async def admin_usage_logs_api(
     request: Request,
+    q: str = "",
     current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
 ):
     pool = request.app.state.db
@@ -4068,6 +4212,11 @@ async def admin_usage_logs_api(
                 filters_col_expr = "COALESCE(filters, '-')" if "filters" in usage_cols else "'-'"
                 status_col_expr = "COALESCE(status, 'success')" if "status" in usage_cols else "'success'"
                 query_time_ms_expr = "COALESCE(query_time_ms, 0)" if "query_time_ms" in usage_cols else "0"
+                where_clause = ""
+                params = []
+                if q:
+                    where_clause = "WHERE user_email ILIKE $1 OR schema_name ILIKE $1 OR table_name ILIKE $1 OR filters ILIKE $1 OR status ILIKE $1"
+                    params = [f"%{q}%"]
                 query_logs = await conn.fetch(
                     f"""
                     SELECT
@@ -4082,9 +4231,11 @@ async def admin_usage_logs_api(
                         {status_col_expr} AS status,
                         {usage_time_col} AS time
                     FROM usage_logs
+                    {where_clause}
                     ORDER BY {usage_time_col} DESC
                     LIMIT 100
-                    """
+                    """,
+                    *params
                 )
             except Exception:
                 query_logs = []
@@ -4092,6 +4243,11 @@ async def admin_usage_logs_api(
             try:
                 dataset_expr = "COALESCE(dataset_name, '-') || '/' || COALESCE(table_name, '-')" if query_has_dataset else "'-'"
                 filters_expr = "COALESCE(filters, '-')" if query_has_filters else "'-'"
+                where_clause = ""
+                params = []
+                if q:
+                    where_clause = "WHERE user_email ILIKE $1 OR dataset_name ILIKE $1 OR table_name ILIKE $1 OR filters ILIKE $1"
+                    params = [f"%{q}%"]
                 query_logs = await conn.fetch(
                     f"""
                     SELECT
@@ -4103,9 +4259,11 @@ async def admin_usage_logs_api(
                         'success' AS status,
                         {query_time_col} AS time
                     FROM query_logs
+                    {where_clause}
                     ORDER BY {query_time_col} DESC
                     LIMIT 100
-                    """
+                    """,
+                    *params
                 )
             except Exception:
                 query_logs = []
@@ -4113,6 +4271,11 @@ async def admin_usage_logs_api(
         usage_downloads = []
         if usage_time_col and usage_has_identity and usage_endpoint_col:
             try:
+                where_clause = "WHERE endpoint ILIKE '/downloads/%'"
+                params = []
+                if q:
+                    where_clause += " AND (user_email ILIKE $1 OR endpoint ILIKE $1 OR status ILIKE $1)"
+                    params = [f"%{q}%"]
                 usage_downloads = await conn.fetch(
                     f"""
                     SELECT
@@ -4124,10 +4287,11 @@ async def admin_usage_logs_api(
                         'success' AS status,
                         {usage_time_col} AS time
                     FROM usage_logs
-                    WHERE endpoint ILIKE '/downloads/%'
+                    {where_clause}
                     ORDER BY {usage_time_col} DESC
                     LIMIT 100
-                    """
+                    """,
+                    *params
                 )
             except Exception:
                 usage_downloads = []
@@ -4138,6 +4302,11 @@ async def admin_usage_logs_api(
                 format_col_expr = "COALESCE(export_format, 'csv')" if "export_format" in download_cols else "'csv'"
                 rows_col_expr = "COALESCE(rows_exported, 0)" if "rows_exported" in download_cols else "0"
                 status_col_expr = "COALESCE(status, 'success')" if "status" in download_cols else "'success'"
+                where_clause = ""
+                params = []
+                if q:
+                    where_clause = "WHERE user_email ILIKE $1 OR file_name ILIKE $1 OR dataset_schema ILIKE $1 OR export_format ILIKE $1 OR status ILIKE $1"
+                    params = [f"%{q}%"]
                 table_downloads = await conn.fetch(
                     f"""
                     SELECT
@@ -4149,9 +4318,11 @@ async def admin_usage_logs_api(
                         {status_col_expr} AS status,
                         {download_time_col} AS time
                     FROM download_logs
+                    {where_clause}
                     ORDER BY {download_time_col} DESC
                     LIMIT 100
-                    """
+                    """,
+                    *params
                 )
             except Exception:
                 table_downloads = []
@@ -4232,9 +4403,23 @@ async def admin_usage_logs_api(
             except Exception:
                 pass
 
+        formatted_query_logs = []
+        for r in query_logs:
+            d = dict(r)
+            if "time" in d:
+                d["time"] = format_local_timestamp_to_utc_iso(d["time"])
+            formatted_query_logs.append(d)
+
+        formatted_download_logs = []
+        for r in merged_downloads[:100]:
+            d = dict(r)
+            if "time" in d:
+                d["time"] = format_local_timestamp_to_utc_iso(d["time"])
+            formatted_download_logs.append(d)
+
     return {
-        "query_logs": [dict(r) for r in query_logs],
-        "download_logs": merged_downloads[:100],
+        "query_logs": formatted_query_logs,
+        "download_logs": formatted_download_logs,
         "metrics": {
             "total_queries": int(total_queries or 0),
             "active_users": int(active_users or 0),
@@ -4278,10 +4463,24 @@ async def admin_users_api(
             ORDER BY u.created_at DESC
             """
         )
-        # Enrich with today's usage stats
         enriched = []
         for u in users:
             ud = dict(u)
+            ud["last_active"] = format_local_timestamp_to_utc_iso(ud["last_active"])
+            ud["created_at"] = format_local_timestamp_to_utc_iso(ud["created_at"])
+            ud["plan_expiry"] = format_local_timestamp_to_utc_iso(ud["plan_expiry"])
+            # Compute effective plan limits for this user
+            try:
+                user_role_id = {"admin": "1", "analyst": "2", "user": "3"}.get(ud.get("role", "user"), "3")
+                effective = await get_and_enforce_plan_limits(conn, ud["email"], user_role_id)
+                ud["max_queries_day"] = effective.get("max_queries_per_month", ud["max_queries_day"])
+                ud["max_rows_day"] = effective.get("max_rows_per_month", ud["max_rows_day"])
+                ud["downloads_allowed"] = effective.get("downloads_allowed", False)
+                ud["max_downloads"] = effective.get("max_downloads_per_month", 0)
+                ud["rate_limit"] = effective.get("rate_limit", 5)
+                ud["export_formats"] = effective.get("export_formats", ["csv"])
+            except Exception:
+                pass
             try:
                 usage = await conn.fetchrow(
                     "SELECT COUNT(*) AS queries_today, COALESCE(SUM(rows_returned),0) AS rows_today FROM usage_logs WHERE user_email = $1 AND queried_at >= CURRENT_DATE",
@@ -4640,10 +4839,33 @@ async def admin_requests_api(
             LIMIT 30
             """
         )
+    formatted_dataset_requests = []
+    for r in dataset_requests:
+        d = dict(r)
+        if "created_at" in d:
+            d["created_at"] = format_local_timestamp_to_utc_iso(d["created_at"])
+        formatted_dataset_requests.append(d)
+
+    formatted_feedback = []
+    for r in feedback:
+        d = dict(r)
+        if "created_at" in d:
+            d["created_at"] = format_local_timestamp_to_utc_iso(d["created_at"])
+        formatted_feedback.append(d)
+
+    formatted_docs = []
+    for r in docs:
+        d = dict(r)
+        if "created_at" in d:
+            d["created_at"] = format_local_timestamp_to_utc_iso(d["created_at"])
+        if "registration_timestamp" in d:
+            d["registration_timestamp"] = format_local_timestamp_to_utc_iso(d["registration_timestamp"])
+        formatted_docs.append(d)
+
     return {
-        "dataset_requests": [dict(r) for r in dataset_requests],
-        "feedback": [dict(r) for r in feedback],
-        "documents": [dict(r) for r in docs],
+        "dataset_requests": formatted_dataset_requests,
+        "feedback": formatted_feedback,
+        "documents": formatted_docs,
         "suspicious_activity": [dict(r) for r in suspicious],
     }
 
@@ -4702,7 +4924,21 @@ async def admin_payments_api(
             )
         except Exception:
             txns = []
-    return {"user_plans": [dict(r) for r in plans], "transactions": [dict(r) for r in txns]}
+    formatted_plans = []
+    for r in plans:
+        d = dict(r)
+        if "plan_expiry" in d:
+            d["plan_expiry"] = format_utc_timestamp_to_utc_iso(d["plan_expiry"])
+        formatted_plans.append(d)
+
+    formatted_txns = []
+    for r in txns:
+        d = dict(r)
+        if "created_at" in d:
+            d["created_at"] = format_local_timestamp_to_utc_iso(d["created_at"])
+        formatted_txns.append(d)
+
+    return {"user_plans": formatted_plans, "transactions": formatted_txns}
 
 
 @app.get("/admin/settings")
@@ -4731,38 +4967,35 @@ async def admin_settings_api(
         "payments.default_plan_limits": "free:1000,pro:100000",
         "payments.pricing_config": "free=0,pro=99",
         # ── Plan Governance: per-plan limits (read by plan_enforcer.py) ──
-        "plans.free.max_queries_per_day": "200",
-        "plans.free.max_rows_per_day": "50000",
-        "plans.free.downloads_allowed": "false",
-        "plans.pro.max_queries_per_day": "5000",
-        "plans.pro.max_rows_per_day": "500000",
-        "plans.pro.downloads_allowed": "true",
-        "plans.enterprise.max_queries_per_day": "50000",
-        "plans.enterprise.max_rows_per_day": "5000000",
-        "plans.enterprise.downloads_allowed": "true",
-        # ── Governance Testing Mode ──
-        "governance.testing_mode": "false",
-        "governance.test.free.max_queries_per_day": "5",
-        "governance.test.free.max_rows_per_day": "500",
-        "governance.test.pro.max_queries_per_day": "20",
-        "governance.test.pro.max_rows_per_day": "5000",
-        "governance.test.enterprise.max_queries_per_day": "50",
-        "governance.test.enterprise.max_rows_per_day": "25000",
-        # ── Per-plan download limits ──
-        "plans.free.max_downloads_per_day": "5",
-        "plans.pro.max_downloads_per_day": "50",
-        "plans.enterprise.max_downloads_per_day": "500",
-        # ── Per-plan export formats ──
+        "plans.free.max_queries_per_month": "100",
+        "plans.free.max_rows_per_month": "5000",
+        "plans.free.max_downloads_per_month": "10",
+        "plans.free.rate_limit": "5",
         "plans.free.export_formats": "csv",
-        "plans.pro.export_formats": "csv,excel,pdf",
-        "plans.enterprise.export_formats": "csv,excel,pdf,json,api",
-        # ── Per-plan API & analytics access ──
+        "plans.free.max_ai_queries_per_month": "3",
         "plans.free.api_access": "false",
-        "plans.pro.api_access": "true",
-        "plans.enterprise.api_access": "true",
         "plans.free.advanced_analytics": "false",
+        "plans.free.downloads_allowed": "true",
+
+        "plans.pro.max_queries_per_month": "1000",
+        "plans.pro.max_rows_per_month": "100000",
+        "plans.pro.max_downloads_per_month": "100",
+        "plans.pro.rate_limit": "20",
+        "plans.pro.export_formats": "csv,pdf,json",
+        "plans.pro.max_ai_queries_per_month": "50",
+        "plans.pro.api_access": "true",
         "plans.pro.advanced_analytics": "true",
+        "plans.pro.downloads_allowed": "true",
+
+        "plans.enterprise.max_queries_per_month": "999999",
+        "plans.enterprise.max_rows_per_month": "999999999",
+        "plans.enterprise.max_downloads_per_month": "999999",
+        "plans.enterprise.rate_limit": "100",
+        "plans.enterprise.export_formats": "csv,excel,pdf,json,api",
+        "plans.enterprise.max_ai_queries_per_month": "999999",
+        "plans.enterprise.api_access": "true",
         "plans.enterprise.advanced_analytics": "true",
+        "plans.enterprise.downloads_allowed": "true",
     }
     pool = request.app.state.db
     async with pool.acquire() as conn:
@@ -4789,22 +5022,36 @@ async def admin_settings_api(
             "default_rate_limit": settings_map.get("default_rate_limit") or settings_map.get("api.default_rate_limit", "60"),
             "enable_downloads": settings_map.get("enable_downloads") or settings_map.get("features.enable_downloads", "true"),
             "enable_charts": settings_map.get("enable_charts") or settings_map.get("features.enable_charts", "true"),
-            "governance_testing_mode": settings_map.get("governance.testing_mode", "false"),
             "plans": {
                 "free": {
-                    "max_queries_per_day": settings_map.get("plans.free.max_queries_per_day", "200"),
-                    "max_rows_per_day": settings_map.get("plans.free.max_rows_per_day", "50000"),
-                    "downloads_allowed": settings_map.get("plans.free.downloads_allowed", "false"),
+                    "max_queries_per_month": settings_map.get("plans.free.max_queries_per_month", "100"),
+                    "max_rows_per_month": settings_map.get("plans.free.max_rows_per_month", "5000"),
+                    "max_downloads_per_month": settings_map.get("plans.free.max_downloads_per_month", "10"),
+                    "rate_limit": settings_map.get("plans.free.rate_limit", "5"),
+                    "export_formats": settings_map.get("plans.free.export_formats", "csv"),
+                    "max_ai_queries_per_month": settings_map.get("plans.free.max_ai_queries_per_month", "3"),
+                    "api_access": settings_map.get("plans.free.api_access", "false"),
+                    "advanced_analytics": settings_map.get("plans.free.advanced_analytics", "false"),
                 },
                 "pro": {
-                    "max_queries_per_day": settings_map.get("plans.pro.max_queries_per_day", "5000"),
-                    "max_rows_per_day": settings_map.get("plans.pro.max_rows_per_day", "500000"),
-                    "downloads_allowed": settings_map.get("plans.pro.downloads_allowed", "true"),
+                    "max_queries_per_month": settings_map.get("plans.pro.max_queries_per_month", "1000"),
+                    "max_rows_per_month": settings_map.get("plans.pro.max_rows_per_month", "100000"),
+                    "max_downloads_per_month": settings_map.get("plans.pro.max_downloads_per_month", "100"),
+                    "rate_limit": settings_map.get("plans.pro.rate_limit", "20"),
+                    "export_formats": settings_map.get("plans.pro.export_formats", "csv,pdf,json"),
+                    "max_ai_queries_per_month": settings_map.get("plans.pro.max_ai_queries_per_month", "50"),
+                    "api_access": settings_map.get("plans.pro.api_access", "true"),
+                    "advanced_analytics": settings_map.get("plans.pro.advanced_analytics", "true"),
                 },
                 "enterprise": {
-                    "max_queries_per_day": settings_map.get("plans.enterprise.max_queries_per_day", "50000"),
-                    "max_rows_per_day": settings_map.get("plans.enterprise.max_rows_per_day", "5000000"),
-                    "downloads_allowed": settings_map.get("plans.enterprise.downloads_allowed", "true"),
+                    "max_queries_per_month": settings_map.get("plans.enterprise.max_queries_per_month", "999999"),
+                    "max_rows_per_month": settings_map.get("plans.enterprise.max_rows_per_month", "999999999"),
+                    "max_downloads_per_month": settings_map.get("plans.enterprise.max_downloads_per_month", "999999"),
+                    "rate_limit": settings_map.get("plans.enterprise.rate_limit", "100"),
+                    "export_formats": settings_map.get("plans.enterprise.export_formats", "csv,excel,pdf,json,api"),
+                    "max_ai_queries_per_month": settings_map.get("plans.enterprise.max_ai_queries_per_month", "999999"),
+                    "api_access": settings_map.get("plans.enterprise.api_access", "true"),
+                    "advanced_analytics": settings_map.get("plans.enterprise.advanced_analytics", "true"),
                 },
             },
         },

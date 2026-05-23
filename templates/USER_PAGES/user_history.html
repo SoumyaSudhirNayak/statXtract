@@ -238,6 +238,8 @@
               <option value="failed">Failed</option>
               <option value="blocked">Blocked</option>
               <option value="suppressed">Suppressed</option>
+              <option value="rate_limited">Rate Limited</option>
+              <option value="suspicious">Suspicious</option>
             </select>
           </div>
           <div class="filter-group" style="max-width:110px;">
@@ -326,13 +328,14 @@
           let totalTime = 0;
           
           items.forEach(q => {
-            if (q.status === 'success') {
+            const qs = (q.status || 'success').toLowerCase();
+            if (qs === 'success' || qs === 'completed') {
               successCount++;
-              totalTime += q.query_time_ms;
+              totalTime += q.query_time_ms || 0;
             } else {
               failedCount++;
             }
-            totalRows += q.rows_returned;
+            totalRows += q.rows_returned || 0;
           });
           
           document.getElementById('statSuccess').textContent = successCount;
@@ -355,7 +358,6 @@
       if (num >= 1000) return (num / 1000).toFixed(1) + 'k';
       return num;
     }
-
     // Fetch and render query logs
     async function loadHistory(page) {
       currentPage = page;
@@ -363,7 +365,9 @@
       historyBody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 40px; color: var(--text-muted);">Loading query history...</td></tr>`;
 
       try {
-        const response = await fetch(`/api/user/query-history?page=${page}&per_page=${perPage}`);
+        const search = document.getElementById('searchInput').value;
+        const statusFilter = document.getElementById('statusFilter').value;
+        const response = await fetch(`/api/user/query-history?page=${page}&per_page=${perPage}&q=${encodeURIComponent(search)}&status=${statusFilter}`);
         if (!response.ok) throw new Error('Failed to fetch query logs');
         const data = await response.json();
         
@@ -381,19 +385,7 @@
     // Render active page table
     function renderTable() {
       const historyBody = document.getElementById('historyBody');
-      const search = document.getElementById('searchInput').value.toLowerCase();
-      const statusFilter = document.getElementById('statusFilter').value;
-      
-      // Client-side filtering on the fetched chunk (or we can just render everything)
-      const filtered = queryData.filter(q => {
-        const matchesSearch = !search || 
-          (q.dataset || '').toLowerCase().includes(search) || 
-          (q.table_name || '').toLowerCase().includes(search) || 
-          (q.filters || '').toLowerCase().includes(search);
-        
-        const matchesStatus = statusFilter === 'all' || q.status.toLowerCase() === statusFilter;
-        return matchesSearch && matchesStatus;
-      });
+      const filtered = queryData;
 
       if (filtered.length === 0) {
         historyBody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 40px; color: var(--text-muted);">No matching query logs found.</td></tr>`;
@@ -417,15 +409,24 @@
         let statusText = 'Completed';
         let statusStyle = 'color: var(--green);';
         
-        if (q.status === 'blocked') {
+        const currentNormStatus = (q.status || 'success').toLowerCase();
+        if (currentNormStatus === 'blocked') {
           statusDotClass = 'sdot-failed';
-          statusText = 'Blocked (Policy)';
+          statusText = 'Blocked';
           statusStyle = 'color: var(--danger);';
-        } else if (q.status === 'suppressed') {
+        } else if (currentNormStatus === 'suppressed') {
+          statusDotClass = 'sdot-running';
+          statusText = 'Suppressed';
+          statusStyle = 'color: var(--saffron);';
+        } else if (currentNormStatus === 'rate_limited') {
+          statusDotClass = 'sdot-running';
+          statusText = 'Rate Limited';
+          statusStyle = 'color: var(--saffron);';
+        } else if (currentNormStatus === 'suspicious') {
           statusDotClass = 'sdot-failed';
-          statusText = 'Suppressed (Privacy)';
+          statusText = 'Suspicious';
           statusStyle = 'color: var(--danger);';
-        } else if (q.status.startsWith('fail') || q.status === 'error') {
+        } else if (currentNormStatus.startsWith('fail') || currentNormStatus === 'error') {
           statusDotClass = 'sdot-failed';
           statusText = 'Failed';
           statusStyle = 'color: var(--danger);';
@@ -552,15 +553,15 @@
       pag.appendChild(nextBtn);
     }
 
-    // Trigger local search filtering on the table
+    // Trigger backend search filtering
     function filterTable() {
-      renderTable();
+      loadHistory(1);
     }
 
     function clearFilters() {
       document.getElementById('searchInput').value = '';
       document.getElementById('statusFilter').value = 'all';
-      renderTable();
+      loadHistory(1);
     }
 
     // Pre-populate query builder and redirect
