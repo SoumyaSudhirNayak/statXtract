@@ -192,7 +192,9 @@ async def get_and_enforce_plan_limits(conn, user_email: str, user_role: str):
 
     # Check for plan expiry (DB stores naive local timestamps)
     if plan_expiry and plan_expiry < datetime.now():
-        plan = "free"
+        if plan != "free":
+            await conn.execute("UPDATE users SET plan = 'free', plan_expiry = NULL WHERE email = $1", user_email)
+            plan = "free"
 
     # Fetch limits dynamically from system_settings (with hardcoded fallback)
     limits = await _load_dynamic_plan_limits(conn, plan)

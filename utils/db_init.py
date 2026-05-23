@@ -197,6 +197,7 @@ async def ensure_core_tables(conn: asyncpg.Connection) -> None:
         ("freeze_until", "TIMESTAMP"),
         ("suspicious_score", "INTEGER DEFAULT 0"),
         ("last_active", "TIMESTAMP"),
+        ("cancel_at_period_end", "BOOLEAN DEFAULT FALSE"),
     ]:
         try:
             await conn.execute(
@@ -367,14 +368,33 @@ async def ensure_core_tables(conn: asyncpg.Connection) -> None:
         """
     )
 
+    has_razorpay = await conn.fetchval("""
+        SELECT EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_name = 'payments' AND column_name = 'razorpay_order_id'
+        )
+    """)
+    if not has_razorpay:
+        await conn.execute("DROP TABLE IF EXISTS payments CASCADE")
+
     await conn.execute(
         """
         CREATE TABLE IF NOT EXISTS payments (
             id SERIAL PRIMARY KEY,
-            transaction_id TEXT UNIQUE NOT NULL,
-            user_email TEXT NOT NULL,
+            user_id INTEGER,
+            username TEXT,
+            email TEXT,
+            current_plan TEXT,
+            purchased_plan TEXT,
+            payment_provider TEXT DEFAULT 'razorpay',
+            razorpay_order_id TEXT UNIQUE,
+            razorpay_payment_id TEXT,
             amount NUMERIC(12,2) DEFAULT 0,
-            status TEXT DEFAULT 'pending',
+            currency TEXT DEFAULT 'INR',
+            payment_status TEXT DEFAULT 'pending',
+            start_date TIMESTAMP,
+            expiry_date TIMESTAMP,
+            billing_cycle TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
         """

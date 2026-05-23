@@ -346,6 +346,28 @@
           </div>
         </div>
 
+        <!-- Subscription & Billing Section -->
+        <div class="chart-card" style="margin-bottom: 28px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 20px;">
+          <div>
+            <div class="chart-title" style="margin-bottom: 12px; display: flex; align-items: center; gap: 8px; font-family: var(--font-head); font-size: 16px; font-weight: 800; color: var(--text-main);">
+              <span>💳 Subscription &amp; Billing</span>
+              <span id="dashSubBadge" class="badge" style="font-size: 11px; padding: 3px 8px; border-radius: 12px; font-weight: bold;">Active</span>
+            </div>
+            <div style="display: flex; gap: 24px; flex-wrap: wrap; font-size: 13px; color: var(--text-muted); font-weight: 500;">
+              <div>Plan: <strong id="dashPlanName" style="color: var(--text-main); font-weight: 700;">Free Tier</strong></div>
+              <div>Billing Cycle: <strong id="dashBillingCycle" style="color: var(--text-main); font-weight: 700;">N/A</strong></div>
+              <div>Next Renewal: <strong id="dashNextRenewal" style="color: var(--text-main); font-weight: 700;">N/A</strong></div>
+              <div>Payment Status: <strong id="dashPayStatus" style="color: var(--text-main); font-weight: 700;">N/A</strong></div>
+            </div>
+            <div id="dashActiveFeatures" style="font-size: 12px; color: var(--text-muted); margin-top: 8px; font-weight: 500;">
+              Active Features: <span style="color: var(--royal); font-weight: 600;">Basic Queries, CSV Export</span>
+            </div>
+          </div>
+          <div id="dashSubActions" style="display: flex; gap: 10px;">
+            <button class="btn" style="background: var(--royal); font-size: 13px; padding: 8px 16px;" onclick="window.location.href='/user/plans'">Upgrade Plan</button>
+          </div>
+        </div>
+
         <!-- Charts Grid -->
         <div class="charts-grid">
           <div class="chart-card">
@@ -501,6 +523,48 @@
         const planColors = {free:'Active', pro:'⭐ Active', enterprise:'🏆 Active'};
         document.getElementById('planBadge').textContent = planColors[gov.plan] || 'Active';
         document.getElementById('planBadge').className = 'sc-trend up';
+
+        // ── Subscription Section Live Updates ──
+        const isFree = (gov.plan || 'free') === 'free';
+        document.getElementById('dashPlanName').textContent = (gov.plan || 'free').toUpperCase();
+        document.getElementById('dashBillingCycle').textContent = (gov.billing_cycle || 'N/A').toUpperCase();
+        document.getElementById('dashNextRenewal').textContent = gov.renewal_date ? fmtTime(gov.renewal_date) : 'N/A';
+        document.getElementById('dashPayStatus').textContent = (gov.payment_status || 'N/A').toUpperCase();
+        
+        const badge = document.getElementById('dashSubBadge');
+        if (isFree) {
+          badge.textContent = 'Free Plan';
+          badge.style.background = 'rgba(107, 114, 128, 0.1)';
+          badge.style.color = '#6b7280';
+          document.getElementById('dashActiveFeatures').innerHTML = `Active Features: <span style="color: var(--royal); font-weight: 600;">Basic Queries, CSV Export (10 downloads/mo)</span>`;
+          document.getElementById('dashSubActions').innerHTML = `<button class="btn" style="background: var(--royal); font-size: 13px; padding: 8px 16px;" onclick="window.location.href='/user/plans'">Upgrade Plan</button>`;
+        } else if (gov.cancel_at_period_end) {
+          badge.textContent = 'Cancellation Pending';
+          badge.style.background = 'rgba(239, 68, 68, 0.1)';
+          badge.style.color = '#ef4444';
+          
+          let featuresStr = gov.plan === 'pro' 
+            ? '5k Queries/mo, Unlimited Downloads, CSV/PDF/JSON Export, API Access'
+            : 'Unlimited Queries & Downloads, All Export Formats, Team Access, Premium Support';
+          
+          document.getElementById('dashActiveFeatures').innerHTML = `Active Features: <span style="color: var(--royal); font-weight: 600;">${featuresStr}</span><br><span style="color: #ef4444; font-weight: 700;">⚠️ Subscription set to cancel on ${gov.renewal_date ? new Date(gov.renewal_date).toLocaleDateString('en-IN') : 'N/A'}. You can continue to use your remaining quota until then.</span>`;
+          
+          document.getElementById('dashSubActions').innerHTML = `
+            <button class="btn" style="background: var(--green); font-size: 13px; padding: 8px 16px;" onclick="reactivateSubscription()">Reactivate</button>
+            <button class="btn btn-outline-blue" style="font-size: 13px; padding: 8px 16px;" onclick="window.location.href='/user/plans'">Change Plan</button>
+          `;
+        } else {
+          badge.textContent = 'Active Premium';
+          badge.style.background = 'rgba(34, 197, 94, 0.1)';
+          badge.style.color = '#22c55e';
+          
+          if (gov.plan === 'pro') {
+            document.getElementById('dashActiveFeatures').innerHTML = `Active Features: <span style="color: var(--royal); font-weight: 600;">5k Queries/mo, Unlimited Downloads, CSV/PDF/JSON Export, API Access</span>`;
+          } else {
+            document.getElementById('dashActiveFeatures').innerHTML = `Active Features: <span style="color: var(--royal); font-weight: 600;">Unlimited Queries &amp; Downloads, All Export Formats, Team Access, Premium Support</span>`;
+          }
+          document.getElementById('dashSubActions').innerHTML = `<button class="btn btn-outline-blue" style="font-size: 13px; padding: 8px 16px;" onclick="window.location.href='/user/plans'">Change / Downgrade Plan</button>`;
+        }
 
         // ── Credit Bars ──
         const qBarPct = u.queries_limit ? Math.min(100, (u.queries_used / u.queries_limit) * 100) : 0;
@@ -664,6 +728,29 @@
           plugins: { legend: { position: 'right', labels: { font: { family:'Inter', size: 13, weight:'600' }, padding: 16 } } }
         }
       });
+    }
+
+    async function reactivateSubscription() {
+      showToast("Reactivating your subscription...", "info");
+      try {
+        const res = await fetch('/api/payments/reactivate-subscription', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.detail || 'Failed to reactivate subscription');
+        }
+        const data = await res.json();
+        showToast(data.message || 'Subscription successfully reactivated!', 'success');
+        setTimeout(() => {
+          window.location.reload();
+        }, 1500);
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
     }
 
     // ── Init ──

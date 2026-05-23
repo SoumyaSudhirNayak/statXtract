@@ -7,6 +7,7 @@
   <meta name="description" content="Upgrade your STATXTRACT plan to unlock more queries, downloads, and premium analytics features.">
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/user_styles.css">
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
   <style>
     body { background: linear-gradient(135deg, #F5F7FA, #EEF3FB, #E9EEF7); min-height: 100vh; overflow: hidden; }
     .app-shell { display: flex; flex-direction: column; height: 100vh; }
@@ -397,9 +398,137 @@
       if (!wasOpen) item.classList.add('open');
     }
 
-    /* ── Select Plan ── */
-    function selectPlan(plan, price) {
-      showToast(`Redirecting to checkout for ${plan} (₹${price}/mo)...`, 'info');
+    /* ── Select Plan (Live Razorpay Integration) ── */
+    async function selectPlan(planDisplayName, price) {
+      if (planDisplayName.toLowerCase().includes('free')) {
+        const confirmCancel = confirm("Are you sure you want to cancel your subscription? You will continue to have access to your current plan features and limits until the end of the billing cycle.");
+        if (!confirmCancel) return;
+        
+        showToast("Processing subscription cancellation...", "info");
+        try {
+          const res = await fetch('/api/payments/cancel-subscription', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            }
+          });
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.detail || 'Failed to cancel subscription');
+          }
+          const data = await res.json();
+          showToast(data.message || 'Subscription cancelled. You can use your remaining quota.', 'success');
+          setTimeout(() => {
+            window.location.reload();
+          }, 2000);
+        } catch (err) {
+          showToast(err.message, 'error');
+        }
+        return;
+      }
+
+      const plan = planDisplayName.toLowerCase().includes('pro') ? 'pro' : 'enterprise';
+      const billingCycle = isAnnual ? 'annual' : 'monthly';
+      
+      showToast(`Initiating checkout for ${planDisplayName}...`, 'info');
+      
+      try {
+        const orderRes = await fetch('/api/payments/create-order', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            plan: plan,
+            billing_cycle: billingCycle
+          })
+        });
+        
+        if (!orderRes.ok) {
+          const errData = await orderRes.json().catch(() => ({}));
+          throw new Error(errData.detail || 'Failed to create order');
+        }
+        
+        const orderData = await orderRes.json();
+        
+        const options = {
+          key: orderData.key,
+          amount: orderData.amount,
+          currency: orderData.currency,
+          name: 'STATXTRACT Portal',
+          description: `Upgrade to ${planDisplayName} (${billingCycle})`,
+          order_id: orderData.id,
+          handler: async function (response) {
+            showToast('Verifying payment signature...', 'info');
+            try {
+              const verifyRes = await fetch('/api/payments/verify-payment', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                  razorpay_order_id: response.razorpay_order_id,
+                  razorpay_payment_id: response.razorpay_payment_id,
+                  razorpay_signature: response.razorpay_signature
+                })
+              });
+              
+              if (!verifyRes.ok) {
+                const errData = await verifyRes.json().catch(() => ({}));
+                throw new Error(errData.detail || 'Payment verification failed');
+              }
+              
+              showToast('Payment successful! Your plan has been upgraded.', 'success');
+              setTimeout(() => {
+                window.location.reload();
+              }, 1500);
+              
+            } catch (err) {
+              showToast(err.message, 'error');
+            }
+          },
+          prefill: {
+            email: username
+          },
+          theme: {
+            color: '#2E5BBA'
+          },
+          modal: {
+            ondismiss: async function() {
+              showToast('Payment cancelled by user.', 'error');
+              await fetch('/api/payments/payment-failed', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                  razorpay_order_id: orderData.id,
+                  reason: 'Payment modal closed by user'
+                })
+              }).catch(() => {});
+            }
+          }
+        };
+        
+        const rzp = new Razorpay(options);
+        rzp.on('payment.failed', async function (response) {
+          showToast(response.error.description || 'Payment execution failed.', 'error');
+          await fetch('/api/payments/payment-failed', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              razorpay_order_id: orderData.id,
+              reason: response.error.description || 'Razorpay checkout failure'
+            })
+          }).catch(() => {});
+        });
+        rzp.open();
+        
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
     }
 
     /* ── Toast ── */
@@ -458,8 +587,13 @@
         }
         
         document.querySelector('.cpb-icon').textContent = icon;
-        document.querySelector('.cpb-title').innerHTML = `Current Plan: <strong>${displayName}</strong>`;
-        document.querySelector('.cpb-sub').textContent = detailsText;
+        if (data.cancel_at_period_end) {
+          document.querySelector('.cpb-title').innerHTML = `Current Plan: <strong>${displayName}</strong> <span class="badge" style="background:rgba(239,68,68,0.1); color:#ef4444; font-size:11px; padding:3px 8px; border-radius:12px; font-weight:bold; margin-left:8px; display:inline-block;">Pending Cancellation</span>`;
+          document.querySelector('.cpb-sub').innerHTML = `${detailsText} <br><span style="color:#ef4444; font-weight:700;">⚠️ Subscription set to cancel on ${data.plan_expiry ? new Date(data.plan_expiry).toLocaleDateString() : 'N/A'}. You can continue to use your remaining quota until then.</span>`;
+        } else {
+          document.querySelector('.cpb-title').innerHTML = `Current Plan: <strong>${displayName}</strong>`;
+          document.querySelector('.cpb-sub').textContent = detailsText;
+        }
         
         const usedText = plan === 'enterprise' || plan === 'admin' 
           ? `${usedVal} used` 
@@ -481,6 +615,8 @@
           if (plan === 'free') {
             cards[0].classList.add('current');
             btn.innerHTML = `<button class="plan-btn plan-btn-current" disabled>✓ Current Plan</button>`;
+          } else if (data.cancel_at_period_end) {
+            btn.innerHTML = `<button class="plan-btn plan-btn-current" style="background:rgba(239,68,68,0.1); color:#ef4444; border-color:#ef4444;" disabled>✓ Cancellation Pending</button>`;
           } else {
             btn.innerHTML = `<button class="plan-btn plan-btn-upgrade" onclick="selectPlan('Free Tier', 0)">Downgrade to Free</button>`;
           }

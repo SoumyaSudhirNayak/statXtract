@@ -76,10 +76,19 @@
         .full { grid-column: 1 / -1; }
         .title { display:flex; align-items:center; gap:10px; font-size:1.1rem; font-weight: 700; margin-bottom:12px; color: var(--text-main); }
 
-        table { width:100%; border-collapse:collapse; background: var(--bg-page); border:1px solid var(--glass-border); border-radius:12px; overflow:hidden; }
+        .table-container {
+            width: 100%;
+            overflow-x: auto;
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            background: var(--bg-page);
+            margin-top: 10px;
+        }
+        table { width:100%; border-collapse:collapse; background: transparent; }
         th, td { padding:12px; text-align:left; font-size:.85rem; border-bottom:1px solid var(--glass-border); color: var(--text-main); }
         th { background: rgba(46, 91, 186, 0.05); color: var(--primary); font-weight: 600; }
         tr:hover td { background: rgba(46, 91, 186, 0.02); }
+        table .btn { padding: 4px 8px; font-size: 0.72rem; border-radius: 6px; margin-right: 2px; }
 
         .btn {
             background: var(--primary); color:#fff; border: none;
@@ -93,7 +102,7 @@
         .btn.red:hover { background: #dc2626; }
 
         .meta { color: var(--text-muted); font-size:.8rem; margin-top:8px; }
-        .pill { padding:4px 10px; border-radius:999px; font-size:.75rem; font-weight: 600; border:1px solid var(--glass-border); }
+        .pill { padding:4px 10px; border-radius:999px; font-size:.75rem; font-weight: 600; border:1px solid var(--glass-border); white-space: nowrap; }
         .active { background: rgba(34, 197, 94, 0.1); color: #22c55e; border-color: rgba(34, 197, 94, 0.2); }
         .blocked { background: rgba(239, 68, 68, 0.1); color: #ef4444; border-color: rgba(239, 68, 68, 0.2); }
 
@@ -428,6 +437,44 @@
             text-transform: uppercase;
             color: var(--text-muted);
         }
+        .pagination-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 12px;
+            padding-top: 8px;
+            border-top: 1px solid var(--glass-border);
+        }
+        .pagination-controls {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .pagination-btn {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            color: var(--text-main);
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+        .pagination-btn:hover:not(:disabled) {
+            background: var(--primary);
+            color: #fff;
+            border-color: var(--primary);
+        }
+        .pagination-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        .pagination-info {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
     </style>
 </head>
 <body>
@@ -452,48 +499,107 @@
             </div>
             <div class="card">
                 <div class="title"><i class="fas fa-inbox"></i> Dataset Requests</div>
-                <table>
-                    <thead><tr><th>User</th><th>Requested Dataset</th><th>Status</th><th>Action</th></tr></thead>
-                    <tbody id="requestsRows"></tbody>
-                </table>
+                <div class="table-container">
+                    <table>
+                        <thead><tr><th>User</th><th>Requested Dataset</th><th>Status</th><th>Requested At</th><th>Action</th></tr></thead>
+                        <tbody id="requestsRows"></tbody>
+                    </table>
+                </div>
             </div>
             <div class="card">
                 <div class="title"><i class="fas fa-comment-dots"></i> User Feedback</div>
-                <table>
-                    <thead><tr><th>User</th><th>Message</th><th>Timestamp</th></tr></thead>
-                    <tbody id="feedbackRows"></tbody>
-                </table>
+                <div class="table-container">
+                    <table>
+                        <thead><tr><th>User</th><th>Feedback Text</th><th>Category</th><th>Timestamp</th><th>Status</th><th>Actions</th></tr></thead>
+                        <tbody id="feedbackRows"></tbody>
+                    </table>
+                </div>
             </div>
             <div class="card">
                 <div class="title"><i class="fas fa-shield-alt"></i> Suspicious Activity</div>
-                <table>
-                    <thead><tr><th>User</th><th>High Query Count</th><th>Rows Accessed</th></tr></thead>
-                    <tbody id="suspiciousRows"></tbody>
-                </table>
+                <div class="table-container">
+                    <table>
+                        <thead><tr><th>User</th><th>Activity Reason</th><th>Timestamp</th><th>Severity</th><th>Warning Count</th><th>Action Triggered</th><th>Actions</th></tr></thead>
+                        <tbody id="suspiciousRows"></tbody>
+                    </table>
+                </div>
+                <!-- Pagination Bar -->
+                <div class="pagination-bar">
+                    <span class="pagination-info" id="suspiciousPageInfo">Showing 0-0 of 0</span>
+                    <div class="pagination-controls">
+                        <button class="pagination-btn" id="suspiciousPrevBtn" onclick="changeSuspiciousPage(-1)">Previous</button>
+                        <button class="pagination-btn" id="suspiciousNextBtn" onclick="changeSuspiciousPage(1)">Next</button>
+                    </div>
+                </div>
             </div>
             <div class="card">
                 <div class="title"><i class="fas fa-tachometer-alt"></i> Rate Limiting</div>
-                <table>
-                    <thead><tr><th>User</th><th>Max Queries/Day</th><th>Max Rows/Day</th></tr></thead>
-                    <tbody id="limitRows"></tbody>
-                </table>
+                <div class="table-container">
+                    <table>
+                        <thead><tr><th>User</th><th>Req/Min</th><th>Queries/Day</th><th>Rows/Day</th><th>Downloads/Month</th></tr></thead>
+                        <tbody id="limitRows"></tbody>
+                    </table>
+                </div>
                 <div class="meta">Limits are read from user profile settings and used for policy UI alignment.</div>
             </div>
             <div class="card full">
-                <div class="title"><i class="fas fa-credit-card"></i> Payments & Plans</div>
-                <table>
-                    <thead><tr><th>User</th><th>Plan</th><th>Expiry</th><th>Assign Plan</th></tr></thead>
-                    <tbody id="planRows"></tbody>
-                </table>
-                <div style="height:10px"></div>
-                <table>
-                    <thead><tr><th>Transaction ID</th><th>User</th><th>Amount</th><th>Status</th><th>Time</th></tr></thead>
-                    <tbody id="txnRows"></tbody>
-                </table>
+                <div class="title"><i class="fas fa-credit-card"></i> Payments &amp; Plans</div>
+                
+                <!-- Revenue & Subscription Summary Strip -->
+                <div style="display: flex; gap: 14px; margin-bottom: 20px; flex-wrap: wrap;">
+                    <div style="flex: 1; min-width: 180px; background: rgba(34, 197, 94, 0.05); border: 1px solid rgba(34, 197, 94, 0.2); border-radius: 12px; padding: 14px; text-align: center;">
+                        <div style="font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Total Revenue</div>
+                        <div style="font-size: 1.5rem; font-weight: 800; color: #22c55e; margin-top: 4px;" id="summaryRevenue">₹0</div>
+                    </div>
+                    <div style="flex: 1; min-width: 180px; background: rgba(46, 91, 186, 0.05); border: 1px solid rgba(46, 91, 186, 0.2); border-radius: 12px; padding: 14px; text-align: center;">
+                        <div style="font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Active Premium Subscriptions</div>
+                        <div style="font-size: 1.5rem; font-weight: 800; color: var(--primary); margin-top: 4px;" id="summaryActiveSubs">0</div>
+                    </div>
+                    <div style="flex: 1; min-width: 180px; background: rgba(239, 68, 68, 0.05); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 12px; padding: 14px; text-align: center;">
+                        <div style="font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Failed / Cancelled Payments</div>
+                        <div style="font-size: 1.5rem; font-weight: 800; color: #ef4444; margin-top: 4px;" id="summaryFailedPays">0</div>
+                    </div>
+                </div>
+
+                <!-- Search & Status Filter Controls -->
+                <div style="display: flex; gap: 10px; margin-bottom: 16px; align-items: center; flex-wrap: wrap;">
+                    <div style="flex: 1; position: relative;">
+                        <input type="text" id="paySearch" placeholder="Search by User Email or Transaction ID..." oninput="renderPayments()" style="width: 100%; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--glass-border); background: var(--bg-page); color: var(--text-main); font-size: 0.82rem;">
+                    </div>
+                    <div>
+                        <select id="payStatusFilter" onchange="renderPayments()" style="padding: 8px 12px; border-radius: 8px; border: 1px solid var(--glass-border); background: var(--bg-page); color: var(--text-main); font-size: 0.82rem; font-weight: 600;">
+                            <option value="all">All Statuses</option>
+                            <option value="success">Success</option>
+                            <option value="pending">Pending</option>
+                            <option value="failed">Failed / Cancelled</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div style="font-weight: 700; font-size: 0.88rem; margin-bottom: 8px; color: var(--primary); display: flex; align-items: center; gap: 6px;"><i class="fas fa-users"></i> Active Subscriptions &amp; Expirations</div>
+                <div class="table-container">
+                    <table>
+                        <thead><tr><th>User</th><th>Plan</th><th>Billing Cycle</th><th>Payment Status</th><th>Renewal Date</th><th>Total Paid</th><th>Actions</th></tr></thead>
+                        <tbody id="planRows"></tbody>
+                    </table>
+                </div>
+                <div style="height:20px"></div>
+                <div style="font-weight: 700; font-size: 0.88rem; margin-bottom: 8px; color: var(--primary); display: flex; align-items: center; gap: 6px;"><i class="fas fa-history"></i> Payment Transaction History</div>
+                <div class="table-container">
+                    <table>
+                        <thead><tr><th>Transaction ID</th><th>User</th><th>Amount</th><th>Status</th><th>Billing Cycle</th><th>Time</th><th>Actions</th></tr></thead>
+                        <tbody id="txnRows"></tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
     <script>
+        let allTransactions = [];
+        let allUserPlans = [];
+        let allSuspicious = [];
+        let suspiciousPage = 1;
+        const suspiciousPageSize = 5;
         const row = (vals) => `<tr>${vals.map(v => `<td>${v}</td>`).join("")}</tr>`;
         const dt = (v) => v ? new Date(v).toLocaleString() : "-";
         const esc = (s) => String(s ?? "").replace(/"/g, "&quot;");
@@ -501,15 +607,16 @@
             const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
             if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.detail || j.error || `HTTP ${r.status}`); }
             return r.json();
-        }
-        async function loadAll() {
+        }        async function loadAll() {
             const [usersRes, reqRes, payRes] = await Promise.all([
                 fetch("/admin/users").then(r => r.json()),
                 fetch("/admin/requests").then(r => r.json()),
                 fetch("/admin/payments").then(r => r.json())
             ]);
             const users = usersRes.users || [];
-            document.getElementById("usersCardGrid").innerHTML = users.slice(0, 80).map(u => {
+            const normalUsers = users.filter(u => u.role !== 'admin');
+
+            document.getElementById("usersCardGrid").innerHTML = normalUsers.slice(0, 80).map(u => {
                 const initial = (u.username || u.email || 'U').charAt(0).toUpperCase();
                 const cardId = `user-card-${u.email.replace(/[@.]/g, '-')}`;
                 const isBlocked = u.status === 'blocked';
@@ -521,7 +628,7 @@
 
                 return `
                 <div class="user-card" id="${cardId}" onclick="toggleUserCard('${cardId}', event)">
-                    <div class="user-card-top">
+                     <div class="user-card-top">
                         <div class="user-avatar">${initial}</div>
                         <div class="user-details">
                             <div class="user-name">${esc(u.username || 'Analyst')}</div>
@@ -607,6 +714,7 @@
                 </div>
                 `;
             }).join("") || `<div style="text-align:center;color:var(--text-muted);padding:24px;grid-column:1/-1;">No users registered.</div>`;
+
             const docs = reqRes.documents || [];
             document.getElementById("verificationCardsContainer").innerHTML = docs.slice(0, 40).map(d => {
                 let details = {};
@@ -618,7 +726,6 @@
                 const cardId = `v-card-${d.id}`;
                 const initial = (d.username || d.user_email || 'U').charAt(0).toUpperCase();
                 
-                // Extract org-specific fields beautifully
                 const orgEntity = details.institution || details.company || details.researchArea || details.portfolio || "N/A";
                 const orgRole = details.studentName || details.designation || "N/A";
                 const orgId = details.studentId || details.employeeId || details.researchId || "N/A";
@@ -714,36 +821,171 @@
                 </div>
                 `;
             }).join("") || `<div style="text-align:center;color:var(--text-muted);padding:24px;">No pending verification requests.</div>`;
+
             const reqs = reqRes.dataset_requests || [];
             document.getElementById("requestsRows").innerHTML = reqs.slice(0, 40).map(r => row([
-                esc(r.user_email), esc(r.requested_dataset || "-"), esc(r.status || "pending"),
-                `<button class="btn" onclick="requestAction(${r.id}, 'approved')">Approve</button><button class="btn red" onclick="requestAction(${r.id}, 'rejected')">Reject</button>`
-            ])).join("") || row(["-", "-", "-", "-"]);
+                esc(r.user_email), esc(r.requested_dataset || "-"), esc(r.status || "pending"), dt(r.created_at),
+                `<div style="display:flex; gap:4px;">
+                    <button class="btn" style="background:#22c55e;" onclick="requestAction(${r.id}, 'approved', 'dataset_request')">Approve</button>
+                    <button class="btn" style="background:#3b82f6;" onclick="requestAction(${r.id}, 'reviewing', 'dataset_request')">Reviewing</button>
+                    <button class="btn red" onclick="requestAction(${r.id}, 'rejected', 'dataset_request')">Reject</button>
+                </div>`
+            ])).join("") || row(["-", "-", "-", "-", "-"]);
+
             const fb = reqRes.feedback || [];
-            document.getElementById("feedbackRows").innerHTML = fb.slice(0, 40).map(f => row([esc(f.user_email), esc(f.message || "-"), dt(f.created_at)])).join("") || row(["-", "-", "-"]);
-            const sp = reqRes.suspicious_activity || [];
-            document.getElementById("suspiciousRows").innerHTML = sp.slice(0, 40).map(s => row([esc(s.user_email), s.query_count || 0, Number(s.rows_accessed || 0).toLocaleString()])).join("") || row(["-", "-", "-"]);
-            document.getElementById("limitRows").innerHTML = users.slice(0, 40).map(u => row([esc(u.email), Number(u.max_queries_day || 0).toLocaleString(), Number(u.max_rows_day || 0).toLocaleString()])).join("") || row(["-", "-", "-"]);
-            const plans = payRes.user_plans || [];
-            document.getElementById("planRows").innerHTML = plans.slice(0, 80).map(p => row([
-                esc(p.user_email),
-                esc(p.plan || "free"),
-                dt(p.plan_expiry),
-                `<select onchange="assignPlan('${esc(p.user_email)}', this.value)"><option ${p.plan==='free'?'selected':''}>free</option><option ${p.plan==='pro'?'selected':''}>pro</option><option ${p.plan==='enterprise'?'selected':''}>enterprise</option></select>`
-            ])).join("") || row(["-", "-", "-", "-"]);
-            const txns = payRes.transactions || [];
-            document.getElementById("txnRows").innerHTML = txns.slice(0, 80).map(t => row([esc(t.transaction_id), esc(t.user_email), Number(t.amount || 0).toLocaleString(), esc(t.status || "-"), dt(t.created_at)])).join("") || row(["-", "-", "-", "-", "-"]);
+            document.getElementById("feedbackRows").innerHTML = fb.slice(0, 40).map(f => {
+                const statusBadge = f.status === 'resolved' ? '<span class="pill active">resolved</span>' :
+                                    f.status === 'archived' ? '<span class="pill" style="background:#f1f5f9; color:#64748b; border-color:#e2e8f0;">archived</span>' :
+                                    f.status === 'respond_later' ? '<span class="pill" style="background:#fff7ed; color:#ea580c; border-color:#ffedd5;">respond_later</span>' :
+                                    `<span class="pill">${esc(f.status || 'pending')}</span>`;
+                return row([
+                    esc(f.user_email),
+                    esc(f.message || "-"),
+                    esc(f.requested_dataset || "General"),
+                    dt(f.created_at),
+                    statusBadge,
+                    `<div style="display:flex; gap:4px;">
+                        <button class="btn" style="background:#22c55e;" onclick="requestAction(${f.id}, 'resolved', 'feedback')">Resolve</button>
+                        <button class="btn" style="background:#ea580c;" onclick="requestAction(${f.id}, 'respond_later', 'feedback')">Later</button>
+                        <button class="btn red" onclick="requestAction(${f.id}, 'archived', 'feedback')">Archive</button>
+                    </div>`
+                ]);
+            }).join("") || row(["-", "-", "-", "-", "-", "-"]);
+
+            allSuspicious = reqRes.suspicious_activity || [];
+            renderSuspiciousTable();
+
+            document.getElementById("limitRows").innerHTML = normalUsers.slice(0, 40).map(u => {
+                return row([
+                    esc(u.email),
+                    `${u.rate_limit || 5} req/min`,
+                    Number(u.max_queries_day || 0).toLocaleString(),
+                    Number(u.max_rows_day || 0).toLocaleString(),
+                    Number(u.max_downloads || 0).toLocaleString()
+                ]);
+            }).join("") || row(["-", "-", "-", "-", "-"]);
+
+            allUserPlans = payRes.user_plans || [];
+            allTransactions = payRes.transactions || [];
+            renderPayments();
         }
+
+        function renderPayments() {
+            const searchVal = document.getElementById("paySearch").value.toLowerCase().trim();
+            const statusVal = document.getElementById("payStatusFilter").value;
+
+            const filteredPlans = allUserPlans.filter(p => {
+                return !searchVal || p.user_email.toLowerCase().includes(searchVal) || (p.plan || "").toLowerCase().includes(searchVal);
+            });
+
+            document.getElementById("planRows").innerHTML = filteredPlans.slice(0, 80).map(p => {
+                const planBadgeColor = p.plan === 'enterprise' ? 'background: rgba(139, 92, 246, 0.1); color: #8b5cf6;' : p.plan === 'pro' ? 'background: rgba(245, 158, 11, 0.1); color: #f59e0b;' : 'background: rgba(107, 114, 128, 0.1); color: #6b7280;';
+                const planBadge = `<span class="badge-plan" style="${planBadgeColor}; display: inline-block;">${esc(p.plan || "free")}</span>`;
+                
+                const cancelBtn = (p.plan !== 'free' && !p.cancel_at_period_end) ? 
+                    `<button class="btn red" style="padding:4px 8px; font-size:0.7rem;" onclick="adminCancelSub('${esc(p.user_email)}')">Cancel Sub</button>` : 
+                    p.cancel_at_period_end ? `<span style="font-size:0.75rem; color:var(--text-muted); font-weight:600;">Cancelled (Pending End)</span>` : '';
+                
+                const extendBtn = p.plan !== 'free' ? 
+                    `<button class="btn" style="padding:4px 8px; font-size:0.7rem; background:var(--accent);" onclick="adminExtendExpiry('${esc(p.user_email)}')">Extend</button>` : '';
+
+                return row([
+                    esc(p.user_email),
+                    planBadge,
+                    `<span style="text-transform:uppercase; font-size:0.75rem; font-weight:600;">${esc(p.billing_cycle || "monthly")}</span>`,
+                    `<span class="pill ${p.payment_status === 'success' ? 'active' : p.payment_status === 'failed' ? 'blocked' : ''}">${esc(p.payment_status || "n/a")}</span>`,
+                    dt(p.plan_expiry),
+                    `<strong>₹${Number(p.total_paid || 0).toLocaleString()}</strong>`,
+                    `<div style="display:flex; align-items:center; gap:6px;">
+                        <select onchange="assignPlan('${esc(p.user_email)}', this.value)" style="padding:2px 6px;">
+                            <option value="free" ${p.plan==='free'?'selected':''}>free</option>
+                            <option value="pro" ${p.plan==='pro'?'selected':''}>pro</option>
+                            <option value="enterprise" ${p.plan==='enterprise'?'selected':''}>enterprise</option>
+                        </select>
+                        ${cancelBtn}
+                        ${extendBtn}
+                    </div>`
+                ]);
+            }).join("") || row(["-", "-", "-", "-", "-", "-", "-"]);
+
+            const filteredTxns = allTransactions.filter(t => {
+                const matchesSearch = !searchVal || t.user_email.toLowerCase().includes(searchVal) || (t.transaction_id || "").toLowerCase().includes(searchVal);
+                
+                let matchesStatus = true;
+                if (statusVal !== "all") {
+                    if (statusVal === "failed") {
+                        matchesStatus = t.status === "failed" || t.status === "cancelled";
+                    } else {
+                        matchesStatus = t.status === statusVal;
+                    }
+                }
+                return matchesSearch && matchesStatus;
+            });
+
+            document.getElementById("txnRows").innerHTML = filteredTxns.slice(0, 80).map(t => {
+                let statusBadge = "";
+                if (t.status === "success") {
+                    statusBadge = '<span class="pill active">success</span>';
+                } else if (t.status === "failed") {
+                    statusBadge = '<span class="pill blocked">failed</span>';
+                } else if (t.status === "cancelled") {
+                    statusBadge = '<span class="pill" style="background:#f1f5f9; color:#64748b; border-color:#e2e8f0;">cancelled</span>';
+                } else if (t.status === "pending") {
+                    statusBadge = '<span class="pill" style="background:#fff7ed; color:#ea580c; border-color:#ffedd5;">pending</span>';
+                } else if (t.status === "refunded") {
+                    statusBadge = '<span class="pill" style="background:#eff6ff; color:#2563eb; border-color:#dbeafe;">refunded</span>';
+                } else {
+                    statusBadge = `<span class="pill">${esc(t.status)}</span>`;
+                }
+
+                const refundBtn = t.status === 'success' ? 
+                    `<button class="btn red" style="padding:4px 8px; font-size:0.7rem;" onclick="adminRefundPay('${esc(t.transaction_id)}')">Refund</button>` : '';
+
+                return row([
+                    `<code style="font-size: 0.78rem; font-weight: 600;">${esc(t.transaction_id || "-")}</code>`,
+                    esc(t.user_email),
+                    `<strong>₹${Number(t.amount || 0).toLocaleString()}</strong>`,
+                    statusBadge,
+                    `<span style="font-weight:600; text-transform:uppercase; font-size:0.75rem;">${esc(t.billing_cycle || "monthly")}</span>`,
+                    dt(t.created_at),
+                    refundBtn
+                ]);
+            }).join("") || row(["-", "-", "-", "-", "-", "-", "-"]);
+
+            let totalRevenue = 0;
+            let activeSubsCount = 0;
+            let failedCount = 0;
+
+            allTransactions.forEach(t => {
+                if (t.status === "success") {
+                    totalRevenue += Number(t.amount || 0);
+                } else if (t.status === "failed" || t.status === "cancelled") {
+                    failedCount++;
+                }
+            });
+
+            allUserPlans.forEach(p => {
+                if (p.plan === "pro" || p.plan === "enterprise") {
+                    activeSubsCount++;
+                }
+            });
+
+            document.getElementById("summaryRevenue").textContent = "₹" + totalRevenue.toLocaleString();
+            document.getElementById("summaryActiveSubs").textContent = activeSubsCount.toString();
+            document.getElementById("summaryFailedPays").textContent = failedCount.toString();
+        }
+
         function toggleUserCard(cardId, event) {
             if (event.target.closest('.user-card-expander') || event.target.tagName === 'SELECT' || event.target.tagName === 'BUTTON') return;
             const card = document.getElementById(cardId);
             card.classList.toggle('expanded');
         }
+
         async function changeRole(email, role) { await post("/admin/users/update-role", { email, role }); await loadAll(); }
         async function toggleBlock(email, blocked) { await post("/admin/users/block", { email, blocked, reason: blocked ? "Admin action" : "" }); await loadAll(); }
         async function verifyUser(email, approved) { await post("/admin/users/verify", { email, approved }); await loadAll(); }
         async function verifyDoc(email, id, approved) { await post("/admin/users/verify", { email, approved, document_id: id }); await loadAll(); }
-        async function requestAction(id, status) { await post("/admin/requests/action", { id, status, action_type: "dataset_request" }); await loadAll(); }
+        async function requestAction(id, status, action_type = "dataset_request") { await post("/admin/requests/action", { id, status, action_type }); await loadAll(); }
         async function assignPlan(email, plan) { await post("/admin/users/assign-plan", { email, plan }); await loadAll(); }
         async function deleteUser(email) {
             if (!confirm(`Are you sure you want to permanently delete user ${email} from the database? This action will remove all query logs and documents for this user, and cannot be undone.`)) return;
@@ -754,6 +996,7 @@
                 alert(`Error deleting user: ${err.message}`);
             }
         }
+
         async function resetLimits(email) {
             if (!confirm(`Are you sure you want to reset all query, row, and download usage limits for user ${email}? This will set their usage counts to 0 and reset any governance warnings.`)) return;
             try {
@@ -763,6 +1006,7 @@
                 alert(`Error resetting limits: ${err.message}`);
             }
         }
+
         async function unfreezeUser(email) {
             if (!confirm(`Are you sure you want to unfreeze the account for user ${email}?`)) return;
             try {
@@ -772,6 +1016,164 @@
                 alert(`Error unfreezing user: ${err.message}`);
             }
         }
+
+        async function warnUser(email) {
+            const msg = prompt(`Enter warning message for ${email}:`, "Manual admin warning for suspicious activity");
+            if (msg === null) return;
+            try {
+                await post("/admin/users/warn", { email, message: msg });
+                alert("Warning issued successfully!");
+                await loadAll();
+            } catch (err) {
+                alert("Error: " + err.message);
+            }
+        }
+
+        async function freezeUser(email) {
+            if (!confirm(`Are you sure you want to freeze user ${email} for 24 hours?`)) return;
+            try {
+                await post("/admin/users/freeze", { email });
+                alert("User frozen successfully!");
+                await loadAll();
+            } catch (err) {
+                alert("Error: " + err.message);
+            }
+        }
+
+        async function unblockUser(email, status) {
+            try {
+                if (status === 'blocked') {
+                    await post("/admin/users/block", { email, blocked: false });
+                } else {
+                    await post("/admin/users/unfreeze", { email });
+                }
+                alert("User activated successfully!");
+                await loadAll();
+            } catch (err) {
+                alert("Error: " + err.message);
+            }
+        }
+
+        function investigateUser(email) {
+            const cardId = `user-card-${email.replace(/[@.]/g, '-')}`;
+            const card = document.getElementById(cardId);
+            if (card) {
+                card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                card.classList.add('expanded');
+                card.style.borderColor = 'var(--accent)';
+                setTimeout(() => { card.style.borderColor = ''; }, 3000);
+            } else {
+                alert(`User details for ${email} could not be found in the current page list.`);
+            }
+        }
+
+        async function adminCancelSub(email) {
+            if (!confirm(`Are you sure you want to cancel the subscription for ${email}? The user will keep access until their period ends.`)) return;
+            try {
+                await post("/admin/payments/cancel-subscription", { email });
+                alert("Subscription cancelled successfully.");
+                await loadAll();
+            } catch (err) {
+                alert(`Error: ${err.message}`);
+            }
+        }
+
+        async function adminExtendExpiry(email) {
+            const days = prompt(`Enter number of days to extend the expiry of ${email}'s plan:`, "30");
+            if (days === null || days.trim() === "") return;
+            const daysInt = parseInt(days);
+            if (isNaN(daysInt) || daysInt <= 0) {
+                alert("Please enter a valid positive number of days.");
+                return;
+            }
+            try {
+                const now = new Date();
+                now.setDate(now.getDate() + daysInt);
+                const expiryStr = now.toISOString().slice(0, 19).replace('T', ' ');
+                await post("/admin/users/assign-plan", { email, plan_expiry: expiryStr });
+                alert(`Plan expiry extended by ${daysInt} days successfully.`);
+                await loadAll();
+            } catch (err) {
+                alert(`Error: ${err.message}`);
+            }
+        }
+
+        async function adminRefundPay(txnId) {
+            if (!confirm(`Are you sure you want to refund transaction ${txnId}? This will update the database payment status to refunded.`)) return;
+            try {
+                await post("/admin/payments/refund", { transaction_id: txnId });
+                alert("Payment marked as refunded successfully.");
+                await loadAll();
+            } catch (err) {
+                alert(`Error: ${err.message}`);
+            }
+        }
+
+        function renderSuspiciousTable() {
+            const start = (suspiciousPage - 1) * suspiciousPageSize;
+            const paginatedItems = allSuspicious.slice(start, start + suspiciousPageSize);
+
+            document.getElementById("suspiciousRows").innerHTML = paginatedItems.map(s => {
+                const severityPill = s.risk_score > 70 ? `<span class="pill blocked">${s.risk_score} (High)</span>` :
+                                     s.risk_score > 35 ? `<span class="pill" style="background:#fff7ed; color:#ea580c; border-color:#ffedd5;">${s.risk_score} (Medium)</span>` :
+                                     `<span class="pill active">${s.risk_score} (Low)</span>`;
+                const warnBadge = s.warning_count > 0 ? `<strong style="color:#ef4444;">${s.warning_count}</strong>` : `<span style="color:var(--text-muted);">${s.warning_count}</span>`;
+                
+                let autoAction = esc(s.auto_action || 'active');
+                if (s.auto_action === 'frozen') {
+                    autoAction = `<span class="pill" style="background:#6366f1; color:white; border-color:#6366f1;">frozen</span>`;
+                } else if (s.auto_action === 'blocked') {
+                    autoAction = `<span class="pill blocked">blocked</span>`;
+                } else {
+                    autoAction = `<span class="pill active">active</span>`;
+                }
+
+                let actionsHtml = "";
+                if (s.auto_action === 'blocked' || s.auto_action === 'frozen') {
+                    actionsHtml = `<button class="btn" style="background:#22c55e;" onclick="unblockUser('${esc(s.user_email)}', '${esc(s.auto_action)}')">Activate</button>`;
+                } else {
+                    actionsHtml = `
+                        <button class="btn" style="background:#f59e0b;" onclick="warnUser('${esc(s.user_email)}')">Warn</button>
+                        <button class="btn red" onclick="freezeUser('${esc(s.user_email)}')">Freeze</button>
+                    `;
+                }
+                
+                return row([
+                    esc(s.user_email),
+                    `<span style="font-weight:500;">${esc(s.activity_type)}</span><br><small style="color:var(--text-muted); font-size:0.75rem;">${esc(s.detail)}</small>`,
+                    dt(s.created_at),
+                    severityPill,
+                    warnBadge,
+                    autoAction,
+                    `<div style="display:flex; gap:4px;">
+                        ${actionsHtml}
+                        <button class="btn" style="background:var(--primary);" onclick="investigateUser('${esc(s.user_email)}')">Investigate</button>
+                    </div>`
+                ]);
+            }).join("") || row(["-", "-", "-", "-", "-", "-", "-"]);
+
+            const total = allSuspicious.length;
+            const totalPages = Math.ceil(total / suspiciousPageSize) || 1;
+            
+            if (suspiciousPage > totalPages) suspiciousPage = totalPages;
+            if (suspiciousPage < 1) suspiciousPage = 1;
+
+            const fromIdx = total === 0 ? 0 : start + 1;
+            const toIdx = Math.min(start + suspiciousPageSize, total);
+
+            document.getElementById("suspiciousPageInfo").textContent = `Showing ${fromIdx}-${toIdx} of ${total}`;
+            document.getElementById("suspiciousPrevBtn").disabled = (suspiciousPage <= 1);
+            document.getElementById("suspiciousNextBtn").disabled = (suspiciousPage >= totalPages);
+        }
+
+        function changeSuspiciousPage(direction) {
+            const totalPages = Math.ceil(allSuspicious.length / suspiciousPageSize) || 1;
+            suspiciousPage += direction;
+            if (suspiciousPage < 1) suspiciousPage = 1;
+            if (suspiciousPage > totalPages) suspiciousPage = totalPages;
+            renderSuspiciousTable();
+        }
+
         loadAll();
 
         // Theme Toggle Functionality

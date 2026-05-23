@@ -745,7 +745,8 @@ async def api_user_governance(
                 COALESCE(suspicious_score, 0) AS suspicious_score,
                 freeze_until,
                 plan_expiry,
-                blocked_reason
+                blocked_reason,
+                COALESCE(cancel_at_period_end, FALSE) AS cancel_at_period_end
             FROM users WHERE email = $1 LIMIT 1
             """,
             user_email
@@ -770,6 +771,21 @@ async def api_user_governance(
         # Get governance notices
         notices = await get_user_governance_notices(conn, user_email)
 
+        # Get last successful payment details
+        last_pay = await conn.fetchrow(
+            """
+            SELECT billing_cycle, expiry_date, payment_status
+            FROM payments
+            WHERE email = $1 AND payment_status = 'success'
+            ORDER BY created_at DESC
+            LIMIT 1
+            """,
+            user_email
+        )
+        billing_cycle = last_pay["billing_cycle"] if last_pay else "N/A"
+        renewal_date = last_pay["expiry_date"] if last_pay else user_row["plan_expiry"]
+        payment_status = last_pay["payment_status"] if last_pay else "N/A"
+
         return {
             "plan": plan_name,
             "role": role_name,
@@ -777,6 +793,10 @@ async def api_user_governance(
             "is_blocked": bool(user_row["is_blocked"]),
             "status": str(user_row["status"]),
             "plan_expiry": format_local_timestamp_to_utc_iso(user_row["plan_expiry"]),
+            "billing_cycle": billing_cycle,
+            "renewal_date": format_local_timestamp_to_utc_iso(renewal_date),
+            "payment_status": payment_status,
+            "cancel_at_period_end": bool(user_row["cancel_at_period_end"]),
             "testing_mode": False,
             "limits": {
                 "max_queries_per_day": plan_limits.get("max_queries_per_day", 1000),
@@ -4644,14 +4664,14 @@ async def admin_assign_plan_api(
     async with pool.acquire() as conn:
         if plan_expiry:
             await conn.execute(
-                "UPDATE users SET plan = $1, plan_expiry = $2::timestamp WHERE email = $3",
+                "UPDATE users SET plan = $1, plan_expiry = $2::timestamp, cancel_at_period_end = FALSE WHERE email = $3",
                 plan,
                 plan_expiry,
                 email,
             )
         else:
             await conn.execute(
-                "UPDATE users SET plan = $1 WHERE email = $2",
+                "UPDATE users SET plan = $1, cancel_at_period_end = FALSE WHERE email = $2",
                 plan,
                 email,
             )
@@ -4826,19 +4846,28 @@ async def admin_requests_api(
         except Exception:
             docs = []
         admin_emails_subquery = "SELECT email FROM users WHERE role_id = 1"
-        suspicious = await conn.fetch(
-            f"""
-            SELECT user_email, COUNT(*) AS query_count, COALESCE(SUM(rows_returned), 0) AS rows_accessed
-            FROM usage_logs
-            WHERE endpoint ILIKE '%query%'
-              AND queried_at >= NOW() - INTERVAL '24 hours'
-              AND user_email NOT IN ({admin_emails_subquery})
-            GROUP BY user_email
-            HAVING COUNT(*) > 50
-            ORDER BY query_count DESC
-            LIMIT 30
-            """
-        )
+        try:
+            suspicious = await conn.fetch(
+                f"""
+                SELECT 
+                    l.id,
+                    l.user_email, 
+                    COALESCE(l.activity_type, 'unknown') AS activity_type,
+                    COALESCE(l.detail, '') AS detail,
+                    l.created_at,
+                    COALESCE(l.risk_score, 0) AS risk_score,
+                    COALESCE(u.warning_count, 0) AS warning_count,
+                    COALESCE(u.status, 'active') AS auto_action
+                FROM suspicious_activity_logs l
+                JOIN users u ON u.email = l.user_email
+                WHERE l.user_email NOT IN ({admin_emails_subquery})
+                ORDER BY l.created_at DESC
+                LIMIT 100
+                """
+            )
+        except Exception as e:
+            print(f"Error fetching suspicious activity logs: {e}")
+            suspicious = []
     formatted_dataset_requests = []
     for r in dataset_requests:
         d = dict(r)
@@ -4862,11 +4891,18 @@ async def admin_requests_api(
             d["registration_timestamp"] = format_local_timestamp_to_utc_iso(d["registration_timestamp"])
         formatted_docs.append(d)
 
+    formatted_suspicious = []
+    for r in suspicious:
+        d = dict(r)
+        if "created_at" in d:
+            d["created_at"] = format_local_timestamp_to_utc_iso(d["created_at"])
+        formatted_suspicious.append(d)
+
     return {
         "dataset_requests": formatted_dataset_requests,
         "feedback": formatted_feedback,
         "documents": formatted_docs,
-        "suspicious_activity": [dict(r) for r in suspicious],
+        "suspicious_activity": formatted_suspicious,
     }
 
 
@@ -4879,7 +4915,7 @@ async def admin_requests_action_api(
     request_id = int(body.get("id") or 0)
     status = (body.get("status") or "").strip().lower()
     action_type = (body.get("action_type") or "dataset_request").strip().lower()
-    if request_id <= 0 or status not in {"approved", "rejected", "pending"}:
+    if request_id <= 0 or status not in {"approved", "rejected", "pending", "reviewing", "resolved", "archived", "respond_later"}:
         raise HTTPException(status_code=400, detail="Invalid payload")
     pool = request.app.state.db
     async with pool.acquire() as conn:
@@ -4907,22 +4943,53 @@ async def admin_payments_api(
     async with pool.acquire() as conn:
         plans = await conn.fetch(
             """
-            SELECT email AS user_email, COALESCE(plan, 'free') AS plan, plan_expiry
-            FROM users
-            ORDER BY email
+            SELECT 
+                u.email AS user_email, 
+                COALESCE(u.plan, 'free') AS plan, 
+                u.plan_expiry,
+                COALESCE(u.cancel_at_period_end, FALSE) AS cancel_at_period_end,
+                (
+                    SELECT billing_cycle 
+                    FROM payments 
+                    WHERE email = u.email 
+                    ORDER BY created_at DESC 
+                    LIMIT 1
+                ) AS billing_cycle,
+                (
+                    SELECT payment_status 
+                    FROM payments 
+                    WHERE email = u.email 
+                    ORDER BY created_at DESC 
+                    LIMIT 1
+                ) AS payment_status,
+                (
+                    SELECT COALESCE(SUM(amount), 0) 
+                    FROM payments 
+                    WHERE email = u.email AND payment_status = 'success'
+                ) AS total_paid
+            FROM users u
+            WHERE u.role_id != 1
+            ORDER BY u.email
             LIMIT 500
             """
         )
         try:
             txns = await conn.fetch(
                 """
-                SELECT transaction_id, user_email, amount, status, created_at
+                SELECT 
+                    COALESCE(razorpay_payment_id, razorpay_order_id, '') AS transaction_id, 
+                    email AS user_email, 
+                    amount, 
+                    payment_status AS status, 
+                    billing_cycle,
+                    created_at
                 FROM payments
                 ORDER BY created_at DESC
                 LIMIT 200
                 """
             )
-        except Exception:
+        except Exception as e:
+            print(f"Error fetching txns: {e}")
             txns = []
     formatted_plans = []
     for r in plans:
@@ -4939,6 +5006,106 @@ async def admin_payments_api(
         formatted_txns.append(d)
 
     return {"user_plans": formatted_plans, "transactions": formatted_txns}
+
+
+@app.post("/admin/users/warn")
+async def admin_warn_user_api(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
+):
+    body = await request.json()
+    email = (body.get("email") or "").strip()
+    violation_type = (body.get("violation_type") or "manual_admin_warning").strip()
+    message = (body.get("message") or "Admin issued a governance warning").strip()
+    if not email:
+        raise HTTPException(status_code=400, detail="email is required")
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        from security.warning_manager import issue_governance_warning
+        await issue_governance_warning(conn, email, violation_type, message)
+    return {"ok": True}
+
+
+@app.post("/admin/users/freeze")
+async def admin_freeze_user_api(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
+):
+    body = await request.json()
+    email = (body.get("email") or "").strip()
+    if not email:
+        raise HTTPException(status_code=400, detail="email is required")
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            freeze_until = datetime.utcnow() + timedelta(days=1)
+            await conn.execute(
+                """
+                UPDATE users
+                SET status = 'frozen',
+                    freeze_until = $1
+                WHERE email = $2
+                """,
+                freeze_until,
+                email
+            )
+            await conn.execute(
+                """
+                INSERT INTO governance_logs (user_email, event_type, detail, created_at)
+                VALUES ($1, 'manual_freeze', 'Admin manually froze the account for 24 hours', CURRENT_TIMESTAMP)
+                """,
+                email
+            )
+    return {"ok": True}
+
+
+@app.post("/admin/payments/cancel-subscription")
+async def admin_cancel_subscription_api(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
+):
+    body = await request.json()
+    email = (body.get("email") or "").strip()
+    if not email:
+        raise HTTPException(status_code=400, detail="email is required")
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        user_row = await conn.fetchrow(
+            "SELECT plan, plan_expiry FROM users WHERE email = $1 LIMIT 1", email
+        )
+        if not user_row or user_row["plan"] == "free":
+            raise HTTPException(status_code=400, detail="No active paid subscription found to cancel")
+        await conn.execute("UPDATE users SET cancel_at_period_end = TRUE WHERE email = $1", email)
+        await conn.execute(
+            """
+            INSERT INTO governance_logs (user_email, event_type, detail, created_at)
+            VALUES ($1, 'subscription_cancelled', 'Admin manually cancelled the subscription', CURRENT_TIMESTAMP)
+            """,
+            email
+        )
+    return {"ok": True}
+
+
+@app.post("/admin/payments/refund")
+async def admin_refund_payment_api(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
+):
+    body = await request.json()
+    transaction_id = (body.get("transaction_id") or "").strip()
+    if not transaction_id:
+        raise HTTPException(status_code=400, detail="transaction_id is required")
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            UPDATE payments
+            SET payment_status = 'refunded'
+            WHERE razorpay_payment_id = $1 OR razorpay_order_id = $1
+            """,
+            transaction_id
+        )
+    return {"ok": True}
 
 
 @app.get("/admin/settings")
@@ -5117,6 +5284,315 @@ async def admin_settings_update_api(
                     val,
                 )
     return {"ok": True}
+
+
+# =================== PAYMENTS / RAZORPAY INTEGRATION ===================
+import hmac
+import hashlib
+import httpx
+from datetime import datetime, timedelta
+
+def _load_razorpay_keys_directly():
+    key_id = os.getenv("Test Key ID") or os.getenv("RAZORPAY_KEY_ID") or ""
+    key_secret = os.getenv("Test Key Secret") or os.getenv("RAZORPAY_KEY_SECRET") or ""
+    if not key_id or not key_secret:
+        try:
+            with open(".env", "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith("#"):
+                        continue
+                    if "=" in line:
+                        k, v = line.split("=", 1)
+                        k = k.strip()
+                        v = v.strip().strip("'").strip('"')
+                        if k == "Test Key ID":
+                            key_id = v
+                        elif k == "Test Key Secret":
+                            key_secret = v
+        except Exception:
+            pass
+    return key_id, key_secret
+
+RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET = _load_razorpay_keys_directly()
+
+@app.post("/api/payments/create-order")
+async def api_payments_create_order(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
+):
+    body = await request.json()
+    plan = (body.get("plan") or "").strip().lower()
+    billing_cycle = (body.get("billing_cycle") or "monthly").strip().lower()
+
+    if plan not in {"pro", "enterprise"}:
+        raise HTTPException(status_code=400, detail="Invalid plan selected")
+    if billing_cycle not in {"monthly", "annual"}:
+        raise HTTPException(status_code=400, detail="Invalid billing cycle")
+
+    # Determine amount based on plan and billing cycle
+    # Pro: ₹299 monthly, ₹239 annually equivalent (₹239 * 12 = ₹2868)
+    # Enterprise: ₹999 monthly, ₹799 annually equivalent (₹799 * 12 = ₹9588)
+    if plan == "pro":
+        amount_in_rupees = 299 if billing_cycle == "monthly" else (239 * 12)
+    else: # enterprise
+        amount_in_rupees = 999 if billing_cycle == "monthly" else (799 * 12)
+
+    amount_in_paise = amount_in_rupees * 100
+
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        # Get user id and username
+        user_row = await conn.fetchrow(
+            "SELECT id, username FROM users WHERE email = $1 LIMIT 1",
+            current_user.username
+        )
+        if not user_row:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        user_id = user_row["id"]
+        username = user_row["username"] or current_user.username
+
+        # Create order in Razorpay using HTTP Basic auth
+        auth_header = httpx.BasicAuth(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET)
+        async with httpx.AsyncClient() as client:
+            try:
+                resp = await client.post(
+                    "https://api.razorpay.com/v1/orders",
+                    auth=auth_header,
+                    json={
+                        "amount": amount_in_paise,
+                        "currency": "INR",
+                        "receipt": f"receipt_{user_id}_{int(datetime.now().timestamp())}",
+                        "notes": {
+                            "user_email": current_user.username,
+                            "plan": plan,
+                            "billing_cycle": billing_cycle
+                        }
+                    },
+                    timeout=10.0
+                )
+                if resp.status_code != 200:
+                    print(f"Razorpay API Error: {resp.status_code} - {resp.text}")
+                    raise HTTPException(status_code=500, detail="Failed to initiate payment with Razorpay")
+                order_data = resp.json()
+            except Exception as e:
+                print(f"Razorpay API Exception: {e}")
+                raise HTTPException(status_code=500, detail="Payment gateway connection failed")
+
+        order_id = order_data["id"]
+
+        # Log pending payment in payments table
+        await conn.execute(
+            """
+            INSERT INTO payments (
+                user_id, username, email, current_plan, purchased_plan, 
+                payment_provider, razorpay_order_id, amount, currency, 
+                payment_status, billing_cycle, created_at
+            ) VALUES ($1, $2, $3, (SELECT plan FROM users WHERE id = $1), $4, 'razorpay', $5, $6, 'INR', 'pending', $7, NOW())
+            """,
+            user_id,
+            username,
+            current_user.username,
+            plan,
+            order_id,
+            amount_in_rupees,
+            billing_cycle
+        )
+
+    return {
+        "id": order_id,
+        "amount": amount_in_paise,
+        "currency": "INR",
+        "key": RAZORPAY_KEY_ID
+    }
+
+@app.post("/api/payments/verify-payment")
+async def api_payments_verify_payment(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
+):
+    body = await request.json()
+    order_id = (body.get("razorpay_order_id") or "").strip()
+    payment_id = (body.get("razorpay_payment_id") or "").strip()
+    signature = (body.get("razorpay_signature") or "").strip()
+
+    if not order_id or not payment_id or not signature:
+        raise HTTPException(status_code=400, detail="Missing required payment credentials")
+
+    # Secure verification of Razorpay HMAC Signature
+    msg = f"{order_id}|{payment_id}".encode("utf-8")
+    key = RAZORPAY_KEY_SECRET.encode("utf-8")
+    computed = hmac.new(key, msg, hashlib.sha256).hexdigest()
+
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        # Fetch matching pending payment record
+        pay_row = await conn.fetchrow(
+            "SELECT * FROM payments WHERE razorpay_order_id = $1 AND email = $2 LIMIT 1",
+            order_id,
+            current_user.username
+        )
+        if not pay_row:
+            raise HTTPException(status_code=404, detail="Order record not found")
+
+        if not hmac.compare_digest(computed, signature):
+            # Signature mismatch: log failure in database
+            await conn.execute(
+                "UPDATE payments SET payment_status = 'failed', razorpay_payment_id = $1 WHERE razorpay_order_id = $2",
+                payment_id,
+                order_id
+            )
+            # Log suspicious activity/governance failure
+            await conn.execute(
+                """
+                INSERT INTO suspicious_activity_logs (user_email, activity_type, risk_score, detail, created_at)
+                VALUES ($1, 'PAYMENT_SIGNATURE_TAMPERING', 80, $2, NOW())
+                """,
+                current_user.username,
+                f"Failed payment signature verification for Order ID {order_id}"
+            )
+            raise HTTPException(status_code=400, detail="Payment verification failed: invalid signature")
+
+        # Success: calculate subscription dates
+        billing_cycle = pay_row["billing_cycle"]
+        purchased_plan = pay_row["purchased_plan"]
+        
+        start_date = datetime.now()
+        if billing_cycle == "annual":
+            expiry_date = start_date + timedelta(days=365)
+        else:
+            expiry_date = start_date + timedelta(days=30)
+
+        # Update payments record
+        await conn.execute(
+            """
+            UPDATE payments 
+            SET payment_status = 'success', 
+                razorpay_payment_id = $1, 
+                start_date = $2, 
+                expiry_date = $3 
+            WHERE razorpay_order_id = $4
+            """,
+            payment_id,
+            start_date,
+            expiry_date,
+            order_id
+        )
+
+        # Upgrade User's plan & plan_expiry in users table
+        await conn.execute(
+            """
+            UPDATE users 
+            SET plan = $1, 
+                plan_expiry = $2,
+                cancel_at_period_end = FALSE
+            WHERE email = $3
+            """,
+            purchased_plan,
+            expiry_date,
+            current_user.username
+        )
+
+        # Immediately log a governance log event for the upgrade
+        await conn.execute(
+            """
+            INSERT INTO governance_logs (user_email, event_type, detail, created_at)
+            VALUES ($1, 'PLAN_UPGRADE', $2, NOW())
+            """,
+            current_user.username,
+            f"User automatically upgraded to {purchased_plan.upper()} plan via Razorpay (Order ID: {order_id})"
+        )
+
+    return {"ok": True, "message": "Payment verified and plan upgraded successfully"}
+
+@app.post("/api/payments/payment-failed")
+async def api_payments_failed_notification(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
+):
+    body = await request.json()
+    order_id = (body.get("razorpay_order_id") or "").strip()
+    error_reason = (body.get("reason") or "Payment failed/cancelled").strip()
+
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE payments SET payment_status = 'failed' WHERE razorpay_order_id = $1 AND email = $2",
+            order_id,
+            current_user.username
+        )
+        # Log to governance logs
+        await conn.execute(
+            """
+            INSERT INTO governance_logs (user_email, event_type, detail, created_at)
+            VALUES ($1, 'PAYMENT_FAILED', $2, NOW())
+            """,
+            current_user.username,
+            f"Payment failed for Order ID {order_id}. Reason: {error_reason}"
+        )
+    return {"ok": True}
+
+@app.post("/api/payments/cancel-subscription")
+async def api_payments_cancel_subscription(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
+):
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        user_row = await conn.fetchrow(
+            "SELECT plan, plan_expiry FROM users WHERE email = $1 LIMIT 1",
+            current_user.username
+        )
+        if not user_row or user_row["plan"] == "free":
+            raise HTTPException(status_code=400, detail="No active paid subscription found to cancel")
+
+        await conn.execute(
+            "UPDATE users SET cancel_at_period_end = TRUE WHERE email = $1",
+            current_user.username
+        )
+
+        await conn.execute(
+            """
+            INSERT INTO governance_logs (user_email, event_type, detail, created_at)
+            VALUES ($1, 'SUBSCRIPTION_CANCELLED', $2, NOW())
+            """,
+            current_user.username,
+            f"User cancelled their active subscription. Access remains until {user_row['plan_expiry']}"
+        )
+        
+    return {"ok": True, "message": "Subscription cancelled successfully. You can use your remaining quota until the end of the billing period."}
+
+@app.post("/api/payments/reactivate-subscription")
+async def api_payments_reactivate_subscription(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
+):
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        user_row = await conn.fetchrow(
+            "SELECT plan, plan_expiry, cancel_at_period_end FROM users WHERE email = $1 LIMIT 1",
+            current_user.username
+        )
+        if not user_row or not user_row["cancel_at_period_end"]:
+            raise HTTPException(status_code=400, detail="No cancelled subscription found to reactivate")
+
+        await conn.execute(
+            "UPDATE users SET cancel_at_period_end = FALSE WHERE email = $1",
+            current_user.username
+        )
+
+        await conn.execute(
+            """
+            INSERT INTO governance_logs (user_email, event_type, detail, created_at)
+            VALUES ($1, 'SUBSCRIPTION_REACTIVATED', 'User reactivated their cancelled subscription', NOW())
+            """,
+            current_user.username
+        )
+        
+    return {"ok": True, "message": "Subscription successfully reactivated!"}
+
+
 
 
 # =================== OPENAPI CUSTOMIZATION ===================
