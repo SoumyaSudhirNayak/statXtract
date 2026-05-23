@@ -86,6 +86,8 @@ async def ensure_core_tables(conn: asyncpg.Connection) -> None:
             max_queries_day INTEGER DEFAULT 1000,
             max_rows_day BIGINT DEFAULT 100000,
             blocked_reason TEXT,
+            org_type TEXT,
+            org_details TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
         """
@@ -103,6 +105,8 @@ async def ensure_core_tables(conn: asyncpg.Connection) -> None:
         ("max_queries_day", "INTEGER DEFAULT 1000"),
         ("max_rows_day", "BIGINT DEFAULT 100000"),
         ("blocked_reason", "TEXT"),
+        ("org_type", "TEXT"),
+        ("org_details", "TEXT"),
     ]:
         try:
             await conn.execute(
@@ -155,6 +159,91 @@ async def ensure_core_tables(conn: asyncpg.Connection) -> None:
             file_name TEXT NOT NULL,
             user_email TEXT NOT NULL,
             size_bytes BIGINT DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """
+    )
+
+    # Enhance download_logs with governance columns
+    for col_def in [
+        ("dataset_schema", "TEXT"),
+        ("export_format", "TEXT DEFAULT 'csv'"),
+        ("rows_exported", "INTEGER DEFAULT 0"),
+        ("status", "TEXT DEFAULT 'success'"),
+    ]:
+        try:
+            await conn.execute(
+                f"ALTER TABLE download_logs ADD COLUMN IF NOT EXISTS {col_def[0]} {col_def[1]}"
+            )
+        except Exception:
+            pass
+
+    # Enhance usage_logs with governance columns
+    for col_def in [
+        ("query_time_ms", "INTEGER DEFAULT 0"),
+        ("status", "TEXT DEFAULT 'success'"),
+        ("filters", "TEXT"),
+    ]:
+        try:
+            await conn.execute(
+                f"ALTER TABLE usage_logs ADD COLUMN IF NOT EXISTS {col_def[0]} {col_def[1]}"
+            )
+        except Exception:
+            pass
+
+    # Enhance users with governance columns
+    for col_def in [
+        ("warning_count", "INTEGER DEFAULT 0"),
+        ("freeze_until", "TIMESTAMP"),
+        ("suspicious_score", "INTEGER DEFAULT 0"),
+        ("last_active", "TIMESTAMP"),
+    ]:
+        try:
+            await conn.execute(
+                f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {col_def[0]} {col_def[1]}"
+            )
+        except Exception:
+            pass
+
+    # Governance warnings table (escalation tracking)
+    await conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS governance_warnings (
+            id SERIAL PRIMARY KEY,
+            user_email TEXT NOT NULL,
+            violation_type TEXT NOT NULL,
+            severity INTEGER DEFAULT 1,
+            message TEXT,
+            resolved BOOLEAN DEFAULT FALSE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """
+    )
+
+    # Governance event log (all governance events)
+    await conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS governance_logs (
+            id SERIAL PRIMARY KEY,
+            user_email TEXT NOT NULL,
+            event_type TEXT NOT NULL,
+            detail TEXT,
+            metadata JSONB,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """
+    )
+
+    # Suspicious activity log (behavioral pattern detection)
+    await conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS suspicious_activity_logs (
+            id SERIAL PRIMARY KEY,
+            user_email TEXT NOT NULL,
+            activity_type TEXT NOT NULL,
+            risk_score INTEGER DEFAULT 0,
+            detail TEXT,
+            dataset_affected TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
         """

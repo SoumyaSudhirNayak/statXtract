@@ -33,6 +33,10 @@ Context: National Statistics Office (MoSPI) hosts anonymized unit-level microdat
   - filter metadata and column listing endpoints
 - NADA-style admin endpoints for downloading/ingesting datasets into the DB via background jobs.
 - Swagger/OpenAPI documentation at `/docs` (FastAPI auto-generated) plus a separate MkDocs doc site under `statathon-docs-only/`.
+- **User Verification System** — multi-step registration with org-type-specific forms (Student, Researcher, Private Sector, Analyst), verification document uploads, admin approval workflow, and frontend overlays blocking unverified users from querying.
+- **Central Security Layer** (`security/` module) — 6 specialized enforcement modules: access control engine, plan enforcer, usage tracker, warning manager, suspicious activity detector, and privacy guard.
+- **Governance Error Handling** — custom `HTTPException` handler that normalizes all security/governance errors into structured JSON (`error_type`, `message`) and a premium inline error card UI on the query page.
+- **Plan Governance Settings** — admin-configurable per-plan limits (queries/day, rows/day, download permissions) with a governance testing mode for validation.
 
 Nesstar-specific ingest path:
 
@@ -51,8 +55,8 @@ Nesstar-specific ingest path:
 
 - SQL safety: there are endpoints that build SQL strings directly; raw SQL execution exists. These are not safe for untrusted users.
 - `test_cat.py` is environment-dependent and may fail in local setups where referenced sample tables do not exist.
-- Request-rate limiting (requests/time) is not implemented; only daily row caps exist.
-- Privacy controls are minimal (cell suppression by row count only).
+- ~~Request-rate limiting (requests/time) is not implemented; only daily row caps exist.~~ **Resolved:** Central Security Layer now enforces daily query count + daily row count limits per plan, with per-user overrides.
+- ~~Privacy controls are minimal (cell suppression by row count only).~~ **Resolved:** Privacy guard now enforces column-level restrictions (`include_in_api`, `is_sensitive`), filter-column validation (`filterable`), and configurable cell suppression thresholds (`min_rows`) per variable.
 - Duplicate query endpoints exist (schema-aware and public-only variants).
 
 ## 3) Architecture overview
@@ -65,6 +69,7 @@ Core pieces:
 - FastAPI app entrypoint: `main.py`
 - Auth: `auth/local/*`
 - Query router: `query/query_data.py`
+- **Central Security Layer:** `security/*` (access control, plan enforcer, usage tracker, warning manager, suspicious detector, privacy guard)
 - Ingestion utilities: `utils/*`
 - Background watchers: file-system watcher for `.sav` uploads and ingestion-completion watcher for jobs (see `utils/watcher.py` and `IngestionWatcher` usage in `main.py`).
 - NADA admin integration: `nada_routes.py`
@@ -427,4 +432,178 @@ Uvicorn reports:
       - Navigates export dialogs, picks SPSS/SAV format, drives “Save As” flows, handles overwrite prompts.
       - Waits until dataset files reach minimum size and are stable before exiting.
 - Commands: [COMMANDS.MD](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/COMMANDS.MD)
-- Commands: [COMMANDS.MD](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/COMMANDS.MD)
+
+## 14) User Verification System
+
+A multi-step user verification workflow ensuring only approved users can query datasets.
+
+### Registration Flow
+
+- **Endpoint:** `POST /register` ([main.py](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/main.py#L348-L467))
+- Accepts `multipart/form-data` with fields: `username`, `email`, `password`, `role`, `org_type`, `org_details` (JSON), and an optional `verification_doc` file upload.
+- **Organization types supported:** Student, Researcher, Private Sector, Analyst — each with type-specific detail fields (institution, ID, designation, etc.) collected via the registration UI.
+- Org details are stored as JSON text in the `users.org_details` column; `users.org_type` stores the category.
+- If a verification document is uploaded, it is saved to `uploads/user_uploads/{user_id}/` and a record is inserted into `user_documents` with status `pending`.
+- The `users.document_uploaded` flag is set to `TRUE` when a file is provided.
+- New users are created with `is_verified = FALSE` by default.
+
+### Frontend Registration UI
+
+- **Page:** [user_register.html](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/templates/USER_PAGES/user_register.html)
+- Multi-panel wizard: personal details → organization type selection → type-specific fields + file upload → submission.
+- Uses `FormData` with file attachment to submit directly via `fetch()`, falling back to plain HTML form submission on error.
+
+### Verification Status Check
+
+- **Endpoint:** `GET /api/user/status` ([main.py](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/main.py#L717-L739))
+- Returns `{ is_verified, document_uploaded, status }` for the current authenticated user.
+- Used by frontend pages (query UI, explorer) to display a verification-pending overlay blocking unverified users from accessing query features.
+
+### Frontend Verification Overlay
+
+- **Query UI:** [query_ui.html](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/templates/query_ui.html) — `#verificationPendingOverlay` div with `checkVerificationStatus()` JS function.
+- **Explorer:** [explorer.html](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/templates/explorer.html) — same pattern.
+- When `is_verified === false`, a full-screen overlay is displayed showing verification status, document upload status, and links to refresh or return to dashboard.
+- Admins (role `1`) bypass the overlay entirely.
+
+### Admin Verification Workflow
+
+- **Endpoint:** `POST /admin/users/verify` ([main.py](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/main.py#L3719-L3744))
+- Admin-only endpoint accepting `{ email, approved, document_id }`.
+- Sets `users.is_verified` and updates `user_documents.status` to `approved` or `rejected`.
+- **Admin Requests API:** `GET /admin/api/requests` returns pending verification documents with enriched user details (org type, org details, registration timestamp, account status, plan, role, query usage count).
+- **Admin UI:** [user_management.html](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/templates/user_management.html) — expandable verification cards with user details, document preview/download, and approve/reject/block actions.
+
+### Database Schema Changes
+
+- `users` table gained columns: `org_type TEXT`, `org_details TEXT` ([db_init.py](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/utils/db_init.py)).
+- Auto-migration via `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` in `ensure_core_tables()`.
+
+## 15) Central Security Layer (`security/`)
+
+A dedicated security module with 6 specialized enforcement components. All security checks are invoked centrally via `check_user_access()` before any query or download operation.
+
+### Module Map
+
+| Module | File | Purpose |
+|---|---|---|
+| **Access Control Engine** | [access_control.py](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/security/access_control.py) | Central orchestrator — calls all other modules in sequence |
+| **Warning Manager** | [warning_manager.py](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/security/warning_manager.py) | Enforces user status: blocked, frozen, unverified |
+| **Plan Enforcer** | [plan_enforcer.py](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/security/plan_enforcer.py) | Loads and enforces subscription plan limits |
+| **Usage Tracker** | [usage_tracker.py](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/security/usage_tracker.py) | Checks daily query count + row count limits |
+| **Suspicious Detector** | [suspicious_detector.py](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/security/suspicious_detector.py) | SQL injection detection via regex pattern matching |
+| **Privacy Guard** | [privacy_guard.py](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/security/privacy_guard.py) | Column-level access, filter validation, cell suppression |
+
+### Execution Flow (`check_user_access()`)
+
+1. **Status Check** (`verify_user_status`) — blocks if user is blocked (with reason), frozen, or unverified.
+2. **Admin Bypass** — admins skip remaining limits (still screened for SQL injection).
+3. **Role-Level Access** — e.g., only admin/analyst can access dashboards.
+4. **Suspicious Activity Detection** (`detect_suspicious_activity`) — scans filters and SQL for injection patterns (UNION, DROP, tautologies, stacked queries, dynamic code execution). Logs threats to `query_logs`.
+5. **Plan Enforcement** (`get_and_enforce_plan_limits`) — resolves the user's plan (`free`, `pro`, `enterprise`) and loads limits from `system_settings` DB table (with hardcoded fallback).
+6. **Daily Usage Check** (`check_daily_usage`) — queries `usage_logs` for today's totals; raises HTTP 429 if exceeded.
+7. **Download Restrictions** — blocks file downloads for plans where `downloads_allowed = false`.
+
+### Plan Limits Configuration
+
+Plan limits are resolved in this priority order:
+1. **Governance testing mode** (if active) → uses reduced testing limits.
+2. **`system_settings` DB overrides** → admin-configurable live limits via System Settings UI.
+3. **Per-user overrides** from `users.max_queries_per_day` / `users.max_rows_per_day`.
+4. **Hardcoded fallback** in `PLAN_LIMITS` dict.
+
+Default limits:
+
+| Plan | Queries/Day | Rows/Day | Downloads |
+|---|---|---|---|
+| Free | 200 | 50,000 | No |
+| Pro | 5,000 | 500,000 | Yes |
+| Enterprise | 50,000 | 5,000,000 | Yes |
+| Admin | Unlimited | Unlimited | Yes |
+
+### Governance Testing Mode
+
+- Activated via `system_settings` key `governance.testing_mode = true`.
+- Applies drastically reduced limits for validation (e.g., Free: 5 queries/day, 500 rows/day).
+- Test limits are configurable per plan via `governance.test.{plan}.max_queries_per_day` etc.
+
+### Privacy Guard Details
+
+- **Column filtering** (`check_columns_and_filters`): removes columns where `include_in_api = false` or `is_sensitive = true` (when sensitive columns are globally disabled). Blocks filters on non-`filterable` columns.
+- **Cell suppression** (`apply_privacy_and_labeling`): suppresses entire result set if row count is below the configured `min_rows` threshold (per-variable or global `min_rows_threshold` from `system_settings`). Returns structured error with `minimum_rows_required` and `actual_rows`.
+- **Label mapping**: maps raw code values to descriptive labels from the variable dictionary.
+
+### Integration Points
+
+- **`query/query_data.py`** — both `POST /query` and `GET /datasets/{table_name}/query` call `check_user_access()`, `check_columns_and_filters()`, `apply_privacy_and_labeling()`, and `log_api_usage()`.
+- **`main.py`** — `apply_admin_rules()` delegates to `check_user_access()`. `apply_config()` delegates column/filter checks and cell suppression to the privacy guard.
+- **Package init:** `security/__init__.py` exports `check_user_access` as the single entry point.
+
+## 16) Governance Error Handling & Frontend UI
+
+All governance and security errors are standardized into structured JSON responses and displayed via rich inline error cards on the query page.
+
+### Backend: Custom Exception Handler
+
+Registered on the FastAPI app in [main.py](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/main.py#L196-L277):
+
+```python
+@app.exception_handler(HTTPException)
+async def governance_http_exception_handler(request, exc):
+```
+
+Intercepts all `HTTPException`s and maps governance/security errors to a standard JSON format:
+
+```json
+{
+  "success": false,
+  "error_type": "RATE_LIMIT",
+  "message": "Too many requests. Please wait a few seconds before trying again.",
+  "error": "Too many requests. Please wait a few seconds before trying again."
+}
+```
+
+### Error Type Mappings
+
+| HTTP Status | Condition | `error_type` | Description |
+|---|---|---|---|
+| 429 | Daily query limit exceeded | `QUERY_LIMIT_REACHED` | User has exceeded their plan's daily query count |
+| 429 | Daily row limit exceeded | `QUERY_LIMIT_REACHED` | Query would exceed remaining daily row quota |
+| 429 | Generic rate limit | `RATE_LIMIT` | Too many requests in short time |
+| 400 | SQL injection detected | `SENSITIVE_QUERY_BLOCKED` | Suspicious patterns found in filters/SQL |
+| 400 | Privacy column violation | `SENSITIVE_QUERY_BLOCKED` | Filter references sensitive/restricted column |
+| 400 | Non-filterable column | `SENSITIVE_QUERY_BLOCKED` | Column not configured as filterable |
+| 403 | Cell suppression (string) | `PRIVACY_SUPPRESSION` | Result below minimum row threshold |
+| 403 | Cell suppression (dict) | `PRIVACY_SUPPRESSION` | Includes `minimum_rows_required` and `actual_rows` |
+| 403 | Account blocked/frozen | `SENSITIVE_QUERY_BLOCKED` | User account status prevents access |
+| 403 | Unverified account | `SENSITIVE_QUERY_BLOCKED` | Account pending admin verification |
+
+Non-governance `HTTPException`s pass through unchanged.
+
+### Frontend: Inline Error Cards
+
+In [query_ui.html](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/templates/query_ui.html), the `runQuery()` function parses non-OK responses and calls `renderGovernanceError(errorType, message, rawData)` which displays a styled error card in the results table area:
+
+- **`RATE_LIMIT`** — amber-themed card with gauge icon + "Try Again" button.
+- **`QUERY_LIMIT_REACHED`** — red-themed card with ban icon + "Upgrade Subscription" link.
+- **`SENSITIVE_QUERY_BLOCKED`** — red-themed card with shield icon + "Modify Filters" button.
+- **`PRIVACY_SUPPRESSION`** — indigo-themed card with eye-slash icon + row count comparison panel + "Broaden Filter Criteria" button.
+
+The `generateChart()` function also handles governance errors, displaying the error message in the chart status area and as a toast.
+
+## 17) Updated module map
+
+- Central Security:
+  - [security/__init__.py](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/security/__init__.py) — exports `check_user_access`
+  - [security/access_control.py](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/security/access_control.py) — Central Access Control Engine
+  - [security/warning_manager.py](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/security/warning_manager.py) — user status enforcement
+  - [security/plan_enforcer.py](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/security/plan_enforcer.py) — subscription plan limits
+  - [security/usage_tracker.py](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/security/usage_tracker.py) — daily usage checks + logging
+  - [security/suspicious_detector.py](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/security/suspicious_detector.py) — SQL injection detection
+  - [security/privacy_guard.py](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/security/privacy_guard.py) — column access, cell suppression, label mapping
+- User Pages:
+  - [templates/USER_PAGES/user_register.html](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/templates/USER_PAGES/user_register.html) — multi-step registration with org details + document upload
+  - [templates/USER_PAGES/user_dashboard.html](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/templates/USER_PAGES/user_dashboard.html) — user dashboard
+- Admin Pages:
+  - [templates/user_management.html](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/templates/user_management.html) — user management with expandable verification cards
+  - [templates/system_settings.html](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/templates/system_settings.html) — system settings with plan governance controls

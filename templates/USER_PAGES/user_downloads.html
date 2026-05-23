@@ -187,19 +187,19 @@
         <div class="stats-strip">
           <div class="strip-card sc-g">
             <div class="strip-icon" style="background:#E8F5E9;">📂</div>
-            <div><div class="strip-num">84</div><div class="strip-lbl">Total Files</div></div>
+            <div><div class="strip-num" id="statFiles">0</div><div class="strip-lbl">Total Files</div></div>
           </div>
           <div class="strip-card sc-b">
             <div class="strip-icon" style="background:#E3F2FD;">💾</div>
-            <div><div class="strip-num">1.4 GB</div><div class="strip-lbl">Total Size</div></div>
+            <div><div class="strip-num" id="statSize">0 KB</div><div class="strip-lbl">Total Size</div></div>
           </div>
           <div class="strip-card sc-o">
             <div class="strip-icon" style="background:#FFF3E0;">📊</div>
-            <div><div class="strip-num">61</div><div class="strip-lbl">CSV Files</div></div>
+            <div><div class="strip-num" id="statCsv">0</div><div class="strip-lbl">CSV Files</div></div>
           </div>
           <div class="strip-card sc-p">
             <div class="strip-icon" style="background:#F3E5F5;">📄</div>
-            <div><div class="strip-num">23</div><div class="strip-lbl">PDF / JSON</div></div>
+            <div><div class="strip-num" id="statOthers">0</div><div class="strip-lbl">PDF / JSON</div></div>
           </div>
         </div>
 
@@ -209,12 +209,12 @@
             <span class="filter-label">Search Files</span>
             <div class="search-wrap">
               <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-              <input type="text" class="filter-input search-input" placeholder="Search by dataset or file name..." oninput="filterCards(this.value)">
+              <input type="text" id="searchInput" class="filter-input search-input" placeholder="Search by dataset or file name..." oninput="applyFilters()">
             </div>
           </div>
           <div class="filter-group" style="max-width:160px;">
             <span class="filter-label">Format</span>
-            <select class="filter-select" id="fmtFilter" onchange="filterByFormat()">
+            <select class="filter-select" id="fmtFilter" onchange="applyFilters()">
               <option value="all">All Formats</option>
               <option value="csv">CSV</option>
               <option value="pdf">PDF</option>
@@ -223,126 +223,18 @@
           </div>
           <div class="filter-group" style="max-width:160px;">
             <span class="filter-label">Date Range</span>
-            <select class="filter-select">
-              <option>All Time</option>
-              <option>Last 7 Days</option>
-              <option>Last Month</option>
+            <select class="filter-select" id="dateFilter" onchange="applyFilters()">
+              <option value="all">All Time</option>
+              <option value="7">Last 7 Days</option>
+              <option value="30">Last 30 Days</option>
             </select>
           </div>
         </div>
 
         <!-- Download Cards Grid -->
         <div id="dlGrid" class="dl-grid">
-          <!-- Card 1 -->
-          <div class="dl-card fmt-csv" data-name="economic census" data-fmt="csv">
-            <div class="dl-card-top">
-              <span class="dl-format-badge dl-format-csv">📊 CSV</span>
-              <span class="dl-size">14.2 MB</span>
-            </div>
-            <div class="dl-name">Economic Census 2023</div>
-            <div class="dl-dataset">Source: economic_survey_v3</div>
-            <div class="dl-meta">
-              <div class="dl-meta-item"><strong>50,000</strong>Rows Exported</div>
-              <div class="dl-meta-item"><strong>Mar 21, 2026</strong>Date Downloaded</div>
-              <div class="dl-meta-item"><strong>00:01:02</strong>Gen. Time</div>
-            </div>
-            <div class="dl-card-actions">
-              <button class="dl-btn primary" onclick="showToast('Downloading economic_census_2023.csv...','success')">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                Re-Download
-              </button>
-              <button class="dl-btn" onclick="showToast('Query duplicated!','info')">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>
-                Copy Query
-              </button>
-              <button class="dl-btn" style="flex:0; padding:10px 12px;" onclick="showToast('File deleted.','error')">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--danger);"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-              </button>
-            </div>
-          </div>
-
-          <!-- Card 2 -->
-          <div class="dl-card fmt-pdf" data-name="health indicators report" data-fmt="pdf">
-            <div class="dl-card-top">
-              <span class="dl-format-badge dl-format-pdf">📄 PDF</span>
-              <span class="dl-size">3.8 MB</span>
-            </div>
-            <div class="dl-name">Health Indicators Report</div>
-            <div class="dl-dataset">Source: hospitals_geo_tagged</div>
-            <div class="dl-meta">
-              <div class="dl-meta-item"><strong>12,010</strong>Rows Exported</div>
-              <div class="dl-meta-item"><strong>Mar 20, 2026</strong>Date Downloaded</div>
-              <div class="dl-meta-item"><strong>00:02:15</strong>Gen. Time</div>
-            </div>
-            <div class="dl-card-actions">
-              <button class="dl-btn primary" onclick="showToast('Downloading health_indicators_report.pdf...','success')">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                Re-Download
-              </button>
-              <button class="dl-btn" onclick="showToast('Query copied!','info')">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>
-                Copy Query
-              </button>
-              <button class="dl-btn" style="flex:0; padding:10px 12px;" onclick="showToast('File deleted.','error')">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--danger);"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-              </button>
-            </div>
-          </div>
-
-          <!-- Card 3 -->
-          <div class="dl-card fmt-json" data-name="trade routing metrics" data-fmt="json">
-            <div class="dl-card-top">
-              <span class="dl-format-badge dl-format-json">{ } JSON</span>
-              <span class="dl-size">78.4 MB</span>
-            </div>
-            <div class="dl-name">Global Trade Routing Metrics</div>
-            <div class="dl-dataset">Source: export_import_metrics</div>
-            <div class="dl-meta">
-              <div class="dl-meta-item"><strong>100,000</strong>Rows Exported</div>
-              <div class="dl-meta-item"><strong>Mar 19, 2026</strong>Date Downloaded</div>
-              <div class="dl-meta-item"><strong>00:04:55</strong>Gen. Time</div>
-            </div>
-            <div class="dl-card-actions">
-              <button class="dl-btn primary" onclick="showToast('Downloading trade_routing_metrics.json...','success')">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                Re-Download
-              </button>
-              <button class="dl-btn" onclick="showToast('Query copied!','info')">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>
-                Copy Query
-              </button>
-              <button class="dl-btn" style="flex:0; padding:10px 12px;" onclick="showToast('File deleted.','error')">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--danger);"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-              </button>
-            </div>
-          </div>
-
-          <!-- Card 4 -->
-          <div class="dl-card fmt-csv" data-name="demographics census 2021" data-fmt="csv">
-            <div class="dl-card-top">
-              <span class="dl-format-badge dl-format-csv">📊 CSV</span>
-              <span class="dl-size">22.6 MB</span>
-            </div>
-            <div class="dl-name">Demographics Census 2021</div>
-            <div class="dl-dataset">Source: census_data_primary</div>
-            <div class="dl-meta">
-              <div class="dl-meta-item"><strong>75,000</strong>Rows Exported</div>
-              <div class="dl-meta-item"><strong>Mar 18, 2026</strong>Date Downloaded</div>
-              <div class="dl-meta-item"><strong>00:03:42</strong>Gen. Time</div>
-            </div>
-            <div class="dl-card-actions">
-              <button class="dl-btn primary" onclick="showToast('Downloading demographics_census_2021.csv...','success')">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                Re-Download
-              </button>
-              <button class="dl-btn" onclick="showToast('Query copied!','info')">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>
-                Copy Query
-              </button>
-              <button class="dl-btn" style="flex:0; padding:10px 12px;" onclick="showToast('File deleted.','error')">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--danger);"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-              </button>
-            </div>
+          <div style="grid-column: 1 / -1; text-align: center; padding: 60px; color: var(--text-muted);">
+            Loading your downloads...
           </div>
         </div>
 
@@ -359,24 +251,174 @@
 
     const username = '{{ username | default("") }}' || sessionStorage.getItem('userEmail') || 'User';
     const dn = username.includes('@') ? username.split('@')[0] : username;
-    document.getElementById('headerUsername').textContent = dn;
+    document.getElementById('headerUsername').textContent = dn.charAt(0).toUpperCase() + dn.slice(1);
     document.getElementById('avatarInitial').textContent  = dn.charAt(0).toUpperCase();
 
-    function filterCards(search) {
-      const cards = document.querySelectorAll('#dlGrid .dl-card');
-      cards.forEach(c => {
-        const name = c.dataset.name || '';
-        c.style.display = name.includes(search.toLowerCase()) ? '' : 'none';
+    let allDownloads = [];
+
+    // Load downloads on start
+    window.addEventListener('DOMContentLoaded', () => {
+      loadDownloads();
+    });
+
+    async function loadDownloads() {
+      try {
+        const response = await fetch('/api/user/download-history?page=1&per_page=100');
+        if (!response.ok) throw new Error('Failed to load downloads');
+        const data = await response.json();
+        
+        allDownloads = data.downloads || [];
+        
+        renderStats();
+        renderCards(allDownloads);
+      } catch (err) {
+        console.error(err);
+        document.getElementById('dlGrid').innerHTML = `
+          <div style="grid-column: 1 / -1; text-align: center; padding: 60px; color: var(--danger); font-weight: bold;">
+            Failed to load download logs. Please refresh the page.
+          </div>
+        `;
+      }
+    }
+
+    function renderStats() {
+      let totalSize = 0;
+      let csvCount = 0;
+      let otherCount = 0;
+
+      allDownloads.forEach(d => {
+        totalSize += d.size_bytes || 0;
+        if ((d.export_format || '').toLowerCase() === 'csv') {
+          csvCount++;
+        } else {
+          otherCount++;
+        }
+      });
+
+      document.getElementById('statFiles').textContent = allDownloads.length;
+      document.getElementById('statSize').textContent = formatBytes(totalSize);
+      document.getElementById('statCsv').textContent = csvCount;
+      document.getElementById('statOthers').textContent = otherCount;
+    }
+
+    function formatBytes(bytes) {
+      if (bytes === 0) return '0 B';
+      const k = 1024;
+      const sizes = ['B', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    function renderCards(list) {
+      const grid = document.getElementById('dlGrid');
+      
+      if (list.length === 0) {
+        grid.innerHTML = `
+          <div class="empty-state" style="grid-column: 1 / -1;">
+            <div class="empty-icon">📂</div>
+            <div class="empty-title">No Downloads Found</div>
+            <div class="empty-sub">Your exported dataset files will appear here for easy access.</div>
+          </div>
+        `;
+        return;
+      }
+
+      grid.innerHTML = '';
+      list.forEach(d => {
+        const card = document.createElement('div');
+        const fmt = (d.export_format || 'csv').toLowerCase();
+        card.className = `dl-card fmt-${fmt}`;
+        card.dataset.name = (d.file_name || '').toLowerCase();
+        card.dataset.fmt = fmt;
+        
+        let formatLabel = '📊 CSV';
+        let badgeClass = 'dl-format-csv';
+        if (fmt === 'pdf') {
+          formatLabel = '📄 PDF';
+          badgeClass = 'dl-format-pdf';
+        } else if (fmt === 'json') {
+          formatLabel = '{ } JSON';
+          badgeClass = 'dl-format-json';
+        }
+
+        const dateStr = d.timestamp ? new Date(d.timestamp).toLocaleDateString(undefined, {
+          month: 'short', day: 'numeric', year: 'numeric'
+        }) : '-';
+
+        // Re-download URL constructed using table query API format=csv
+        const dlUrl = `/datasets/${d.dataset}/query?format=${fmt}&limit=${d.rows_exported}`;
+
+        card.innerHTML = `
+          <div class="dl-card-top">
+            <span class="dl-format-badge ${badgeClass}">${formatLabel}</span>
+            <span class="dl-size">${formatBytes(d.size_bytes)}</span>
+          </div>
+          <div class="dl-name">${d.file_name || 'Dataset Export'}</div>
+          <div class="dl-dataset">Source: ${d.dataset}</div>
+          <div class="dl-meta">
+            <div class="dl-meta-item"><strong>${d.rows_exported.toLocaleString()}</strong>Rows Exported</div>
+            <div class="dl-meta-item"><strong>${dateStr}</strong>Date Downloaded</div>
+          </div>
+          <div class="dl-card-actions">
+            <button class="dl-btn primary" onclick="triggerDownload('${dlUrl}', '${d.file_name}')">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Re-Download
+            </button>
+            <button class="dl-btn" onclick="copySourceInfo('${d.dataset}')">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>
+              Copy Source
+            </button>
+          </div>
+        `;
+        grid.appendChild(card);
       });
     }
 
-    function filterByFormat() {
-      const fmt   = document.getElementById('fmtFilter').value;
-      const cards = document.querySelectorAll('#dlGrid .dl-card');
-      cards.forEach(c => {
-        const cardFmt = c.dataset.fmt || '';
-        c.style.display = (fmt === 'all' || cardFmt === fmt) ? '' : 'none';
+    function triggerDownload(url, filename) {
+      showToast(`Re-downloading ${filename}...`, 'success');
+      // Create hidden link and click it to trigger download
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+
+    function copySourceInfo(source) {
+      navigator.clipboard.writeText(source).then(() => {
+        showToast(`Dataset source name copied to clipboard: ${source}`, 'info');
+      }).catch(err => {
+        showToast('Failed to copy', 'error');
       });
+    }
+
+    function applyFilters() {
+      const search = document.getElementById('searchInput').value.toLowerCase();
+      const format = document.getElementById('fmtFilter').value;
+      const dateRange = document.getElementById('dateFilter').value;
+      
+      const now = new Date();
+      
+      const filtered = allDownloads.filter(d => {
+        const matchesSearch = !search || 
+          (d.file_name || '').toLowerCase().includes(search) || 
+          (d.dataset || '').toLowerCase().includes(search);
+          
+        const matchesFormat = format === 'all' || (d.export_format || '').toLowerCase() === format;
+        
+        let matchesDate = true;
+        if (dateRange !== 'all' && d.timestamp) {
+          const timestampDate = new Date(d.timestamp);
+          const diffTime = Math.abs(now - timestampDate);
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          matchesDate = diffDays <= parseInt(dateRange);
+        }
+        
+        return matchesSearch && matchesFormat && matchesDate;
+      });
+      
+      renderCards(filtered);
     }
 
     function showToast(msg, type='info') {
@@ -386,7 +428,10 @@
       const icons = { success:'✅', error:'🗑️', info:'ℹ️' };
       t.innerHTML = `<span>${icons[type]||'ℹ️'}</span><span>${msg}</span>`;
       tc.appendChild(t);
-      setTimeout(() => { t.style.animation='slideOut 0.3s ease forwards'; setTimeout(()=>t.remove(),300); }, 4000);
+      setTimeout(() => { 
+        t.style.animation = 'slideOut 0.3s ease forwards'; 
+        setTimeout(() => t.remove(), 300); 
+      }, 4000);
     }
   </script>
 </body>

@@ -61,6 +61,10 @@ from nada_routes import router as nada_router
 from fastapi import HTTPException  # Add this for HTTPException
 from datetime import date
 
+# Central Security module imports
+from security import check_user_access
+from security.privacy_guard import check_columns_and_filters, apply_privacy_and_labeling
+
 today = date.today().isoformat()
 START_TIME = datetime.now()
 
@@ -114,7 +118,7 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 # FastAPI lifespan management
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("🔄 Starting up...")
+    print("Starting up...")
     app.state.db = await asyncpg.create_pool(dsn=DB_URL, min_size=1, max_size=5)
     async with app.state.db.acquire() as conn:
         await ensure_core_tables(conn)
@@ -184,8 +188,137 @@ async def lifespan(app: FastAPI):
 # FastAPI app initialization
 app = FastAPI(lifespan=lifespan)
 app.mount("/static", StaticFiles(directory="static"), name="static")
+os.makedirs("uploads/user_uploads", exist_ok=True)
+app.mount("/uploads", StaticFiles(directory="uploads/user_uploads"), name="user_uploads")
 templates = Jinja2Templates(directory="templates")
 app.add_middleware(SessionMiddleware, secret_key="yoursecretkey")
+
+
+@app.exception_handler(HTTPException)
+async def governance_http_exception_handler(request: Request, exc: HTTPException):
+    detail = exc.detail
+    status_code = exc.status_code
+    
+    is_governance_err = False
+    error_type = None
+    message = None
+    extra_fields = {}
+    
+    # Check if the exception detail or status matches a governance/security error
+    # Case 1: Rate limit or daily limit exceeded
+    if status_code == 429:
+        is_governance_err = True
+        detail_str = str(detail)
+        if "daily query limit" in detail_str.lower() or "exceeded for today" in detail_str.lower():
+            error_type = "QUERY_LIMIT_REACHED"
+            message = "Daily query limit reached. Please upgrade your plan or try again tomorrow."
+        elif "remaining daily limit" in detail_str.lower() or "rows" in detail_str.lower():
+            error_type = "QUERY_LIMIT_REACHED"
+            message = "Daily query limit reached. Your query would exceed your remaining daily limit of rows."
+        else:
+            error_type = "RATE_LIMIT"
+            message = "Too many requests. Please wait a few seconds before trying again."
+            
+    # Case 2: Security Policy / Suspicious activity / Restricted Columns / Direct SQL
+    elif status_code == 400:
+        detail_str = str(detail)
+        if (
+            "security policy block" in detail_str.lower() 
+            or "suspicious or malicious" in detail_str.lower()
+            or "privacy violation" in detail_str.lower()
+            or "access denied" in detail_str.lower()
+            or "not configured as filterable" in detail_str.lower()
+        ):
+            is_governance_err = True
+            error_type = "SENSITIVE_QUERY_BLOCKED"
+            message = detail_str
+            
+    # Case 3: Cell Suppression or Blocked/Frozen/Unverified accounts
+    elif status_code == 403:
+        if isinstance(detail, dict) and detail.get("error") == "Cell Suppression Applied":
+            is_governance_err = True
+            error_type = "PRIVACY_SUPPRESSION"
+            message = detail.get("detail", "Data suppressed due to privacy rules (less than minimum rows required).")
+            extra_fields = {
+                "minimum_rows_required": detail.get("minimum_rows_required", 5),
+                "actual_rows": detail.get("actual_rows", 0)
+            }
+        elif isinstance(detail, str):
+            detail_str = detail
+            if detail_str == "Suppressed" or "suppress" in detail_str.lower():
+                is_governance_err = True
+                error_type = "PRIVACY_SUPPRESSION"
+                message = "Data suppressed due to privacy rules (less than minimum rows required)."
+                extra_fields = {
+                    "minimum_rows_required": 5,
+                    "actual_rows": 0
+                }
+            elif "access denied" in detail_str.lower() or "blocked" in detail_str.lower() or "frozen" in detail_str.lower() or "verification" in detail_str.lower():
+                is_governance_err = True
+                if "blocked" in detail_str.lower():
+                    error_type = "ACCOUNT_BLOCKED"
+                elif "frozen" in detail_str.lower():
+                    error_type = "ACCOUNT_FROZEN"
+                elif "verification" in detail_str.lower() or "pending" in detail_str.lower():
+                    error_type = "VERIFICATION_PENDING"
+                else:
+                    error_type = "SENSITIVE_QUERY_BLOCKED"
+                message = detail_str
+                
+    accept = request.headers.get("accept", "")
+    is_html_request = "text/html" in accept
+
+    if is_governance_err:
+        if is_html_request:
+            title = "Access Denied"
+            if error_type == "ACCOUNT_BLOCKED":
+                title = "Account Blocked"
+            elif error_type == "ACCOUNT_FROZEN":
+                title = "Account Temporarily Frozen"
+            elif error_type == "VERIFICATION_PENDING":
+                title = "Verification Pending"
+            elif error_type == "QUERY_LIMIT_REACHED":
+                title = "Usage Limit Exceeded"
+            elif error_type == "RATE_LIMIT":
+                title = "Rate Limit Exceeded"
+                
+            return templates.TemplateResponse(
+                "error.html",
+                {
+                    "request": request,
+                    "title": title,
+                    "message": message,
+                    "error_type": error_type
+                },
+                status_code=status_code
+            )
+
+        content = {
+            "success": False,
+            "error_type": error_type,
+            "message": message,
+            "error": message  # backward compatibility
+        }
+        if extra_fields:
+            content.update(extra_fields)
+        return JSONResponse(status_code=status_code, content=content)
+        
+    # Standard response for other HTTPExceptions
+    if is_html_request:
+        return templates.TemplateResponse(
+            "error.html",
+            {
+                "request": request,
+                "title": "Error Occurred",
+                "message": str(detail),
+                "error_type": "UNKNOWN"
+            },
+            status_code=status_code
+        )
+
+    if isinstance(detail, dict):
+        return JSONResponse(status_code=status_code, content=detail)
+    return JSONResponse(status_code=status_code, content={"detail": detail})
 
 
 # Include routers
@@ -258,25 +391,43 @@ async def register_page(request: Request):
     return templates.TemplateResponse("register.html", {"request": request})
 
 
-@app.post("/register", response_class=HTMLResponse)
+@app.post("/register")
 async def register_user(
     request: Request,
     username: str = Form(...),
     email: str = Form(...),
     password: str = Form(...),
     role: str = Form("user"),
+    org_type: str = Form(""),
+    org_details: str = Form(""),
+    verification_doc: UploadFile = File(None),
 ):
     pool = request.app.state.db
+
+    # Determine if caller expects JSON (fetch) or HTML redirect
+    accept = request.headers.get("accept", "")
+    wants_json = "application/json" in accept
+
     async with pool.acquire() as conn:
         # Check if user already exists
         existing = await conn.fetchrow("SELECT * FROM users WHERE email = $1", email)
         if existing:
+            if wants_json:
+                return JSONResponse(
+                    status_code=400,
+                    content={"detail": "User with this email already exists"},
+                )
             return templates.TemplateResponse(
                 "register.html", {"request": request, "error": "User already exists"}
             )
 
         # 🔒 BLOCK ADMIN REGISTRATION
         if role.lower() == "admin":
+            if wants_json:
+                return JSONResponse(
+                    status_code=400,
+                    content={"detail": "Admin registration is disabled."},
+                )
             return templates.TemplateResponse(
                 "register.html",
                 {
@@ -288,6 +439,11 @@ async def register_user(
         # Only allow user registration
         role_row = await conn.fetchrow("SELECT id FROM roles WHERE name = $1", "user")
         if not role_row:
+            if wants_json:
+                return JSONResponse(
+                    status_code=500,
+                    content={"detail": "User role not found in database"},
+                )
             return templates.TemplateResponse(
                 "register.html",
                 {"request": request, "error": "User role not found in database"},
@@ -296,14 +452,64 @@ async def register_user(
         role_id = role_row["id"]
         hashed_pw = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
+        # Determine if we have a verification document
+        has_doc = verification_doc is not None and verification_doc.filename
+
         await conn.execute(
-            "INSERT INTO users (username, email, hashed_password, role_id) VALUES ($1, $2, $3, $4)",
+            """INSERT INTO users (username, email, hashed_password, role_id, document_uploaded, org_type, org_details)
+               VALUES ($1, $2, $3, $4, $5, $6, $7)""",
             username,
             email,
             hashed_pw,
             role_id,
+            bool(has_doc),
+            org_type,
+            org_details,
         )
 
+        # ── Save verification document if provided ──
+        if has_doc:
+            # Get the newly created user's ID
+            user_row = await conn.fetchrow(
+                "SELECT id FROM users WHERE email = $1", email
+            )
+            user_id = user_row["id"] if user_row else 0
+
+            # Create per-user upload directory
+            user_upload_dir = os.path.join(
+                "uploads", "user_uploads", str(user_id)
+            )
+            os.makedirs(user_upload_dir, exist_ok=True)
+
+            # Save the file
+            safe_filename = re.sub(
+                r"[^\w\-.]", "_", verification_doc.filename
+            )
+            file_path = os.path.join(user_upload_dir, safe_filename)
+            file_content = await verification_doc.read()
+            with open(file_path, "wb") as f:
+                f.write(file_content)
+
+            # URL accessible via the /uploads static mount
+            document_url = f"/uploads/{user_id}/{safe_filename}"
+
+            # Build a descriptive document name
+            doc_name = f"{org_type} verification" if org_type else safe_filename
+
+            # Insert into user_documents table
+            await conn.execute(
+                """INSERT INTO user_documents
+                       (user_email, document_name, document_url, status)
+                   VALUES ($1, $2, $3, 'pending')""",
+                email,
+                doc_name,
+                document_url,
+            )
+
+    if wants_json:
+        return JSONResponse(
+            status_code=200, content={"detail": "Account created successfully"}
+        )
     return RedirectResponse("/", status_code=302)
 
 
@@ -454,6 +660,348 @@ async def user_usage_page(
     )
 
 
+# =================== GOVERNANCE API ENDPOINTS ===================
+
+from security.plan_enforcer import get_and_enforce_plan_limits, get_plan_export_formats
+from security.usage_tracker import get_daily_usage_credits, log_file_download
+from security.warning_manager import get_user_warnings, get_user_governance_notices
+from security.suspicious_detector import check_behavioral_patterns
+
+
+@app.get("/api/user/governance")
+async def api_user_governance(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
+):
+    """Full governance status for the current user — plan, limits, usage, warnings, restrictions."""
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        user_email = current_user.username
+        user_role = str(current_user.role)
+
+        from security.warning_manager import check_and_auto_unfreeze
+        await check_and_auto_unfreeze(conn, user_email)
+
+        # Get user record
+        user_row = await conn.fetchrow(
+            """
+            SELECT 
+                COALESCE(plan, 'free') AS plan,
+                COALESCE(is_verified, FALSE) AS is_verified,
+                COALESCE(is_blocked, FALSE) AS is_blocked,
+                COALESCE(status, 'active') AS status,
+                COALESCE(warning_count, 0) AS warning_count,
+                COALESCE(suspicious_score, 0) AS suspicious_score,
+                freeze_until,
+                plan_expiry,
+                blocked_reason
+            FROM users WHERE email = $1 LIMIT 1
+            """,
+            user_email
+        )
+
+        if not user_row:
+            return {"error": "User not found"}
+
+        # Get plan limits
+        plan_limits = await get_and_enforce_plan_limits(conn, user_email, user_role)
+        plan_name = plan_limits.get("plan", str(user_row["plan"]))
+
+        # Get role name
+        role_name = {"1": "admin", "2": "analyst", "3": "user"}.get(user_role, "user")
+
+        # Get usage credits
+        credits = await get_daily_usage_credits(conn, user_email, plan_limits)
+
+        # Get warnings
+        warnings = await get_user_warnings(conn, user_email)
+
+        # Get governance notices
+        notices = await get_user_governance_notices(conn, user_email)
+
+        # Check testing mode
+        testing_mode = await _get_system_setting(conn, "governance.testing_mode", "false")
+        is_testing = str(testing_mode).strip().lower() in ("true", "1", "yes", "on")
+
+        return {
+            "plan": plan_name,
+            "role": role_name,
+            "is_verified": bool(user_row["is_verified"]),
+            "is_blocked": bool(user_row["is_blocked"]),
+            "status": str(user_row["status"]),
+            "plan_expiry": str(user_row["plan_expiry"]) if user_row["plan_expiry"] else None,
+            "testing_mode": is_testing,
+            "limits": {
+                "max_queries_per_day": plan_limits.get("max_queries_per_day", 1000),
+                "max_rows_per_day": plan_limits.get("max_rows_per_day", 100000),
+                "max_downloads_per_day": plan_limits.get("max_downloads_per_day", 5),
+                "max_queries_per_month": plan_limits.get("max_queries_per_month", 200),
+                "max_rows_per_month": plan_limits.get("max_rows_per_month", 5000),
+                "max_downloads_per_month": plan_limits.get("max_downloads_per_month", 10),
+                "max_ai_queries_per_month": plan_limits.get("max_ai_queries_per_month", 3),
+                "downloads_allowed": plan_limits.get("downloads_allowed", False),
+                "api_access": plan_limits.get("api_access", False),
+                "advanced_analytics": plan_limits.get("advanced_analytics", False),
+                "export_formats": get_plan_export_formats(plan_limits),
+            },
+            "usage_today": credits,
+            "warnings": warnings,
+            "warning_count": int(user_row["warning_count"]),
+            "suspicious_score": int(user_row["suspicious_score"]),
+            "freeze_until": user_row["freeze_until"].isoformat() + "Z" if user_row["freeze_until"] else None,
+            "governance_notices": notices,
+        }
+
+
+@app.get("/api/user/query-history")
+async def api_user_query_history(
+    request: Request,
+    page: int = 1,
+    per_page: int = 20,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
+):
+    """Real query history from usage_logs for the current user."""
+    pool = request.app.state.db
+    offset = (max(1, page) - 1) * per_page
+    async with pool.acquire() as conn:
+        user_email = current_user.username
+
+        total = await conn.fetchval(
+            "SELECT COUNT(*) FROM usage_logs WHERE user_email = $1",
+            user_email
+        ) or 0
+
+        rows = await conn.fetch(
+            """
+            SELECT
+                COALESCE(schema_name, '-') AS dataset,
+                COALESCE(table_name, '-') AS table_name,
+                COALESCE(filters, '') AS filters,
+                COALESCE(rows_returned, 0) AS rows_returned,
+                COALESCE(query_time_ms, 0) AS query_time_ms,
+                COALESCE(status, 'success') AS status,
+                queried_at AS timestamp,
+                endpoint
+            FROM usage_logs
+            WHERE user_email = $1
+            ORDER BY queried_at DESC
+            LIMIT $2 OFFSET $3
+            """,
+            user_email, per_page, offset
+        )
+
+        return {
+            "total": int(total),
+            "page": page,
+            "per_page": per_page,
+            "history": [dict(r) for r in rows],
+        }
+
+
+@app.get("/api/user/download-history")
+async def api_user_download_history(
+    request: Request,
+    page: int = 1,
+    per_page: int = 20,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
+):
+    """Real download history from download_logs for the current user."""
+    pool = request.app.state.db
+    offset = (max(1, page) - 1) * per_page
+    async with pool.acquire() as conn:
+        user_email = current_user.username
+
+        total = await conn.fetchval(
+            "SELECT COUNT(*) FROM download_logs WHERE user_email = $1",
+            user_email
+        ) or 0
+
+        rows = await conn.fetch(
+            """
+            SELECT
+                file_name,
+                COALESCE(dataset_schema, '-') AS dataset,
+                COALESCE(export_format, 'csv') AS export_format,
+                COALESCE(rows_exported, 0) AS rows_exported,
+                COALESCE(size_bytes, 0) AS size_bytes,
+                COALESCE(status, 'success') AS status,
+                created_at AS timestamp
+            FROM download_logs
+            WHERE user_email = $1
+            ORDER BY created_at DESC
+            LIMIT $2 OFFSET $3
+            """,
+            user_email, per_page, offset
+        )
+
+        return {
+            "total": int(total),
+            "page": page,
+            "per_page": per_page,
+            "downloads": [dict(r) for r in rows],
+        }
+
+
+@app.get("/api/user/credits")
+async def api_user_credits(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
+):
+    """Used/remaining usage credits for the current user."""
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        user_email = current_user.username
+        user_role = str(current_user.role)
+        plan_limits = await get_and_enforce_plan_limits(conn, user_email, user_role)
+        credits = await get_daily_usage_credits(conn, user_email, plan_limits)
+        return credits
+
+
+@app.get("/admin/users/governance/{email}")
+async def admin_user_governance_detail(
+    request: Request,
+    email: str,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
+):
+    """Detailed per-user governance data for admin dashboard."""
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        user_row = await conn.fetchrow(
+            """
+            SELECT
+                u.username, u.email,
+                COALESCE(r.name, 'user') AS role,
+                COALESCE(u.plan, 'free') AS plan,
+                COALESCE(u.is_verified, FALSE) AS is_verified,
+                COALESCE(u.is_blocked, FALSE) AS is_blocked,
+                COALESCE(u.status, 'active') AS status,
+                COALESCE(u.warning_count, 0) AS warning_count,
+                COALESCE(u.suspicious_score, 0) AS suspicious_score,
+                u.freeze_until,
+                u.last_active,
+                u.created_at
+            FROM users u
+            LEFT JOIN roles r ON r.id = u.role_id
+            WHERE u.email = $1
+            LIMIT 1
+            """,
+            email
+        )
+        if not user_row:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        # Get usage today
+        usage_today = await conn.fetchrow(
+            """
+            SELECT COUNT(*) AS queries, COALESCE(SUM(rows_returned), 0) AS rows
+            FROM usage_logs
+            WHERE user_email = $1 AND queried_at >= CURRENT_DATE
+            """,
+            email
+        )
+
+        downloads_today = await conn.fetchval(
+            "SELECT COUNT(*) FROM download_logs WHERE user_email = $1 AND created_at >= CURRENT_DATE",
+            email
+        ) or 0
+
+        # Recent queries
+        recent_queries = await conn.fetch(
+            """
+            SELECT schema_name, table_name, rows_returned, COALESCE(query_time_ms, 0) AS query_time_ms,
+                   COALESCE(status, 'success') AS status, queried_at
+            FROM usage_logs WHERE user_email = $1
+            ORDER BY queried_at DESC LIMIT 10
+            """,
+            email
+        )
+
+        # Recent downloads
+        recent_downloads = await conn.fetch(
+            """
+            SELECT file_name, COALESCE(dataset_schema, '-') AS dataset, COALESCE(export_format, 'csv') AS format,
+                   size_bytes, created_at
+            FROM download_logs WHERE user_email = $1
+            ORDER BY created_at DESC LIMIT 10
+            """,
+            email
+        )
+
+        # Warnings
+        warnings = await get_user_warnings(conn, email)
+
+        # Suspicious activity
+        suspicious = await conn.fetch(
+            """
+            SELECT activity_type, risk_score, detail, created_at
+            FROM suspicious_activity_logs WHERE user_email = $1
+            ORDER BY created_at DESC LIMIT 10
+            """,
+            email
+        )
+
+        # Governance logs
+        gov_logs = await conn.fetch(
+            """
+            SELECT event_type, detail, created_at
+            FROM governance_logs WHERE user_email = $1
+            ORDER BY created_at DESC LIMIT 10
+            """,
+            email
+        )
+
+        return {
+            "user": dict(user_row),
+            "usage_today": {
+                "queries": int(usage_today["queries"] or 0) if usage_today else 0,
+                "rows": int(usage_today["rows"] or 0) if usage_today else 0,
+                "downloads": int(downloads_today),
+            },
+            "recent_queries": [dict(r) for r in recent_queries],
+            "recent_downloads": [dict(r) for r in recent_downloads],
+            "warnings": warnings,
+            "suspicious_activity": [dict(r) for r in suspicious],
+            "governance_logs": [dict(r) for r in gov_logs],
+        }
+
+
+@app.get("/admin/governance/suspicious")
+async def admin_suspicious_activity_feed(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
+):
+    """Suspicious activity feed for admin dashboard."""
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        activities = await conn.fetch(
+            """
+            SELECT user_email, activity_type, risk_score, detail, dataset_affected, created_at
+            FROM suspicious_activity_logs
+            ORDER BY created_at DESC
+            LIMIT 50
+            """
+        )
+
+        # Users with highest suspicious scores
+        risky_users = await conn.fetch(
+            """
+            SELECT u.email, u.username, COALESCE(u.suspicious_score, 0) AS suspicious_score,
+                   COALESCE(u.warning_count, 0) AS warning_count,
+                   COALESCE(u.status, 'active') AS status,
+                   COALESCE(u.plan, 'free') AS plan
+            FROM users u
+            WHERE COALESCE(u.suspicious_score, 0) > 0
+            ORDER BY u.suspicious_score DESC
+            LIMIT 20
+            """
+        )
+
+        return {
+            "activities": [dict(r) for r in activities],
+            "risky_users": [dict(r) for r in risky_users],
+        }
+
+
 # =================== DASHBOARD ROUTES ===================
 
 
@@ -499,7 +1047,7 @@ async def admin_dashboard(
                 pass
 
         # 2. Active Users
-        active_users = await conn.fetchval("SELECT COUNT(*) FROM users")
+        active_users = await conn.fetchval("SELECT COUNT(*) FROM users WHERE role_id != 1")
 
         # 3. Data Schemas (Count of schemas with 'datasets' table)
         data_schemas = len(schemas_rows)
@@ -552,6 +1100,34 @@ async def query_page(
             "role": current_user.role,
         },
     )
+
+
+@app.get("/api/user/status")
+async def get_user_status_api(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
+):
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        from security.warning_manager import check_and_auto_unfreeze
+        await check_and_auto_unfreeze(conn, current_user.username)
+        
+        row = await conn.fetchrow(
+            """
+            SELECT is_verified, document_uploaded, status
+            FROM users
+            WHERE email = $1
+            LIMIT 1
+            """,
+            current_user.username
+        )
+        if not row:
+            return {"is_verified": False, "document_uploaded": False, "status": "inactive"}
+        return {
+            "is_verified": bool(row["is_verified"]),
+            "document_uploaded": bool(row["document_uploaded"]),
+            "status": str(row["status"] or "active")
+        }
 
 
 @app.get("/upload", response_class=HTMLResponse)
@@ -892,87 +1468,31 @@ async def _get_system_setting(conn: asyncpg.Connection, key: str, default: str) 
 async def apply_admin_rules(conn: asyncpg.Connection, user, query_context: dict | None = None) -> dict:
     context = query_context or {}
     user_email = str(getattr(user, "username", "") or "")
-    role_name = _normalize_role(getattr(user, "role", "user"))
+    
+    action = str(context.get("action") or "query").lower()
+    if action == "dataset_access":
+        action_type = "query"
+    else:
+        action_type = action
 
-    row = await conn.fetchrow(
-        """
-        SELECT
-            COALESCE(is_blocked, FALSE) AS is_blocked,
-            COALESCE(plan, 'free') AS plan,
-            plan_expiry,
-            COALESCE(max_queries_per_day, max_queries_day, 1000) AS max_queries_per_day,
-            COALESCE(max_rows_per_day, max_rows_day, 100000) AS max_rows_per_day
-        FROM users
-        WHERE email = $1
-        LIMIT 1
-        """,
-        user_email,
+    requested_rows = int(context.get("requested_rows") or 0)
+    filters = context.get("filters")
+
+    # Delegate validation entirely to our Central Access Control Engine
+    res = await check_user_access(
+        conn=conn,
+        user=user,
+        action_type=action_type,
+        rows_requested=requested_rows,
+        filters=filters
     )
-
-    is_blocked = bool(row["is_blocked"]) if row else False
-    if is_blocked:
-        raise HTTPException(status_code=403, detail="User blocked")
-
-    if role_name == "admin":
-        return {"ok": True}
-
-    plan = (str(row["plan"]) if row else "free").strip().lower()
-    plan_expiry = row["plan_expiry"] if row else None
-    max_queries = int(row["max_queries_per_day"] or 1000) if row else 1000
-    max_rows = int(row["max_rows_per_day"] or 100000) if row else 100000
-
-    if plan == "free":
-        max_queries = min(max_queries, 200)
-        max_rows = min(max_rows, 50000)
-    elif plan == "pro":
-        max_queries = max(max_queries, 5000)
-        max_rows = max(max_rows, 500000)
-
-    if plan_expiry and plan_expiry < datetime.utcnow():
-        plan = "free"
-        max_queries = min(max_queries, 200)
-        max_rows = min(max_rows, 50000)
-
-    default_rate_limit = await _get_system_setting(conn, "default_rate_limit", "1000")
-    try:
-        max_queries = min(max_queries, max(1, int(default_rate_limit)))
-    except Exception:
-        pass
-
-    action = str(context.get("action") or "").lower()
-    if action == "download":
-        downloads_enabled = (await _get_system_setting(conn, "enable_downloads", "true")).strip().lower() == "true"
-        if not downloads_enabled:
-            raise HTTPException(status_code=403, detail="Downloads are disabled by system settings")
-
-    daily = await conn.fetchrow(
-        """
-        SELECT
-            COUNT(*) AS daily_queries,
-            COALESCE(SUM(rows_returned), 0) AS daily_rows
-        FROM usage_logs
-        WHERE user_email = $1
-          AND queried_at >= CURRENT_DATE
-        """,
-        user_email,
-    )
-    daily_queries = int(daily["daily_queries"] or 0) if daily else 0
-    daily_rows = int(daily["daily_rows"] or 0) if daily else 0
-
-    if action == "query":
-        requested_rows = int(context.get("requested_rows") or 0)
-        if daily_queries >= max_queries:
-            raise HTTPException(status_code=429, detail="Daily query limit exceeded")
-        if (daily_rows + max(0, requested_rows)) > max_rows:
-            raise HTTPException(status_code=429, detail="Daily rows limit exceeded")
-
     return {
-        "ok": True,
-        "plan": plan,
-        "max_queries_per_day": max_queries,
-        "max_rows_per_day": max_rows,
-        "daily_queries": daily_queries,
-        "daily_rows": daily_rows,
+        "ok": res.get("allowed", False),
+        "plan": res.get("plan"),
+        "max_queries_per_day": res.get("limits", {}).get("max_queries_per_day", 1000),
+        "max_rows_per_day": res.get("limits", {}).get("max_rows_per_day", 100000),
+        "daily_queries": 0,  # Legacy return parameter
+        "daily_rows": 0,     # Legacy return parameter
     }
 
 
@@ -983,15 +1503,9 @@ async def apply_config(schema, table, user, columns, rows):
     if conn is None:
         raise RuntimeError("Missing DB connection for config context")
 
-    user_role = _normalize_role(getattr(user, "role", "user"))
-    print("USER ROLE:", user_role)
+    user_role = getattr(user, "role", "user")
 
-    if user_role == "admin":
-        print("FINAL COLUMNS:", columns)
-        if rows is None:
-            return columns, None
-        return columns, [dict(r) for r in rows]
-
+    # Table visibility check
     dataset_cfg = await get_dataset_configs(schema)
     table_cfg = dataset_cfg.get(table)
     if table_cfg is not None and table_cfg.get("show_table_to_users") is False:
@@ -1000,64 +1514,37 @@ async def apply_config(schema, table, user, columns, rows):
     if not columns and rows is None:
         return [], None
 
-    var_cfg = await get_variable_configs(schema, table)
-    sensitive_enabled = (
-        await _get_system_setting(conn, "enable_sensitive_columns", await _get_system_setting(conn, "privacy.enable_sensitive_columns", "false"))
-    ).strip().lower() == "true"
-    global_min_rows_raw = await _get_system_setting(conn, "min_rows_threshold", await _get_system_setting(conn, "privacy.min_rows_threshold", "5"))
-    try:
-        global_min_rows = max(1, int(global_min_rows_raw))
-    except Exception:
-        global_min_rows = 5
-
-    allowed_columns = []
-    min_rows_required = 0
-    for col in columns:
-        cfg = var_cfg.get(col)
-        if cfg and cfg.get("include_in_api") is False:
-            continue
-        if cfg and cfg.get("is_sensitive") and user_role != "admin" and not sensitive_enabled:
-            continue
-        if cfg and cfg.get("is_sensitive"):
-            try:
-                min_rows_required = max(min_rows_required, int(cfg.get("min_rows") or 5))
-            except Exception:
-                min_rows_required = max(min_rows_required, 5)
-        allowed_columns.append(col)
-
-    print("FINAL COLUMNS:", allowed_columns)
-
-    if filters and columns:
-        used_cols = _extract_filter_columns(filters, columns)
-        allowed_set = set(allowed_columns)
-        for c in used_cols:
-            if c not in allowed_set:
-                raise HTTPException(status_code=400, detail=f"Invalid or restricted filter column: {c}")
-            cfg = var_cfg.get(c)
-            if cfg and cfg.get("filterable") is False:
-                raise HTTPException(status_code=400, detail=f"Column '{c}' is not configured as filterable.")
+    # Delegate column and filter security policies to the privacy guard
+    allowed_columns = await check_columns_and_filters(
+        conn=conn,
+        schema=schema,
+        table=table,
+        user_role=user_role,
+        columns=columns,
+        filters=filters
+    )
 
     if rows is None:
         return allowed_columns, None
 
-    result = []
-    for row in rows:
-        row_dict = dict(row)
-        filtered = {}
-        for col in allowed_columns:
-            val = row_dict.get(col)
-            if val is not None:
-                col_labels = labels.get(col) or {}
-                if col_labels:
-                    val = col_labels.get(str(val), val)
-            filtered[col] = val
-        result.append(filtered)
-
-    min_rows_required = max(min_rows_required, global_min_rows)
-    if user_role != "admin" and min_rows_required > 0 and len(result) < min_rows_required:
-        raise HTTPException(status_code=403, detail="Suppressed")
+    # Delegate cell suppression and value labels mapping to the privacy guard
+    try:
+        result = await apply_privacy_and_labeling(
+            conn=conn,
+            schema=schema,
+            table=table,
+            user_role=user_role,
+            columns=allowed_columns,
+            rows=rows,
+            labels=labels
+        )
+    except HTTPException as e:
+        if isinstance(e.detail, dict) and e.detail.get("error") == "Cell Suppression Applied":
+            raise HTTPException(status_code=403, detail="Suppressed")
+        raise
 
     return allowed_columns, result
+
 
 
 @app.get("/surveys")
@@ -2279,12 +2766,33 @@ async def query_table(
     filters: str = "",
     limit: int = 100,
     offset: int = 0,
+    format: str | None = None,
     current_user=Depends(get_current_user),  # <-- Add user dependency!
 ):
     try:
+        is_export = format in ["csv", "excel", "pdf", "json"]
+        action_type = "export" if is_export else "query"
+        export_fmt = format.lower() if is_export else None
+
         pool = request.app.state.db
         async with pool.acquire() as conn:
-            await apply_admin_rules(conn, current_user, {"action": "query", "requested_rows": int(limit)})
+            await apply_admin_rules(
+                conn, 
+                current_user, 
+                {
+                    "action": action_type, 
+                    "requested_rows": int(limit),
+                    "filters": filters
+                }
+            )
+
+            # Additional check for download limits if exporting
+            if is_export:
+                from security.plan_enforcer import get_and_enforce_plan_limits
+                from security.usage_tracker import check_download_limits
+                user_role = str(current_user.role)
+                plan_limits = await get_and_enforce_plan_limits(conn, current_user.username, user_role)
+                await check_download_limits(conn, current_user.username, plan_limits)
             table_check = await conn.fetch(
                 """
                 SELECT table_name FROM information_schema.tables 
@@ -2424,7 +2932,8 @@ async def query_table(
             try:
                 _, filtered = await apply_config(schema, table, current_user, selected_columns, result)
             except HTTPException:
-                await log_usage(
+                from security.usage_tracker import log_api_usage
+                await log_api_usage(
                     conn,
                     current_user.username,
                     f"/datasets/{schema}/{table}/query",
@@ -2432,12 +2941,15 @@ async def query_table(
                     table,
                     0,
                     0,
+                    status="failure",
+                    filters=filters
                 )
                 raise
             finally:
                 _reset_apply_context(tokens)
 
-            await log_usage(
+            from security.usage_tracker import log_api_usage
+            await log_api_usage(
                 conn,
                 current_user.username,
                 f"/datasets/{schema}/{table}/query",
@@ -2445,11 +2957,189 @@ async def query_table(
                 table,
                 len(filtered),
                 len(json.dumps(filtered, default=str).encode()),
+                filters=filters
             )
             print(f"DEBUG: Query returned {len(filtered)} rows")
+
+            if is_export:
+                # Log file download details to database
+                from security.usage_tracker import log_file_download
+                import io
+
+                filename = f"{table}_query.{export_fmt}"
+                if export_fmt == "csv":
+                    import csv
+                    output = io.StringIO()
+                    writer = csv.DictWriter(output, fieldnames=filtered[0].keys() if filtered else [])
+                    writer.writeheader()
+                    writer.writerows(filtered)
+                    output.seek(0)
+                    content = output.getvalue().encode("utf-8")
+                    media_type = "text/csv"
+                elif export_fmt == "json":
+                    content = json.dumps(filtered, default=str, indent=2).encode("utf-8")
+                    media_type = "application/json"
+                elif export_fmt == "excel":
+                    import pandas as pd
+                    df = pd.DataFrame(filtered)
+                    output = io.BytesIO()
+                    df.to_excel(output, index=False, engine='openpyxl')
+                    output.seek(0)
+                    content = output.getvalue()
+                    media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    filename = f"{table}_query.xlsx"
+                elif export_fmt == "pdf":
+                    from reportlab.lib.pagesizes import letter, landscape
+                    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+                    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+                    from reportlab.lib import colors
+
+                    output = io.BytesIO()
+                    doc = SimpleDocTemplate(output, pagesize=landscape(letter), rightMargin=20, leftMargin=20, topMargin=20, bottomMargin=20)
+                    elements = []
+
+                    styles = getSampleStyleSheet()
+                    title_style = ParagraphStyle(
+                        'TitleStyle',
+                        parent=styles['Heading1'],
+                        fontSize=14,
+                        spaceAfter=10
+                    )
+                    cell_style = ParagraphStyle(
+                        'CellStyle',
+                        parent=styles['Normal'],
+                        fontSize=7,
+                        leading=9
+                    )
+                    header_style = ParagraphStyle(
+                        'HeaderStyle',
+                        parent=styles['Normal'],
+                        fontSize=8,
+                        leading=10,
+                        textColor=colors.whitesmoke,
+                        fontName='Helvetica-Bold'
+                    )
+
+                    elements.append(Paragraph(f"Dataset Export: {table} (Schema: {schema})", title_style))
+                    elements.append(Spacer(1, 10))
+
+                    if filtered:
+                        headers = list(filtered[0].keys())
+                        headers_subset = headers[:12]
+
+                        table_data = []
+                        table_data.append([Paragraph(h, header_style) for h in headers_subset])
+
+                        for row in filtered[:100]:
+                            row_cells = []
+                            for h in headers_subset:
+                                val = str(row.get(h, ""))
+                                if len(val) > 40:
+                                    val = val[:37] + "..."
+                                row_cells.append(Paragraph(val, cell_style))
+                            table_data.append(row_cells)
+
+                        col_width = 750 / len(headers_subset)
+                        t = Table(table_data, colWidths=[col_width]*len(headers_subset))
+                        t.setStyle(TableStyle([
+                            ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#2E5BBA')),
+                            ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+                            ('VALIGN', (0,0), (-1,-1), 'TOP'),
+                            ('INNERGRID', (0,0), (-1,-1), 0.5, colors.grey),
+                            ('BOX', (0,0), (-1,-1), 1, colors.HexColor('#2E5BBA')),
+                            ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.HexColor('#F5F7FA')]),
+                            ('TOPPADDING', (0,0), (-1,-1), 4),
+                            ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+                        ]))
+                        elements.append(t)
+
+                        if len(filtered) > 100:
+                            elements.append(Spacer(1, 10))
+                            elements.append(Paragraph(f"... and {len(filtered) - 100} more rows (total {len(filtered)} rows exported)", styles['Italic']))
+                    else:
+                        elements.append(Paragraph("No data found.", styles['Normal']))
+
+                    doc.build(elements)
+                    content = output.getvalue()
+                    media_type = "application/pdf"
+
+                size_bytes = len(content)
+                await log_file_download(
+                    conn=conn,
+                    file_name=filename,
+                    user_email=current_user.username,
+                    size_bytes=size_bytes,
+                    dataset_schema=schema,
+                    export_format=export_fmt,
+                    rows_exported=len(filtered),
+                    status="success"
+                )
+
+                return StreamingResponse(
+                    io.BytesIO(content),
+                    media_type=media_type,
+                    headers={"Content-Disposition": f"attachment; filename={filename}"}
+                )
+
             return filtered
 
-    except HTTPException:
+    except HTTPException as e:
+        # --- Suspicious Activity Escalation ---
+        try:
+            pool = request.app.state.db
+            async with pool.acquire() as conn:
+                user_email = current_user.username
+                score_inc = 0
+                violation_type = None
+                detail_msg = ""
+                
+                # Check for Cell Suppression (403, Cell Suppression Applied or Suppressed)
+                is_cell_sup = False
+                if e.status_code == 403:
+                    if isinstance(e.detail, dict) and e.detail.get("error") == "Cell Suppression Applied":
+                        is_cell_sup = True
+                        detail_msg = f"Cell suppression threshold violated: {e.detail.get('detail')}"
+                    elif isinstance(e.detail, str) and e.detail == "Suppressed":
+                        is_cell_sup = True
+                        detail_msg = "Cell suppression threshold violated: Privacy suppression applied to query results."
+
+                if is_cell_sup:
+                    score_inc = 15
+                    violation_type = "cell_suppression_violation"
+                # Check for Privacy Violation (400, contains Privacy Violation or not configured as filterable)
+                elif e.status_code == 400 and isinstance(e.detail, str) and ("Privacy Violation" in e.detail or "not configured as filterable" in e.detail):
+                    score_inc = 20
+                    violation_type = "privacy_violation"
+                    detail_msg = e.detail
+                # Check for Limit Exceeded (429, Usage Limit Exceeded)
+                elif e.status_code == 429 and isinstance(e.detail, str) and "Usage Limit Exceeded" in e.detail:
+                    score_inc = 5
+                    violation_type = "blocked_query_retry"
+                    detail_msg = e.detail
+
+                if score_inc > 0:
+                    await conn.execute(
+                        "UPDATE users SET suspicious_score = COALESCE(suspicious_score, 0) + $1 WHERE email = $2",
+                        score_inc, user_email
+                    )
+                    await conn.execute(
+                        """
+                        INSERT INTO suspicious_activity_logs (user_email, activity_type, risk_score, detail, created_at)
+                        VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
+                        """,
+                        user_email, violation_type, score_inc, detail_msg[:500]
+                    )
+                    if violation_type == "cell_suppression_violation":
+                        from security.warning_manager import issue_governance_warning
+                        await issue_governance_warning(
+                            conn, user_email,
+                            violation_type=violation_type,
+                            message=detail_msg
+                        )
+                    from security.warning_manager import check_and_escalate_suspicious_score
+                    await check_and_escalate_suspicious_score(conn, user_email)
+        except Exception as db_err:
+            print(f"Error logging query failure escalation: {db_err}")
         raise
     except Exception as e:
         print(f"ERROR in query_table: {e}")
@@ -3375,6 +4065,9 @@ async def admin_usage_logs_api(
         query_logs = []
         if usage_time_col and usage_has_identity:
             try:
+                filters_col_expr = "COALESCE(filters, '-')" if "filters" in usage_cols else "'-'"
+                status_col_expr = "COALESCE(status, 'success')" if "status" in usage_cols else "'success'"
+                query_time_ms_expr = "COALESCE(query_time_ms, 0)" if "query_time_ms" in usage_cols else "0"
                 query_logs = await conn.fetch(
                     f"""
                     SELECT
@@ -3383,8 +4076,10 @@ async def admin_usage_logs_api(
                             WHEN COALESCE(NULLIF(schema_name, ''), '') = '' AND COALESCE(NULLIF(table_name, ''), '') = '' THEN COALESCE(endpoint, '-')
                             ELSE COALESCE(NULLIF(schema_name, ''), '-') || '/' || COALESCE(NULLIF(table_name, ''), '-')
                         END AS dataset_table,
-                        '-' AS filters,
+                        {filters_col_expr} AS filters,
                         COALESCE({usage_rows_col or '0'}, 0) AS rows_returned,
+                        {query_time_ms_expr} AS query_time_ms,
+                        {status_col_expr} AS status,
                         {usage_time_col} AS time
                     FROM usage_logs
                     ORDER BY {usage_time_col} DESC
@@ -3404,6 +4099,8 @@ async def admin_usage_logs_api(
                         {dataset_expr} AS dataset_table,
                         {filters_expr} AS filters,
                         COALESCE({query_rows_col or '0'}, 0) AS rows_returned,
+                        0 AS query_time_ms,
+                        'success' AS status,
                         {query_time_col} AS time
                     FROM query_logs
                     ORDER BY {query_time_col} DESC
@@ -3422,6 +4119,9 @@ async def admin_usage_logs_api(
                         COALESCE(NULLIF(split_part(endpoint, '/', 4), ''), 'download') AS file_name,
                         user_email,
                         COALESCE({usage_bytes_col or '0'}, 0) AS size_bytes,
+                        'csv' AS export_format,
+                        0 AS rows_exported,
+                        'success' AS status,
                         {usage_time_col} AS time
                     FROM usage_logs
                     WHERE endpoint ILIKE '/downloads/%'
@@ -3435,12 +4135,18 @@ async def admin_usage_logs_api(
         table_downloads = []
         if download_time_col and download_has_file and download_has_identity:
             try:
+                format_col_expr = "COALESCE(export_format, 'csv')" if "export_format" in download_cols else "'csv'"
+                rows_col_expr = "COALESCE(rows_exported, 0)" if "rows_exported" in download_cols else "0"
+                status_col_expr = "COALESCE(status, 'success')" if "status" in download_cols else "'success'"
                 table_downloads = await conn.fetch(
                     f"""
                     SELECT
                         file_name,
                         user_email,
                         COALESCE({download_size_col or '0'}, 0) AS size_bytes,
+                        {format_col_expr} AS export_format,
+                        {rows_col_expr} AS rows_exported,
+                        {status_col_expr} AS status,
                         {download_time_col} AS time
                     FROM download_logs
                     ORDER BY {download_time_col} DESC
@@ -3466,22 +4172,25 @@ async def admin_usage_logs_api(
 
         if usage_time_col and usage_has_identity:
             try:
-                total_queries = await conn.fetchval("SELECT COUNT(*) FROM usage_logs")
-                active_users = await conn.fetchval("SELECT COUNT(DISTINCT user_email) FROM usage_logs")
-                rows_accessed = await conn.fetchval(f"SELECT COALESCE(SUM({usage_rows_col or '0'}), 0) FROM usage_logs")
+                admin_emails_subquery = "SELECT email FROM users WHERE role_id = 1"
+                total_queries = await conn.fetchval(f"SELECT COUNT(*) FROM usage_logs WHERE user_email NOT IN ({admin_emails_subquery})")
+                active_users = await conn.fetchval(f"SELECT COUNT(DISTINCT user_email) FROM usage_logs WHERE user_email NOT IN ({admin_emails_subquery})")
+                rows_accessed = await conn.fetchval(f"SELECT COALESCE(SUM({usage_rows_col or '0'}), 0) FROM usage_logs WHERE user_email NOT IN ({admin_emails_subquery})")
                 queries_over_time = await conn.fetch(
                     f"""
                     SELECT TO_CHAR(DATE({usage_time_col}), 'YYYY-MM-DD') AS day, COUNT(*) AS count
                     FROM usage_logs
                     WHERE {usage_time_col} >= NOW() - INTERVAL '14 days'
+                      AND user_email NOT IN ({admin_emails_subquery})
                     GROUP BY DATE({usage_time_col})
                     ORDER BY DATE({usage_time_col})
                     """
                 )
                 top_users = await conn.fetch(
-                    """
+                    f"""
                     SELECT user_email, COUNT(*) AS count
                     FROM usage_logs
+                    WHERE user_email NOT IN ({admin_emails_subquery})
                     GROUP BY user_email
                     ORDER BY count DESC
                     LIMIT 8
@@ -3496,22 +4205,25 @@ async def admin_usage_logs_api(
 
         if (not total_queries) and query_time_col and query_has_identity:
             try:
-                total_queries = await conn.fetchval("SELECT COUNT(*) FROM query_logs")
-                active_users = await conn.fetchval("SELECT COUNT(DISTINCT user_email) FROM query_logs")
-                rows_accessed = await conn.fetchval(f"SELECT COALESCE(SUM({query_rows_col or '0'}), 0) FROM query_logs")
+                admin_emails_subquery = "SELECT email FROM users WHERE role_id = 1"
+                total_queries = await conn.fetchval(f"SELECT COUNT(*) FROM query_logs WHERE user_email NOT IN ({admin_emails_subquery})")
+                active_users = await conn.fetchval(f"SELECT COUNT(DISTINCT user_email) FROM query_logs WHERE user_email NOT IN ({admin_emails_subquery})")
+                rows_accessed = await conn.fetchval(f"SELECT COALESCE(SUM({query_rows_col or '0'}), 0) FROM query_logs WHERE user_email NOT IN ({admin_emails_subquery})")
                 queries_over_time = await conn.fetch(
                     f"""
                     SELECT TO_CHAR(DATE({query_time_col}), 'YYYY-MM-DD') AS day, COUNT(*) AS count
                     FROM query_logs
                     WHERE {query_time_col} >= NOW() - INTERVAL '14 days'
+                      AND user_email NOT IN ({admin_emails_subquery})
                     GROUP BY DATE({query_time_col})
                     ORDER BY DATE({query_time_col})
                     """
                 )
                 top_users = await conn.fetch(
-                    """
+                    f"""
                     SELECT user_email, COUNT(*) AS count
                     FROM query_logs
+                    WHERE user_email NOT IN ({admin_emails_subquery})
                     GROUP BY user_email
                     ORDER BY count DESC
                     LIMIT 8
@@ -3551,18 +4263,42 @@ async def admin_users_api(
                 COALESCE(u.is_verified, FALSE) AS is_verified,
                 COALESCE(u.document_uploaded, FALSE) AS document_uploaded,
                 COALESCE(u.is_blocked, FALSE) AS is_blocked,
-                CASE WHEN COALESCE(u.is_blocked, FALSE) THEN 'blocked' ELSE 'active' END AS status,
+                COALESCE(u.status, CASE WHEN COALESCE(u.is_blocked, FALSE) THEN 'blocked' ELSE 'active' END) AS status,
                 COALESCE(u.plan, 'free') AS plan,
                 u.plan_expiry,
                 COALESCE(u.max_queries_per_day, u.max_queries_day, 1000) AS max_queries_day,
                 COALESCE(u.max_rows_per_day, u.max_rows_day, 100000) AS max_rows_day,
-                COALESCE(u.blocked_reason, '') AS blocked_reason
+                COALESCE(u.blocked_reason, '') AS blocked_reason,
+                COALESCE(u.warning_count, 0) AS warning_count,
+                COALESCE(u.suspicious_score, 0) AS suspicious_score,
+                u.last_active,
+                u.created_at
             FROM users u
             LEFT JOIN roles r ON r.id = u.role_id
             ORDER BY u.created_at DESC
             """
         )
-    return {"users": [dict(r) for r in users]}
+        # Enrich with today's usage stats
+        enriched = []
+        for u in users:
+            ud = dict(u)
+            try:
+                usage = await conn.fetchrow(
+                    "SELECT COUNT(*) AS queries_today, COALESCE(SUM(rows_returned),0) AS rows_today FROM usage_logs WHERE user_email = $1 AND queried_at >= CURRENT_DATE",
+                    ud["email"]
+                )
+                ud["queries_today"] = int(usage["queries_today"] or 0) if usage else 0
+                ud["rows_today"] = int(usage["rows_today"] or 0) if usage else 0
+            except Exception:
+                ud["queries_today"] = 0
+                ud["rows_today"] = 0
+            try:
+                dl = await conn.fetchval("SELECT COUNT(*) FROM download_logs WHERE user_email = $1 AND created_at >= CURRENT_DATE", ud["email"])
+                ud["downloads_today"] = int(dl or 0)
+            except Exception:
+                ud["downloads_today"] = 0
+            enriched.append(ud)
+    return {"users": enriched}
 
 
 @app.post("/admin/users/update-role")
@@ -3604,19 +4340,36 @@ async def admin_block_user_api(
     status = "blocked" if blocked else "active"
     pool = request.app.state.db
     async with pool.acquire() as conn:
-        await conn.execute(
-            """
-            UPDATE users
-            SET status = $1,
-                is_blocked = $2,
-                blocked_reason = $3
-            WHERE email = $4
-            """,
-            status,
-            blocked,
-            reason if blocked else "",
-            email
-        )
+        if blocked:
+            await conn.execute(
+                """
+                UPDATE users
+                SET status = $1,
+                    is_blocked = $2,
+                    blocked_reason = $3
+                WHERE email = $4
+                """,
+                status,
+                blocked,
+                reason,
+                email
+            )
+        else:
+            await conn.execute(
+                """
+                UPDATE users
+                SET status = $1,
+                    is_blocked = $2,
+                    blocked_reason = $3,
+                    warning_count = 0,
+                    freeze_until = NULL
+                WHERE email = $4
+                """,
+                status,
+                blocked,
+                "",
+                email
+            )
     return {"ok": True}
 
 
@@ -3633,21 +4386,11 @@ async def admin_verify_user_api(
         raise HTTPException(status_code=400, detail="email is required")
     pool = request.app.state.db
     async with pool.acquire() as conn:
-        can_verify = await conn.fetchval(
-            """
-            SELECT CASE
-                     WHEN COALESCE(is_verified, FALSE) = FALSE
-                      AND COALESCE(document_uploaded, FALSE) = TRUE
-                     THEN TRUE ELSE FALSE
-                   END
-            FROM users
-            WHERE email = $1
-            LIMIT 1
-            """,
-            email,
+        exists = await conn.fetchval(
+            "SELECT COUNT(*) FROM users WHERE email = $1", email
         )
-        if not can_verify:
-            raise HTTPException(status_code=400, detail="User cannot be verified")
+        if not exists:
+            raise HTTPException(status_code=404, detail="User not found")
         await conn.execute("UPDATE users SET is_verified = $1 WHERE email = $2", approved, email)
         if document_id:
             await conn.execute(
@@ -3696,7 +4439,7 @@ async def admin_assign_plan_api(
     email = (body.get("email") or "").strip()
     plan = (body.get("plan") or "").strip().lower()
     plan_expiry = (body.get("plan_expiry") or "").strip()
-    if not email or plan not in {"free", "pro"}:
+    if not email or plan not in {"free", "pro", "enterprise"}:
         raise HTTPException(status_code=400, detail="Invalid payload")
     pool = request.app.state.db
     async with pool.acquire() as conn:
@@ -3713,6 +4456,114 @@ async def admin_assign_plan_api(
                 plan,
                 email,
             )
+    return {"ok": True}
+
+
+@app.post("/admin/users/reset-usage")
+async def admin_reset_usage_api(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
+):
+    body = await request.json()
+    email = (body.get("email") or "").strip()
+    if not email:
+        raise HTTPException(status_code=400, detail="email is required")
+
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            # Clear usage records
+            await conn.execute("DELETE FROM usage_logs WHERE user_email = $1", email)
+            await conn.execute("DELETE FROM download_logs WHERE user_email = $1", email)
+            
+            # Reset user safety metrics and status in user table
+            await conn.execute(
+                """
+                UPDATE users 
+                SET warning_count = 0, 
+                    suspicious_score = 0, 
+                    status = 'active', 
+                    freeze_until = NULL 
+                WHERE email = $1
+                """,
+                email
+            )
+            
+            # Log governance reset event
+            await conn.execute(
+                """
+                INSERT INTO governance_logs (user_email, event_type, detail, created_at)
+                VALUES ($1, 'usage_reset', 'Admin reset user usage limits and warnings', CURRENT_TIMESTAMP)
+                """,
+                email
+            )
+            
+    return {"ok": True}
+
+
+@app.post("/admin/users/unfreeze")
+async def admin_unfreeze_user_api(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
+):
+    body = await request.json()
+    email = (body.get("email") or "").strip()
+    if not email:
+        raise HTTPException(status_code=400, detail="email is required")
+
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            await conn.execute(
+                """
+                UPDATE users
+                SET status = 'active',
+                    freeze_until = NULL,
+                    warning_count = 0
+                WHERE email = $1
+                """,
+                email
+            )
+            await conn.execute(
+                """
+                INSERT INTO governance_logs (user_email, event_type, detail, created_at)
+                VALUES ($1, 'manual_unfreeze', 'Admin manually unfroze the account', CURRENT_TIMESTAMP)
+                """,
+                email
+            )
+    return {"ok": True}
+
+
+@app.post("/admin/users/delete")
+async def admin_delete_user_api(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
+):
+    body = await request.json()
+    email = (body.get("email") or "").strip()
+    if not email:
+        raise HTTPException(status_code=400, detail="email is required")
+    
+    # Do not allow deleting self
+    if email == current_user.username:
+        raise HTTPException(status_code=400, detail="Cannot delete your own admin account")
+
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            # Delete related logs first to avoid foreign key / dependency constraints (if any)
+            await conn.execute("DELETE FROM usage_logs WHERE user_email = $1", email)
+            await conn.execute("DELETE FROM download_logs WHERE user_email = $1", email)
+            await conn.execute("DELETE FROM query_logs WHERE user_email = $1", email)
+            await conn.execute("DELETE FROM suspicious_activity_logs WHERE user_email = $1", email)
+            await conn.execute("DELETE FROM governance_warnings WHERE user_email = $1", email)
+            await conn.execute("DELETE FROM governance_logs WHERE user_email = $1", email)
+            await conn.execute("DELETE FROM user_documents WHERE user_email = $1", email)
+            await conn.execute("DELETE FROM user_requests WHERE user_email = $1", email)
+            await conn.execute("DELETE FROM payments WHERE user_email = $1", email)
+            # Delete user
+            await conn.execute("DELETE FROM users WHERE email = $1", email)
+            
     return {"ok": True}
 
 
@@ -3750,23 +4601,39 @@ async def admin_requests_api(
         try:
             docs = await conn.fetch(
                 """
-                SELECT d.id, d.user_email, d.document_name, d.document_url, d.status, d.created_at
+                SELECT 
+                    d.id, 
+                    d.user_email, 
+                    d.document_name, 
+                    d.document_url, 
+                    d.status, 
+                    d.created_at,
+                    u.username,
+                    COALESCE(u.org_type, '') AS org_type,
+                    COALESCE(u.org_details, '{}') AS org_details,
+                    u.created_at AS registration_timestamp,
+                    COALESCE(u.status, 'active') AS account_status,
+                    COALESCE(u.plan, 'free') AS current_plan,
+                    COALESCE(r.name, 'user') AS role,
+                    (SELECT COUNT(*) FROM usage_logs WHERE user_email = u.email) AS query_usage
                 FROM user_documents d
                 JOIN users u ON u.email = d.user_email
+                LEFT JOIN roles r ON r.id = u.role_id
                 WHERE COALESCE(u.is_verified, FALSE) = FALSE
-                  AND COALESCE(u.document_uploaded, FALSE) = TRUE
                 ORDER BY d.created_at DESC
                 LIMIT 100
                 """
             )
         except Exception:
             docs = []
+        admin_emails_subquery = "SELECT email FROM users WHERE role_id = 1"
         suspicious = await conn.fetch(
-            """
+            f"""
             SELECT user_email, COUNT(*) AS query_count, COALESCE(SUM(rows_returned), 0) AS rows_accessed
             FROM usage_logs
             WHERE endpoint ILIKE '%query%'
               AND queried_at >= NOW() - INTERVAL '24 hours'
+              AND user_email NOT IN ({admin_emails_subquery})
             GROUP BY user_email
             HAVING COUNT(*) > 50
             ORDER BY query_count DESC
@@ -3863,6 +4730,39 @@ async def admin_settings_api(
         "payments.enabled": "false",
         "payments.default_plan_limits": "free:1000,pro:100000",
         "payments.pricing_config": "free=0,pro=99",
+        # ── Plan Governance: per-plan limits (read by plan_enforcer.py) ──
+        "plans.free.max_queries_per_day": "200",
+        "plans.free.max_rows_per_day": "50000",
+        "plans.free.downloads_allowed": "false",
+        "plans.pro.max_queries_per_day": "5000",
+        "plans.pro.max_rows_per_day": "500000",
+        "plans.pro.downloads_allowed": "true",
+        "plans.enterprise.max_queries_per_day": "50000",
+        "plans.enterprise.max_rows_per_day": "5000000",
+        "plans.enterprise.downloads_allowed": "true",
+        # ── Governance Testing Mode ──
+        "governance.testing_mode": "false",
+        "governance.test.free.max_queries_per_day": "5",
+        "governance.test.free.max_rows_per_day": "500",
+        "governance.test.pro.max_queries_per_day": "20",
+        "governance.test.pro.max_rows_per_day": "5000",
+        "governance.test.enterprise.max_queries_per_day": "50",
+        "governance.test.enterprise.max_rows_per_day": "25000",
+        # ── Per-plan download limits ──
+        "plans.free.max_downloads_per_day": "5",
+        "plans.pro.max_downloads_per_day": "50",
+        "plans.enterprise.max_downloads_per_day": "500",
+        # ── Per-plan export formats ──
+        "plans.free.export_formats": "csv",
+        "plans.pro.export_formats": "csv,excel,pdf",
+        "plans.enterprise.export_formats": "csv,excel,pdf,json,api",
+        # ── Per-plan API & analytics access ──
+        "plans.free.api_access": "false",
+        "plans.pro.api_access": "true",
+        "plans.enterprise.api_access": "true",
+        "plans.free.advanced_analytics": "false",
+        "plans.pro.advanced_analytics": "true",
+        "plans.enterprise.advanced_analytics": "true",
     }
     pool = request.app.state.db
     async with pool.acquire() as conn:
@@ -3889,6 +4789,24 @@ async def admin_settings_api(
             "default_rate_limit": settings_map.get("default_rate_limit") or settings_map.get("api.default_rate_limit", "60"),
             "enable_downloads": settings_map.get("enable_downloads") or settings_map.get("features.enable_downloads", "true"),
             "enable_charts": settings_map.get("enable_charts") or settings_map.get("features.enable_charts", "true"),
+            "governance_testing_mode": settings_map.get("governance.testing_mode", "false"),
+            "plans": {
+                "free": {
+                    "max_queries_per_day": settings_map.get("plans.free.max_queries_per_day", "200"),
+                    "max_rows_per_day": settings_map.get("plans.free.max_rows_per_day", "50000"),
+                    "downloads_allowed": settings_map.get("plans.free.downloads_allowed", "false"),
+                },
+                "pro": {
+                    "max_queries_per_day": settings_map.get("plans.pro.max_queries_per_day", "5000"),
+                    "max_rows_per_day": settings_map.get("plans.pro.max_rows_per_day", "500000"),
+                    "downloads_allowed": settings_map.get("plans.pro.downloads_allowed", "true"),
+                },
+                "enterprise": {
+                    "max_queries_per_day": settings_map.get("plans.enterprise.max_queries_per_day", "50000"),
+                    "max_rows_per_day": settings_map.get("plans.enterprise.max_rows_per_day", "5000000"),
+                    "downloads_allowed": settings_map.get("plans.enterprise.downloads_allowed", "true"),
+                },
+            },
         },
     }
 

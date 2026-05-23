@@ -44,7 +44,7 @@
             transition: var(--transition);
         }
 
-        .wrap { max-width: 1500px; margin: 0 auto; padding-top: 60px; }
+        .wrap { max-width: 1500px; margin: 0 auto; padding-top: 80px; }
 
         .back {
             position: fixed; top:16px; left:16px;
@@ -52,6 +52,7 @@
             background:var(--glass-bg); border:1px solid var(--glass-border);
             border-radius:999px; padding:10px 18px;
             transition: var(--transition);
+            z-index: 9999;
         }
         .back:hover { background: var(--primary); color: #fff; transform: translateX(-5px); }
 
@@ -62,6 +63,7 @@
             border-radius:999px; padding:10px 18px;
             transition: var(--transition);
             display: flex; align-items: center; gap: 8px; font-weight: 500;
+            z-index: 9999;
         }
         .theme-toggle:hover { background: var(--primary); color: #fff; transform: translateY(-2px); }
 
@@ -98,6 +100,334 @@
         select { padding: 4px 8px; border-radius: 6px; border: 1px solid var(--glass-border); background: var(--bg-page); color: var(--text-main); font-size: 0.8rem; }
 
         @media (max-width:1100px) { .grid { grid-template-columns:1fr; } }
+
+        /* Modern Verification Cards styling */
+        .verification-cards-container {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-top: 10px;
+        }
+
+        .verification-card {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+            transition: var(--transition);
+        }
+
+        .verification-card:hover {
+            box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+            border-color: var(--primary);
+        }
+
+        .verification-card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 20px;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .verification-card-header:hover {
+            background: rgba(46, 91, 186, 0.03);
+        }
+
+        .v-user-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .v-avatar {
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            background: var(--primary);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 1.1rem;
+        }
+
+        .v-user-details {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .v-name {
+            font-weight: 600;
+            font-size: 0.95rem;
+            color: var(--text-main);
+        }
+
+        .v-email {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .v-meta-grid {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .v-meta-item {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .v-meta-label {
+            font-size: 0.68rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-muted);
+            font-weight: 700;
+        }
+
+        .v-meta-val {
+            font-size: 0.82rem;
+            font-weight: 500;
+            color: var(--text-main);
+        }
+
+        .v-chevron {
+            font-size: 1rem;
+            color: var(--text-muted);
+            transition: transform 0.3s ease;
+        }
+
+        .verification-card.expanded .v-chevron {
+            transform: rotate(180deg);
+        }
+
+        .verification-card-body {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.4s cubic-bezier(0, 1, 0, 1);
+            background: rgba(0, 0, 0, 0.01);
+            border-top: 0 solid var(--glass-border);
+        }
+
+        .verification-card.expanded .verification-card-body {
+            max-height: 1000px;
+            transition: max-height 0.5s ease-in-out;
+            border-top: 1px solid var(--glass-border);
+        }
+
+        .v-body-content {
+            padding: 20px;
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .v-body-content {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .v-details-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+        }
+
+        .v-detail-box {
+            background: var(--bg-page);
+            padding: 12px 16px;
+            border-radius: 8px;
+            border: 1px solid var(--glass-border);
+        }
+
+        .v-detail-label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-muted);
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .v-detail-val {
+            font-size: 0.88rem;
+            font-weight: 600;
+            color: var(--text-main);
+        }
+
+        .v-preview-box {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            background: var(--bg-page);
+            padding: 16px;
+            border-radius: 8px;
+            border: 1px solid var(--glass-border);
+            text-align: center;
+        }
+
+        .v-preview-icon {
+            font-size: 2.2rem;
+            color: var(--primary);
+            margin-bottom: 8px;
+        }
+
+        .v-actions-row {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 18px;
+            padding-top: 16px;
+            border-top: 1px solid var(--glass-border);
+            grid-column: 1 / -1;
+        }
+
+        /* Responsive User Card Grid CSS */
+        .users-card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 16px;
+            margin-top: 12px;
+        }
+        .user-card {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius);
+            padding: 20px;
+            box-shadow: var(--shadow-heavy);
+            transition: var(--transition);
+            position: relative;
+            overflow: hidden;
+            cursor: pointer;
+        }
+        .user-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 16px 40px rgba(31,58,95,0.12);
+            border-color: var(--primary);
+        }
+        .user-card-top {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 14px;
+        }
+        .user-avatar {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: var(--primary);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 1.1rem;
+        }
+        .user-details {
+            flex: 1;
+        }
+        .user-name {
+            font-weight: 700;
+            font-size: 1rem;
+            color: var(--text-main);
+        }
+        .user-email {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            word-break: break-all;
+        }
+        .user-badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 6px;
+        }
+        .badge-role {
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 12px;
+        }
+        .badge-plan {
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 12px;
+        }
+        .user-stats-strip {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            background: rgba(0, 0, 0, 0.02);
+            border-radius: 12px;
+            padding: 10px 12px;
+            margin-bottom: 12px;
+            font-size: 0.75rem;
+        }
+        .stat-item {
+            display: flex;
+            flex-direction: column;
+        }
+        .stat-label {
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+        .stat-value {
+            font-weight: 700;
+            color: var(--text-main);
+        }
+        .user-governance-summary {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.75rem;
+            border-top: 1px solid var(--glass-border);
+            padding-top: 10px;
+            margin-bottom: 10px;
+        }
+        .gov-score {
+            font-weight: 700;
+        }
+        .user-card-expander {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.4s ease;
+            border-top: 1px solid var(--glass-border);
+            padding-top: 12px;
+            margin-top: 8px;
+        }
+        .user-card.expanded .user-card-expander {
+            max-height: 500px;
+        }
+        .actions-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 12px;
+        }
+        .action-select-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            flex: 1;
+            min-width: 120px;
+        }
+        .action-label {
+            font-size: 0.65rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: var(--text-muted);
+        }
     </style>
 </head>
 <body>
@@ -113,18 +443,12 @@
         </div>
         <div class="grid">
             <div class="card full">
-                <div class="title"><i class="fas fa-user-friends"></i> User List</div>
-                <table>
-                    <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Verified</th><th>Status</th><th>Plan</th><th>Actions</th></tr></thead>
-                    <tbody id="usersRows"></tbody>
-                </table>
+                <div class="title"><i class="fas fa-user-friends"></i> User List &amp; Governance Details</div>
+                <div id="usersCardGrid" class="users-card-grid"></div>
             </div>
-            <div class="card">
+            <div class="card full">
                 <div class="title"><i class="fas fa-id-card"></i> Verification Panel</div>
-                <table>
-                    <thead><tr><th>User</th><th>Document</th><th>Status</th><th>Action</th></tr></thead>
-                    <tbody id="docsRows"></tbody>
-                </table>
+                <div id="verificationCardsContainer" class="verification-cards-container"></div>
             </div>
             <div class="card">
                 <div class="title"><i class="fas fa-inbox"></i> Dataset Requests</div>
@@ -185,23 +509,203 @@
                 fetch("/admin/payments").then(r => r.json())
             ]);
             const users = usersRes.users || [];
-            document.getElementById("usersRows").innerHTML = users.slice(0, 80).map(u => row([
-                esc(u.username || "-"),
-                esc(u.email || "-"),
-                `<select onchange="changeRole('${esc(u.email)}', this.value)"><option ${u.role==='admin'?'selected':''}>admin</option><option ${u.role==='analyst'?'selected':''}>analyst</option><option ${u.role==='user'?'selected':''}>user</option></select>`,
-                u.is_verified ? "Yes" : "No",
-                `<span class="pill ${u.status==='blocked'?'blocked':'active'}">${esc(u.status || "active")}</span>`,
-                esc(u.plan || "free"),
-                `<button class="btn ${u.status==='blocked'?'':'red'}" onclick="toggleBlock('${esc(u.email)}', ${u.status!=='blocked'})">${u.status==='blocked'?'Unblock':'Block'}</button>
-                 ${(!u.is_verified && u.document_uploaded) ? `<button class="btn" onclick="verifyUser('${esc(u.email)}', true)">Verify</button>` : ""}`
-            ])).join("") || row(["-", "-", "-", "-", "-", "-", "-"]);
+            document.getElementById("usersCardGrid").innerHTML = users.slice(0, 80).map(u => {
+                const initial = (u.username || u.email || 'U').charAt(0).toUpperCase();
+                const cardId = `user-card-${u.email.replace(/[@.]/g, '-')}`;
+                const isBlocked = u.status === 'blocked';
+                const roleBadgeColor = u.role === 'admin' ? 'background: rgba(239, 68, 68, 0.1); color: #ef4444;' : u.role === 'analyst' ? 'background: rgba(99, 102, 241, 0.1); color: #6366f1;' : 'background: rgba(59, 130, 246, 0.1); color: #3b82f6;';
+                const planBadgeColor = u.plan === 'enterprise' ? 'background: rgba(139, 92, 246, 0.1); color: #8b5cf6;' : u.plan === 'pro' ? 'background: rgba(245, 158, 11, 0.1); color: #f59e0b;' : 'background: rgba(107, 114, 128, 0.1); color: #6b7280;';
+                
+                const scoreColor = u.suspicious_score > 70 ? 'color:#ef4444' : u.suspicious_score > 30 ? 'color:#f59e0b' : 'color:#22c55e';
+                const warnColor = u.warning_count > 0 ? 'color:#ef4444; font-weight:bold;' : 'color:var(--text-muted);';
+
+                return `
+                <div class="user-card" id="${cardId}" onclick="toggleUserCard('${cardId}', event)">
+                    <div class="user-card-top">
+                        <div class="user-avatar">${initial}</div>
+                        <div class="user-details">
+                            <div class="user-name">${esc(u.username || 'Analyst')}</div>
+                            <div class="user-email">${esc(u.email)}</div>
+                            <div class="user-badges">
+                                <span class="badge-role" style="${roleBadgeColor}">${esc(u.role)}</span>
+                                <span class="badge-plan" style="${planBadgeColor}">${esc(u.plan)}</span>
+                                <span class="pill ${isBlocked ? 'blocked' : 'active'}">${esc(u.status || 'active')}</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="user-stats-strip">
+                        <div class="stat-item">
+                            <span class="stat-label">Queries Run Today</span>
+                            <span class="stat-value">${u.queries_today || 0} / ${u.max_queries_day || 0}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Rows Scanned Today</span>
+                            <span class="stat-value">${(u.rows_today || 0).toLocaleString()} / ${(u.max_rows_day || 0).toLocaleString()}</span>
+                        </div>
+                    </div>
+
+                    <div class="user-governance-summary">
+                        <div>Risk Score: <span class="gov-score" style="${scoreColor}">${u.suspicious_score || 0}</span></div>
+                        <div>Warnings: <span class="gov-score" style="${warnColor}">${u.warning_count || 0}</span></div>
+                        <div>Verified: <strong>${u.is_verified ? 'Yes' : 'No'}</strong></div>
+                    </div>
+                    
+                    <div class="user-card-expander">
+                        <div class="actions-row" onclick="event.stopPropagation()">
+                            <div class="action-select-group">
+                                <span class="action-label">Assign Plan</span>
+                                <select onchange="assignPlan('${esc(u.email)}', this.value)">
+                                    <option value="free" ${u.plan === 'free' ? 'selected' : ''}>Free</option>
+                                    <option value="pro" ${u.plan === 'pro' ? 'selected' : ''}>Pro</option>
+                                    <option value="enterprise" ${u.plan === 'enterprise' ? 'selected' : ''}>Enterprise</option>
+                                </select>
+                            </div>
+                            <div class="action-select-group">
+                                <span class="action-label">Change Role</span>
+                                <select onchange="changeRole('${esc(u.email)}', this.value)">
+                                    <option value="user" ${u.role === 'user' ? 'selected' : ''}>User</option>
+                                    <option value="analyst" ${u.role === 'analyst' ? 'selected' : ''}>Analyst</option>
+                                    <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="actions-row" style="margin-top: 10px;" onclick="event.stopPropagation()">
+                            <button class="btn ${isBlocked ? '' : 'red'}" style="flex: 1;" onclick="toggleBlock('${esc(u.email)}', ${!isBlocked})">
+                                <i class="fas ${isBlocked ? 'fa-unlock' : 'fa-ban'}"></i> ${isBlocked ? 'Unblock' : 'Block'}
+                            </button>
+                            <button class="btn" style="flex: 1; background: var(--accent);" onclick="resetLimits('${esc(u.email)}')">
+                                <i class="fas fa-sync-alt"></i> Reset Limits
+                            </button>
+                            <button class="btn red" style="flex: 1;" onclick="deleteUser('${esc(u.email)}')">
+                                <i class="fas fa-trash"></i> Delete
+                            </button>
+                            ${u.status === 'frozen' ? `
+                                <button class="btn" style="flex: 1; background: #6366f1;" onclick="unfreezeUser('${esc(u.email)}')">
+                                    <i class="fas fa-key"></i> Unfreeze
+                                </button>
+                            ` : ''}
+                            ${(!u.is_verified && u.document_uploaded) ? `
+                                <button class="btn" style="flex: 1; background: var(--primary);" onclick="verifyUser('${esc(u.email)}', true)">
+                                    <i class="fas fa-check"></i> Verify User
+                                </button>
+                            ` : ''}
+                        </div>
+                        <div class="meta" style="margin-top:10px;">
+                            <div>Created: ${dt(u.created_at)}</div>
+                            <div>Last Active: ${dt(u.last_active)}</div>
+                        </div>
+                    </div>
+                </div>
+                `;
+            }).join("") || `<div style="text-align:center;color:var(--text-muted);padding:24px;grid-column:1/-1;">No users registered.</div>`;
             const docs = reqRes.documents || [];
-            document.getElementById("docsRows").innerHTML = docs.slice(0, 40).map(d => row([
-                esc(d.user_email),
-                esc(d.document_name),
-                esc(d.status || "pending"),
-                `<button class="btn" onclick="verifyDoc('${esc(d.user_email)}', ${d.id}, true)">Approve</button><button class="btn red" onclick="verifyDoc('${esc(d.user_email)}', ${d.id}, false)">Reject</button>`
-            ])).join("") || row(["-", "-", "-", "-"]);
+            document.getElementById("verificationCardsContainer").innerHTML = docs.slice(0, 40).map(d => {
+                let details = {};
+                try {
+                    details = JSON.parse(d.org_details || '{}');
+                } catch(e) {
+                    details = {};
+                }
+                const cardId = `v-card-${d.id}`;
+                const initial = (d.username || d.user_email || 'U').charAt(0).toUpperCase();
+                
+                // Extract org-specific fields beautifully
+                const orgEntity = details.institution || details.company || details.researchArea || details.portfolio || "N/A";
+                const orgRole = details.studentName || details.designation || "N/A";
+                const orgId = details.studentId || details.employeeId || details.researchId || "N/A";
+                const orgContact = details.instEmail || details.workEmail || "N/A";
+                
+                return `
+                <div class="verification-card" id="${cardId}">
+                    <div class="verification-card-header" onclick="document.getElementById('${cardId}').classList.toggle('expanded')">
+                        <div class="v-user-info">
+                            <div class="v-avatar">${initial}</div>
+                            <div class="v-user-details">
+                                <div class="v-name">${esc(d.username || 'User')}</div>
+                                <div class="v-email">${esc(d.user_email)}</div>
+                            </div>
+                        </div>
+                        <div class="v-meta-grid">
+                            <div class="v-meta-item">
+                                <span class="v-meta-label">Selected Role</span>
+                                <span class="v-meta-val">${esc(d.role || 'user')}</span>
+                            </div>
+                            <div class="v-meta-item">
+                                <span class="v-meta-label">Uploaded At</span>
+                                <span class="v-meta-val">${dt(d.created_at)}</span>
+                            </div>
+                            <div class="v-meta-item">
+                                <span class="v-meta-label">Status</span>
+                                <span class="pill ${d.status==='approved'?'active':d.status==='rejected'?'blocked':''}">${esc(d.status || 'pending')}</span>
+                            </div>
+                        </div>
+                        <i class="fas fa-chevron-down v-chevron"></i>
+                    </div>
+                    <div class="verification-card-body">
+                        <div class="v-body-content">
+                            <div class="v-details-grid">
+                                <div class="v-detail-box">
+                                    <div class="v-detail-label">Institution / Company</div>
+                                    <div class="v-detail-val">${esc(orgEntity)}</div>
+                                </div>
+                                <div class="v-detail-box">
+                                    <div class="v-detail-label">Org Details / Role</div>
+                                    <div class="v-detail-val">${esc(orgRole)}</div>
+                                </div>
+                                <div class="v-detail-box">
+                                    <div class="v-detail-label">ID / Credentials</div>
+                                    <div class="v-detail-val">${esc(orgId)}</div>
+                                </div>
+                                <div class="v-detail-box">
+                                    <div class="v-detail-label">Org Email / Contact</div>
+                                    <div class="v-detail-val">${esc(orgContact)}</div>
+                                </div>
+                                <div class="v-detail-box">
+                                    <div class="v-detail-label">Registration Timestamp</div>
+                                    <div class="v-detail-val">${dt(d.registration_timestamp)}</div>
+                                </div>
+                                <div class="v-detail-box">
+                                    <div class="v-detail-label">Account Status</div>
+                                    <div class="v-detail-val"><span class="pill ${d.account_status==='blocked'?'blocked':'active'}">${esc(d.account_status || 'active')}</span></div>
+                                </div>
+                                <div class="v-detail-box">
+                                    <div class="v-detail-label">Current Plan</div>
+                                    <div class="v-detail-val">${esc(d.current_plan || 'free')}</div>
+                                </div>
+                                <div class="v-detail-box">
+                                    <div class="v-detail-label">Total Queries</div>
+                                    <div class="v-detail-val">${d.query_usage || 0} queries</div>
+                                </div>
+                            </div>
+                            <div class="v-preview-box">
+                                <i class="far fa-file-pdf v-preview-icon"></i>
+                                <div style="font-weight:600;font-size:0.85rem;margin-bottom:12px;color:var(--text-main);">${esc(d.document_name)}</div>
+                                ${d.document_url ? `
+                                    <a href="${esc(d.document_url)}" target="_blank" class="btn" style="display:inline-block;text-align:center;text-decoration:none;margin-bottom:6px;width:100%;">
+                                        <i class="fas fa-eye"></i> View File
+                                    </a>
+                                    <a href="${esc(d.document_url)}" download class="btn" style="background:var(--secondary);display:inline-block;text-align:center;text-decoration:none;width:100%;">
+                                        <i class="fas fa-download"></i> Download
+                                    </a>
+                                ` : '<span style="color:var(--text-muted);font-size:0.8rem;">No file uploaded</span>'}
+                            </div>
+                            <div class="v-actions-row">
+                                <button class="btn" style="background:var(--primary);" onclick="verifyDoc('${esc(d.user_email)}', ${d.id}, true); event.stopPropagation();">
+                                    <i class="fas fa-check"></i> Approve
+                                </button>
+                                <button class="btn red" onclick="verifyDoc('${esc(d.user_email)}', ${d.id}, false); event.stopPropagation();">
+                                    <i class="fas fa-times"></i> Reject
+                                </button>
+                                <button class="btn" style="background:#ef4444;" onclick="toggleBlock('${esc(d.user_email)}', true); event.stopPropagation();">
+                                    <i class="fas fa-ban"></i> Block User
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                `;
+            }).join("") || `<div style="text-align:center;color:var(--text-muted);padding:24px;">No pending verification requests.</div>`;
             const reqs = reqRes.dataset_requests || [];
             document.getElementById("requestsRows").innerHTML = reqs.slice(0, 40).map(r => row([
                 esc(r.user_email), esc(r.requested_dataset || "-"), esc(r.status || "pending"),
@@ -217,10 +721,15 @@
                 esc(p.user_email),
                 esc(p.plan || "free"),
                 dt(p.plan_expiry),
-                `<select onchange="assignPlan('${esc(p.user_email)}', this.value)"><option ${p.plan==='free'?'selected':''}>free</option><option ${p.plan==='pro'?'selected':''}>pro</option></select>`
+                `<select onchange="assignPlan('${esc(p.user_email)}', this.value)"><option ${p.plan==='free'?'selected':''}>free</option><option ${p.plan==='pro'?'selected':''}>pro</option><option ${p.plan==='enterprise'?'selected':''}>enterprise</option></select>`
             ])).join("") || row(["-", "-", "-", "-"]);
             const txns = payRes.transactions || [];
             document.getElementById("txnRows").innerHTML = txns.slice(0, 80).map(t => row([esc(t.transaction_id), esc(t.user_email), Number(t.amount || 0).toLocaleString(), esc(t.status || "-"), dt(t.created_at)])).join("") || row(["-", "-", "-", "-", "-"]);
+        }
+        function toggleUserCard(cardId, event) {
+            if (event.target.closest('.user-card-expander') || event.target.tagName === 'SELECT' || event.target.tagName === 'BUTTON') return;
+            const card = document.getElementById(cardId);
+            card.classList.toggle('expanded');
         }
         async function changeRole(email, role) { await post("/admin/users/update-role", { email, role }); await loadAll(); }
         async function toggleBlock(email, blocked) { await post("/admin/users/block", { email, blocked, reason: blocked ? "Admin action" : "" }); await loadAll(); }
@@ -228,6 +737,33 @@
         async function verifyDoc(email, id, approved) { await post("/admin/users/verify", { email, approved, document_id: id }); await loadAll(); }
         async function requestAction(id, status) { await post("/admin/requests/action", { id, status, action_type: "dataset_request" }); await loadAll(); }
         async function assignPlan(email, plan) { await post("/admin/users/assign-plan", { email, plan }); await loadAll(); }
+        async function deleteUser(email) {
+            if (!confirm(`Are you sure you want to permanently delete user ${email} from the database? This action will remove all query logs and documents for this user, and cannot be undone.`)) return;
+            try {
+                await post("/admin/users/delete", { email });
+                await loadAll();
+            } catch (err) {
+                alert(`Error deleting user: ${err.message}`);
+            }
+        }
+        async function resetLimits(email) {
+            if (!confirm(`Are you sure you want to reset all query, row, and download usage limits for user ${email}? This will set their usage counts to 0 and reset any governance warnings.`)) return;
+            try {
+                await post("/admin/users/reset-usage", { email });
+                await loadAll();
+            } catch (err) {
+                alert(`Error resetting limits: ${err.message}`);
+            }
+        }
+        async function unfreezeUser(email) {
+            if (!confirm(`Are you sure you want to unfreeze the account for user ${email}?`)) return;
+            try {
+                await post("/admin/users/unfreeze", { email });
+                await loadAll();
+            } catch (err) {
+                alert(`Error unfreezing user: ${err.message}`);
+            }
+        }
         loadAll();
 
         // Theme Toggle Functionality

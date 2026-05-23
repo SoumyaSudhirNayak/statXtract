@@ -260,7 +260,9 @@
             <div class="plan-body">
               <ul class="feat-list">
                 <li class="feat-item"><div class="feat-check on">✓</div>200 queries / month</li>
-                <li class="feat-item"><div class="feat-check on">✓</div>3 downloads / month</li>
+                <li class="feat-item"><div class="feat-check on">✓</div>10 downloads / month</li>
+                <li class="feat-item"><div class="feat-check on">✓</div>3,000–5,000 rows / month</li>
+                <li class="feat-item"><div class="feat-check on">✓</div>AI Query Trial: 2–3 queries / month</li>
                 <li class="feat-item"><div class="feat-check on">✓</div>Basic query editor</li>
                 <li class="feat-item"><div class="feat-check on">✓</div>CSV export only</li>
                 <li class="feat-item feat-dim"><div class="feat-check off">✕</div>API access</li>
@@ -289,6 +291,7 @@
               <ul class="feat-list">
                 <li class="feat-item"><div class="feat-check on">✓</div><strong>5,000 queries</strong> / month</li>
                 <li class="feat-item"><div class="feat-check on">✓</div><strong>Unlimited</strong> downloads</li>
+                <li class="feat-item"><div class="feat-check on">✓</div>Higher row limits (up to 500,000)</li>
                 <li class="feat-item"><div class="feat-check on">✓</div>Advanced query editor</li>
                 <li class="feat-item"><div class="feat-check on">✓</div>CSV, PDF &amp; JSON exports</li>
                 <li class="feat-item"><div class="feat-check on">✓</div>API access (1 key)</li>
@@ -319,11 +322,12 @@
               <ul class="feat-list">
                 <li class="feat-item"><div class="feat-check on">✓</div><strong>Unlimited</strong> queries</li>
                 <li class="feat-item"><div class="feat-check on">✓</div><strong>Unlimited</strong> downloads</li>
+                <li class="feat-item"><div class="feat-check on">✓</div><strong>Unlimited</strong> rows</li>
                 <li class="feat-item"><div class="feat-check on">✓</div>All query features + bulk</li>
                 <li class="feat-item"><div class="feat-check on">✓</div>All export formats</li>
-                <li class="feat-item"><div class="feat-check on">✓</div>API access (10 keys)</li>
+                <li class="feat-item"><div class="feat-check on">✓</div>API access</li>
+                <li class="feat-item"><div class="feat-check on">✓</div>Team collaboration</li>
                 <li class="feat-item"><div class="feat-check on">✓</div>Dedicated account manager</li>
-                <li class="feat-item"><div class="feat-check on">✓</div>Team collaboration (25 seats)</li>
               </ul>
             </div>
             <div class="plan-footer">
@@ -408,6 +412,110 @@
       tc.appendChild(t);
       setTimeout(() => { t.style.animation='slideOut 0.3s ease forwards'; setTimeout(()=>t.remove(),300); }, 5000);
     }
+    /* ── Load User Governance Plan Info ── */
+    async function loadUserGovernance() {
+      try {
+        const res = await fetch('/api/user/governance');
+        const data = await res.json();
+        
+        const plan = (data.plan || 'free').toLowerCase();
+        const role = data.role;
+        const u = data.usage_today;
+        
+        // 1. Update Current Plan Banner
+        const planDisplayNames = {
+          'free': 'Free Tier',
+          'pro': 'Pro Researcher',
+          'enterprise': 'Enterprise',
+          'admin': 'Administrator'
+        };
+        const planIcons = {
+          'free': '🆓',
+          'pro': '🚀',
+          'enterprise': '🏛️',
+          'admin': '⚙'
+        };
+        
+        const displayName = planDisplayNames[plan] || 'Free Tier';
+        const icon = planIcons[plan] || '🆓';
+        
+        let detailsText = '';
+        let limitVal = 200;
+        let usedVal = u.queries_used || 0;
+        
+        if (plan === 'free') {
+          limitVal = data.limits.max_queries_per_month || 200;
+          detailsText = `${limitVal} queries/month · ${data.limits.max_downloads_per_month || 10} downloads · Basic support`;
+        } else if (plan === 'pro') {
+          limitVal = data.limits.max_queries_per_month || 5000;
+          detailsText = `${limitVal} queries/month · Unlimited downloads · Priority support`;
+        } else if (plan === 'enterprise') {
+          limitVal = data.limits.max_queries_per_month || 999999;
+          detailsText = `Unlimited queries · Unlimited downloads · Dedicated manager`;
+        } else {
+          limitVal = 9999999;
+          detailsText = `System Administrator Access`;
+        }
+        
+        document.querySelector('.cpb-icon').textContent = icon;
+        document.querySelector('.cpb-title').innerHTML = `Current Plan: <strong>${displayName}</strong>`;
+        document.querySelector('.cpb-sub').textContent = detailsText;
+        
+        const usedText = plan === 'enterprise' || plan === 'admin' 
+          ? `${usedVal} used` 
+          : `${usedVal} / ${limitVal}`;
+        document.querySelector('.current-plan-banner div[style*="text-align:right"] div[style*="font-size:20px"]').textContent = usedText;
+        
+        const pct = limitVal > 0 ? Math.min(100, (usedVal / limitVal) * 100) : 0;
+        const circumference = 2 * Math.PI * 15.9;
+        const dashArray = `${(pct / 100) * circumference} ${circumference}`;
+        document.getElementById('planArc').setAttribute('stroke-dasharray', dashArray);
+        
+        // 2. Update Plan Cards
+        document.querySelectorAll('.plan-card').forEach(c => c.classList.remove('current'));
+        const cards = document.querySelectorAll('.plans-grid > .plan-card');
+        
+        // Free Card
+        if (cards[0]) {
+          const btn = cards[0].querySelector('.plan-footer');
+          if (plan === 'free') {
+            cards[0].classList.add('current');
+            btn.innerHTML = `<button class="plan-btn plan-btn-current" disabled>✓ Current Plan</button>`;
+          } else {
+            btn.innerHTML = `<button class="plan-btn plan-btn-upgrade" onclick="selectPlan('Free Tier', 0)">Downgrade to Free</button>`;
+          }
+        }
+        
+        // Pro Card
+        if (cards[1]) {
+          const btn = cards[1].querySelector('.plan-footer');
+          if (plan === 'pro') {
+            cards[1].classList.add('current');
+            btn.innerHTML = `<button class="plan-btn plan-btn-current" disabled>✓ Current Plan</button>`;
+          } else if (plan === 'enterprise' || plan === 'admin') {
+            btn.innerHTML = `<button class="plan-btn plan-btn-upgrade" onclick="selectPlan('Pro Researcher', 299)">Downgrade to Pro</button>`;
+          } else {
+            btn.innerHTML = `<button class="plan-btn plan-btn-upgrade" onclick="selectPlan('Pro Researcher', 299)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg> Upgrade to Pro</button>`;
+          }
+        }
+        
+        // Enterprise Card
+        if (cards[2]) {
+          const btn = cards[2].querySelector('.plan-footer');
+          if (plan === 'enterprise') {
+            cards[2].classList.add('current');
+            btn.innerHTML = `<button class="plan-btn plan-btn-current" disabled>✓ Current Plan</button>`;
+          } else {
+            btn.innerHTML = `<button class="plan-btn plan-btn-premium" onclick="selectPlan('Enterprise', 999)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg> Get Enterprise</button>`;
+          }
+        }
+        
+      } catch (e) {
+        console.error("Failed to load user plan info", e);
+      }
+    }
+
+    loadUserGovernance();
   </script>
 </body>
 </html>

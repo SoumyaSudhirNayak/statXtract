@@ -152,6 +152,73 @@
                 <div><label>Pricing Config (UI)</label><textarea id="payments.pricing_config"></textarea></div>
                 <div class="meta">Format sample: free=0,pro=99,enterprise=499</div>
             </div>
+
+            <!-- ═══════════ PLAN GOVERNANCE ═══════════ -->
+            <div class="card full" style="border-left:4px solid var(--primary);">
+                <div class="title"><i class="fas fa-shield-alt"></i> Plan Governance <span style="font-size:.75rem;font-weight:400;color:var(--text-muted);margin-left:8px;">— Live limits read by the Access Control Engine</span></div>
+                <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:18px;">
+                    <!-- FREE -->
+                    <div style="background:var(--bg-page);border:1px solid var(--glass-border);border-radius:14px;padding:16px;">
+                        <div style="font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:6px;"><span style="width:10px;height:10px;border-radius:50%;background:#94a3b8;display:inline-block;"></span> Free Plan</div>
+                        <div><label>Max Queries / Day</label><input id="plans.free.max_queries_per_day" type="number"></div>
+                        <div style="margin-top:8px;"><label>Max Rows / Day</label><input id="plans.free.max_rows_per_day" type="number"></div>
+                        <div style="margin-top:8px;"><label>Downloads Allowed</label><select id="plans.free.downloads_allowed"><option value="false">false</option><option value="true">true</option></select></div>
+                    </div>
+                    <!-- PRO -->
+                    <div style="background:var(--bg-page);border:1px solid var(--glass-border);border-radius:14px;padding:16px;">
+                        <div style="font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:6px;"><span style="width:10px;height:10px;border-radius:50%;background:#6366F1;display:inline-block;"></span> Pro Plan</div>
+                        <div><label>Max Queries / Day</label><input id="plans.pro.max_queries_per_day" type="number"></div>
+                        <div style="margin-top:8px;"><label>Max Rows / Day</label><input id="plans.pro.max_rows_per_day" type="number"></div>
+                        <div style="margin-top:8px;"><label>Downloads Allowed</label><select id="plans.pro.downloads_allowed"><option value="true">true</option><option value="false">false</option></select></div>
+                    </div>
+                    <!-- ENTERPRISE -->
+                    <div style="background:var(--bg-page);border:1px solid var(--glass-border);border-radius:14px;padding:16px;">
+                        <div style="font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:6px;"><span style="width:10px;height:10px;border-radius:50%;background:#F4A300;display:inline-block;"></span> Enterprise Plan</div>
+                        <div><label>Max Queries / Day</label><input id="plans.enterprise.max_queries_per_day" type="number"></div>
+                        <div style="margin-top:8px;"><label>Max Rows / Day</label><input id="plans.enterprise.max_rows_per_day" type="number"></div>
+                        <div style="margin-top:8px;"><label>Downloads Allowed</label><select id="plans.enterprise.downloads_allowed"><option value="true">true</option><option value="false">false</option></select></div>
+                    </div>
+                </div>
+                <div class="meta" style="margin-top:12px;"><i class="fas fa-info-circle"></i> Changes take effect immediately — no server restart required. These values override the hardcoded defaults in <code>plan_enforcer.py</code>.</div>
+            </div>
+
+            <!-- ═══════════ GOVERNANCE TESTING MODE ═══════════ -->
+            <div class="card full" id="testingModeCard" style="border-left:4px solid #ef4444;">
+                <div class="title"><i class="fas fa-vial"></i> Governance Testing Mode <span style="font-size:.75rem;font-weight:400;color:#ef4444;margin-left:8px;">⚠ REDUCED LIMITS</span></div>
+                <div id="testingWarning" style="display:none; background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.3); border-radius:10px; padding:14px 18px; margin-bottom:14px; color:#ef4444; font-size:.88rem; font-weight:600;">
+                    <i class="fas fa-exclamation-triangle"></i> Testing Mode is ACTIVE — all non-admin users are subject to reduced test limits below. Disable this before going to production.
+                </div>
+                <div class="row">
+                    <div>
+                        <label>Enable Testing Mode</label>
+                        <select id="governance.testing_mode" onchange="toggleTestWarning(this.value)">
+                            <option value="false">false (Production)</option>
+                            <option value="true">true (Testing)</option>
+                        </select>
+                    </div>
+                    <div></div>
+                </div>
+                <div style="margin-top:10px;font-size:.85rem;font-weight:600;color:var(--text-muted);">Test Limits (applied when testing mode is ON):</div>
+                <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:14px; margin-top:8px;">
+                    <div style="background:var(--bg-page);border:1px solid var(--glass-border);border-radius:10px;padding:12px;">
+                        <div style="font-weight:600;font-size:.8rem;margin-bottom:6px;">Free (Test)</div>
+                        <div><label>Queries/Day</label><input id="governance.test.free.max_queries_per_day" type="number"></div>
+                        <div style="margin-top:6px;"><label>Rows/Day</label><input id="governance.test.free.max_rows_per_day" type="number"></div>
+                    </div>
+                    <div style="background:var(--bg-page);border:1px solid var(--glass-border);border-radius:10px;padding:12px;">
+                        <div style="font-weight:600;font-size:.8rem;margin-bottom:6px;">Pro (Test)</div>
+                        <div><label>Queries/Day</label><input id="governance.test.pro.max_queries_per_day" type="number"></div>
+                        <div style="margin-top:6px;"><label>Rows/Day</label><input id="governance.test.pro.max_rows_per_day" type="number"></div>
+                    </div>
+                    <div style="background:var(--bg-page);border:1px solid var(--glass-border);border-radius:10px;padding:12px;">
+                        <div style="font-weight:600;font-size:.8rem;margin-bottom:6px;">Enterprise (Test)</div>
+                        <div><label>Queries/Day</label><input id="governance.test.enterprise.max_queries_per_day" type="number"></div>
+                        <div style="margin-top:6px;"><label>Rows/Day</label><input id="governance.test.enterprise.max_rows_per_day" type="number"></div>
+                    </div>
+                </div>
+                <div class="meta" style="margin-top:10px;"><i class="fas fa-info-circle"></i> Use testing mode to validate the Access Control Engine with very low limits (e.g. 5 queries/day for Free) before production deployment.</div>
+            </div>
+
             <div class="card full">
                 <div class="actions">
                     <button class="btn" onclick="saveSettings()"><i class="fas fa-save"></i> Save Settings</button>
@@ -175,8 +242,41 @@
             "features.enable_downloads",
             "payments.enabled",
             "payments.default_plan_limits",
-            "payments.pricing_config"
+            "payments.pricing_config",
+            // Plan Governance keys
+            "plans.free.max_queries_per_day",
+            "plans.free.max_rows_per_day",
+            "plans.free.downloads_allowed",
+            "plans.pro.max_queries_per_day",
+            "plans.pro.max_rows_per_day",
+            "plans.pro.downloads_allowed",
+            "plans.enterprise.max_queries_per_day",
+            "plans.enterprise.max_rows_per_day",
+            "plans.enterprise.downloads_allowed",
+            // Governance Testing Mode keys
+            "governance.testing_mode",
+            "governance.test.free.max_queries_per_day",
+            "governance.test.free.max_rows_per_day",
+            "governance.test.pro.max_queries_per_day",
+            "governance.test.pro.max_rows_per_day",
+            "governance.test.enterprise.max_queries_per_day",
+            "governance.test.enterprise.max_rows_per_day"
         ];
+
+        function toggleTestWarning(val) {
+            const warn = document.getElementById('testingWarning');
+            const card = document.getElementById('testingModeCard');
+            if (val === 'true') {
+                warn.style.display = 'block';
+                card.style.borderLeftColor = '#ef4444';
+                card.style.boxShadow = '0 0 20px rgba(239,68,68,0.1)';
+            } else {
+                warn.style.display = 'none';
+                card.style.borderLeftColor = '#94a3b8';
+                card.style.boxShadow = 'var(--shadow-heavy)';
+            }
+        }
+
         async function loadSettings() {
             const res = await fetch("/admin/settings");
             const data = await res.json();
@@ -187,6 +287,8 @@
                 if (!el) return;
                 if (map[k] !== undefined) el.value = map[k];
             });
+            // Update testing mode warning state
+            toggleTestWarning(map['governance.testing_mode'] || 'false');
             document.getElementById("status").textContent = `Loaded ${Object.keys(map).length} settings`;
         }
         async function saveSettings() {
@@ -197,11 +299,14 @@
             });
             const res = await fetch("/admin/settings/update", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ settings: payload }) });
             if (res.ok) {
-                document.getElementById("status").textContent = "Settings saved";
+                document.getElementById("status").textContent = "✓ Settings saved — changes are live immediately";
+                document.getElementById("status").style.color = "#22c55e";
+                setTimeout(() => { document.getElementById("status").style.color = ''; }, 3000);
                 await loadSettings();
             } else {
                 const j = await res.json().catch(() => ({}));
                 document.getElementById("status").textContent = j.detail || j.error || "Save failed";
+                document.getElementById("status").style.color = "#ef4444";
             }
         }
         loadSettings();
@@ -235,3 +340,4 @@
     </script>
 </body>
 </html>
+

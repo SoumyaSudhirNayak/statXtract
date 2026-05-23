@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title | default('Access Denied') }}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #2E5BBA;
+            --primary-gradient: linear-gradient(135deg, #2E5BBA 0%, #1F3A5F 100%);
+            --text-main: #1F2937;
+            --text-muted: #4B5563;
+            --bg-page: linear-gradient(135deg, #F5F7FA 0%, #EEF3FB 55%, #E9EEF7 100%);
+            --glass-bg: rgba(255, 255, 255, 0.9);
+            --glass-border: rgba(209, 213, 219, 0.4);
+            --shadow: 0 20px 40px rgba(31, 58, 95, 0.08);
+            --radius: 24px;
+        }
+
+        [data-theme="dark"] {
+            --text-main: #F9FAFB;
+            --text-muted: #9CA3AF;
+            --bg-page: linear-gradient(135deg, #0F172A 0%, #1E293B 100%);
+            --glass-bg: rgba(30, 41, 59, 0.7);
+            --glass-border: rgba(148, 163, 184, 0.12);
+            --shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-page);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: grid;
+            place-items: center;
+            padding: 24px;
+            transition: background 0.3s, color 0.3s;
+        }
+
+        .error-card {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius);
+            padding: 48px 32px;
+            max-width: 500px;
+            width: 100%;
+            text-align: center;
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 24px;
+        }
+
+        .icon-wrapper {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            display: grid;
+            place-items: center;
+            font-size: 36px;
+            margin-bottom: 8px;
+            animation: pulse 2s infinite;
+        }
+
+        /* Theming classes for error types */
+        .theme-blocked {
+            --theme-color: #EF4444;
+            --theme-bg: rgba(239, 68, 68, 0.12);
+            --theme-card-border: rgba(239, 68, 68, 0.25);
+        }
+        .theme-frozen {
+            --theme-color: #F59E0B;
+            --theme-bg: rgba(245, 158, 11, 0.12);
+            --theme-card-border: rgba(245, 158, 11, 0.25);
+        }
+        .theme-pending {
+            --theme-color: #2E5BBA;
+            --theme-bg: rgba(46, 91, 186, 0.12);
+            --theme-card-border: rgba(46, 91, 186, 0.25);
+        }
+        .theme-default {
+            --theme-color: #6B7280;
+            --theme-bg: rgba(107, 114, 128, 0.12);
+            --theme-card-border: rgba(107, 114, 128, 0.25);
+        }
+
+        .icon-wrapper {
+            color: var(--theme-color);
+            background: var(--theme-bg);
+            border: 1px solid var(--theme-card-border);
+        }
+
+        .error-card h1 {
+            font-size: 1.6rem;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            color: var(--text-main);
+        }
+
+        .error-card p {
+            font-size: 0.95rem;
+            color: var(--text-muted);
+            line-height: 1.6;
+            margin: 0 auto;
+        }
+
+        .actions {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            width: 100%;
+            margin-top: 8px;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 12px 24px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            width: 100%;
+            font-family: inherit;
+        }
+
+        .btn-primary {
+            background: var(--theme-color);
+            color: #ffffff;
+            border: none;
+        }
+        .btn-primary:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: transparent;
+            color: var(--text-main);
+            border: 1px solid var(--glass-border);
+        }
+        .btn-secondary:hover {
+            background: rgba(0, 0, 0, 0.03);
+            transform: translateY(-1px);
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+    </style>
+</head>
+<body>
+    {% set theme_class = 'theme-default' %}
+    {% set icon = 'fa-circle-exclamation' %}
+    
+    {% if error_type == 'ACCOUNT_BLOCKED' %}
+        {% set theme_class = 'theme-blocked' %}
+        {% set icon = 'fa-user-slash' %}
+    {% elif error_type == 'ACCOUNT_FROZEN' %}
+        {% set theme_class = 'theme-frozen' %}
+        {% set icon = 'fa-user-lock' %}
+    {% elif error_type == 'VERIFICATION_PENDING' %}
+        {% set theme_class = 'theme-pending' %}
+        {% set icon = 'fa-id-card-clip' %}
+    {% endif %}
+
+    <div class="error-card {{ theme_class }}">
+        <div class="icon-wrapper">
+            <i class="fas {{ icon }}"></i>
+        </div>
+        <div>
+            <h1>{{ title }}</h1>
+            <p style="margin-top: 8px;">{{ message }}</p>
+        </div>
+        
+        <div class="actions">
+            {% if error_type == 'ACCOUNT_BLOCKED' %}
+                <a href="mailto:support@statxtract.gov" class="btn btn-primary">
+                    <i class="fas fa-envelope"></i> Contact Support
+                </a>
+            {% elif error_type == 'ACCOUNT_FROZEN' %}
+                <a href="/user/dashboard" class="btn btn-primary">
+                    <i class="fas fa-columns"></i> View Dashboard
+                </a>
+            {% elif error_type == 'VERIFICATION_PENDING' %}
+                <a href="/user/dashboard" class="btn btn-primary">
+                    <i class="fas fa-upload"></i> Upload Documents
+                </a>
+            {% else %}
+                <a href="/user/dashboard" class="btn btn-primary">
+                    <i class="fas fa-arrow-left"></i> Back to Dashboard
+                </a>
+            {% endif %}
+            
+            <a href="/module-selection" class="btn btn-secondary" onclick="sessionStorage.clear();">
+                <i class="fas fa-right-from-bracket"></i> Sign Out
+            </a>
+        </div>
+    </div>
+
+    <script>
+        // Sync theme with local storage
+        (function initTheme() {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+        })();
+    </script>
+</body>
+</html>

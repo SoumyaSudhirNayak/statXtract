@@ -115,19 +115,19 @@
         <div class="stats-strip">
           <div class="strip-card">
             <div class="strip-icon">🎯</div>
-            <div><div class="strip-num" style="color:var(--green);">150</div><div class="strip-lbl">Available Queries</div></div>
+            <div><div class="strip-num" id="statAvailQueries" style="color:var(--green);">0</div><div class="strip-lbl">Available Queries</div></div>
           </div>
           <div class="strip-card">
             <div class="strip-icon" style="background:#FFF3E0; color:var(--saffron);">⏳</div>
-            <div><div class="strip-num">50</div><div class="strip-lbl">Used Queries</div></div>
+            <div><div class="strip-num" id="statUsedQueries">0</div><div class="strip-lbl">Used Queries</div></div>
           </div>
           <div class="strip-card">
             <div class="strip-icon" style="background:#F3E5F5; color:var(--purple);">💾</div>
-            <div><div class="strip-num">1.5</div><div class="strip-lbl">GB Data Exported</div></div>
+            <div><div class="strip-num" id="statRowsAccessed">0</div><div class="strip-lbl">Rows Accessed</div></div>
           </div>
           <div class="strip-card">
             <div class="strip-icon" style="background:#FFEBEE; color:var(--danger);">📅</div>
-            <div><div class="strip-num" style="font-size:22px;">Apr 1</div><div class="strip-lbl">Next Reset Date</div></div>
+            <div><div class="strip-num" id="statResetTime" style="font-size:20px;">Midnight</div><div class="strip-lbl">Quota Resets</div></div>
           </div>
         </div>
 
@@ -137,44 +137,44 @@
           <div class="usage-card">
             <div class="uc-header">
               <div class="uc-title">Query Processing</div>
-              <span class="uc-badge">Healthy</span>
+              <span class="uc-badge" id="queryStatusBadge">Healthy</span>
             </div>
-            <div class="uc-nums"><strong>50</strong> / 200 Queries processed</div>
-            <div class="progress-track"><div class="progress-fill fill-green" data-width="25%"></div></div>
-            <div class="limit-desc">You have used 25% of your plan's monthly query limit. Data processing takes priority over API accesses.</div>
+            <div class="uc-nums"><strong id="queriesUsedTxt">0</strong> / <span id="queriesLimitTxt">0</span> Queries processed</div>
+            <div class="progress-track"><div class="progress-fill fill-green" id="queryProgressFill"></div></div>
+            <div class="limit-desc">You have used a portion of your plan's monthly query limit. Data processing takes priority over API accesses.</div>
           </div>
 
-          <!-- API Calls -->
+          <!-- API Requests -->
           <div class="usage-card">
             <div class="uc-header">
               <div class="uc-title">API Requests</div>
-              <span class="uc-badge" style="background:#FFF3E0; color:var(--orange);">Warning</span>
+              <span class="uc-badge" id="apiStatusBadge">Disabled</span>
             </div>
-            <div class="uc-nums"><strong>8,500</strong> / 10,000 Requests</div>
-            <div class="progress-track"><div class="progress-fill fill-orange" data-width="85%"></div></div>
-            <div class="limit-desc">You are nearing your API request limits. Consider upgrading to the Enterprise tier for unrestricted accesses.</div>
+            <div class="uc-nums"><strong id="apiUsedTxt">Restricted</strong></div>
+            <div class="progress-track"><div class="progress-fill fill-orange" id="apiProgressFill"></div></div>
+            <div class="limit-desc">Developer API access level per plan. Upgrade to Pro or Enterprise to enable programmatical REST API endpoint query capabilities.</div>
           </div>
 
           <!-- Direct Data Export -->
           <div class="usage-card">
             <div class="uc-header">
-              <div class="uc-title">Direct Data Exports (GB)</div>
-              <span class="uc-badge" style="background:#E3F2FD; color:var(--royal);">Nominal</span>
+              <div class="uc-title">Monthly Rows Limit</div>
+              <span class="uc-badge" id="rowStatusBadge">Nominal</span>
             </div>
-            <div class="uc-nums"><strong>1.5 GB</strong> / 10.0 GB Total</div>
-            <div class="progress-track"><div class="progress-fill fill-blue" data-width="15%"></div></div>
-            <div class="limit-desc">Includes CSV, PDF, and JSON direct file downloads through the platform UI.</div>
+            <div class="uc-nums"><strong id="rowsUsedTxt">0</strong> / <span id="rowsLimitTxt">0</span> Rows</div>
+            <div class="progress-track"><div class="progress-fill fill-blue" id="rowProgressFill"></div></div>
+            <div class="limit-desc">Includes cumulative row retrievals across all queries and CSV direct file downloads through the platform UI.</div>
           </div>
           
-          <!-- Cloud Storage -->
+          <!-- Downloads Quota -->
           <div class="usage-card">
             <div class="uc-header">
-              <div class="uc-title">Saved Workspaces</div>
-              <span class="uc-badge" style="background:#E8F5E9; color:var(--green);">Nominal</span>
+              <div class="uc-title">Monthly Downloads</div>
+              <span class="uc-badge" id="downloadStatusBadge">Nominal</span>
             </div>
-            <div class="uc-nums"><strong>2</strong> / 10 Projects</div>
-            <div class="progress-track"><div class="progress-fill fill-green" data-width="20%"></div></div>
-            <div class="limit-desc">Number of active workspaces maintained dynamically in cloud storage.</div>
+            <div class="uc-nums"><strong id="downloadsUsedTxt">0</strong> / <span id="downloadsLimitTxt">0</span> Downloads</div>
+            <div class="progress-track"><div class="progress-fill fill-green" id="downloadProgressFill"></div></div>
+            <div class="limit-desc">Monthly file download limit (exports) allowed for your plan.</div>
           </div>
         </div>
 
@@ -182,46 +182,23 @@
         <div class="table-card">
           <div class="table-card-header">
             <div class="table-card-title">Recent Usage Activity</div>
-            <button class="btn btn-ghost" style="padding:8px 16px; font-size:12px;">View All Logs</button>
+            <button class="btn btn-ghost" style="padding:8px 16px; font-size:12px;" onclick="window.location.href='/user/history'">View All Logs</button>
           </div>
           <table>
             <thead>
               <tr>
                 <th>Resource Type</th>
                 <th>Operation</th>
-                <th>Units Skipped / Used</th>
+                <th>Rows Returned</th>
                 <th>Timestamp</th>
                 <th>Status</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody id="activityBody">
               <tr>
-                <td><strong>Analytics Module</strong></td>
-                <td>Run Heatmap Rendering</td>
-                <td>1 Query</td>
-                <td>Today, 10:45 AM</td>
-                <td><span class="status-badge success">Success</span></td>
-              </tr>
-              <tr>
-                <td><strong>Data Export</strong></td>
-                <td>Export to JSON (78MB)</td>
-                <td>1 Query</td>
-                <td>Today, 09:12 AM</td>
-                <td><span class="status-badge success">Success</span></td>
-              </tr>
-              <tr>
-                <td><strong>API Access</strong></td>
-                <td>/api/v1/query/batch</td>
-                <td>100 Requests</td>
-                <td>Yesterday, 04:30 PM</td>
-                <td><span class="status-badge success">Success</span></td>
-              </tr>
-              <tr>
-                <td><strong>Data Export</strong></td>
-                <td>Export 50 GB Request</td>
-                <td>—</td>
-                <td>Yesterday, 11:15 AM</td>
-                <td><span class="status-badge warning">Limit Exceeded</span></td>
+                <td colspan="5" style="text-align: center; padding: 30px; color: var(--text-muted);">
+                  Loading recent usage logs...
+                </td>
               </tr>
             </tbody>
           </table>
@@ -239,17 +216,187 @@
 
     const username = '{{ username | default("") }}' || sessionStorage.getItem('userEmail') || 'User';
     const dn = username.includes('@') ? username.split('@')[0] : username;
-    document.getElementById('headerUsername').textContent = dn;
+    document.getElementById('headerUsername').textContent = dn.charAt(0).toUpperCase() + dn.slice(1);
     document.getElementById('avatarInitial').textContent  = dn.charAt(0).toUpperCase();
 
-    // Trigger progress animations
     window.addEventListener('load', () => {
-      setTimeout(() => {
-        document.querySelectorAll('.progress-fill').forEach(bar => {
-          bar.style.width = bar.getAttribute('data-width') || '0%';
-        });
-      }, 300);
+      loadUsagePage();
+      startResetTimer();
     });
+
+    async function loadUsagePage() {
+      try {
+        const response = await fetch('/api/user/governance');
+        if (!response.ok) throw new Error('Failed to load governance');
+        const data = await response.json();
+        
+        const usage = data.usage_today || {};
+        const limits = data.limits || {};
+        
+        // 1. Stats strip
+        document.getElementById('statAvailQueries').textContent = usage.queries_remaining || 0;
+        document.getElementById('statUsedQueries').textContent = usage.queries_used || 0;
+        document.getElementById('statRowsAccessed').textContent = formatNum(usage.rows_accessed || 0);
+
+        // 2. Query processing card
+        const qPct = limits.max_queries_per_day > 0 ? (usage.queries_used / limits.max_queries_per_day) * 100 : 0;
+        document.getElementById('queriesUsedTxt').textContent = usage.queries_used || 0;
+        document.getElementById('queriesLimitTxt').textContent = limits.max_queries_per_day || 0;
+        document.getElementById('queryProgressFill').style.width = `${Math.min(qPct, 100)}%`;
+        
+        const qStatus = document.getElementById('queryStatusBadge');
+        if (qPct > 90) {
+          qStatus.textContent = 'Warning';
+          qStatus.style.background = '#FFEBEE';
+          qStatus.style.color = 'var(--danger)';
+        } else {
+          qStatus.textContent = 'Healthy';
+          qStatus.style.background = '#E8F5E9';
+          qStatus.style.color = 'var(--green)';
+        }
+
+        // 3. API Requests card
+        const apiStatus = document.getElementById('apiStatusBadge');
+        const apiFill = document.getElementById('apiProgressFill');
+        if (limits.api_access) {
+          apiStatus.textContent = 'Active';
+          apiStatus.style.background = '#E8F5E9';
+          apiStatus.style.color = 'var(--green)';
+          document.getElementById('apiUsedTxt').innerHTML = '<strong>Enabled</strong> (Full REST API Access)';
+          apiFill.style.width = '100%';
+          apiFill.className = 'progress-fill fill-green';
+        } else {
+          apiStatus.textContent = 'Disabled';
+          apiStatus.style.background = '#ECEFF1';
+          apiStatus.style.color = '#78909C';
+          document.getElementById('apiUsedTxt').textContent = 'Restricted';
+          apiFill.style.width = '0%';
+        }
+
+        // 4. Rows card
+        const rPct = limits.max_rows_per_day > 0 ? (usage.rows_accessed / limits.max_rows_per_day) * 100 : 0;
+        document.getElementById('rowsUsedTxt').textContent = formatNum(usage.rows_accessed || 0);
+        document.getElementById('rowsLimitTxt').textContent = formatNum(limits.max_rows_per_day || 0);
+        document.getElementById('rowProgressFill').style.width = `${Math.min(rPct, 100)}%`;
+        
+        const rStatus = document.getElementById('rowStatusBadge');
+        if (rPct > 90) {
+          rStatus.textContent = 'Warning';
+          rStatus.style.background = '#FFEBEE';
+          rStatus.style.color = 'var(--danger)';
+        } else {
+          rStatus.textContent = 'Nominal';
+          rStatus.style.background = '#E3F2FD';
+          rStatus.style.color = 'var(--royal)';
+        }
+
+        // 5. Downloads card
+        const dlStatus = document.getElementById('downloadStatusBadge');
+        const dlFill = document.getElementById('downloadProgressFill');
+        if (limits.downloads_allowed) {
+          const dPct = limits.max_downloads_per_day > 0 ? (usage.downloads_used / limits.max_downloads_per_day) * 100 : 0;
+          document.getElementById('downloadsUsedTxt').textContent = usage.downloads_used || 0;
+          document.getElementById('downloadsLimitTxt').textContent = limits.max_downloads_per_day || 0;
+          dlFill.style.width = `${Math.min(dPct, 100)}%`;
+          
+          if (dPct > 80) {
+            dlStatus.textContent = 'Warning';
+            dlStatus.style.background = '#FFF3E0';
+            dlStatus.style.color = 'var(--orange)';
+          } else {
+            dlStatus.textContent = 'Nominal';
+            dlStatus.style.background = '#E8F5E9';
+            dlStatus.style.color = 'var(--green)';
+          }
+        } else {
+          dlStatus.textContent = 'Disabled';
+          dlStatus.style.background = '#ECEFF1';
+          dlStatus.style.color = '#78909C';
+          document.getElementById('downloadsUsedTxt').textContent = 'Restricted';
+          dlFill.style.width = '0%';
+        }
+        
+      } catch (err) {
+        console.error(err);
+      }
+
+      // Load query logs for activity table
+      try {
+        const response = await fetch('/api/user/query-history?page=1&per_page=5');
+        if (response.ok) {
+          const data = await response.json();
+          const list = data.history || [];
+          renderActivityTable(list);
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    function renderActivityTable(list) {
+      const tbody = document.getElementById('activityBody');
+      if (list.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 30px; color: var(--text-muted);">No recent usage logs found.</td></tr>`;
+        return;
+      }
+      
+      tbody.innerHTML = '';
+      list.forEach(q => {
+        const tr = document.createElement('tr');
+        
+        let opName = 'Query';
+        if (q.endpoint.toLowerCase().includes('download') || q.endpoint.toLowerCase().includes('export')) {
+          opName = 'File Download';
+        }
+        
+        let statusBadge = '<span class="status-badge success">Success</span>';
+        if (q.status === 'blocked') {
+          statusBadge = '<span class="status-badge warning" style="background:#FFEBEE; color:var(--danger)">Blocked</span>';
+        } else if (q.status === 'suppressed') {
+          statusBadge = '<span class="status-badge warning" style="background:#FFF3E0; color:var(--orange)">Suppressed</span>';
+        } else if (q.status.startsWith('fail') || q.status === 'error') {
+          statusBadge = '<span class="status-badge warning" style="background:#FFEBEE; color:var(--danger)">Failed</span>';
+        }
+
+        const dateStr = q.timestamp ? new Date(q.timestamp).toLocaleString(undefined, {
+          month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+        }) : '-';
+
+        tr.innerHTML = `
+          <td><strong>${q.dataset || 'Dataset'}</strong></td>
+          <td>${opName}</td>
+          <td>${q.rows_returned.toLocaleString()}</td>
+          <td>${dateStr}</td>
+          <td>${statusBadge}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function formatNum(num) {
+      if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+      if (num >= 1000) return (num / 1000).toFixed(1) + 'k';
+      return num;
+    }
+
+    function startResetTimer() {
+      const lbl = document.getElementById('statResetTime');
+      
+      function updateTimer() {
+        const now = new Date();
+        const midnight = new Date();
+        midnight.setHours(24, 0, 0, 0); // Next midnight
+        
+        const diffMs = midnight - now;
+        const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
+        const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+        
+        lbl.textContent = `in ${diffHrs}h ${diffMins}m`;
+      }
+      
+      updateTimer();
+      setInterval(updateTimer, 60000); // Update every minute
+    }
   </script>
 </body>
 </html>

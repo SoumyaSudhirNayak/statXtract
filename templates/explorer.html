@@ -522,6 +522,34 @@
 </head>
 <body>
 
+    <div id="verificationPendingOverlay" style="display:none; position:fixed; inset:0; background:var(--bg-gradient, #F8FAFC); z-index:99999; align-items:center; justify-content:center; padding:20px;">
+        <div style="background:var(--glass-bg, #fff); border:1px solid var(--glass-border, rgba(0,0,0,0.1)); border-radius:16px; padding:40px 30px; max-width:500px; width:100%; text-align:center; box-shadow:0 12px 40px rgba(0,0,0,0.08); display:flex; flex-direction:column; align-items:center; gap:20px;">
+            <div style="width:60px; height:60px; border-radius:50%; background:rgba(244,163,0,0.1); color:#F4A300; display:grid; place-items:center; font-size:24px;">
+                <i class="fas fa-info-circle"></i>
+            </div>
+            <div>
+                <h2 style="font-family:'Poppins', 'Inter', sans-serif; font-weight:800; font-size:1.6rem; color:var(--text-main, #1c1c1c); margin-bottom:8px;">Verification Pending</h2>
+                <p style="font-size:0.95rem; color:var(--text-muted, #6B7280); line-height:1.5;">Your account is currently under verification. Please wait for admin approval before accessing datasets and query features.</p>
+            </div>
+            <div style="width:100%; display:flex; flex-direction:column; gap:10px; background:rgba(0,0,0,0.02); padding:16px; border-radius:12px; border:1px solid var(--glass-border, rgba(0,0,0,0.05)); text-align:left;">
+                <div style="display:flex; justify-content:space-between; font-size:0.85rem;">
+                    <span style="color:var(--text-muted); font-weight:500;">Verification Status:</span>
+                    <span style="font-weight:700; color:#F4A300;"><i class="fas fa-clock"></i> Pending Approval</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; font-size:0.85rem; border-top:1px solid rgba(0,0,0,0.05); padding-top:8px;">
+                    <span style="color:var(--text-muted); font-weight:500;">Uploaded Documents:</span>
+                    <span id="overlayDocStatus" style="font-weight:700; color:#22c55e;"><i class="fas fa-check-circle"></i> Uploaded</span>
+                </div>
+            </div>
+            <button class="btn btn-primary" onclick="window.location.reload()" style="width:100%; padding:14px; border-radius:10px; font-weight:700; display:flex; align-items:center; justify-content:center; gap:8px; background:var(--primary-color, #2E5BBA); border:none; color:#fff; cursor:pointer;">
+                <i class="fas fa-sync-alt"></i> Refresh / Check Status
+            </button>
+            <a href="/user/dashboard" style="color:var(--primary-color, #2E5BBA); font-weight:600; font-size:0.9rem; text-decoration:none; display:inline-flex; align-items:center; gap:6px;">
+                <i class="fas fa-chevron-left"></i> Back to Dashboard
+            </a>
+        </div>
+    </div>
+
     <a href="/admin/dashboard" class="back-btn">
         <i class="fas fa-arrow-left"></i>
         <span>Back</span>
@@ -603,8 +631,38 @@
             tables: []
         };
 
+        async function checkVerificationStatus() {
+            try {
+                const res = await fetch('/api/user/status');
+                const data = await res.json();
+                
+                // Admins bypass verification checks
+                const isUserAdmin = "{{ role }}" === "1";
+                
+                if (!isUserAdmin && data && data.is_verified === false) {
+                    const overlay = document.getElementById('verificationPendingOverlay');
+                    if (overlay) {
+                        overlay.style.display = 'flex';
+                        const docStatusElem = document.getElementById('overlayDocStatus');
+                        if (docStatusElem) {
+                            if (data.document_uploaded) {
+                                docStatusElem.innerHTML = `<i class="fas fa-check-circle"></i> Uploaded`;
+                                docStatusElem.style.color = '#22c55e';
+                            } else {
+                                docStatusElem.innerHTML = `<i class="fas fa-times-circle"></i> Not Uploaded`;
+                                docStatusElem.style.color = '#ef4444';
+                            }
+                        }
+                    }
+                }
+            } catch(e) {
+                console.error("Failed to check verification status", e);
+            }
+        }
+
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
+            checkVerificationStatus();
             loadSchemas();
         });
 

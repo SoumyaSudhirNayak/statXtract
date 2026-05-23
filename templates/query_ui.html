@@ -891,6 +891,34 @@
 </head>
 
 <body>
+    <div id="verificationPendingOverlay" style="display:none; position:fixed; inset:0; background:var(--bg-gradient, #F8FAFC); z-index:99999; align-items:center; justify-content:center; padding:20px;">
+        <div style="background:var(--glass-bg, #fff); border:1px solid var(--glass-border, rgba(0,0,0,0.1)); border-radius:16px; padding:40px 30px; max-width:500px; width:100%; text-align:center; box-shadow:0 12px 40px rgba(0,0,0,0.08); display:flex; flex-direction:column; align-items:center; gap:20px;">
+            <div style="width:60px; height:60px; border-radius:50%; background:rgba(244,163,0,0.1); color:#F4A300; display:grid; place-items:center; font-size:24px;">
+                <i class="fas fa-info-circle"></i>
+            </div>
+            <div>
+                <h2 style="font-family:'Poppins', 'Inter', sans-serif; font-weight:800; font-size:1.6rem; color:var(--text-main, #1c1c1c); margin-bottom:8px;">Verification Pending</h2>
+                <p style="font-size:0.95rem; color:var(--text-muted, #6B7280); line-height:1.5;">Your account is currently under verification. Please wait for admin approval before accessing datasets and query features.</p>
+            </div>
+            <div style="width:100%; display:flex; flex-direction:column; gap:10px; background:rgba(0,0,0,0.02); padding:16px; border-radius:12px; border:1px solid var(--glass-border, rgba(0,0,0,0.05)); text-align:left;">
+                <div style="display:flex; justify-content:space-between; font-size:0.85rem;">
+                    <span style="color:var(--text-muted); font-weight:500;">Verification Status:</span>
+                    <span style="font-weight:700; color:#F4A300;"><i class="fas fa-clock"></i> Pending Approval</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; font-size:0.85rem; border-top:1px solid rgba(0,0,0,0.05); padding-top:8px;">
+                    <span style="color:var(--text-muted); font-weight:500;">Uploaded Documents:</span>
+                    <span id="overlayDocStatus" style="font-weight:700; color:#22c55e;"><i class="fas fa-check-circle"></i> Uploaded</span>
+                </div>
+            </div>
+            <button class="btn btn-primary" onclick="window.location.reload()" style="width:100%; padding:14px; border-radius:10px; font-weight:700; display:flex; align-items:center; justify-content:center; gap:8px; background:var(--primary-color, #2E5BBA); border:none; color:#fff; cursor:pointer;">
+                <i class="fas fa-sync-alt"></i> Refresh / Check Status
+            </button>
+            <a href="/user/dashboard" style="color:var(--primary-color, #2E5BBA); font-weight:600; font-size:0.9rem; text-decoration:none; display:inline-flex; align-items:center; gap:6px;">
+                <i class="fas fa-chevron-left"></i> Back to Dashboard
+            </a>
+        </div>
+    </div>
+
     <div class="toast-container" id="toastContainer"></div>
 
     <header>
@@ -1004,15 +1032,21 @@
                         </div>
                     </div>
 
-                    <div class="action-row">
-                        <button class="btn btn-primary execute-btn" onclick="triggerNewQuery()">
+                    <div class="action-row" style="display:flex; flex-direction:column; gap:10px; width:100%;">
+                        <button class="btn btn-primary execute-btn" onclick="triggerNewQuery()" style="width:100%;">
                             <i class="fas fa-play"></i> Execute Query
                         </button>
-                        <div style="display:flex;gap:10px;">
-                            <button class="btn btn-secondary" style="flex:1;" onclick="downloadCSV()">
+                        <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:8px; width:100%;">
+                            <button id="btnExportCsv" class="btn btn-secondary" style="padding: 10px;" onclick="exportDataset('csv')" title="Export as CSV">
                                 <i class="fas fa-file-csv"></i> CSV
                             </button>
-                            <button class="btn btn-secondary" style="flex:1;" onclick="downloadJSON()">
+                            <button id="btnExportExcel" class="btn btn-secondary" style="padding: 10px;" onclick="exportDataset('excel')" title="Export as Excel">
+                                <i class="fas fa-file-excel"></i> XLSX
+                            </button>
+                            <button id="btnExportPdf" class="btn btn-secondary" style="padding: 10px;" onclick="exportDataset('pdf')" title="Export as PDF">
+                                <i class="fas fa-file-pdf"></i> PDF
+                            </button>
+                            <button id="btnExportJson" class="btn btn-secondary" style="padding: 10px;" onclick="exportDataset('json')" title="Export as JSON">
                                 <i class="fas fa-file-code"></i> JSON
                             </button>
                         </div>
@@ -2018,9 +2052,15 @@
                 showProgress(true, 30);
                 const res = await fetch(context.endpoint);
                 showProgress(true, 60);
-                const data = await res.json();
+                
+                let data;
+                try {
+                    data = await res.json();
+                } catch (e) {
+                    data = { success: false, error_type: 'SERVER_ERROR', message: `Server error: ${res.status} ${res.statusText}` };
+                }
 
-                if (Array.isArray(data)) {
+                if (res.ok && Array.isArray(data)) {
                     showProgress(true, 80);
                     latestResults = data;
                     chartNeedsRefresh = true;
@@ -2040,13 +2080,22 @@
                     showProgress(true, 100);
                     setTimeout(() => showProgress(false), 500);
                     showToast(`Query executed successfully! ${data.length} rows returned.`, 'success');
-                } else if (data.error) {
-                    showToast("Query error: " + data.error, 'error');
                 } else {
-                    showToast("Unexpected response format.", 'error');
+                    const message = data.message || data.error || data.detail || "An unexpected error occurred during query execution.";
+                    let errorType = data.error_type;
+                    if (!errorType && res.status === 429) {
+                        errorType = (message && (message.toLowerCase().includes("requests in 1 minute") || message.toLowerCase().includes("rate limit"))) ? 'RATE_LIMIT' : 'QUERY_LIMIT_REACHED';
+                    }
+                    if (!errorType) {
+                        errorType = 'UNKNOWN_ERROR';
+                    }
+                    
+                    renderGovernanceError(errorType, message, data);
+                    showToast(message, 'error');
                 }
             } catch (error) {
                 console.error("Query error:", error);
+                renderGovernanceError('CLIENT_ERROR', "Failed to connect to the query server. Please check your connection and try again.", {});
                 showToast("Failed to execute query.", 'error');
             } finally {
                 showLoading(false);
@@ -2087,12 +2136,14 @@
                     rows = chartRequestCache.rows;
                 } else {
                     const response = await fetch(context.endpoint);
-                    if (!response.ok) {
-                        throw new Error(`Chart request failed with status ${response.status}`);
+                    let data;
+                    try {
+                        data = await response.json();
+                    } catch(e) {
+                        throw new Error(`Server returned status ${response.status}`);
                     }
-                    const data = await response.json();
-                    if (!Array.isArray(data)) {
-                        throw new Error(data?.error || 'Unexpected chart response format.');
+                    if (!response.ok || !Array.isArray(data)) {
+                        throw new Error(data?.message || data?.error || data?.detail || 'Unexpected chart response format.');
                     }
                     rows = data;
                     chartRequestCache = { key: context.cacheKey, rows };
@@ -2157,6 +2208,136 @@
             });
             
             document.getElementById('tablePagination').style.display = 'flex';
+        }
+
+        // Render Governance/Security Error Panel
+        function renderGovernanceError(errorType, message, rawData) {
+            const tableHead = document.getElementById('tableHead');
+            const tableBody = document.getElementById('tableBody');
+            const tableResultsContainer = document.querySelector('.table-results-container');
+            
+            tableHead.innerHTML = "";
+            tableBody.innerHTML = "";
+            document.getElementById('tablePagination').style.display = 'none';
+
+            if (tableResultsContainer) {
+                tableResultsContainer.classList.add('empty-state');
+            }
+
+            let icon = 'fa-circle-exclamation';
+            let title = 'Query Execution Failed';
+            let extraDetailsHtml = '';
+            let actionBtnHtml = '';
+            let cardBg = 'rgba(239, 68, 68, 0.05)';
+            let cardBorder = 'rgba(239, 68, 68, 0.2)';
+            let iconColor = '#ef4444';
+            let iconBg = 'rgba(239, 68, 68, 0.1)';
+
+            if (errorType === 'RATE_LIMIT') {
+                icon = 'fa-gauge-high';
+                title = 'Rate Limit Exceeded';
+                iconColor = '#f59e0b';
+                iconBg = 'rgba(245, 158, 11, 0.1)';
+                cardBg = 'rgba(245, 158, 11, 0.03)';
+                cardBorder = 'rgba(245, 158, 11, 0.15)';
+                actionBtnHtml = `
+                    <button class="btn btn-primary" onclick="runQuery()" style="margin-top: 10px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px;">
+                        <i class="fas fa-sync-alt"></i> Try Again
+                    </button>
+                `;
+            } else if (errorType === 'ACCOUNT_BLOCKED') {
+                icon = 'fa-user-slash';
+                title = 'Account Blocked';
+                iconColor = '#ef4444';
+                iconBg = 'rgba(239, 68, 68, 0.1)';
+                cardBg = 'rgba(239, 68, 68, 0.03)';
+                cardBorder = 'rgba(239, 68, 68, 0.15)';
+                actionBtnHtml = `
+                    <a href="mailto:support@statxtract.gov" class="btn btn-primary" style="margin-top: 10px; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; background:#ef4444; border-color:#ef4444; color:#fff; padding: 10px 20px; border-radius: 8px;">
+                        <i class="fas fa-envelope"></i> Contact Support
+                    </a>
+                `;
+            } else if (errorType === 'ACCOUNT_FROZEN') {
+                icon = 'fa-user-lock';
+                title = 'Account Temporarily Frozen';
+                iconColor = '#f59e0b';
+                iconBg = 'rgba(245, 158, 11, 0.1)';
+                cardBg = 'rgba(245, 158, 11, 0.03)';
+                cardBorder = 'rgba(245, 158, 11, 0.15)';
+                actionBtnHtml = `
+                    <a href="/user/dashboard" class="btn btn-primary" style="margin-top: 10px; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; background:#f59e0b; border-color:#f59e0b; color:#fff; padding: 10px 20px; border-radius: 8px;">
+                        <i class="fas fa-columns"></i> View Dashboard
+                    </a>
+                `;
+            } else if (errorType === 'VERIFICATION_PENDING') {
+                icon = 'fa-id-card-clip';
+                title = 'Verification Pending';
+                iconColor = '#2E5BBA';
+                iconBg = 'rgba(46, 91, 186, 0.1)';
+                cardBg = 'rgba(46, 91, 186, 0.03)';
+                cardBorder = 'rgba(46, 91, 186, 0.15)';
+                actionBtnHtml = `
+                    <a href="/user/dashboard" class="btn btn-primary" style="margin-top: 10px; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; background:#2E5BBA; border-color:#2E5BBA; color:#fff; padding: 10px 20px; border-radius: 8px;">
+                        <i class="fas fa-upload"></i> Upload Verification Documents
+                    </a>
+                `;
+            } else if (errorType === 'QUERY_LIMIT_REACHED') {
+                icon = 'fa-ban';
+                title = 'Usage Limit Exceeded';
+                iconColor = '#ef4444';
+                actionBtnHtml = `
+                    <a href="/user/dashboard" class="btn btn-primary" style="margin-top: 10px; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; background: var(--primary-color, #2E5BBA); color: #fff; padding: 10px 20px; border-radius: 8px;">
+                        <i class="fas fa-arrow-up-right-from-square"></i> Upgrade Subscription
+                    </a>
+                `;
+            } else if (errorType === 'SENSITIVE_QUERY_BLOCKED') {
+                icon = 'fa-shield-halved';
+                title = 'Sensitive Query Blocked';
+                iconColor = '#ef4444';
+                actionBtnHtml = `
+                    <button class="btn btn-secondary" onclick="document.getElementById('filters').focus()" style="margin-top: 10px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px;">
+                        <i class="fas fa-edit"></i> Modify Filters
+                    </button>
+                `;
+            } else if (errorType === 'PRIVACY_SUPPRESSION') {
+                icon = 'fa-eye-slash';
+                title = 'Privacy Suppression Applied';
+                iconColor = '#6366f1';
+                iconBg = 'rgba(99, 102, 241, 0.1)';
+                cardBg = 'rgba(99, 102, 241, 0.03)';
+                cardBorder = 'rgba(99, 102, 241, 0.15)';
+                
+                const minRows = rawData.minimum_rows_required || 5;
+                const actualRows = rawData.actual_rows !== undefined ? rawData.actual_rows : 0;
+                
+                extraDetailsHtml = `
+                    <div style="margin-top: 15px; display: flex; gap: 15px; justify-content: center; font-size: 0.85rem; background: rgba(0,0,0,0.02); padding: 12px; border-radius: 8px; border: 1px solid rgba(0,0,0,0.05);">
+                        <div><span style="color:#64748b; font-weight:500;">Required Rows:</span> <span style="font-weight:700; color:#1e293b;">&ge; ${minRows}</span></div>
+                        <div style="width: 1px; background: rgba(0,0,0,0.08);"></div>
+                        <div><span style="color:#64748b; font-weight:500;">Returned Rows:</span> <span style="font-weight:700; color:#ef4444;">${actualRows}</span></div>
+                    </div>
+                `;
+                
+                actionBtnHtml = `
+                    <button class="btn btn-primary" onclick="document.getElementById('filters').focus()" style="margin-top: 10px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; background:#6366f1; border-color:#6366f1;">
+                        <i class="fas fa-filter-circle-xmark"></i> Broaden Filter Criteria
+                    </button>
+                `;
+            }
+
+            tableBody.innerHTML = `<tr><td colspan='100%'>
+                <div class="governance-error-card" style="padding: 40px 30px; text-align: center; background: ${cardBg}; border: 1px solid ${cardBorder}; border-radius: 16px; margin: 20px; display: flex; flex-direction: column; align-items: center; gap: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.02);">
+                    <div class="error-icon-wrapper" style="width: 64px; height: 64px; border-radius: 50%; background: ${iconBg}; color: ${iconColor}; display: grid; place-items: center; font-size: 28px;">
+                        <i class="fas ${icon}"></i>
+                    </div>
+                    <div style="max-width: 500px;">
+                        <h4 style="font-family: 'Poppins', 'Inter', sans-serif; font-weight: 800; font-size: 1.25rem; color: #1f2937; margin: 0 0 8px 0;">${title}</h4>
+                        <p style="font-size: 0.95rem; color: #4b5563; line-height: 1.5; margin: 0;">${message}</p>
+                        ${extraDetailsHtml}
+                    </div>
+                    ${actionBtnHtml}
+                </div>
+            </td></tr>`;
         }
 
         // ── Pagination Helpers ──
@@ -2665,37 +2846,122 @@
             return new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
         }
 
-        function downloadCSV() {
-            if (latestResults.length === 0) {
-                showToast("No results to download.", 'error');
-                return;
-            }
+        let userPlan = 'free';
+        let allowedFormats = ['csv'];
 
-            const columns = Object.keys(latestResults[0]);
-            let csv = columns.join(",") + "\n";
-            latestResults.forEach(row => {
-                csv += columns.map(col => JSON.stringify(row[col] ?? "")).join(",") + "\n";
-            });
-            const blob = new Blob([csv], { type: "text/csv" });
-            const a = document.createElement("a");
-            a.href = URL.createObjectURL(blob);
-            a.download = `query_results_${getCurrentTimestamp()}.csv`;
-            a.click();
-            showToast('Data exported as CSV!', 'success');
+        async function fetchPlanAndEnforceUI() {
+            try {
+                const res = await fetch('/api/user/governance');
+                const data = await res.json();
+                userPlan = (data.plan || 'free').toLowerCase();
+                allowedFormats = data.limits.export_formats || ['csv'];
+
+                // Update UI buttons based on plan
+                const formats = ['csv', 'excel', 'pdf', 'json'];
+                formats.forEach(f => {
+                    const backendName = f === 'excel' ? 'excel' : f;
+                    const idName = f.charAt(0).toUpperCase() + f.slice(1);
+                    const btn = document.getElementById(`btnExport${idName}`);
+                    if (btn) {
+                        const isAllowed = allowedFormats.includes(backendName) || data.role === 'admin';
+                        if (!isAllowed) {
+                            btn.disabled = true;
+                            btn.style.opacity = '0.5';
+                            btn.style.cursor = 'not-allowed';
+                            btn.title = "Upgrade your plan to access this feature.";
+                        } else {
+                            btn.removeAttribute('disabled');
+                            btn.style.opacity = '1';
+                            btn.style.cursor = 'pointer';
+                            btn.title = `Export as ${f.toUpperCase()}`;
+                        }
+                    }
+                });
+
+                // Display queries used limit message
+                const qRemaining = data.usage_today.queries_remaining;
+                
+                const execBtn = document.querySelector('.execute-btn');
+                if (execBtn) {
+                    if (qRemaining <= 0 && data.role !== 'admin') {
+                        execBtn.disabled = true;
+                        execBtn.style.opacity = '0.5';
+                        execBtn.style.cursor = 'not-allowed';
+                        execBtn.title = "Monthly query limit reached for your current plan.";
+                        
+                        renderGovernanceError(
+                            'QUERY_LIMIT_REACHED',
+                            `Usage Limit Exceeded: Monthly query limit of ${data.usage_today.queries_limit} reached for your current plan. Please upgrade your subscription to continue querying datasets.`,
+                            data
+                        );
+                    } else {
+                        execBtn.removeAttribute('disabled');
+                        execBtn.style.opacity = '1';
+                        execBtn.style.cursor = 'pointer';
+                        execBtn.title = "Execute Query";
+                    }
+                }
+            } catch(e) {
+                console.error("Failed to fetch plan metadata", e);
+            }
         }
 
-        function downloadJSON() {
-            if (latestResults.length === 0) {
-                showToast("No results to download.", 'error');
+        async function exportDataset(format) {
+            const context = getQueryContext();
+            if (context.error) {
+                showToast(context.error, 'error');
+                return;
+            }
+            if (context.blocked) {
+                showToast('Filter contains blocked SQL keywords. Please fix.', 'error');
                 return;
             }
 
-            const blob = new Blob([JSON.stringify(latestResults, null, 2)], { type: "application/json" });
-            const a = document.createElement("a");
-            a.href = URL.createObjectURL(blob);
-            a.download = `query_results_${getCurrentTimestamp()}.json`;
-            a.click();
-            showToast('Data exported as JSON!', 'success');
+            const survey = document.getElementById('survey').value;
+            const dataset = document.getElementById('dataset').value;
+            const table = document.getElementById('table').value;
+            const columns = getSelectedColumns().join(',');
+            const filters = buildFilterString();
+            const limit = document.getElementById('limit').value;
+
+            const downloadUrl = `/datasets/${encodeURIComponent(dataset)}/${table}/query?format=${format}&columns=${columns}&filters=${encodeURIComponent(filters)}&limit=${limit}`;
+            
+            showToast(`Initiating data export in ${format.toUpperCase()}...`, 'info');
+            
+            try {
+                const res = await fetch(downloadUrl);
+                if (res.ok) {
+                    const blob = await res.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `${table}_query.${format === 'excel' ? 'xlsx' : format}`;
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    window.URL.revokeObjectURL(url);
+                    showToast(`Data export in ${format.toUpperCase()} completed!`, 'success');
+                } else {
+                    let data;
+                    try {
+                        data = await res.json();
+                    } catch (e) {
+                        data = { detail: `Server error: ${res.status} ${res.statusText}` };
+                    }
+                    const message = data.message || data.error || data.detail || `Export failed: ${res.status}`;
+                    let errorType = data.error_type || (res.status === 429 ? 'QUERY_LIMIT_REACHED' : 'UNKNOWN_ERROR');
+                    if (res.status === 429) {
+                        errorType = (message && (message.toLowerCase().includes("requests in 1 minute") || message.toLowerCase().includes("rate limit"))) ? 'RATE_LIMIT' : 'QUERY_LIMIT_REACHED';
+                    }
+                    renderGovernanceError(errorType, message, data);
+                    showToast(message, 'error');
+                }
+            } catch (err) {
+                console.error("Export error:", err);
+                showToast("Failed to connect for dataset export.", 'error');
+            }
+            
+            setTimeout(fetchPlanAndEnforceUI, 2000);
         }
 
         function scrollToTop() {
@@ -2715,7 +2981,7 @@
                         break;
                     case 's':
                         e.preventDefault();
-                        downloadCSV();
+                        exportDataset('csv');
                         break;
                     case 'd':
                         e.preventDefault();
@@ -2731,8 +2997,96 @@
             localStorage.setItem('analytics_view', currentView);
         });
 
+        async function checkVerificationStatus() {
+            try {
+                const res = await fetch('/api/user/status');
+                const data = await res.json();
+                
+                // Admins bypass verification checks
+                const isUserAdmin = "{{ role }}" === "1";
+                
+                if (!isUserAdmin && data && data.is_verified === false) {
+                    const overlay = document.getElementById('verificationPendingOverlay');
+                    if (overlay) {
+                        overlay.style.display = 'flex';
+                        const docStatusElem = document.getElementById('overlayDocStatus');
+                        if (docStatusElem) {
+                            if (data.document_uploaded) {
+                                docStatusElem.innerHTML = `<i class="fas fa-check-circle"></i> Uploaded`;
+                                docStatusElem.style.color = '#22c55e';
+                            } else {
+                                docStatusElem.innerHTML = `<i class="fas fa-times-circle"></i> Not Uploaded`;
+                                docStatusElem.style.color = '#ef4444';
+                            }
+                        }
+                    }
+                }
+            } catch(e) {
+                console.error("Failed to check verification status", e);
+            }
+        }
+
+        async function restoreRerunQuery(targetDataset, targetTable, targetFilters) {
+            try {
+                showToast('Restoring query parameters...', 'info');
+
+                const response = await fetch("/surveys");
+                const surveys = await response.json();
+                const items = Array.isArray(surveys) ? surveys : [];
+
+                let matchedSurvey = null;
+                let matchedDataset = null;
+
+                for (const s of items) {
+                    const dsRes = await fetch(`/surveys/${s.survey}/datasets`);
+                    const dsData = await dsRes.json();
+                    const datasets = Array.isArray(dsData) ? dsData : [];
+                    const found = datasets.find(d => d.schema === targetDataset);
+                    if (found) {
+                        matchedSurvey = s.survey;
+                        matchedDataset = found.schema;
+                        break;
+                    }
+                }
+
+                if (!matchedSurvey) {
+                    showToast('Could not find survey matching the dataset.', 'error');
+                    return;
+                }
+
+                const surveySelect = document.getElementById("survey");
+                surveySelect.value = matchedSurvey;
+                await loadDatasets(matchedSurvey);
+
+                const datasetSelect = document.getElementById("dataset");
+                datasetSelect.value = matchedDataset;
+                await loadTables(matchedSurvey, matchedDataset);
+
+                const tableSelect = document.getElementById("table");
+                tableSelect.value = targetTable;
+                await loadColumns(matchedSurvey, matchedDataset, targetTable);
+
+                if (targetFilters && targetFilters !== '-' && targetFilters !== 'No filters applied' && targetFilters !== 'null') {
+                    const sanitizedFilters = targetFilters.replace(/;/g, ' AND ');
+                    setFilterMode('manual');
+                    document.getElementById('manualFilters').value = sanitizedFilters;
+                }
+
+                setTimeout(() => {
+                    toggleAllColumns(true);
+                    runQuery();
+                }, 800);
+
+            } catch (e) {
+                console.error("Error restoring query:", e);
+                showToast('Error restoring query parameters.', 'error');
+            }
+        }
+
         // Load preferences
         window.addEventListener('load', function () {
+            checkVerificationStatus();
+            fetchPlanAndEnforceUI();
             const savedTheme = localStorage.getItem('analytics_theme');
             const savedView = localStorage.getItem('analytics_view');
 
@@ -2742,6 +3096,18 @@
 
             if (savedView) {
                 switchView(savedView);
+            }
+
+            // Check for rerun query from session storage
+            const rerunDataset = sessionStorage.getItem('rerun_dataset');
+            const rerunTable = sessionStorage.getItem('rerun_table');
+            const rerunFilters = sessionStorage.getItem('rerun_filters');
+
+            if (rerunDataset && rerunTable) {
+                sessionStorage.removeItem('rerun_dataset');
+                sessionStorage.removeItem('rerun_table');
+                sessionStorage.removeItem('rerun_filters');
+                restoreRerunQuery(rerunDataset, rerunTable, rerunFilters);
             }
         });
 

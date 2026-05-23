@@ -205,19 +205,19 @@
         <div class="stats-strip">
           <div class="strip-card sc-g">
             <div class="strip-icon" style="background:#E8F5E9;">✅</div>
-            <div><div class="strip-num">142</div><div class="strip-lbl">Success</div></div>
+            <div><div class="strip-num" id="statSuccess">0</div><div class="strip-lbl">Success</div></div>
           </div>
           <div class="strip-card sc-b">
             <div class="strip-icon" style="background:#E3F2FD;">⏱️</div>
-            <div><div class="strip-num">1.2s</div><div class="strip-lbl">Avg Time</div></div>
+            <div><div class="strip-num" id="statAvgTime">0ms</div><div class="strip-lbl">Avg Time</div></div>
           </div>
           <div class="strip-card sc-r">
             <div class="strip-icon" style="background:#FFEBEE;">❌</div>
-            <div><div class="strip-num">3</div><div class="strip-lbl">Failed</div></div>
+            <div><div class="strip-num" id="statFailed">0</div><div class="strip-lbl">Failed</div></div>
           </div>
           <div class="strip-card sc-o">
             <div class="strip-icon" style="background:#FFF3E0;">📦</div>
-            <div><div class="strip-num">5.2M</div><div class="strip-lbl">Rows Scanned</div></div>
+            <div><div class="strip-num" id="statRows">0</div><div class="strip-lbl">Rows Scanned</div></div>
           </div>
         </div>
 
@@ -227,25 +227,17 @@
             <span class="filter-label">Search Query</span>
             <div class="filter-input-wrap">
               <svg class="filter-input-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-              <input type="text" id="searchInput" class="filter-input filter-input-has-icon" placeholder="Search dataset name, query ID, or keywords..." oninput="filterTable()">
+              <input type="text" id="searchInput" class="filter-input filter-input-has-icon" placeholder="Search dataset name or keywords..." oninput="filterTable()">
             </div>
-          </div>
-          <div class="filter-group" style="max-width:190px;">
-            <span class="filter-label">Time Range</span>
-            <select id="dateFilter" class="filter-select" onchange="filterTable()">
-              <option value="all">All Time</option>
-              <option value="7">Last 7 Days</option>
-              <option value="30">Last 30 Days</option>
-              <option value="90">Last 90 Days</option>
-            </select>
           </div>
           <div class="filter-group" style="max-width:190px;">
             <span class="filter-label">Status</span>
             <select id="statusFilter" class="filter-select" onchange="filterTable()">
               <option value="all">All Statuses</option>
               <option value="success">Completed</option>
-              <option value="failed">Failed / Timeout</option>
-              <option value="running">Executing</option>
+              <option value="failed">Failed</option>
+              <option value="blocked">Blocked</option>
+              <option value="suppressed">Suppressed</option>
             </select>
           </div>
           <div class="filter-group" style="max-width:110px;">
@@ -258,110 +250,24 @@
         <div class="history-card">
           <div class="hc-header">
             <div class="hc-title">Execution History</div>
-            <div class="hc-count" id="rowCount">Showing 4 of 145 entries</div>
+            <div class="hc-count" id="rowCount">Showing 0 of 0 entries</div>
           </div>
           <div style="overflow-x:auto;">
             <table class="data-table" id="historyTable">
               <thead>
                 <tr>
                   <th style="width:10%;">Query ID</th>
-                  <th style="width:30%;">Target Dataset &amp; SQL</th>
-                  <th style="width:14%;">Timestamp</th>
-                  <th style="width:10%;">Metrics</th>
-                  <th style="width:14%;">Status</th>
-                  <th style="width:12%;">Format</th>
+                  <th style="width:35%;">Target Dataset &amp; Filters</th>
+                  <th style="width:18%;">Timestamp</th>
+                  <th style="width:12%;">Metrics</th>
+                  <th style="width:15%;">Status</th>
                   <th style="width:10%;">Actions</th>
                 </tr>
               </thead>
               <tbody id="historyBody">
-                <tr class="hist-row" data-status="success" data-date="2026-03-21">
-                  <td><span class="qid qid-blue">#QX-8F21A</span></td>
-                  <td>
-                    <div style="font-weight:700; color:var(--navy); margin-bottom:4px;">Economic Survey 2023</div>
-                    <code class="qcode">SELECT id, revenue, sector FROM tbl_eco_23 WHERE sector='IT' LIMIT 5000</code>
-                  </td>
-                  <td>
-                    <div style="font-weight:600;">Mar 21, 2026</div>
-                    <div style="font-size:12px; color:var(--text-muted);">14:02:45 UTC</div>
-                  </td>
-                  <td>
-                    <div style="font-weight:700;">1.20s</div>
-                    <div style="font-size:12px; color:var(--text-muted);">5,000 rows</div>
-                  </td>
-                  <td><span class="status-dot sdot-success"></span><span style="font-weight:700; color:var(--green);">Completed</span></td>
-                  <td><span class="badge badge-green">CSV</span></td>
-                  <td>
-                    <div style="display:flex; gap:5px;">
-                      <button class="action-btn" title="Re-run query" onclick="rerunQuery()">▶</button>
-                      <button class="action-btn" title="Download result">⬇</button>
-                    </div>
-                  </td>
-                </tr>
-                <tr class="hist-row" data-status="success" data-date="2026-03-20">
-                  <td><span class="qid qid-blue">#QX-3F88B</span></td>
-                  <td>
-                    <div style="font-weight:700; color:var(--navy); margin-bottom:4px;">Health Indicators Geographic</div>
-                    <code class="qcode">SELECT * FROM hospitals_geo WHERE region='North' AND beds > 100</code>
-                  </td>
-                  <td>
-                    <div style="font-weight:600;">Mar 20, 2026</div>
-                    <div style="font-size:12px; color:var(--text-muted);">09:30:12 UTC</div>
-                  </td>
-                  <td>
-                    <div style="font-weight:700;">2.45s</div>
-                    <div style="font-size:12px; color:var(--text-muted);">12,010 rows</div>
-                  </td>
-                  <td><span class="status-dot sdot-success"></span><span style="font-weight:700; color:var(--green);">Completed</span></td>
-                  <td><span class="badge badge-blue">PDF</span></td>
-                  <td>
-                    <div style="display:flex; gap:5px;">
-                      <button class="action-btn" title="Re-run" onclick="rerunQuery()">▶</button>
-                      <button class="action-btn" title="Download">⬇</button>
-                    </div>
-                  </td>
-                </tr>
-                <tr class="hist-row" data-status="failed" data-date="2026-03-18">
-                  <td><span class="qid qid-muted">#QX-9A43C</span></td>
-                  <td>
-                    <div style="font-weight:700; color:var(--navy); margin-bottom:4px;">Census 2021 Aggregates</div>
-                    <code class="qcode" style="color:#F87171;">SELECT avg(income), city FROM census GROUP BY ... (TIMEOUT)</code>
-                  </td>
-                  <td>
-                    <div style="font-weight:600;">Mar 18, 2026</div>
-                    <div style="font-size:12px; color:var(--text-muted);">16:45:00 UTC</div>
-                  </td>
-                  <td>
-                    <div style="font-weight:700; color:var(--danger);">30.0s (T/O)</div>
-                    <div style="font-size:12px; color:var(--text-muted);">0 rows</div>
-                  </td>
-                  <td><span class="status-dot sdot-failed"></span><span style="font-weight:700; color:var(--danger);">Query Timeout</span></td>
-                  <td><span class="badge badge-red">—</span></td>
-                  <td>
-                    <div style="display:flex; gap:5px;">
-                      <button class="action-btn" title="Re-run query" onclick="showToast('Retrying query...','info')">↺</button>
-                    </div>
-                  </td>
-                </tr>
-                <tr class="hist-row" data-status="running" data-date="2026-03-21">
-                  <td><span class="qid qid-orange">#QX-B119D</span></td>
-                  <td>
-                    <div style="font-weight:700; color:var(--navy); margin-bottom:4px;">Global Trade Routing</div>
-                    <code class="qcode">SELECT * FROM export_import_metrics WHERE year=2025 LIMIT 100000</code>
-                  </td>
-                  <td>
-                    <div style="font-weight:600;">Just Now</div>
-                    <div style="font-size:12px; color:var(--text-muted);">14:15:00 UTC</div>
-                  </td>
-                  <td>
-                    <div style="font-weight:700; color:var(--saffron);">Evaluating...</div>
-                    <div style="font-size:12px; color:var(--text-muted);">—</div>
-                  </td>
-                  <td><span class="status-dot sdot-running"></span><span style="font-weight:700; color:var(--saffron);">Executing</span></td>
-                  <td><span class="badge badge-orange">JSON</span></td>
-                  <td>
-                    <div style="display:flex; gap:5px;">
-                      <button class="action-btn danger" title="Cancel" onclick="showToast('Query cancelled.','error')">⏹</button>
-                    </div>
+                <tr>
+                  <td colspan="6" style="text-align: center; padding: 40px; color: var(--text-muted);">
+                    Loading query history...
                   </td>
                 </tr>
               </tbody>
@@ -369,14 +275,7 @@
           </div>
 
           <!-- Pagination -->
-          <div class="pagination">
-            <button class="page-btn">«</button>
-            <button class="page-btn active">1</button>
-            <button class="page-btn">2</button>
-            <button class="page-btn">3</button>
-            <button class="page-btn" style="border:none; background:none; color:var(--text-muted);">...</button>
-            <button class="page-btn">37</button>
-            <button class="page-btn">»</button>
+          <div class="pagination" id="paginationControls">
           </div>
         </div>
 
@@ -394,39 +293,288 @@
 
     const username = '{{ username | default("") }}' || sessionStorage.getItem('userEmail') || 'User';
     const displayName = username.includes('@') ? username.split('@')[0] : username;
-    document.getElementById('headerUsername').textContent = displayName;
+    document.getElementById('headerUsername').textContent = displayName.charAt(0).toUpperCase() + displayName.slice(1);
     document.getElementById('avatarInitial').textContent = displayName.charAt(0).toUpperCase();
 
-    // ── Filter Logic ──
-    function filterTable() {
-      const search = document.getElementById('searchInput').value.toLowerCase();
-      const status = document.getElementById('statusFilter').value;
-      const rows   = document.querySelectorAll('#historyBody .hist-row');
-      let visible  = 0;
+    let currentPage = 1;
+    const perPage = 10;
+    let queryData = [];
+    let totalItems = 0;
 
-      rows.forEach(row => {
-        const text    = row.textContent.toLowerCase();
-        const rowStat = row.dataset.status;
-        const matchSearch = !search || text.includes(search);
-        const matchStatus = status === 'all' || rowStat === status;
-        const show = matchSearch && matchStatus;
-        row.style.display = show ? '' : 'none';
-        if (show) visible++;
+    // Load everything on startup
+    window.addEventListener('DOMContentLoaded', () => {
+      loadStats();
+      loadHistory(1);
+    });
+
+    // Load stats from User Governance API
+    async function loadStats() {
+      try {
+        const response = await fetch('/api/user/governance');
+        if (!response.ok) throw new Error('Failed to load governance stats');
+        const data = await response.json();
+        
+        // Let's compute average query times and totals from history for richer stats
+        const histResponse = await fetch('/api/user/query-history?page=1&per_page=100');
+        if (histResponse.ok) {
+          const histData = await histResponse.json();
+          const items = histData.history || [];
+          
+          let successCount = 0;
+          let failedCount = 0;
+          let totalRows = 0;
+          let totalTime = 0;
+          
+          items.forEach(q => {
+            if (q.status === 'success') {
+              successCount++;
+              totalTime += q.query_time_ms;
+            } else {
+              failedCount++;
+            }
+            totalRows += q.rows_returned;
+          });
+          
+          document.getElementById('statSuccess').textContent = successCount;
+          document.getElementById('statFailed').textContent = failedCount;
+          document.getElementById('statRows').textContent = formatRows(totalRows);
+          
+          const avgTime = successCount > 0 ? (totalTime / successCount) : 0;
+          document.getElementById('statAvgTime').textContent = avgTime >= 1000 
+            ? `${(avgTime / 1000).toFixed(2)}s` 
+            : `${Math.round(avgTime)}ms`;
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    // Helper to format row counts nicely
+    function formatRows(num) {
+      if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+      if (num >= 1000) return (num / 1000).toFixed(1) + 'k';
+      return num;
+    }
+
+    // Fetch and render query logs
+    async function loadHistory(page) {
+      currentPage = page;
+      const historyBody = document.getElementById('historyBody');
+      historyBody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 40px; color: var(--text-muted);">Loading query history...</td></tr>`;
+
+      try {
+        const response = await fetch(`/api/user/query-history?page=${page}&per_page=${perPage}`);
+        if (!response.ok) throw new Error('Failed to fetch query logs');
+        const data = await response.json();
+        
+        queryData = data.history || [];
+        totalItems = data.total || 0;
+        
+        renderTable();
+        renderPagination();
+      } catch (err) {
+        historyBody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 40px; color: var(--danger); font-weight: bold;">Failed to load query history. Please refresh the page.</td></tr>`;
+        showToast('Error loading history', 'error');
+      }
+    }
+
+    // Render active page table
+    function renderTable() {
+      const historyBody = document.getElementById('historyBody');
+      const search = document.getElementById('searchInput').value.toLowerCase();
+      const statusFilter = document.getElementById('statusFilter').value;
+      
+      // Client-side filtering on the fetched chunk (or we can just render everything)
+      const filtered = queryData.filter(q => {
+        const matchesSearch = !search || 
+          (q.dataset || '').toLowerCase().includes(search) || 
+          (q.table_name || '').toLowerCase().includes(search) || 
+          (q.filters || '').toLowerCase().includes(search);
+        
+        const matchesStatus = statusFilter === 'all' || q.status.toLowerCase() === statusFilter;
+        return matchesSearch && matchesStatus;
       });
 
-      document.getElementById('rowCount').textContent = `Showing ${visible} of 145 entries`;
+      if (filtered.length === 0) {
+        historyBody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 40px; color: var(--text-muted);">No matching query logs found.</td></tr>`;
+        document.getElementById('rowCount').textContent = `Showing 0 of ${totalItems} entries`;
+        return;
+      }
+
+      historyBody.innerHTML = '';
+      
+      filtered.forEach((q, index) => {
+        const tr = document.createElement('tr');
+        tr.className = 'hist-row';
+        tr.dataset.status = q.status;
+        
+        // Generate neat sequential pseudoids
+        const qIndex = totalItems - ((currentPage - 1) * perPage) - index;
+        const qidStr = `#QX-${qIndex.toString(16).toUpperCase().padStart(4, '0')}`;
+        
+        // Check status styling
+        let statusDotClass = 'sdot-success';
+        let statusText = 'Completed';
+        let statusStyle = 'color: var(--green);';
+        
+        if (q.status === 'blocked') {
+          statusDotClass = 'sdot-failed';
+          statusText = 'Blocked (Policy)';
+          statusStyle = 'color: var(--danger);';
+        } else if (q.status === 'suppressed') {
+          statusDotClass = 'sdot-failed';
+          statusText = 'Suppressed (Privacy)';
+          statusStyle = 'color: var(--danger);';
+        } else if (q.status.startsWith('fail') || q.status === 'error') {
+          statusDotClass = 'sdot-failed';
+          statusText = 'Failed';
+          statusStyle = 'color: var(--danger);';
+        }
+        
+        // Format timestamp
+        let formattedDate = '-';
+        let formattedTime = '';
+        if (q.timestamp) {
+          const d = new Date(q.timestamp);
+          formattedDate = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+          formattedTime = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        }
+        
+        // Format execution time
+        const durationStr = q.query_time_ms >= 1000 
+          ? `${(q.query_time_ms / 1000).toFixed(2)}s` 
+          : `${q.query_time_ms}ms`;
+
+        tr.innerHTML = `
+          <td><span class="qid qid-blue">${qidStr}</span></td>
+          <td>
+            <div style="font-weight:700; color:var(--navy); margin-bottom:4px;">${q.dataset} / ${q.table_name}</div>
+            <code class="qcode">${q.filters || 'No filters applied'}</code>
+          </td>
+          <td>
+            <div style="font-weight:600;">${formattedDate}</div>
+            <div style="font-size:12px; color:var(--text-muted);">${formattedTime}</div>
+          </td>
+          <td>
+            <div style="font-weight:700;">${durationStr}</div>
+            <div style="font-size:12px; color:var(--text-muted);">${q.rows_returned.toLocaleString()} rows</div>
+          </td>
+          <td>
+            <span class="status-dot ${statusDotClass}"></span>
+            <span style="font-weight:700; ${statusStyle}">${statusText}</span>
+          </td>
+          <td>
+            <div style="display:flex; gap:5px;">
+              <button class="action-btn" title="Re-run query" onclick="rerunQuery('${q.dataset}', '${q.table_name}', '${encodeURIComponent(q.filters || '')}')">▶</button>
+            </div>
+          </td>
+        `;
+        historyBody.appendChild(tr);
+      });
+
+      const startIdx = ((currentPage - 1) * perPage) + 1;
+      const endIdx = Math.min(currentPage * perPage, totalItems);
+      document.getElementById('rowCount').textContent = `Showing ${startIdx} to ${endIdx} of ${totalItems} entries`;
+    }
+
+    // Render pagination buttons
+    function renderPagination() {
+      const pag = document.getElementById('paginationControls');
+      pag.innerHTML = '';
+      
+      const totalPages = Math.ceil(totalItems / perPage);
+      if (totalPages <= 1) return;
+
+      // Prev Button
+      const prevBtn = document.createElement('button');
+      prevBtn.className = 'page-btn';
+      prevBtn.textContent = '«';
+      prevBtn.disabled = currentPage === 1;
+      prevBtn.onclick = () => { if (currentPage > 1) loadHistory(currentPage - 1); };
+      pag.appendChild(prevBtn);
+
+      // Page numbers
+      let startPage = Math.max(1, currentPage - 2);
+      let endPage = Math.min(totalPages, currentPage + 2);
+
+      if (startPage > 1) {
+        const btn = document.createElement('button');
+        btn.className = 'page-btn';
+        btn.textContent = '1';
+        btn.onclick = () => loadHistory(1);
+        pag.appendChild(btn);
+        
+        if (startPage > 2) {
+          const dots = document.createElement('button');
+          dots.className = 'page-btn';
+          dots.style.border = 'none';
+          dots.style.background = 'none';
+          dots.style.color = 'var(--text-muted)';
+          dots.textContent = '...';
+          dots.disabled = true;
+          pag.appendChild(dots);
+        }
+      }
+
+      for (let i = startPage; i <= endPage; i++) {
+        const btn = document.createElement('button');
+        btn.className = `page-btn ${currentPage === i ? 'active' : ''}`;
+        btn.textContent = i;
+        btn.onclick = () => loadHistory(i);
+        pag.appendChild(btn);
+      }
+
+      if (endPage < totalPages) {
+        if (endPage < totalPages - 1) {
+          const dots = document.createElement('button');
+          dots.className = 'page-btn';
+          dots.style.border = 'none';
+          dots.style.background = 'none';
+          dots.style.color = 'var(--text-muted)';
+          dots.textContent = '...';
+          dots.disabled = true;
+          pag.appendChild(dots);
+        }
+        
+        const btn = document.createElement('button');
+        btn.className = 'page-btn';
+        btn.textContent = totalPages;
+        btn.onclick = () => loadHistory(totalPages);
+        pag.appendChild(btn);
+      }
+
+      // Next Button
+      const nextBtn = document.createElement('button');
+      nextBtn.className = 'page-btn';
+      nextBtn.textContent = '»';
+      nextBtn.disabled = currentPage === totalPages;
+      nextBtn.onclick = () => { if (currentPage < totalPages) loadHistory(currentPage + 1); };
+      pag.appendChild(nextBtn);
+    }
+
+    // Trigger local search filtering on the table
+    function filterTable() {
+      renderTable();
     }
 
     function clearFilters() {
       document.getElementById('searchInput').value = '';
       document.getElementById('statusFilter').value = 'all';
-      document.getElementById('dateFilter').value = 'all';
-      filterTable();
+      renderTable();
     }
 
-    function rerunQuery() {
-      showToast('Reopening query...', 'info');
-      setTimeout(() => { window.location.href = '/query'; }, 800);
+    // Pre-populate query builder and redirect
+    function rerunQuery(dataset, tableName, encodedFilters) {
+      showToast('Reopening query in explorer...', 'info');
+      
+      // Store in session storage so advanced query page can load it
+      sessionStorage.setItem('rerun_dataset', dataset);
+      sessionStorage.setItem('rerun_table', tableName);
+      sessionStorage.setItem('rerun_filters', decodeURIComponent(encodedFilters));
+      
+      setTimeout(() => {
+        window.location.href = '/query';
+      }, 800);
     }
 
     function showToast(msg, type='info') {
@@ -436,7 +584,10 @@
       const icons = { success:'✅', error:'❌', info:'ℹ️' };
       t.innerHTML = `<span>${icons[type]||'ℹ️'}</span><span>${msg}</span>`;
       tc.appendChild(t);
-      setTimeout(() => { t.style.animation='slideOut 0.3s ease forwards'; setTimeout(()=>t.remove(),300); }, 4000);
+      setTimeout(() => { 
+        t.style.animation = 'slideOut 0.3s ease forwards'; 
+        setTimeout(() => t.remove(), 300); 
+      }, 4000);
     }
   </script>
 </body>

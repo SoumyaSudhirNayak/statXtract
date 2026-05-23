@@ -88,6 +88,7 @@
     .sc-trend { font-size: 12px; font-weight: 700; display: flex; align-items: center; gap: 4px; }
     .sc-trend.up   { color: var(--green); }
     .sc-trend.down { color: var(--danger); }
+    .sc-trend.neutral { color: var(--text-muted); }
 
     .sc-num   { font-family: var(--font-head); font-size: 44px; font-weight: 800; color: var(--text-main); line-height: 1; margin-bottom: 6px; }
     .sc-label { font-size: 13px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.8px; }
@@ -107,15 +108,49 @@
     .chart-card:hover { border-color: var(--royal); box-shadow: 0 10px 30px rgba(46,91,186,0.12); }
     .chart-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
     .chart-title  { font-family: var(--font-head); font-size: 17px; font-weight: 800; color: var(--text-main); }
-    .chart-toolbar { display: flex; gap: 6px; }
-    .chart-btn {
-      padding: 6px 14px; border-radius: 8px; border: 2px solid var(--border);
-      background: #fff; font-size: 12px; font-weight: 700;
-      cursor: pointer; transition: all 0.2s; font-family: var(--font-body);
-    }
-    .chart-btn:hover { border-color: var(--royal); color: var(--royal); }
-    .chart-btn.active { background: var(--royal); color: #fff; border-color: var(--royal); }
     canvas { max-height: 260px; }
+
+    /* ── GOVERNANCE BANNER ── */
+    .gov-banner {
+      background: linear-gradient(135deg, rgba(244,163,0,0.08), rgba(211,47,47,0.06));
+      border: 2px solid rgba(244,163,0,0.25);
+      border-radius: 18px;
+      padding: 20px 28px;
+      margin-bottom: 28px;
+      display: none;
+      align-items: center;
+      gap: 16px;
+      animation: fadeSlideIn 0.5s ease;
+    }
+    .gov-banner.active { display: flex; }
+    .gov-banner.warning { border-color: rgba(244,163,0,0.4); background: linear-gradient(135deg, rgba(244,163,0,0.1), rgba(244,163,0,0.04)); }
+    .gov-banner.danger { border-color: rgba(211,47,47,0.4); background: linear-gradient(135deg, rgba(211,47,47,0.1), rgba(211,47,47,0.04)); }
+    .gov-banner-icon { font-size: 32px; flex-shrink: 0; }
+    .gov-banner-text { flex: 1; }
+    .gov-banner-title { font-family: var(--font-head); font-size: 16px; font-weight: 800; color: var(--text-main); margin-bottom: 4px; }
+    .gov-banner-desc { font-size: 13px; color: var(--text-muted); font-weight: 500; }
+
+    /* ── CREDIT BARS ── */
+    .credit-section { margin-bottom: 28px; }
+    .credit-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    @media(max-width:900px) { .credit-grid { grid-template-columns: 1fr; } }
+    .credit-card {
+      background: rgba(255,255,255,0.88);
+      backdrop-filter: blur(12px);
+      border: 2px solid var(--border);
+      border-radius: 16px;
+      padding: 22px 24px;
+      transition: all 0.3s;
+    }
+    .credit-card:hover { border-color: var(--royal); box-shadow: 0 8px 24px rgba(46,91,186,0.1); }
+    .credit-label { font-size: 13px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
+    .credit-bar-bg {
+      height: 10px; background: #E5E7EB; border-radius: 10px; overflow: hidden; margin-bottom: 8px;
+    }
+    .credit-bar-fill { height: 100%; border-radius: 10px; transition: width 1s ease; }
+    .credit-nums { display: flex; justify-content: space-between; font-size: 13px; font-weight: 600; }
+    .credit-used { color: var(--text-muted); }
+    .credit-remaining { color: var(--green); font-weight: 700; }
 
     /* ── RECENT ACTIVITY TABLE ── */
     .activity-card {
@@ -152,13 +187,17 @@
     .started-list li { font-size: 14px; color: var(--text-muted); font-weight: 500; list-style: none; display: flex; align-items: center; gap: 8px; }
     .started-list li::before { content: '✓'; color: var(--green); font-weight: 800; }
 
+    .empty-state { padding: 40px; text-align: center; color: var(--text-muted); font-size: 14px; }
+
     /* ── TOAST ── */
     .toast-container { position: fixed; top: 88px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 10px; }
     .toast { min-width: 300px; background: #fff; border-radius: 12px; padding: 14px 18px; display: flex; align-items: center; gap: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.12); border: 1px solid var(--border); font-size: 14px; font-weight: 500; animation: slideIn 0.3s ease; }
     .toast.success { border-left: 4px solid var(--green); }
     .toast.info    { border-left: 4px solid var(--royal); }
+    .toast.warning { border-left: 4px solid var(--saffron); }
     @keyframes slideIn { from{ transform: translateX(120px); opacity: 0; } to{ transform: none; opacity: 1; } }
     @keyframes slideOut { from{ transform: none; opacity: 1; } to{ transform: translateX(120px); opacity: 0; } }
+    @keyframes fadeSlideIn { from{ opacity: 0; transform: translateY(-10px); } to{ opacity: 1; transform: none; } }
   </style>
 </head>
 <body>
@@ -233,61 +272,76 @@
           </button>
         </div>
 
-        <!-- Getting Started -->
-        <div class="started-card">
-          <div class="started-icon">🚀</div>
-          <div style="flex:1;">
-            <div class="started-title">Quick Start Guide</div>
-            <ul class="started-list">
-              <li>Use <strong>Advanced Query</strong> to build and run SQL queries on government datasets</li>
-              <li>Download results as <strong>CSV, PDF, or JSON</strong> from the Query page</li>
-              <li>Track all past queries in <strong>Query History</strong> with execution details</li>
-              <li>Upgrade your plan to unlock <strong>more queries and premium features</strong></li>
-            </ul>
+        <!-- Governance Banner (hidden by default, shown if warnings exist) -->
+        <div class="gov-banner" id="govBanner">
+          <div class="gov-banner-icon" id="govBannerIcon">⚠️</div>
+          <div class="gov-banner-text">
+            <div class="gov-banner-title" id="govBannerTitle">Governance Notice</div>
+            <div class="gov-banner-desc" id="govBannerDesc">Loading...</div>
           </div>
-          <button class="btn btn-outline-blue" style="flex-shrink:0;" onclick="window.location.href='/query'">Go to Query →</button>
         </div>
 
-        <!-- Stat Cards -->
+        <!-- Stat Cards (REAL DATA) -->
         <div class="stats-grid">
           <div class="stat-card-big sc-green">
             <div class="sc-icon-row">
               <div class="sc-icon" style="background:#E8F5E9; color:var(--green);">📊</div>
-              <div class="sc-trend up">↑ +12% this week</div>
+              <div class="sc-trend neutral" id="queryTrend">Loading...</div>
             </div>
             <div>
-              <div class="sc-num">1,420</div>
-              <div class="sc-label">Queries Run</div>
+              <div class="sc-num" id="statQueries">—</div>
+              <div class="sc-label">Queries Today</div>
             </div>
           </div>
           <div class="stat-card-big sc-blue">
             <div class="sc-icon-row">
               <div class="sc-icon" style="background:#E3F2FD; color:var(--royal);">⬇️</div>
-              <div class="sc-trend up">↑ +5% this week</div>
+              <div class="sc-trend neutral" id="rowTrend">Loading...</div>
             </div>
             <div>
-              <div class="sc-num">84.5K</div>
-              <div class="sc-label">Rows Downloaded</div>
+              <div class="sc-num" id="statRows">—</div>
+              <div class="sc-label">Rows Accessed</div>
             </div>
           </div>
           <div class="stat-card-big sc-orange">
             <div class="sc-icon-row">
-              <div class="sc-icon" style="background:#FFF3E0; color:var(--saffron);">⚡</div>
-              <div class="sc-trend up">Blazing fast</div>
+              <div class="sc-icon" style="background:#FFF3E0; color:var(--saffron);">📥</div>
+              <div class="sc-trend neutral" id="dlTrend">Loading...</div>
             </div>
             <div>
-              <div class="sc-num">1.2s</div>
-              <div class="sc-label">Avg. Response Time</div>
+              <div class="sc-num" id="statDownloads">—</div>
+              <div class="sc-label">Downloads Today</div>
             </div>
           </div>
           <div class="stat-card-big sc-purple">
             <div class="sc-icon-row">
               <div class="sc-icon" style="background:#F3E5F5; color:var(--purple);">💎</div>
-              <div class="sc-trend up">Active</div>
+              <div class="sc-trend neutral" id="planBadge">Loading...</div>
             </div>
             <div>
-              <div class="sc-num" style="font-size:30px;">Free Tier</div>
-              <div class="sc-label">Role: {{ role | default('User') }}</div>
+              <div class="sc-num" style="font-size:30px;" id="statPlan">—</div>
+              <div class="sc-label" id="statRole">Role: {{ role | default('User') }}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Credit Bars -->
+        <div class="credit-section">
+          <div class="credit-grid">
+            <div class="credit-card">
+              <div class="credit-label">Query Credits</div>
+              <div class="credit-bar-bg"><div class="credit-bar-fill" id="queryBar" style="width:0%; background: linear-gradient(90deg, #2E7D32, #66BB6A);"></div></div>
+              <div class="credit-nums"><span class="credit-used" id="queryUsed">—</span><span class="credit-remaining" id="queryRemaining">—</span></div>
+            </div>
+            <div class="credit-card">
+              <div class="credit-label">Row Credits</div>
+              <div class="credit-bar-bg"><div class="credit-bar-fill" id="rowBar" style="width:0%; background: linear-gradient(90deg, #2E5BBA, #5C9AFF);"></div></div>
+              <div class="credit-nums"><span class="credit-used" id="rowUsed">—</span><span class="credit-remaining" id="rowRemaining">—</span></div>
+            </div>
+            <div class="credit-card">
+              <div class="credit-label">Download Credits</div>
+              <div class="credit-bar-bg"><div class="credit-bar-fill" id="dlBar" style="width:0%; background: linear-gradient(90deg, #F4A300, #FFD54F);"></div></div>
+              <div class="credit-nums"><span class="credit-used" id="dlUsed">—</span><span class="credit-remaining" id="dlRemaining">—</span></div>
             </div>
           </div>
         </div>
@@ -296,11 +350,7 @@
         <div class="charts-grid">
           <div class="chart-card">
             <div class="chart-header">
-              <div class="chart-title">Query Usage Traffic</div>
-              <div class="chart-toolbar">
-                <button class="chart-btn active" onclick="switchChart('bar','weekly',this)">Weekly</button>
-                <button class="chart-btn" onclick="switchChart('bar','monthly',this)">Monthly</button>
-              </div>
+              <div class="chart-title">Query Activity (Last 7 Days)</div>
             </div>
             <canvas id="barChart"></canvas>
           </div>
@@ -312,7 +362,7 @@
           </div>
         </div>
 
-        <!-- Recent Activity -->
+        <!-- Recent Activity (REAL DATA) -->
         <div class="activity-card">
           <div class="activity-header">
             <div class="activity-title">Recent Activity Log</div>
@@ -326,48 +376,13 @@
               <thead>
                 <tr>
                   <th>Action</th>
-                  <th>Target Dataset</th>
+                  <th>Dataset / Table</th>
                   <th>Timestamp</th>
-                  <th>Status / Impact</th>
+                  <th>Status / Rows</th>
                 </tr>
               </thead>
-              <tbody>
-                <tr>
-                  <td><span class="badge badge-green">Query Executed</span></td>
-                  <td>
-                    <div style="font-weight:700;">Demographics 2021</div>
-                    <span style="font-size:12px; color:var(--text-muted);">census_data_primary</span>
-                  </td>
-                  <td>Today, 10:45 AM</td>
-                  <td><span style="color:var(--green); font-weight:700;">Completed (0.8s)</span></td>
-                </tr>
-                <tr>
-                  <td><span class="badge badge-blue">Export</span></td>
-                  <td>
-                    <div style="font-weight:700;">Economic Census</div>
-                    <span style="font-size:12px; color:var(--text-muted);">retail_index_v2</span>
-                  </td>
-                  <td>Yesterday, 3:20 PM</td>
-                  <td>Downloaded as CSV</td>
-                </tr>
-                <tr>
-                  <td><span class="badge badge-green">Query Executed</span></td>
-                  <td>
-                    <div style="font-weight:700;">Healthcare Facilities</div>
-                    <span style="font-size:12px; color:var(--text-muted);">hospitals_geo_tagged</span>
-                  </td>
-                  <td>Mar 20, 2026</td>
-                  <td><span style="color:var(--green); font-weight:700;">Completed (1.4s)</span></td>
-                </tr>
-                <tr>
-                  <td><span class="badge badge-orange">API Sync</span></td>
-                  <td>
-                    <div style="font-weight:700;">Global Trade Logs</div>
-                    <span style="font-size:12px; color:var(--text-muted);">export_import_metrics</span>
-                  </td>
-                  <td>Mar 19, 2026</td>
-                  <td>Sync routine</td>
-                </tr>
+              <tbody id="activityBody">
+                <tr><td colspan="4" class="empty-state">Loading activity...</td></tr>
               </tbody>
             </table>
           </div>
@@ -404,14 +419,186 @@
     updateTime();
     setInterval(updateTime, 60000);
 
-    // ── Bar Chart ──
-    let barInstance = null;
-    const weeklyData  = [120, 190, 150, 220, 310, 180, 250];
-    const monthlyData = [1200, 1500, 1100, 1800, 2200, 1600, 2400, 1900, 2100, 1700, 2300, 2600];
-    const weekLabels  = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-    const monthLabels = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    // ── Toast ──
+    function showToast(msg, type='info') {
+      const tc = document.getElementById('toastContainer');
+      const t  = document.createElement('div');
+      t.className = `toast ${type}`;
+      const icons = {success:'✅', info:'ℹ️', warning:'⚠️'};
+      t.innerHTML = `<span>${icons[type]||'ℹ️'}</span><span>${msg}</span>`;
+      tc.appendChild(t);
+      setTimeout(() => { t.style.animation='slideOut 0.3s ease forwards'; setTimeout(()=>t.remove(),300); }, 4000);
+    }
 
-    function buildBar(data, labels) {
+    // ── Format Numbers ──
+    function fmtNum(n) {
+      if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+      if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+      return n.toString();
+    }
+
+    function fmtTime(ts) {
+      if (!ts) return '-';
+      let dateString = ts;
+      if (typeof ts === 'string' && !ts.endsWith('Z') && !ts.includes('+') && !ts.includes('GMT')) {
+        dateString = ts.replace(' ', 'T') + 'Z';
+      }
+      const d = new Date(dateString);
+      if (isNaN(d)) return ts;
+      
+      const now = new Date();
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+      const yesterdayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+      const tomorrowEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 2);
+      
+      const timeStr = d.toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit'});
+      
+      if (d >= todayStart && d < todayEnd) {
+        return 'Today, ' + timeStr;
+      } else if (d >= todayEnd && d < tomorrowEnd) {
+        return 'Tomorrow, ' + timeStr;
+      } else if (d >= yesterdayStart && d < todayStart) {
+        return 'Yesterday, ' + timeStr;
+      } else {
+        return d.toLocaleDateString('en-IN', {month:'short', day:'numeric', year:'numeric'}) + ' ' + timeStr;
+      }
+    }
+
+    // ── Load Governance Data ──
+    let barInstance = null;
+    let pieInstance = null;
+
+    async function loadDashboardData() {
+      try {
+        const [govRes, histRes] = await Promise.all([
+          fetch('/api/user/governance'),
+          fetch('/api/user/query-history?per_page=5')
+        ]);
+        const gov = await govRes.json();
+        const hist = await histRes.json();
+
+        if (gov.error) {
+          showToast('Failed to load governance data', 'warning');
+          return;
+        }
+
+        // ── Stat Cards ──
+        const u = gov.usage_today || {};
+        document.getElementById('statQueries').textContent = fmtNum(u.queries_used || 0);
+        document.getElementById('statRows').textContent = fmtNum(u.rows_accessed || 0);
+        document.getElementById('statDownloads').textContent = u.downloads_used || 0;
+        document.getElementById('statPlan').textContent = (gov.plan || 'free').charAt(0).toUpperCase() + (gov.plan || 'free').slice(1) + ' Plan';
+        document.getElementById('statRole').textContent = 'Role: ' + (gov.role || 'user').charAt(0).toUpperCase() + (gov.role || 'user').slice(1);
+
+        // Trends
+        const qPct = u.queries_limit ? Math.round((u.queries_used / u.queries_limit) * 100) : 0;
+        document.getElementById('queryTrend').textContent = `${u.queries_remaining || 0} remaining`;
+        document.getElementById('queryTrend').className = 'sc-trend ' + (qPct > 80 ? 'down' : 'up');
+
+        document.getElementById('rowTrend').textContent = `${fmtNum(u.rows_remaining || 0)} remaining`;
+        document.getElementById('dlTrend').textContent = `${u.downloads_remaining || 0} remaining`;
+
+        const planColors = {free:'Active', pro:'⭐ Active', enterprise:'🏆 Active'};
+        document.getElementById('planBadge').textContent = planColors[gov.plan] || 'Active';
+        document.getElementById('planBadge').className = 'sc-trend up';
+
+        // ── Credit Bars ──
+        const qBarPct = u.queries_limit ? Math.min(100, (u.queries_used / u.queries_limit) * 100) : 0;
+        const rBarPct = u.rows_limit ? Math.min(100, (u.rows_accessed / u.rows_limit) * 100) : 0;
+        const dBarPct = u.downloads_limit ? Math.min(100, (u.downloads_used / u.downloads_limit) * 100) : 0;
+
+        document.getElementById('queryBar').style.width = qBarPct + '%';
+        document.getElementById('rowBar').style.width = rBarPct + '%';
+        document.getElementById('dlBar').style.width = dBarPct + '%';
+
+        document.getElementById('queryUsed').textContent = `${u.queries_used || 0} used`;
+        document.getElementById('queryRemaining').textContent = `${u.queries_remaining || 0} / ${u.queries_limit || 0}`;
+        document.getElementById('rowUsed').textContent = `${fmtNum(u.rows_accessed || 0)} used`;
+        document.getElementById('rowRemaining').textContent = `${fmtNum(u.rows_remaining || 0)} / ${fmtNum(u.rows_limit || 0)}`;
+        document.getElementById('dlUsed').textContent = `${u.downloads_used || 0} used`;
+        document.getElementById('dlRemaining').textContent = `${u.downloads_remaining || 0} / ${u.downloads_limit || 0}`;
+
+        // ── Governance Banner ──
+        if (gov.warning_count > 0 || gov.suspicious_score > 50 || gov.status === 'frozen' || gov.testing_mode) {
+          const banner = document.getElementById('govBanner');
+          banner.classList.add('active');
+          if (gov.status === 'frozen') {
+            banner.classList.add('danger');
+            document.getElementById('govBannerIcon').textContent = '🔒';
+            document.getElementById('govBannerTitle').textContent = 'Account Frozen';
+            document.getElementById('govBannerDesc').textContent = `Your account is temporarily frozen${gov.freeze_until ? ' until ' + fmtTime(gov.freeze_until) : ''}. Contact support for assistance.`;
+          } else if (gov.warning_count >= 2) {
+            banner.classList.add('warning');
+            document.getElementById('govBannerIcon').textContent = '⚠️';
+            document.getElementById('govBannerTitle').textContent = `${gov.warning_count} Governance Warning${gov.warning_count > 1 ? 's' : ''}`;
+            document.getElementById('govBannerDesc').textContent = 'Your account has governance restrictions. Another violation may result in account freeze.';
+          } else if (gov.testing_mode) {
+            banner.classList.add('warning');
+            document.getElementById('govBannerIcon').textContent = '🧪';
+            document.getElementById('govBannerTitle').textContent = 'Testing Mode Active';
+            document.getElementById('govBannerDesc').textContent = 'The platform is in governance testing mode. Your limits may be reduced.';
+          } else {
+            banner.classList.add('warning');
+            document.getElementById('govBannerTitle').textContent = 'Governance Notice';
+            document.getElementById('govBannerDesc').textContent = `You have ${gov.warning_count} active warning(s). Please review your usage.`;
+          }
+        }
+
+        // ── Recent Activity Table ──
+        const tbody = document.getElementById('activityBody');
+        const items = hist.history || [];
+        if (items.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="4" class="empty-state">No queries yet. Start by running your first query!</td></tr>';
+        } else {
+          tbody.innerHTML = items.map(q => {
+            const statusBadge = q.status === 'success'
+              ? `<span class="badge badge-green">Success</span>`
+              : `<span class="badge badge-orange">${q.status}</span>`;
+            const timeStr = q.query_time_ms ? `(${q.query_time_ms}ms)` : '';
+            return `<tr>
+              <td>${statusBadge}</td>
+              <td>
+                <div style="font-weight:700;">${q.dataset || '-'}</div>
+                <span style="font-size:12px; color:var(--text-muted);">${q.table_name || '-'}</span>
+              </td>
+              <td>${fmtTime(q.timestamp)}</td>
+              <td><span style="color:var(--green); font-weight:700;">${q.rows_returned || 0} rows ${timeStr}</span></td>
+            </tr>`;
+          }).join('');
+        }
+
+        // ── Charts ──
+        buildCharts(items, hist);
+
+        showToast('Dashboard loaded with real-time data', 'success');
+      } catch (e) {
+        console.error('Dashboard load error:', e);
+        showToast('Error loading dashboard data', 'warning');
+      }
+    }
+
+    function buildCharts(recentItems, histData) {
+      // Bar chart: queries per day from recent history
+      const dayMap = {};
+      const allItems = histData.history || [];
+      allItems.forEach(q => {
+        if (!q.timestamp) return;
+        const d = new Date(q.timestamp);
+        const key = d.toLocaleDateString('en-IN', {month:'short', day:'numeric'});
+        dayMap[key] = (dayMap[key] || 0) + 1;
+      });
+
+      // Fill last 7 days
+      const labels = [];
+      const data = [];
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date(); d.setDate(d.getDate() - i);
+        const key = d.toLocaleDateString('en-IN', {month:'short', day:'numeric'});
+        labels.push(key);
+        data.push(dayMap[key] || 0);
+      }
+
       if (barInstance) barInstance.destroy();
       barInstance = new Chart(document.getElementById('barChart').getContext('2d'), {
         type: 'bar',
@@ -420,53 +607,45 @@
           datasets: [{ label: 'Queries', data, backgroundColor: 'rgba(46,125,50,0.8)', borderRadius: 8, borderWidth: 0 }]
         },
         options: {
-          responsive: true,
-          maintainAspectRatio: false,
+          responsive: true, maintainAspectRatio: false,
           plugins: { legend: { display: false } },
           scales: {
-            y: { beginAtZero: true, grid: { color: '#E5E7EB' }, border: { dash: [4,4] }, ticks: { font: { family: 'Inter', weight: '600' } } },
-            x: { grid: { display: false }, ticks: { font: { family: 'Inter', weight: '600' } } }
+            y: { beginAtZero: true, grid: { color: '#E5E7EB' }, border: { dash: [4,4] }, ticks: { font: { family:'Inter', weight:'600' }, stepSize: 1 } },
+            x: { grid: { display: false }, ticks: { font: { family:'Inter', weight:'600' } } }
           }
         }
       });
-    }
-    buildBar(weeklyData, weekLabels);
 
-    // ── Doughnut Chart ──
-    new Chart(document.getElementById('pieChart').getContext('2d'), {
-      type: 'doughnut',
-      data: {
-        labels: ['Financial', 'Demographics', 'Healthcare', 'Geo-Spatial'],
-        datasets: [{ data: [45, 25, 20, 10], backgroundColor: ['#2E5BBA','#2E7D32','#F4A300','#7B1FA2'], borderWidth: 0, hoverOffset: 8 }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        cutout: '65%',
-        plugins: {
-          legend: { position: 'right', labels: { font: { family: 'Inter', size: 13, weight: '600' }, padding: 16 } }
-        }
+      // Pie chart: top datasets
+      const dsMap = {};
+      allItems.forEach(q => {
+        const ds = q.dataset && q.dataset !== '-' ? q.dataset : (q.table_name || 'Unknown');
+        dsMap[ds] = (dsMap[ds] || 0) + 1;
+      });
+      const sorted = Object.entries(dsMap).sort((a,b) => b[1] - a[1]).slice(0, 5);
+      const pieLabels = sorted.map(s => s[0].length > 20 ? s[0].slice(0,18)+'...' : s[0]);
+      const pieData = sorted.map(s => s[1]);
+      const pieColors = ['#2E5BBA','#2E7D32','#F4A300','#7B1FA2','#D32F2F'];
+
+      if (pieInstance) pieInstance.destroy();
+      if (pieData.length === 0) {
+        pieLabels.push('No data yet'); pieData.push(1); pieColors.length = 0; pieColors.push('#E5E7EB');
       }
-    });
-
-    // ── Chart Switcher ──
-    function switchChart(type, period, btn) {
-      document.querySelectorAll('.chart-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      if (period === 'weekly')  buildBar(weeklyData, weekLabels);
-      if (period === 'monthly') buildBar(monthlyData, monthLabels);
+      pieInstance = new Chart(document.getElementById('pieChart').getContext('2d'), {
+        type: 'doughnut',
+        data: {
+          labels: pieLabels,
+          datasets: [{ data: pieData, backgroundColor: pieColors.slice(0, pieData.length), borderWidth: 0, hoverOffset: 8 }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false, cutout: '65%',
+          plugins: { legend: { position: 'right', labels: { font: { family:'Inter', size: 13, weight:'600' }, padding: 16 } } }
+        }
+      });
     }
 
-    // ── Toast (show welcome) ──
-    function showToast(msg, type='info') {
-      const tc = document.getElementById('toastContainer');
-      const t  = document.createElement('div');
-      t.className = `toast ${type}`;
-      t.innerHTML = `<span>${type==='success'?'✅':'ℹ️'}</span><span>${msg}</span>`;
-      tc.appendChild(t);
-      setTimeout(() => { t.style.animation='slideOut 0.3s ease forwards'; setTimeout(()=>t.remove(),300); }, 4000);
-    }
-    setTimeout(() => showToast('Welcome back to STATXTRACT!', 'success'), 800);
+    // ── Init ──
+    loadDashboardData();
   </script>
 </body>
 </html>
