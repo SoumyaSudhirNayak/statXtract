@@ -8,7 +8,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/user_styles.css">
   <style>
-    body { background: linear-gradient(135deg, #F5F7FA, #EEF3FB, #E9EEF7); min-height: 100vh; overflow: hidden; }
+    body { background: var(--bg-page); min-height: 100vh; overflow: hidden; }
     .app-shell { display: flex; flex-direction: column; height: 100vh; }
     .main-area  { display: flex; flex: 1; overflow: hidden; }
     .content    { flex: 1; overflow-y: auto; padding: 40px 48px; }
@@ -176,8 +176,79 @@
     .toast.error   { border-left:4px solid var(--danger); }
     .toast.info    { border-left:4px solid var(--royal); }
     @keyframes slideIn  { from{transform:translateX(120px);opacity:0;} to{transform:none;opacity:1;} }
-    @keyframes slideOut { from{transform:none;opacity:1;} to{transform:translateX(120px);opacity:0;} }
+    /* ── MODAL ── */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.6);
+      backdrop-filter: blur(8px);
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+    .modal-overlay.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .modal-card {
+      background: #fff;
+      border: 2px solid var(--border);
+      border-radius: 20px;
+      width: 90%;
+      max-width: 500px;
+      padding: 32px;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.15);
+      transform: translateY(20px);
+      transition: transform 0.3s ease;
+    }
+    .modal-overlay.active .modal-card {
+      transform: translateY(0);
+    }
+    .modal-title {
+      font-family: var(--font-head);
+      font-size: 20px;
+      font-weight: 800;
+      color: var(--danger);
+      margin-bottom: 12px;
+    }
+    .modal-desc {
+      font-size: 14px;
+      color: var(--text-muted);
+      line-height: 1.5;
+      margin-bottom: 20px;
+    }
+
+    /* ── DARK THEME OVERRIDES ── */
+    :root[data-theme="dark"] .panel-card { background: var(--surface); }
+    :root[data-theme="dark"] .settings-nav { background: var(--surface); }
+    :root[data-theme="dark"] .density-btn { background: var(--bg-section); color: var(--text-muted); }
+    :root[data-theme="dark"] .field-input,
+    :root[data-theme="dark"] .field-select { background: var(--bg-section); color: var(--text-main); }
+    :root[data-theme="dark"] .toast { background: var(--bg-white); }
+    :root[data-theme="dark"] .modal-card { background: var(--bg-white); }
+    :root[data-theme="dark"] .danger-zone { background: rgba(211,47,47,0.1); border-color: rgba(211,47,47,0.3); }
+    :root[data-theme="dark"] .toggle-row:hover { background: rgba(59,130,246,0.08); }
+    :root[data-theme="dark"] .session-row:hover { background: rgba(59,130,246,0.08); }
+    :root[data-theme="dark"] .color-swatch.selected { border-color: var(--text-main); }
   </style>
+  <script>
+    (function() {
+      const theme = localStorage.getItem('userTheme') || 'light';
+      document.documentElement.setAttribute('data-theme', theme);
+      const density = localStorage.getItem('userDensity') || 'comfortable';
+      document.documentElement.setAttribute('data-density', density);
+      const accent = localStorage.getItem('userAccentColor') || '#2E7D32';
+      document.documentElement.style.setProperty('--green', accent);
+      const savedState = localStorage.getItem('sidebarState') || 'expanded';
+      if (savedState === 'collapsed') {
+        document.documentElement.classList.add('sidebar-collapsed-preload');
+      }
+    })();
+  </script>
 </head>
 <body>
   <div class="animated-bg"></div>
@@ -187,9 +258,12 @@
     <header class="site-header">
       <a href="/user/dashboard" class="site-logo">STATXTRACT</a>
       <div class="header-right">
-        <button class="profile-btn" onclick="window.location.href='/user/profile'">
+        <button class="profile-btn" onclick="window.location.href='/user/profile'" id="profileBtn" style="padding: 6px 14px; text-align: left;">
           <div class="avatar" id="avatarInitial">U</div>
-          <span id="headerUsername">{{ username | default('My Profile') }}</span>
+          <div style="display: flex; flex-direction: column; line-height: 1.1;">
+            <span id="headerUsername" style="font-weight: 700; font-size: 13px;">{{ username | default('My Profile') }}</span>
+            <span id="headerEmail" style="font-size: 10px; opacity: 0.85; font-weight: 500;">{{ email | default('') }}</span>
+          </div>
         </button>
       </div>
     </header>
@@ -207,7 +281,11 @@
           <a href="/user/downloads" class="nav-item"><div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div><span class="nav-label">My Downloads</span></a>
           <a href="/user/usage" class="nav-item"><div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V10M18 20V4M6 20v-4"/></svg></div><span class="nav-label">Usage &amp; Limits</span></a>
           <a href="/user/plans" class="nav-item"><div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></div><span class="nav-label">Plans &amp; Pricing</span></a>
-          <a href="/user/settings" class="nav-item active"><div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div><span class="nav-label">Settings</span></a>
+                    <a href="/user/feedback" class="nav-item">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></div>
+            <span class="nav-label">Feedback &amp; Requests</span>
+          </a>
+<a href="/user/settings" class="nav-item active"><div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div><span class="nav-label">Settings</span></a>
           <a href="/user/profile" class="nav-item" style="margin-top:auto;"><div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div><span class="nav-label">My Profile</span></a>
         </nav>
       </aside>
@@ -254,21 +332,21 @@
                     <div class="setting-title">Two-Factor Authentication (2FA)</div>
                     <div class="setting-sub">Require a 6-digit OTP code via SMS or Authenticator app on every login attempt.</div>
                   </div>
-                  <label class="switch"><input type="checkbox" onchange="settingChanged('2FA')"><span class="slider"></span></label>
+                  <label class="switch"><input type="checkbox" id="setting-2fa" onchange="settingChanged('2FA', this)"><span class="slider"></span></label>
                 </div>
                 <div class="toggle-row">
                   <div class="setting-info">
                     <div class="setting-title">Login Alert Emails</div>
                     <div class="setting-sub">Receive an instant email alert when your account is signed in from an unrecognized IP or device.</div>
                   </div>
-                  <label class="switch"><input type="checkbox" checked onchange="settingChanged('Login Alerts')"><span class="slider"></span></label>
+                  <label class="switch"><input type="checkbox" id="setting-login-alerts" onchange="settingChanged('Login Alerts', this)"><span class="slider"></span></label>
                 </div>
                 <div class="toggle-row">
                   <div class="setting-info">
                     <div class="setting-title">Session Inactivity Timeout</div>
                     <div class="setting-sub">Automatically sign out after 60 minutes of inactivity for enhanced security.</div>
                   </div>
-                  <label class="switch"><input type="checkbox" onchange="settingChanged('Timeout')"><span class="slider"></span></label>
+                  <label class="switch"><input type="checkbox" id="setting-timeout" onchange="settingChanged('Timeout', this)"><span class="slider"></span></label>
                 </div>
               </div>
 
@@ -277,36 +355,15 @@
                   <div class="pc-title">Active Sessions</div>
                   <div class="pc-desc">Manage all devices currently signed in with your account.</div>
                 </div>
-                <div class="session-list">
+                <div class="session-list" id="activeSessionsList">
                   <div class="session-row">
                     <div class="session-left">
                       <div class="session-icon">💻</div>
                       <div>
-                        <div style="font-weight:700;">Windows 11 · Chrome 122</div>
-                        <div style="font-size:13px; color:var(--text-muted);">Mumbai, India · Active right now</div>
+                        <div style="font-weight:700;">Detecting Session...</div>
+                        <div style="font-size:13px; color:var(--text-muted);">Please wait...</div>
                       </div>
                     </div>
-                    <span class="badge badge-green">Current</span>
-                  </div>
-                  <div class="session-row">
-                    <div class="session-left">
-                      <div class="session-icon">📱</div>
-                      <div>
-                        <div style="font-weight:700;">iOS 17 · Safari Mobile</div>
-                        <div style="font-size:13px; color:var(--text-muted);">Bangalore, India · Mar 12, 10:45 AM</div>
-                      </div>
-                    </div>
-                    <button class="btn btn-danger" style="padding:7px 14px; font-size:12px;" onclick="revokeSession(this)">Revoke</button>
-                  </div>
-                  <div class="session-row">
-                    <div class="session-left">
-                      <div class="session-icon">🖥️</div>
-                      <div>
-                        <div style="font-weight:700;">macOS · Firefox 123</div>
-                        <div style="font-size:13px; color:var(--text-muted);">Delhi, India · Mar 10, 3:20 PM</div>
-                      </div>
-                    </div>
-                    <button class="btn btn-danger" style="padding:7px 14px; font-size:12px;" onclick="revokeSession(this)">Revoke</button>
                   </div>
                 </div>
               </div>
@@ -324,28 +381,28 @@
                     <div class="setting-title">Query Completion Emails</div>
                     <div class="setting-sub">Send email when long-running queries (&gt;30s) complete execution.</div>
                   </div>
-                  <label class="switch"><input type="checkbox" checked onchange="settingChanged('Query Emails')"><span class="slider"></span></label>
+                  <label class="switch"><input type="checkbox" id="setting-query-emails" onchange="settingChanged('Query Emails', this)"><span class="slider"></span></label>
                 </div>
                 <div class="toggle-row">
                   <div class="setting-info">
                     <div class="setting-title">Monthly Usage Summary</div>
                     <div class="setting-sub">Receive a PDF statistics report summarizing your data usage every month.</div>
                   </div>
-                  <label class="switch"><input type="checkbox" onchange="settingChanged('Monthly Report')"><span class="slider"></span></label>
+                  <label class="switch"><input type="checkbox" id="setting-monthly-report" onchange="settingChanged('Monthly Report', this)"><span class="slider"></span></label>
                 </div>
                 <div class="toggle-row">
                   <div class="setting-info">
                     <div class="setting-title">Plan Limit Warnings</div>
                     <div class="setting-sub">Warn me when I've used 80% of my monthly query quota.</div>
                   </div>
-                  <label class="switch"><input type="checkbox" checked onchange="settingChanged('Limit Warnings')"><span class="slider"></span></label>
+                  <label class="switch"><input type="checkbox" id="setting-limit-warnings" onchange="settingChanged('Limit Warnings', this)"><span class="slider"></span></label>
                 </div>
                 <div class="toggle-row">
                   <div class="setting-info">
                     <div class="setting-title">New Dataset Announcements</div>
                     <div class="setting-sub">Get notified when new verified government datasets are added to the platform.</div>
                   </div>
-                  <label class="switch"><input type="checkbox" onchange="settingChanged('Dataset Notices')"><span class="slider"></span></label>
+                  <label class="switch"><input type="checkbox" id="setting-dataset-notices" onchange="settingChanged('Dataset Notices', this)"><span class="slider"></span></label>
                 </div>
               </div>
             </div>
@@ -429,47 +486,39 @@
 
                 <div class="toggle-row">
                   <div class="setting-info">
+                    <div class="setting-title">Dark Theme</div>
+                    <div class="setting-sub">Switch between light and dark color modes.</div>
+                  </div>
+                  <label class="switch"><input type="checkbox" id="themeToggleCheckbox" onchange="toggleTheme()"><span class="slider"></span></label>
+                </div>
+
+                <div class="toggle-row">
+                  <div class="setting-info">
                     <div class="setting-title">Auto-collapse Sidebar</div>
                     <div class="setting-sub">Minimize the sidebar automatically on page load for a wider content view.</div>
                   </div>
-                  <label class="switch"><input type="checkbox" onchange="settingChanged('Auto-collapse')"><span class="slider"></span></label>
-                </div>
-                <div class="toggle-row">
-                  <div class="setting-info">
-                    <div class="setting-title">Show Query Code in History</div>
-                    <div class="setting-sub">Display the raw SQL preview chip inside the Query History table rows.</div>
-                  </div>
-                  <label class="switch"><input type="checkbox" checked onchange="settingChanged('SQL Preview')"><span class="slider"></span></label>
+                  <label class="switch"><input type="checkbox" id="setting-auto-collapse" onchange="settingChanged('Auto-collapse', this)"><span class="slider"></span></label>
                 </div>
               </div>
             </div>
 
             <!-- ── ACCOUNT ACTIONS ── -->
             <div class="settings-panel" id="panel-account">
-              <div class="panel-card">
-                <div class="pc-header">
-                  <div class="pc-title">Account Data &amp; Exports</div>
-                  <div class="pc-desc">Request a copy of all your account data in JSON format for portability.</div>
-                </div>
-                <div style="display:flex; gap:10px; flex-wrap:wrap;">
-                  <button class="btn btn-outline-blue" onclick="showToast('Data export requested. You will receive an email shortly.','success')">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                    Request Data Export
-                  </button>
-                </div>
-              </div>
 
               <div class="panel-card">
                 <div class="pc-header">
                   <div class="pc-title">Sign Out Globally</div>
                   <div class="pc-desc">Invalidate all active sessions across every device simultaneously.</div>
                 </div>
-                <form action="/auth/logout" method="POST">
-                  <button type="submit" class="btn btn-danger">
+                <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                  <button type="button" class="btn btn-danger" onclick="revokeOtherSessions()">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-                    Sign Out of All Sessions
+                    Sign Out of Other Devices
                   </button>
-                </form>
+                  <button type="button" class="btn btn-outline-blue" onclick="signOutCurrentSession()">
+                    Sign Out Current Session
+                  </button>
+                </div>
               </div>
 
               <div class="panel-card danger-zone">
@@ -495,16 +544,66 @@
     </div>
   </div>
 
+  <!-- Delete Account Confirmation Modal -->
+  <div class="modal-overlay" id="deleteAccountModal">
+    <div class="modal-card">
+      <h2 class="modal-title">Delete Account Permanently</h2>
+      <p class="modal-desc">
+        ⚠️ This action is permanent and cannot be undone. All your query history, downloads, usage metrics, and personal details will be permanently removed.
+      </p>
+      
+      <div class="field-wrap">
+        <label class="field-label" for="deleteConfirmPassword">Please enter your password to confirm:</label>
+        <input type="password" id="deleteConfirmPassword" class="field-input" placeholder="••••••••" required>
+      </div>
+      
+      <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px;">
+        <button type="button" class="btn btn-ghost" onclick="closeDeleteModal()">Cancel</button>
+        <button type="button" class="btn btn-danger" onclick="performDeleteAccount()">Confirm Delete</button>
+      </div>
+    </div>
+  </div>
+
+
   <script>
     document.getElementById('sidebarToggle').addEventListener('click', () => {
       const sb = document.getElementById('sidebar');
-      sb.classList.toggle('collapsed'); sb.classList.toggle('expanded');
+      const isCollapsed = sb.classList.contains('collapsed');
+      if (isCollapsed) {
+        sb.classList.remove('collapsed');
+        sb.classList.add('expanded');
+        localStorage.setItem('sidebarState', 'expanded');
+      } else {
+        sb.classList.remove('expanded');
+        sb.classList.add('collapsed');
+        localStorage.setItem('sidebarState', 'collapsed');
+      }
     });
 
-    const username = '{{ username | default("") }}' || sessionStorage.getItem('userEmail') || 'User';
-    const dn = username.includes('@') ? username.split('@')[0] : username;
-    document.getElementById('headerUsername').textContent = dn;
-    document.getElementById('avatarInitial').textContent  = dn.charAt(0).toUpperCase();
+    (function() {
+      const savedState = localStorage.getItem('sidebarState') || 'expanded';
+      const sb = document.getElementById('sidebar');
+      if (sb) {
+        if (savedState === 'collapsed') {
+          sb.classList.remove('expanded');
+          sb.classList.add('collapsed');
+        } else {
+          sb.classList.remove('collapsed');
+          sb.classList.add('expanded');
+        }
+      }
+      document.documentElement.classList.remove('sidebar-collapsed-preload');
+    })();
+
+    const username = '{{ username | default("") }}' || 'User';
+    const email = '{{ email | default("") }}' || '';
+    const displayName = username.includes('@') ? username.split('@')[0] : username;
+    const initial = displayName.charAt(0).toUpperCase();
+    if (document.getElementById('avatarInitial')) document.getElementById('avatarInitial').textContent = initial;
+    if (document.getElementById('avatarBig')) document.getElementById('avatarBig').textContent = initial;
+    if (document.getElementById('headerUsername')) document.getElementById('headerUsername').textContent = displayName;
+    if (document.getElementById('headerEmail')) document.getElementById('headerEmail').textContent = email;
+    if (document.getElementById('usernameDisplay')) document.getElementById('usernameDisplay').textContent = displayName;
 
     /* ── Tab Switch ── */
     function switchTab(id) {
@@ -515,8 +614,11 @@
     }
 
     /* ── Setting Toggle ── */
-    function settingChanged(name) {
-      showToast(`"${name}" setting updated.`, 'success');
+    function settingChanged(name, el) {
+      if (el) {
+        localStorage.setItem(`setting_${name}`, el.checked ? 'true' : 'false');
+      }
+      showToast(`"${name}" preference saved.`, 'success');
     }
 
     /* ── Revoke Session ── */
@@ -549,11 +651,11 @@
       document.querySelector('.api-copy-btn').textContent  = 'Reveal Key';
     }
 
-    /* ── Color Swatch ── */
     function selectColor(el, color) {
       document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('selected'));
       el.classList.add('selected');
       document.documentElement.style.setProperty('--green', color);
+      localStorage.setItem('userAccentColor', color);
       showToast(`Accent color updated!`, 'success');
     }
 
@@ -561,13 +663,193 @@
     function setDensity(btn) {
       document.querySelectorAll('.density-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      showToast(`Density set to "${btn.textContent.trim()}".`, 'success');
+      const isCompact = btn.textContent.includes('Compact');
+      const densityVal = isCompact ? 'compact' : 'comfortable';
+      document.documentElement.setAttribute('data-density', densityVal);
+      localStorage.setItem('userDensity', densityVal);
+      showToast(`Density set to "${isCompact ? 'Compact' : 'Comfortable'}".`, 'success');
     }
 
-    /* ── Confirm Delete ── */
+    /* ── Active Sessions Detection ── */
+    function detectSessionDetails() {
+      const ua = navigator.userAgent;
+      let browser = "Chrome";
+      if (ua.indexOf("Firefox") > -1) browser = "Firefox";
+      else if (ua.indexOf("Safari") > -1 && ua.indexOf("Chrome") == -1) browser = "Safari";
+      else if (ua.indexOf("Edge") > -1) browser = "Edge";
+      else if (ua.indexOf("OPR") > -1 || ua.indexOf("Opera") > -1) browser = "Opera";
+      
+      let os = "Windows";
+      if (ua.indexOf("Macintosh") > -1) os = "macOS";
+      else if (ua.indexOf("Linux") > -1) os = "Linux";
+      else if (ua.indexOf("iPhone") > -1 || ua.indexOf("iPad") > -1) os = "iOS";
+      else if (ua.indexOf("Android") > -1) os = "Android";
+
+      let deviceIcon = "💻";
+      if (os === "iOS" || os === "Android") deviceIcon = "📱";
+
+      return { browser, os, deviceIcon };
+    }
+
+    async function loadActiveSessions() {
+      const details = detectSessionDetails();
+      let ip = "192.168.1.15";
+      let location = "Mumbai, India";
+      
+      try {
+        const res = await fetch("https://ipapi.co/json/");
+        if (res.ok) {
+          const data = await res.json();
+          ip = data.ip || "192.168.1.15";
+          location = `${data.city || "Mumbai"}, ${data.country_name || "India"}`;
+        }
+      } catch (e) {
+        location = "Localhost (Local Network)";
+      }
+
+      const container = document.getElementById('activeSessionsList');
+      if (!container) return;
+
+      container.innerHTML = `
+        <div class="session-row">
+          <div class="session-left">
+            <div class="session-icon">${details.deviceIcon}</div>
+            <div>
+              <div style="font-weight:700;">${details.os} · ${details.browser}</div>
+              <div style="font-size:13px; color:var(--text-muted);">${location} (IP: ${ip}) · Active right now</div>
+            </div>
+          </div>
+          <span class="badge badge-green">Current Session</span>
+        </div>
+      `;
+    }
+
+    async function revokeOtherSessions() {
+      try {
+        const res = await fetch("/user/revoke-all-sessions", { method: "POST" });
+        if (res.ok) {
+          showToast("All other sessions revoked successfully.", "success");
+          const row = document.getElementById("otherSessionRow");
+          if (row) {
+            row.style.animation = 'fadeOut 0.3s ease forwards';
+            setTimeout(() => row.remove(), 300);
+          }
+        } else {
+          showToast("Failed to revoke other sessions.", "error");
+        }
+      } catch (e) {
+        showToast("Error revoking other sessions.", "error");
+    }
+    }
+
+    async function signOutCurrentSession() {
+      try {
+        await fetch('/auth/logout', { method: 'POST' });
+        sessionStorage.clear();
+        showToast('Logged out successfully.', 'success');
+        setTimeout(() => {
+          window.location.href = '/user/login';
+        }, 800);
+      } catch (e) {
+        window.location.href = '/user/login';
+      }
+    }
+
+    loadActiveSessions();
+
+    // Theme & Accent Initialization on Load
+    const savedAccent = localStorage.getItem('userAccentColor') || '#2E7D32';
+    document.querySelectorAll('.color-swatch').forEach(swatch => {
+      const clickAttr = swatch.getAttribute('onclick') || '';
+      if (clickAttr.includes(savedAccent)) {
+        document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('selected'));
+        swatch.classList.add('selected');
+      }
+    });
+
+    const savedTheme = localStorage.getItem('userTheme') || 'light';
+    const themeCheckbox = document.getElementById('themeToggleCheckbox');
+    if (themeCheckbox) {
+      themeCheckbox.checked = (savedTheme === 'dark');
+    }
+
+    // Density Initialization on Load
+    const savedDensity = localStorage.getItem('userDensity') || 'comfortable';
+    document.querySelectorAll('.density-btn').forEach(btn => {
+      const isCompact = btn.textContent.includes('Compact');
+      if ((savedDensity === 'compact' && isCompact) || (savedDensity === 'comfortable' && !isCompact)) {
+        document.querySelectorAll('.density-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+      }
+    });
+
+    // Load local-only settings preferences
+    const settingsList = [
+      { name: '2FA', id: 'setting-2fa', default: false },
+      { name: 'Login Alerts', id: 'setting-login-alerts', default: true },
+      { name: 'Timeout', id: 'setting-timeout', default: false },
+      { name: 'Query Emails', id: 'setting-query-emails', default: true },
+      { name: 'Monthly Report', id: 'setting-monthly-report', default: false },
+      { name: 'Limit Warnings', id: 'setting-limit-warnings', default: true },
+      { name: 'Dataset Notices', id: 'setting-dataset-notices', default: false },
+      { name: 'Auto-collapse', id: 'setting-auto-collapse', default: false }
+    ];
+    settingsList.forEach(s => {
+      const el = document.getElementById(s.id);
+      if (el) {
+        const stored = localStorage.getItem(`setting_${s.name}`);
+        if (stored !== null) {
+          el.checked = (stored === 'true');
+        } else {
+          el.checked = s.default;
+        }
+      }
+    });
+
+    function toggleTheme() {
+      const checkbox = document.getElementById('themeToggleCheckbox');
+      const isDark = checkbox.checked;
+      const themeVal = isDark ? 'dark' : 'light';
+      document.documentElement.setAttribute('data-theme', themeVal);
+      localStorage.setItem('userTheme', themeVal);
+      localStorage.setItem('theme', themeVal);
+      localStorage.setItem('analytics_theme', isDark ? 'true' : 'false');
+      showToast(`${isDark ? 'Dark' : 'Light'} theme applied!`, 'success');
+    }
+
+    /* ── Confirm Delete Modal ── */
     function confirmDelete() {
-      if (confirm('⚠️ Are you absolutely sure? This will permanently delete your account and all associated data. This action cannot be undone.')) {
-        showToast('Account deletion is currently disabled. Contact support.', 'error');
+      document.getElementById('deleteAccountModal').classList.add('active');
+    }
+
+    function closeDeleteModal() {
+      document.getElementById('deleteAccountModal').classList.remove('active');
+      document.getElementById('deleteConfirmPassword').value = '';
+    }
+
+    async function performDeleteAccount() {
+      const pw = document.getElementById('deleteConfirmPassword').value;
+      if (!pw) {
+        showToast('Password is required.', 'error');
+        return;
+      }
+      try {
+        const res = await fetch('/user/delete-account', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: pw })
+        });
+        if (res.ok) {
+          showToast('Account deleted successfully! Redirecting...', 'success');
+          setTimeout(() => {
+            window.location.href = '/';
+          }, 1500);
+        } else {
+          const data = await res.json().catch(() => ({}));
+          showToast(data.detail || 'Failed to delete account. Incorrect password.', 'error');
+        }
+      } catch (e) {
+        showToast('Error deleting account.', 'error');
       }
     }
 

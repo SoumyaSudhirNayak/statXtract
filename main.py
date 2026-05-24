@@ -356,6 +356,12 @@ async def governance_http_exception_handler(request: Request, exc: HTTPException
         
     # Standard response for other HTTPExceptions
     if is_html_request:
+        if status_code in (401, 403):
+            path = request.url.path
+            if path.startswith("/user/") and path not in ("/user/login", "/user/register"):
+                return RedirectResponse(url="/user/login", status_code=302)
+            elif path.startswith("/admin/") and path != "/login":
+                return RedirectResponse(url="/login", status_code=302)
         return templates.TemplateResponse(
             "error.html",
             {
@@ -366,6 +372,7 @@ async def governance_http_exception_handler(request: Request, exc: HTTPException
             },
             status_code=status_code
         )
+
 
     if isinstance(detail, dict):
         return JSONResponse(status_code=status_code, content=detail)
@@ -451,6 +458,7 @@ async def register_user(
     role: str = Form("user"),
     org_type: str = Form(""),
     org_details: str = Form(""),
+    phone: str = Form(""),
     verification_doc: UploadFile = File(None),
 ):
     pool = request.app.state.db
@@ -507,8 +515,8 @@ async def register_user(
         has_doc = verification_doc is not None and verification_doc.filename
 
         await conn.execute(
-            """INSERT INTO users (username, email, hashed_password, role_id, document_uploaded, org_type, org_details)
-               VALUES ($1, $2, $3, $4, $5, $6, $7)""",
+            """INSERT INTO users (username, email, hashed_password, role_id, document_uploaded, org_type, org_details, phone)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8)""",
             username,
             email,
             hashed_pw,
@@ -516,7 +524,9 @@ async def register_user(
             bool(has_doc),
             org_type,
             org_details,
+            phone,
         )
+
 
         # ── Save verification document if provided ──
         if has_doc:
@@ -600,18 +610,133 @@ async def user_register_page(request: Request):
     return templates.TemplateResponse("USER_PAGES/user_register.html", {"request": request})
 
 
+async def get_user_template_context(request: Request, current_user_email: str) -> dict:
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        user_row = await conn.fetchrow(
+            """
+            SELECT u.*, r.name as role_name 
+            FROM users u 
+            LEFT JOIN roles r ON u.role_id = r.id 
+            WHERE u.email = $1
+            """,
+            current_user_email
+        )
+        if not user_row:
+            return {
+                "username": "User",
+                "email": current_user_email,
+                "role": "Student",
+                "org_type": "Student",
+                "phone": "",
+                "org_details": {},
+                "created_at": None,
+                "is_verified": False,
+                "plan": "free",
+                "credits": {},
+                "total_queries": 0,
+                "total_downloads": 0,
+                "rows_accessed": 0,
+                "member_since": "Jan 2026",
+                "last_active": "N/A",
+                "plan_expiry": "N/A"
+            }
+        
+        org_type = user_row.get("org_type") or ""
+        role_display = org_type
+        if not role_display:
+            role_name = user_row.get("role_name") or "user"
+            if role_name == "admin":
+                role_display = "Admin"
+            elif role_name == "analyst":
+                role_display = "Analyst"
+            else:
+                role_display = "Student"
+                
+        import json
+        org_details = {}
+        if user_row.get("org_details"):
+            try:
+                org_details = json.loads(user_row["org_details"])
+            except Exception:
+                pass
+
+        # Total queries
+        total_queries = await conn.fetchval(
+            "SELECT COUNT(*) FROM usage_logs WHERE user_email = $1",
+            current_user_email
+        ) or 0
+
+        # Total downloads
+        total_downloads = await conn.fetchval(
+            "SELECT COUNT(*) FROM download_logs WHERE user_email = $1",
+            current_user_email
+        ) or 0
+
+        # Rows accessed
+        rows_accessed = await conn.fetchval(
+            "SELECT COALESCE(SUM(rows_returned), 0) FROM usage_logs WHERE user_email = $1",
+            current_user_email
+        ) or 0
+
+        # Plan limits and usage credits
+        from security.usage_tracker import get_daily_usage_credits
+        user_role_str = str(user_row["role_id"]) if user_row else "3"
+        plan_limits = {}
+        usage_credits = {}
+        try:
+            plan_limits = await get_and_enforce_plan_limits(conn, current_user_email, user_role_str)
+            usage_credits = await get_daily_usage_credits(conn, current_user_email, plan_limits)
+        except Exception as e:
+            print(f"Error getting plan limits or credits: {e}")
+
+        # Format member_since
+        member_since = "Jan 2026"
+        if user_row and user_row.get("created_at"):
+            member_since = user_row["created_at"].strftime("%B %Y")
+            
+        # Format last_active
+        last_active = "N/A"
+        if user_row and user_row.get("last_active"):
+            last_active = user_row["last_active"].strftime("%d %b %Y, %I:%M %p")
+
+        # Format plan expiry
+        plan_expiry_str = "N/A"
+        if user_row and user_row.get("plan_expiry"):
+            plan_expiry_str = user_row["plan_expiry"].strftime("%d %b %Y")
+
+        return {
+            "username": user_row.get("username") or "User",
+            "email": user_row.get("email"),
+            "role": role_display,
+            "org_type": org_type,
+            "phone": user_row.get("phone") or org_details.get("phone") or "",
+            "org_details": org_details,
+            "created_at": user_row.get("created_at"),
+            "is_verified": user_row.get("is_verified") or False,
+            "plan": user_row.get("plan") or "free",
+            "is_blocked": user_row.get("is_blocked") or False,
+            "total_queries": total_queries,
+            "total_downloads": total_downloads,
+            "rows_accessed": rows_accessed,
+            "member_since": member_since,
+            "last_active": last_active,
+            "plan_expiry": plan_expiry_str,
+            "credits": usage_credits
+        }
+
+
 @app.get("/user/dashboard", response_class=HTMLResponse)
 async def user_dashboard_page(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
 ):
+    ctx = await get_user_template_context(request, current_user.username)
     return templates.TemplateResponse(
         "USER_PAGES/user_dashboard.html",
         {
             "request": request,
-            "username": current_user.username,
-            "email": current_user.username,
-            "role": current_user.role,
+            **ctx
         },
     )
 
@@ -621,13 +746,12 @@ async def user_profile_page(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
 ):
+    ctx = await get_user_template_context(request, current_user.username)
     return templates.TemplateResponse(
         "USER_PAGES/user_profile.html", 
         {
             "request": request,
-            "username": current_user.username,
-            "email": current_user.username,
-            "role": current_user.role,
+            **ctx
         }
     )
 
@@ -637,13 +761,12 @@ async def user_history_page(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
 ):
+    ctx = await get_user_template_context(request, current_user.username)
     return templates.TemplateResponse(
         "USER_PAGES/user_history.html", 
         {
             "request": request,
-            "username": current_user.username,
-            "email": current_user.username,
-            "role": current_user.role,
+            **ctx
         }
     )
 
@@ -653,13 +776,12 @@ async def user_downloads_page(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
 ):
+    ctx = await get_user_template_context(request, current_user.username)
     return templates.TemplateResponse(
         "USER_PAGES/user_downloads.html", 
         {
             "request": request,
-            "username": current_user.username,
-            "email": current_user.username,
-            "role": current_user.role,
+            **ctx
         }
     )
 
@@ -669,13 +791,12 @@ async def user_plans_page(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
 ):
+    ctx = await get_user_template_context(request, current_user.username)
     return templates.TemplateResponse(
         "USER_PAGES/user_plans.html", 
         {
             "request": request,
-            "username": current_user.username,
-            "email": current_user.username,
-            "role": current_user.role,
+            **ctx
         }
     )
 
@@ -685,30 +806,270 @@ async def user_settings_page(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
 ):
+    ctx = await get_user_template_context(request, current_user.username)
+    
+    # Extract login time from JWT
+    from jose import jwt
+    from auth.local.dependencies import SECRET_KEY, ALGORITHM
+    token = request.cookies.get("access_token")
+    login_time = None
+    if token:
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            iat = payload.get("iat")
+            if iat:
+                from datetime import datetime, timezone
+                login_time = datetime.fromtimestamp(iat, timezone.utc).isoformat()
+        except Exception:
+            pass
+
     return templates.TemplateResponse(
         "USER_PAGES/user_settings.html", 
         {
             "request": request,
-            "username": current_user.username,
-            "email": current_user.username,
-            "role": current_user.role,
+            "login_time": login_time,
+            "client_ip": request.client.host if request.client else "127.0.0.1",
+            **ctx
         }
     )
+
+
 
 @app.get("/user/usage", response_class=HTMLResponse)
 async def user_usage_page(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
 ):
+    ctx = await get_user_template_context(request, current_user.username)
     return templates.TemplateResponse(
         "USER_PAGES/user_usage.html", 
         {
             "request": request,
-            "username": current_user.username,
-            "email": current_user.username,
-            "role": current_user.role,
+            **ctx
         }
     )
+
+
+@app.get("/user/feedback", response_class=HTMLResponse)
+async def user_feedback_page(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
+):
+    ctx = await get_user_template_context(request, current_user.username)
+    return templates.TemplateResponse(
+        "USER_PAGES/user_feedback.html", 
+        {
+            "request": request,
+            **ctx
+        }
+    )
+
+
+
+@app.post("/user/feedback/submit")
+async def user_feedback_submit(
+    request: Request,
+    category: str = Form(...),
+    title: str = Form(...),
+    feedback_text: str = Form(...),
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
+):
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            INSERT INTO user_requests (user_email, request_type, category, title, message, status)
+            VALUES ($1, 'feedback', $2, $3, $4, 'pending')
+            """,
+            current_user.username,
+            category,
+            title,
+            feedback_text,
+        )
+    return RedirectResponse(url="/user/feedback?success=Feedback+submitted+successfully!", status_code=302)
+
+
+@app.post("/user/dataset-request/submit")
+async def user_dataset_request_submit(
+    request: Request,
+    dataset_name: str = Form(...),
+    survey_name: str = Form(...),
+    reason: str = Form(...),
+    notes: str = Form(""),
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
+):
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            INSERT INTO user_requests (user_email, request_type, requested_dataset, survey_name, reason, message, status)
+            VALUES ($1, 'dataset_request', $2, $3, $4, $5, 'pending')
+            """,
+            current_user.username,
+            dataset_name,
+            survey_name,
+            reason,
+            notes,
+        )
+    return RedirectResponse(url="/user/feedback?success=Dataset+request+submitted+successfully!", status_code=302)
+
+
+@app.post("/user/revoke-all-sessions")
+async def user_revoke_all_sessions(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
+):
+    pool = request.app.state.db
+    import datetime
+    utc_now = datetime.datetime.utcnow()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE users SET token_valid_after = $1 WHERE email = $2",
+            utc_now,
+            current_user.username
+        )
+        
+    # Generate new token for current user so they stay logged in
+    from auth.local.utils import create_access_token
+    new_token = create_access_token({
+        "sub": current_user.username,
+        "role": str(current_user.role)
+    })
+    
+    response = JSONResponse(content={"message": "All other sessions signed out successfully.", "status": "success"})
+    response.set_cookie("access_token", new_token, httponly=True)
+    return response
+
+
+@app.post("/user/delete-account")
+async def user_delete_account(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
+):
+    try:
+        data = await request.json()
+        password = data.get("password")
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid request payload")
+
+    if not password:
+        raise HTTPException(status_code=400, detail="Password is required to delete your account")
+
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        user = await conn.fetchrow("SELECT * FROM users WHERE email = $1", current_user.username)
+        if not user or not bcrypt.checkpw(password.encode(), user["hashed_password"].encode()):
+            raise HTTPException(status_code=400, detail="Invalid password verification.")
+        
+        # Anonymize governance logs
+        await conn.execute("UPDATE governance_logs SET user_email = 'deleted_user@statxtract.in' WHERE user_email = $1", current_user.username)
+        await conn.execute("UPDATE usage_logs SET user_email = 'deleted_user@statxtract.in' WHERE user_email = $1", current_user.username)
+        await conn.execute("UPDATE query_logs SET user_email = 'deleted_user@statxtract.in' WHERE user_email = $1", current_user.username)
+        await conn.execute("UPDATE download_logs SET user_email = 'deleted_user@statxtract.in' WHERE user_email = $1", current_user.username)
+        await conn.execute("DELETE FROM user_documents WHERE user_email = $1", current_user.username)
+        await conn.execute("DELETE FROM user_requests WHERE user_email = $1", current_user.username)
+        
+        # Delete user account
+        await conn.execute("DELETE FROM users WHERE email = $1", current_user.username)
+        
+    response = JSONResponse(content={"message": "Account deleted successfully.", "status": "success"})
+    response.delete_cookie("access_token", path="/")
+    return response
+
+
+@app.post("/api/user/update-profile")
+async def api_update_profile(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
+):
+    try:
+        data = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid request payload")
+        
+    full_name = data.get("full_name")
+    phone = data.get("phone", "")
+    org_type = data.get("org_type", "")
+    institution = data.get("institution", "")
+    
+    if not full_name:
+        raise HTTPException(status_code=400, detail="Name is required")
+
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT org_details FROM users WHERE email = $1", current_user.username)
+        org_details = {}
+        if row and row["org_details"]:
+            try:
+                import json
+                org_details = json.loads(row["org_details"])
+            except Exception:
+                pass
+        
+        org_key = org_type.split(' ')[0] if org_type else ""
+        if org_key == "Student" or org_key == "Researcher":
+            org_details["institution"] = institution
+        elif org_key == "Private":
+            org_details["company"] = institution
+        else:
+            org_details["institution"] = institution
+
+        import json
+        await conn.execute(
+            """
+            UPDATE users 
+            SET username = $1, phone = $2, org_type = $3, org_details = $4
+            WHERE email = $5
+            """,
+            full_name,
+            phone,
+            org_type,
+            json.dumps(org_details),
+            current_user.username
+        )
+        
+    return {"message": "Profile updated successfully", "status": "success"}
+
+
+@app.post("/api/user/change-password")
+async def user_change_password(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
+):
+    try:
+        data = await request.json()
+        current_password = data.get("current_password")
+        new_password = data.get("new_password")
+        confirm_password = data.get("confirm_password")
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid request payload")
+
+    if not current_password or not new_password or not confirm_password:
+        raise HTTPException(status_code=400, detail="Please fill in all password fields")
+
+    if new_password != confirm_password:
+        raise HTTPException(status_code=400, detail="New passwords do not match")
+
+    if len(new_password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters long")
+
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        user = await conn.fetchrow(
+            "SELECT * FROM users WHERE email = $1", current_user.username
+        )
+        if not user or not bcrypt.checkpw(current_password.encode(), user["hashed_password"].encode()):
+            raise HTTPException(status_code=400, detail="Current password is incorrect")
+
+        new_hashed = bcrypt.hashpw(new_password.encode(), bcrypt.gensalt()).decode()
+        await conn.execute(
+            "UPDATE users SET hashed_password = $1 WHERE email = $2",
+            new_hashed,
+            current_user.username,
+        )
+
+    return {"message": "Password updated successfully!", "status": "success"}
+
 
 
 # =================== GOVERNANCE API ENDPOINTS ===================
@@ -746,7 +1107,8 @@ async def api_user_governance(
                 freeze_until,
                 plan_expiry,
                 blocked_reason,
-                COALESCE(cancel_at_period_end, FALSE) AS cancel_at_period_end
+                COALESCE(cancel_at_period_end, FALSE) AS cancel_at_period_end,
+                org_type
             FROM users WHERE email = $1 LIMIT 1
             """,
             user_email
@@ -760,7 +1122,16 @@ async def api_user_governance(
         plan_name = plan_limits.get("plan", str(user_row["plan"]))
 
         # Get role name
-        role_name = {"1": "admin", "2": "analyst", "3": "user"}.get(user_role, "user")
+        org_type = user_row.get("org_type") or ""
+        role_name = org_type
+        if not role_name:
+            role_name = {"1": "admin", "2": "analyst", "3": "user"}.get(user_role, "user")
+            if role_name == "admin":
+                role_name = "Admin"
+            elif role_name == "analyst":
+                role_name = "Analyst"
+            else:
+                role_name = "Student"
 
         # Get usage credits
         credits = await get_daily_usage_credits(conn, user_email, plan_limits)
@@ -994,6 +1365,7 @@ async def admin_user_governance_detail(
             SELECT
                 u.username, u.email,
                 COALESCE(r.name, 'user') AS role,
+                u.org_type,
                 COALESCE(u.plan, 'free') AS plan,
                 COALESCE(u.is_verified, FALSE) AS is_verified,
                 COALESCE(u.is_blocked, FALSE) AS is_blocked,
@@ -1074,6 +1446,7 @@ async def admin_user_governance_detail(
         )
 
         user_dict = dict(user_row)
+        user_dict["role_display"] = user_dict.get("org_type") if user_dict.get("org_type") else user_dict["role"].capitalize()
         user_dict["freeze_until"] = format_utc_timestamp_to_utc_iso(user_dict["freeze_until"])
         user_dict["last_active"] = format_local_timestamp_to_utc_iso(user_dict["last_active"])
         user_dict["created_at"] = format_local_timestamp_to_utc_iso(user_dict["created_at"])
@@ -1254,15 +1627,15 @@ async def query_page(
         get_current_active_user_with_role(["1", "2", "3"])
     ),
 ):
+    ctx = await get_user_template_context(request, current_user.username)
     return templates.TemplateResponse(
         "query_ui.html",
         {
             "request": request,
-            "username": current_user.username,
-            "email": current_user.username,  # Since username is email in your case
-            "role": current_user.role,
+            **ctx
         },
     )
+
 
 
 @app.get("/api/user/status")
@@ -1325,15 +1698,15 @@ async def explorer_page(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
 ):
+    ctx = await get_user_template_context(request, current_user.username)
     return templates.TemplateResponse(
         "explorer.html",
         {
             "request": request,
-            "username": current_user.username,
-            "email": current_user.username,
-            "role": current_user.role,
+            **ctx
         },
     )
+
 
 
 @app.get("/metadata-detail/{schema}/{dataset}", response_class=HTMLResponse)
@@ -3840,15 +4213,20 @@ async def admin_change_password(
             current_user.username,
         )
 
-    return templates.TemplateResponse(
-        "admin_change_password.html",
-        {
-            "request": request,
-            "username": current_user.username,
-            "email": current_user.username,
-            "success": "Password changed successfully!",
-        },
+    # Force re-login: clear cookie and redirect
+    response = RedirectResponse(
+        url="/login?success=Password+changed+successfully.+Please+log+in+again.",
+        status_code=302,
     )
+    response.delete_cookie(
+        key="access_token",
+        path="/",
+        domain=None,
+        secure=False,
+        httponly=True,
+        samesite="lax",
+    )
+    return response
 
 
 @app.get("/admin/schemas/{schema}/variables")
@@ -4359,6 +4737,7 @@ async def admin_usage_logs_api(
         active_users = 0
         rows_accessed = 0
         queries_over_time = []
+        queries_over_time_hourly = []
         top_users = []
 
         if usage_time_col and usage_has_identity:
@@ -4377,14 +4756,40 @@ async def admin_usage_logs_api(
                     ORDER BY DATE({usage_time_col})
                     """
                 )
+                queries_over_time_hourly = await conn.fetch(
+                    f"""
+                    SELECT TO_CHAR(DATE_TRUNC('hour', {usage_time_col}), 'YYYY-MM-DD HH24:00') AS hour, COUNT(*) AS count
+                    FROM usage_logs
+                    WHERE {usage_time_col} >= NOW() - INTERVAL '24 hours'
+                      AND user_email NOT IN ({admin_emails_subquery})
+                    GROUP BY DATE_TRUNC('hour', {usage_time_col})
+                    ORDER BY DATE_TRUNC('hour', {usage_time_col})
+                    """
+                )
                 top_users = await conn.fetch(
                     f"""
-                    SELECT user_email, COUNT(*) AS count
-                    FROM usage_logs
-                    WHERE user_email NOT IN ({admin_emails_subquery})
-                    GROUP BY user_email
-                    ORDER BY count DESC
-                    LIMIT 8
+                    SELECT 
+                        COALESCE(u.username, split_part(u.email, '@', 1)) AS username,
+                        u.email AS user_email,
+                        COALESCE(q.queries_count, 0) AS queries_used,
+                        COALESCE(q.rows_sum, 0) AS rows_accessed,
+                        COALESCE(d.downloads_count, 0) AS downloads,
+                        u.plan AS current_plan,
+                        u.last_active
+                    FROM users u
+                    LEFT JOIN (
+                        SELECT user_email, COUNT(*) AS queries_count, SUM(COALESCE(rows_returned, 0)) AS rows_sum
+                        FROM usage_logs
+                        GROUP BY user_email
+                    ) q ON u.email = q.user_email
+                    LEFT JOIN (
+                        SELECT user_email, COUNT(*) AS downloads_count
+                        FROM download_logs
+                        GROUP BY user_email
+                    ) d ON u.email = d.user_email
+                    WHERE u.role_id != 1
+                    ORDER BY queries_used DESC, u.email ASC
+                    LIMIT 10
                     """
                 )
             except Exception:
@@ -4392,6 +4797,7 @@ async def admin_usage_logs_api(
                 active_users = 0
                 rows_accessed = 0
                 queries_over_time = []
+                queries_over_time_hourly = []
                 top_users = []
 
         if (not total_queries) and query_time_col and query_has_identity:
@@ -4410,14 +4816,40 @@ async def admin_usage_logs_api(
                     ORDER BY DATE({query_time_col})
                     """
                 )
+                queries_over_time_hourly = await conn.fetch(
+                    f"""
+                    SELECT TO_CHAR(DATE_TRUNC('hour', {query_time_col}), 'YYYY-MM-DD HH24:00') AS hour, COUNT(*) AS count
+                    FROM query_logs
+                    WHERE {query_time_col} >= NOW() - INTERVAL '24 hours'
+                      AND user_email NOT IN ({admin_emails_subquery})
+                    GROUP BY DATE_TRUNC('hour', {query_time_col})
+                    ORDER BY DATE_TRUNC('hour', {query_time_col})
+                    """
+                )
                 top_users = await conn.fetch(
                     f"""
-                    SELECT user_email, COUNT(*) AS count
-                    FROM query_logs
-                    WHERE user_email NOT IN ({admin_emails_subquery})
-                    GROUP BY user_email
-                    ORDER BY count DESC
-                    LIMIT 8
+                    SELECT 
+                        COALESCE(u.username, split_part(u.email, '@', 1)) AS username,
+                        u.email AS user_email,
+                        COALESCE(q.queries_count, 0) AS queries_used,
+                        COALESCE(q.rows_sum, 0) AS rows_accessed,
+                        COALESCE(d.downloads_count, 0) AS downloads,
+                        u.plan AS current_plan,
+                        u.last_active
+                    FROM users u
+                    LEFT JOIN (
+                        SELECT user_email, COUNT(*) AS queries_count, SUM(COALESCE(rows_returned, 0)) AS rows_sum
+                        FROM query_logs
+                        GROUP BY user_email
+                    ) q ON u.email = q.user_email
+                    LEFT JOIN (
+                        SELECT user_email, COUNT(*) AS downloads_count
+                        FROM download_logs
+                        GROUP BY user_email
+                    ) d ON u.email = d.user_email
+                    WHERE u.role_id != 1
+                    ORDER BY queries_used DESC, u.email ASC
+                    LIMIT 10
                     """
                 )
             except Exception:
@@ -4437,6 +4869,13 @@ async def admin_usage_logs_api(
                 d["time"] = format_local_timestamp_to_utc_iso(d["time"])
             formatted_download_logs.append(d)
 
+        formatted_top_users = []
+        for r in top_users:
+            d = dict(r)
+            if "last_active" in d and d["last_active"]:
+                d["last_active"] = format_local_timestamp_to_utc_iso(d["last_active"])
+            formatted_top_users.append(d)
+
     return {
         "query_logs": formatted_query_logs,
         "download_logs": formatted_download_logs,
@@ -4447,7 +4886,8 @@ async def admin_usage_logs_api(
         },
         "charts": {
             "queries_over_time": [dict(r) for r in queries_over_time],
-            "top_users": [dict(r) for r in top_users],
+            "queries_over_time_hourly": [dict(r) for r in queries_over_time_hourly],
+            "top_users": formatted_top_users,
         },
     }
 
@@ -4465,6 +4905,7 @@ async def admin_users_api(
                 u.username,
                 u.email,
                 COALESCE(r.name, 'user') AS role,
+                u.org_type,
                 COALESCE(u.is_verified, FALSE) AS is_verified,
                 COALESCE(u.document_uploaded, FALSE) AS document_uploaded,
                 COALESCE(u.is_blocked, FALSE) AS is_blocked,
@@ -4486,6 +4927,7 @@ async def admin_users_api(
         enriched = []
         for u in users:
             ud = dict(u)
+            ud["role_display"] = ud.get("org_type") if ud.get("org_type") else ud["role"].capitalize()
             ud["last_active"] = format_local_timestamp_to_utc_iso(ud["last_active"])
             ud["created_at"] = format_local_timestamp_to_utc_iso(ud["created_at"])
             ud["plan_expiry"] = format_local_timestamp_to_utc_iso(ud["plan_expiry"])
@@ -4796,10 +5238,19 @@ async def admin_requests_api(
         try:
             dataset_requests = await conn.fetch(
                 """
-                SELECT id, user_email, requested_dataset, status, created_at
-                FROM user_requests
-                WHERE request_type = 'dataset_request'
-                ORDER BY created_at DESC
+                SELECT 
+                    r.id, 
+                    r.user_email, 
+                    r.requested_dataset, 
+                    COALESCE(r.survey_name, '') AS survey_name, 
+                    COALESCE(r.reason, '') AS reason, 
+                    r.status, 
+                    r.created_at,
+                    COALESCE(u.username, split_part(r.user_email, '@', 1)) AS username
+                FROM user_requests r
+                LEFT JOIN users u ON u.email = r.user_email
+                WHERE r.request_type = 'dataset_request'
+                ORDER BY r.created_at DESC
                 LIMIT 100
                 """
             )
@@ -4808,10 +5259,21 @@ async def admin_requests_api(
         try:
             feedback = await conn.fetch(
                 """
-                SELECT id, user_email, message, created_at
-                FROM user_requests
-                WHERE request_type = 'feedback'
-                ORDER BY created_at DESC
+                SELECT 
+                    r.id, 
+                    r.user_email, 
+                    COALESCE(r.category, 'Other') AS category, 
+                    COALESCE(r.title, '') AS title, 
+                    r.message, 
+                    r.status, 
+                    r.created_at,
+                    COALESCE(u.username, split_part(r.user_email, '@', 1)) AS username,
+                    COALESCE(u.plan, 'free') AS current_plan,
+                    COALESCE(u.org_type, 'N/A') AS org_type
+                FROM user_requests r
+                LEFT JOIN users u ON u.email = r.user_email
+                WHERE r.request_type = 'feedback'
+                ORDER BY r.created_at DESC
                 LIMIT 100
                 """
             )

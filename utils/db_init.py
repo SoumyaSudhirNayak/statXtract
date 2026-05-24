@@ -107,6 +107,8 @@ async def ensure_core_tables(conn: asyncpg.Connection) -> None:
         ("blocked_reason", "TEXT"),
         ("org_type", "TEXT"),
         ("org_details", "TEXT"),
+        ("phone", "TEXT"),
+        ("token_valid_after", "TIMESTAMP"),
     ]:
         try:
             await conn.execute(
@@ -353,6 +355,20 @@ async def ensure_core_tables(conn: asyncpg.Connection) -> None:
         );
         """
     )
+
+    for col_def in [
+        ("survey_name", "TEXT"),
+        ("reason", "TEXT"),
+        ("category", "TEXT"),
+        ("title", "TEXT"),
+    ]:
+        try:
+            await conn.execute(
+                f"ALTER TABLE user_requests ADD COLUMN IF NOT EXISTS {col_def[0]} {col_def[1]}"
+            )
+        except Exception:
+            pass
+
 
     await conn.execute(
         """

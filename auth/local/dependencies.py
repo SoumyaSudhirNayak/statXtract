@@ -42,20 +42,31 @@ async def get_current_user(request: Request) -> TokenData:
             pool = getattr(request.app.state, "db", None)
             if pool is not None:
                 async with pool.acquire() as conn:
-                    blocked = await conn.fetchval(
+                    row = await conn.fetchrow(
                         """
-                        SELECT COALESCE(is_blocked, FALSE)
+                        SELECT COALESCE(is_blocked, FALSE) as is_blocked, token_valid_after
                         FROM users
                         WHERE email = $1
                         LIMIT 1
                         """,
                         email,
                     )
-                    if blocked:
-                        raise HTTPException(status_code=403, detail="User blocked")
+                    if row:
+                        if row["is_blocked"]:
+                            raise HTTPException(status_code=403, detail="User blocked")
+                        
+                        token_valid_after = row["token_valid_after"]
+                        if token_valid_after:
+                            iat = payload.get("iat")
+                            if iat:
+                                import calendar
+                                valid_after_ts = calendar.timegm(token_valid_after.utctimetuple())
+                                if iat < valid_after_ts:
+                                    raise HTTPException(status_code=401, detail="Session revoked/expired")
         except HTTPException:
             raise
-        except Exception:
+        except Exception as e:
+            print(f"Error checking user validity: {e}")
             pass
         return TokenData(username=email, role=role)
     except JWTError:

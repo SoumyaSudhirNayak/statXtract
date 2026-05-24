@@ -52,6 +52,7 @@
             background:var(--glass-bg); border:1px solid var(--glass-border);
             border-radius:999px; padding:10px 18px;
             transition: var(--transition);
+            z-index: 1000;
         }
         .back:hover { background: var(--primary); color: #fff; transform: translateX(-5px); }
 
@@ -62,8 +63,24 @@
             border-radius:999px; padding:10px 18px;
             transition: var(--transition);
             display: flex; align-items: center; gap: 8px; font-weight: 500;
+            z-index: 1000;
         }
         .theme-toggle:hover { background: var(--primary); color: #fff; transform: translateY(-2px); }
+
+        .col-filters {
+            min-width: 320px;
+        }
+
+        table code {
+            white-space: pre-wrap;
+            word-break: break-all;
+            font-size: 0.8rem;
+            background: rgba(46, 91, 186, 0.05);
+            padding: 4px 8px;
+            border-radius: 6px;
+            display: block;
+            max-width: 450px;
+        }
 
         .head { background:var(--glass-bg); border:1px solid var(--glass-border); border-radius:var(--radius); padding:24px; margin-bottom:18px; box-shadow:var(--shadow-heavy); }
         .head h1 { font-size: 1.8rem; display:flex; gap:12px; align-items:center; color: var(--primary); }
@@ -114,9 +131,17 @@
                 <div class="title"><i class="fas fa-database"></i> Query Logs</div>
                 <div style="overflow-x:auto;">
                     <table>
-                        <thead><tr><th>User</th><th>Dataset/Table</th><th>Filters</th><th>Rows</th><th>Duration</th><th>Status</th><th>Time</th></tr></thead>
+                        <thead><tr><th>User</th><th>Dataset/Table</th><th class="col-filters">Filters</th><th>Rows</th><th>Duration</th><th>Status</th><th>Time</th></tr></thead>
                         <tbody id="queryRows"></tbody>
                     </table>
+                </div>
+                <!-- Query Logs Pagination Controls -->
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-top:16px; padding-top:12px; border-top:1px solid var(--glass-border);">
+                    <div style="font-size:0.8rem; color:var(--text-muted);" id="queryPageInfo">Showing 0-0 of 0</div>
+                    <div style="display:flex; gap:6px;">
+                        <button class="btn" id="queryPrevBtn" style="padding:6px 12px; font-size:0.75rem;" onclick="changeQueryPage(-1)">Prev</button>
+                        <button class="btn" id="queryNextBtn" style="padding:6px 12px; font-size:0.75rem;" onclick="changeQueryPage(1)">Next</button>
+                    </div>
                 </div>
             </div>
             <div class="card full">
@@ -128,15 +153,36 @@
                     </table>
                 </div>
             </div>
-            <div class="card">
-                <div class="title"><i class="fas fa-chart-area"></i> Queries Over Time</div>
-                <div class="bars" id="qotBars"></div>
-                <div class="legend" id="qotLegend"></div>
+            <div class="card full">
+                <div class="title" style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px;">
+                    <span><i class="fas fa-chart-area"></i> Queries Over Time</span>
+                    <div style="display:flex; gap:6px;">
+                        <button id="btnHourly" class="btn" style="padding:6px 12px; font-size:0.75rem; background:var(--secondary);" onclick="setQotInterval('hourly')">Hourly (24h)</button>
+                        <button id="btnDaily" class="btn" style="padding:6px 12px; font-size:0.75rem;" onclick="setQotInterval('daily')">Daily (14d)</button>
+                    </div>
+                </div>
+                <div style="position:relative; margin-top:20px; padding: 10px;">
+                    <svg id="qotSvg" viewBox="0 0 1000 300" style="width:100%; height:auto; overflow:visible; display:block;"></svg>
+                    <div id="qotTooltip" style="position:absolute; background:var(--glass-bg); border:1px solid var(--glass-border); padding:8px 12px; border-radius:8px; font-size:0.75rem; pointer-events:none; display:none; box-shadow:var(--shadow-heavy); z-index:10; color:var(--text-main); font-weight:600;"></div>
+                </div>
             </div>
-            <div class="card">
+            <div class="card full">
                 <div class="title"><i class="fas fa-users"></i> Top Users</div>
-                <div class="bars" id="topBars"></div>
-                <div class="legend" id="topLegend"></div>
+                <div style="overflow-x:auto;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="cursor: pointer;" onclick="sortTopUsers(0)">Username <i class="fas fa-sort" style="font-size:0.75rem; opacity:0.7; margin-left:4px;"></i></th>
+                                <th style="cursor: pointer;" onclick="sortTopUsers(1)">Queries Used <i class="fas fa-sort" style="font-size:0.75rem; opacity:0.7; margin-left:4px;"></i></th>
+                                <th style="cursor: pointer;" onclick="sortTopUsers(2)">Rows Accessed <i class="fas fa-sort" style="font-size:0.75rem; opacity:0.7; margin-left:4px;"></i></th>
+                                <th style="cursor: pointer;" onclick="sortTopUsers(3)">Downloads <i class="fas fa-sort" style="font-size:0.75rem; opacity:0.7; margin-left:4px;"></i></th>
+                                <th style="cursor: pointer;" onclick="sortTopUsers(4)">Current Plan <i class="fas fa-sort" style="font-size:0.75rem; opacity:0.7; margin-left:4px;"></i></th>
+                                <th style="cursor: pointer;" onclick="sortTopUsers(5)">Last Active <i class="fas fa-sort" style="font-size:0.75rem; opacity:0.7; margin-left:4px;"></i></th>
+                            </tr>
+                        </thead>
+                        <tbody id="topUsersRows"></tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
@@ -160,18 +206,16 @@
             }, 300);
         }
 
-        async function loadUsage() {
-            const q = document.getElementById("globalSearch") ? document.getElementById("globalSearch").value : "";
-            const res = await fetch("/admin/usage/logs?q=" + encodeURIComponent(q), { credentials: "same-origin" });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
+        let allQueryLogs = [];
+        let queryPage = 1;
+        const queryPageSize = 10;
+
+        function renderQueryTable() {
+            const tbody = document.getElementById("queryRows");
+            const start = (queryPage - 1) * queryPageSize;
+            const paginated = allQueryLogs.slice(start, start + queryPageSize);
             
-            const metrics = data.metrics || data;
-            document.getElementById("mQueries").textContent = fmt(metrics.total_queries);
-            document.getElementById("mUsers").textContent = fmt(metrics.active_users);
-            document.getElementById("mRows").textContent = fmt(metrics.rows_accessed);
-            
-            const qRows = (data.query_logs || data.logs || []).slice(0, 15).map(x => {
+            tbody.innerHTML = paginated.map(x => {
                 const durationStr = x.query_time_ms >= 1000 
                   ? `${(x.query_time_ms / 1000).toFixed(2)}s` 
                   : `${x.query_time_ms || 0}ms`;
@@ -187,8 +231,42 @@
                     statusPill,
                     dt(x.time)
                 ]);
-            }).join("");
-            document.getElementById("queryRows").innerHTML = qRows || row(["-", "-", "-", "-", "-", "-", "-"]);
+            }).join("") || row(["-", "-", "-", "-", "-", "-", "-"]);
+
+            const total = allQueryLogs.length;
+            const totalPages = Math.ceil(total / queryPageSize) || 1;
+            
+            if (queryPage > totalPages) queryPage = totalPages;
+            if (queryPage < 1) queryPage = 1;
+
+            const fromIdx = total === 0 ? 0 : start + 1;
+            const toIdx = Math.min(start + queryPageSize, total);
+
+            document.getElementById("queryPageInfo").textContent = `Showing ${fromIdx}-${toIdx} of ${total}`;
+            document.getElementById("queryPrevBtn").disabled = (queryPage <= 1);
+            document.getElementById("queryNextBtn").disabled = (queryPage >= totalPages);
+        }
+
+        function changeQueryPage(direction) {
+            queryPage += direction;
+            renderQueryTable();
+        }
+
+        async function loadUsage() {
+            const q = document.getElementById("globalSearch") ? document.getElementById("globalSearch").value : "";
+            const res = await fetch("/admin/usage/logs?q=" + encodeURIComponent(q), { credentials: "same-origin" });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
+            
+            const metrics = data.metrics || data;
+            document.getElementById("mQueries").textContent = fmt(metrics.total_queries);
+            document.getElementById("mUsers").textContent = fmt(metrics.active_users);
+            document.getElementById("mRows").textContent = fmt(metrics.rows_accessed);
+            
+            allQueryLogs = data.query_logs || data.logs || [];
+            const maxPages = Math.ceil(allQueryLogs.length / queryPageSize) || 1;
+            if (queryPage > maxPages) queryPage = maxPages;
+            renderQueryTable();
             
             const dRows = (data.download_logs || []).slice(0, 15).map(x => {
                 const formatLabel = `<span class="pill active" style="text-transform:uppercase;">${x.export_format || 'csv'}</span>`;
@@ -207,23 +285,171 @@
             }).join("");
             document.getElementById("downloadRows").innerHTML = dRows || row(["-", "-", "-", "-", "-", "-", "-"]);
             
-            const qSeries = data.charts?.queries_over_time || [];
-            const topUsers = data.charts?.top_users || [];
-            const qMax = Math.max(...qSeries.map(x => Number(x.count || 0)), 1);
-            const tMax = Math.max(...topUsers.map(x => Number(x.count || 0)), 1);
+            fullChartData = data.charts || {};
+            allTopUsers = fullChartData.top_users || [];
             
-            document.getElementById("qotBars").innerHTML = qSeries.slice(-8).map(x => `<i style="height:${Math.max(10, Math.round((Number(x.count || 0) / qMax) * 100))}%" title="${x.day}: ${fmt(x.count)} queries"></i>`).join("");
-            document.getElementById("qotLegend").innerHTML = qSeries.slice(-2).map(x => `<span>${x.day}: ${fmt(x.count)}</span>`).join("") || "<span>No data</span>";
-            
-            document.getElementById("topBars").innerHTML = topUsers.slice(0, 8).map(x => `<i style="height:${Math.max(10, Math.round((Number(x.count || 0) / tMax) * 100))}%" title="${x.user_email}: ${fmt(x.count)} queries"></i>`).join("");
-            document.getElementById("topLegend").innerHTML = topUsers.slice(0, 2).map(x => `<span>${x.user_email.split('@')[0]}: ${fmt(x.count)}</span>`).join("") || "<span>No data</span>";
+            renderQotChart();
+            renderTopUsersTable();
         }
+        
+        const esc = (s) => String(s ?? "").replace(/"/g, "&quot;");
+        
+        let allTopUsers = [];
+        let topUsersSortDir = 1;
+        let lastSortedCol = -1;
+
+        function renderTopUsersTable() {
+            const tbody = document.getElementById("topUsersRows");
+            tbody.innerHTML = allTopUsers.map(u => {
+                const planBadgeColor = u.current_plan === 'enterprise' ? 'background: rgba(139, 92, 246, 0.1); color: #8b5cf6;' : u.current_plan === 'pro' ? 'background: rgba(245, 158, 11, 0.1); color: #f59e0b;' : 'background: rgba(107, 114, 128, 0.1); color: #6b7280;';
+                const planBadge = `<span class="pill" style="${planBadgeColor}">${esc(u.current_plan || 'free')}</span>`;
+                return row([
+                    `<span title="${esc(u.user_email)}">${esc(u.username)}</span>`,
+                    fmt(u.queries_used),
+                    fmt(u.rows_accessed),
+                    fmt(u.downloads),
+                    planBadge,
+                    dt(u.last_active)
+                ]);
+            }).join("") || `<tr><td colspan="6" style="text-align:center;color:var(--text-muted);">No top users found.</td></tr>`;
+        }
+
+        function sortTopUsers(colIdx) {
+            if (lastSortedCol === colIdx) {
+                topUsersSortDir *= -1;
+            } else {
+                topUsersSortDir = 1;
+                lastSortedCol = colIdx;
+            }
+            
+            allTopUsers.sort((a, b) => {
+                let vA, vB;
+                if (colIdx === 0) { vA = (a.username || '').toLowerCase(); vB = (b.username || '').toLowerCase(); }
+                else if (colIdx === 1) { vA = Number(a.queries_used || 0); vB = Number(b.queries_used || 0); }
+                else if (colIdx === 2) { vA = Number(a.rows_accessed || 0); vB = Number(b.rows_accessed || 0); }
+                else if (colIdx === 3) { vA = Number(a.downloads || 0); vB = Number(b.downloads || 0); }
+                else if (colIdx === 4) { vA = (a.current_plan || '').toLowerCase(); vB = (b.current_plan || '').toLowerCase(); }
+                else if (colIdx === 5) { vA = a.last_active ? new Date(a.last_active).getTime() : 0; vB = b.last_active ? new Date(b.last_active).getTime() : 0; }
+                
+                if (vA < vB) return -1 * topUsersSortDir;
+                if (vA > vB) return 1 * topUsersSortDir;
+                return 0;
+            });
+            renderTopUsersTable();
+        }
+
+        let qotInterval = 'daily'; // 'daily' or 'hourly'
+        let fullChartData = {};
+
+        function setQotInterval(interval) {
+            qotInterval = interval;
+            document.getElementById('btnHourly').style.background = (interval === 'hourly') ? 'var(--primary)' : 'var(--secondary)';
+            document.getElementById('btnDaily').style.background = (interval === 'daily') ? 'var(--primary)' : 'var(--secondary)';
+            renderQotChart();
+        }
+
+        function renderQotChart() {
+            const series = qotInterval === 'hourly' 
+                ? (fullChartData.queries_over_time_hourly || [])
+                : (fullChartData.queries_over_time || []);
+                
+            const svg = document.getElementById("qotSvg");
+            
+            if (!series || series.length === 0) {
+                svg.innerHTML = `<text x="500" y="150" fill="var(--text-muted)" font-size="16" text-anchor="middle">No query logs available for this period</text>`;
+                return;
+            }
+            
+            const maxVal = Math.max(...series.map(x => Number(x.count || 0)), 1);
+            const n = series.length;
+            
+            let html = `
+                <!-- Grid Lines -->
+                <line x1="50" y1="30" x2="950" y2="30" stroke="var(--glass-border)" stroke-width="1" stroke-dasharray="4" />
+                <line x1="50" y1="100" x2="950" y2="100" stroke="var(--glass-border)" stroke-width="1" stroke-dasharray="4" />
+                <line x1="50" y1="170" x2="950" y2="170" stroke="var(--glass-border)" stroke-width="1" stroke-dasharray="4" />
+                <line x1="50" y1="240" x2="950" y2="240" stroke="var(--glass-border)" stroke-width="1" />
+                
+                <!-- Left Axis labels -->
+                <text x="40" y="35" fill="var(--text-muted)" font-size="11" text-anchor="end">${fmt(maxVal)}</text>
+                <text x="40" y="105" fill="var(--text-muted)" font-size="11" text-anchor="end">${fmt(Math.round(maxVal * 0.7))}</text>
+                <text x="40" y="175" fill="var(--text-muted)" font-size="11" text-anchor="end">${fmt(Math.round(maxVal * 0.3))}</text>
+                <text x="40" y="245" fill="var(--text-muted)" font-size="11" text-anchor="end">0</text>
+            `;
+            
+            const points = [];
+            for (let i = 0; i < n; i++) {
+                const label = qotInterval === 'hourly' ? series[i].hour : series[i].day;
+                const val = Number(series[i].count || 0);
+                const x = n === 1 ? 500 : 50 + (i / (n - 1)) * 900;
+                const y = 240 - (val / maxVal) * 200;
+                points.push({ x, y, label, val });
+            }
+            
+            if (points.length > 1) {
+                const pathData = points.map(p => `${p.x},${p.y}`).join(" ");
+                const areaData = `50,240 ${pathData} 950,240`;
+                
+                html += `
+                    <defs>
+                        <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stop-color="var(--primary)" stop-opacity="0.35" />
+                            <stop offset="100%" stop-color="var(--primary)" stop-opacity="0.00" />
+                        </linearGradient>
+                    </defs>
+                    <polygon points="${areaData}" fill="url(#chartGrad)" />
+                    <polyline points="${pathData}" fill="none" stroke="var(--primary)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" />
+                `;
+            } else if (points.length === 1) {
+                html += `<circle cx="${points[0].x}" cy="${points[0].y}" r="6" fill="var(--primary)" />`;
+            }
+            
+            const labelStep = Math.max(1, Math.round(n / 6));
+            points.forEach((p, idx) => {
+                if (idx % labelStep === 0 || idx === n - 1) {
+                    const cleanLabel = qotInterval === 'hourly' 
+                        ? p.label.split(" ")[1] 
+                        : p.label.substring(5); 
+                    html += `<text x="${p.x}" y="265" fill="var(--text-muted)" font-size="11" text-anchor="middle">${cleanLabel}</text>`;
+                }
+                
+                html += `
+                    <circle cx="${p.x}" cy="${p.y}" r="6" fill="var(--primary)" stroke="#fff" stroke-width="2" style="cursor:pointer; transition: r 0.2s;" 
+                        onmouseover="showQotTooltip(event, '${p.label}', ${p.val})" 
+                        onmouseout="hideQotTooltip()" />
+                    <circle cx="${p.x}" cy="${p.y}" r="15" fill="transparent" style="cursor:pointer;" 
+                        onmouseover="showQotTooltip(event, '${p.label}', ${p.val})" 
+                        onmouseout="hideQotTooltip()" />
+                `;
+            });
+            
+            svg.innerHTML = html;
+        }
+
+        function showQotTooltip(event, label, val) {
+            const tooltip = document.getElementById("qotTooltip");
+            const svg = document.getElementById("qotSvg");
+            tooltip.style.display = "block";
+            tooltip.innerHTML = `<strong>${label}</strong><br>${fmt(val)} queries`;
+            
+            const container = svg.parentElement;
+            const containerRect = container.getBoundingClientRect();
+            
+            const mouseX = event.clientX - containerRect.left;
+            const mouseY = event.clientY - containerRect.top;
+            
+            tooltip.style.left = (mouseX + 15) + "px";
+            tooltip.style.top = (mouseY - 45) + "px";
+        }
+
+        function hideQotTooltip() {
+            document.getElementById("qotTooltip").style.display = "none";
+        }
+
         loadUsage().catch((err) => {
             console.error(err);
             document.getElementById("queryRows").innerHTML = row(["No data", "No data", "No data", "0", "0ms", "failed", "-"]);
             document.getElementById("downloadRows").innerHTML = row(["No data", "No data", "csv", "0", "0 B", "failed", "-"]);
-            document.getElementById("qotLegend").innerHTML = "<span>No data</span>";
-            document.getElementById("topLegend").innerHTML = "<span>No data</span>";
         });
 
         // Theme Toggle Functionality

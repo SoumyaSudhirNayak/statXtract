@@ -60,8 +60,25 @@ async def login_form(
 ):
     async with request.app.state.db.acquire() as conn:
         user = await get_user_by_email(conn, form_data.username)
+        
+        referer = request.headers.get("referer", "") or ""
+        is_admin_login = "/login" in referer and "/user/login" not in referer
+        if user and str(user.get("role_id")) == "1":
+            is_admin_login = True
+        error_redirect_base = "/login" if is_admin_login else "/user/login"
+
+
         if not user or not bcrypt.checkpw(form_data.password.encode(), user["hashed_password"].encode()):
-            return RedirectResponse("/login?error=invalid", status_code=HTTP_302_FOUND)
+            return RedirectResponse(f"{error_redirect_base}?error=invalid", status_code=HTTP_302_FOUND)
+
+        # Check if blocked
+        if user.get("is_blocked"):
+            return RedirectResponse(f"{error_redirect_base}?error=blocked", status_code=HTTP_302_FOUND)
+
+        # Check if verified (only for non-admin users)
+        role_id = str(user["role_id"])
+        if role_id != "1" and not user.get("is_verified"):
+            return RedirectResponse(f"{error_redirect_base}?error=unverified", status_code=HTTP_302_FOUND)
 
         token = create_access_token({
             "sub": user["email"],
@@ -69,9 +86,9 @@ async def login_form(
         })
 
         # 👇 Redirect based on role
-        role_id = str(user["role_id"])
         target = "/admin/dashboard" if role_id == "1" else "/user/dashboard"
 
         response = RedirectResponse(url=target, status_code=HTTP_302_FOUND)
         response.set_cookie("access_token", token, httponly=True)
         return response
+

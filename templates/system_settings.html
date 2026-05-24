@@ -105,16 +105,9 @@
     <div class="wrap">
         <div class="head">
             <h1><i class="fas fa-cogs"></i> System Settings</h1>
-            <p>Platform, privacy, API, storage, features, and global payment settings</p>
+            <p>Privacy, API, and plan governance settings</p>
         </div>
         <div class="grid">
-            <div class="card">
-                <div class="title"><i class="fas fa-sliders-h"></i> Platform Settings</div>
-                <div class="row">
-                    <div><label>Default Row Limit</label><input id="platform.default_row_limit" type="number"></div>
-                    <div><label>Default Query Limit</label><input id="platform.default_query_limit" type="number"></div>
-                </div>
-            </div>
             <div class="card">
                 <div class="title"><i class="fas fa-user-shield"></i> Privacy Settings</div>
                 <div class="row">
@@ -128,29 +121,6 @@
                     <div><label>Default Rate Limits</label><input id="api.default_rate_limit" type="number"></div>
                     <div><label>Timeout (seconds)</label><input id="api.timeout_seconds" type="number"></div>
                 </div>
-            </div>
-            <div class="card">
-                <div class="title"><i class="fas fa-hdd"></i> Storage Settings</div>
-                <div class="row">
-                    <div><label>Max Upload Size (MB)</label><input id="storage.max_upload_size_mb" type="number"></div>
-                    <div><label>Auto Delete Uploads</label><select id="storage.auto_delete_uploads"><option value="true">true</option><option value="false">false</option></select></div>
-                </div>
-            </div>
-            <div class="card">
-                <div class="title"><i class="fas fa-toggle-on"></i> Feature Toggles</div>
-                <div class="row">
-                    <div><label>Enable Charts</label><select id="features.enable_charts"><option value="true">true</option><option value="false">false</option></select></div>
-                    <div><label>Enable Downloads</label><select id="features.enable_downloads"><option value="true">true</option><option value="false">false</option></select></div>
-                </div>
-            </div>
-            <div class="card">
-                <div class="title"><i class="fas fa-credit-card"></i> Global Payment Settings</div>
-                <div class="row">
-                    <div><label>Enable Payments</label><select id="payments.enabled"><option value="true">true</option><option value="false">false</option></select></div>
-                    <div><label>Default Plan Limits</label><input id="payments.default_plan_limits" type="text"></div>
-                </div>
-                <div><label>Pricing Config (UI)</label><textarea id="payments.pricing_config"></textarea></div>
-                <div class="meta">Format sample: free=0,pro=99,enterprise=499</div>
             </div>
 
             <!-- ═══════════ PLAN GOVERNANCE ═══════════ -->
@@ -211,19 +181,10 @@
     </div>
     <script>
         const keys = [
-            "platform.default_row_limit",
-            "platform.default_query_limit",
             "privacy.min_rows_threshold",
             "privacy.enable_sensitive_columns",
             "api.default_rate_limit",
             "api.timeout_seconds",
-            "storage.max_upload_size_mb",
-            "storage.auto_delete_uploads",
-            "features.enable_charts",
-            "features.enable_downloads",
-            "payments.enabled",
-            "payments.default_plan_limits",
-            "payments.pricing_config",
             // Plan Governance keys
             "plans.free.max_queries_per_month",
             "plans.free.max_rows_per_month",

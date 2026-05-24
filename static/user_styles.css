@@ -55,6 +55,157 @@
   --radius-full:9999px;
 }
 
+:root[data-theme="dark"] {
+  /* Brand Colors override */
+  --navy:       #0B0F19;
+  --royal:      #3B82F6;
+  --green-light:rgba(46,125,50,0.18);
+
+  /* Neutrals overrides for dark theme */
+  --text-main:  #F3F4F6;
+  --text-muted: #9CA3AF;
+  --text-light: #6B7280;
+  --border:     #374151;
+  --border-soft:#1F2937;
+  --bg-page:    #0B0F19;
+  --bg-section: #111827;
+  --bg-white:   #1F2937;
+  --surface:    rgba(31,41,55,0.85);
+  --glass:      rgba(31,41,55,0.80);
+}
+
+/* Dark Theme Components override */
+:root[data-theme="dark"] .stat-card-big,
+:root[data-theme="dark"] .chart-card,
+:root[data-theme="dark"] .credit-card,
+:root[data-theme="dark"] .downloads-toolbar,
+:root[data-theme="dark"] .file-card,
+:root[data-theme="dark"] .filter-bar,
+:root[data-theme="dark"] .strip-card,
+:root[data-theme="dark"] .history-card,
+:root[data-theme="dark"] .plan-card-pro,
+:root[data-theme="dark"] .profile-identity-card,
+:root[data-theme="dark"] .quick-stats-card,
+:root[data-theme="dark"] .form-panel,
+:root[data-theme="dark"] .feedback-panel,
+:root[data-theme="dark"] .panel-card,
+:root[data-theme="dark"] .settings-nav,
+:root[data-theme="dark"] .usage-grid-card,
+:root[data-theme="dark"] .billing-toggle,
+:root[data-theme="dark"] .activity-card,
+:root[data-theme="dark"] .dl-card,
+:root[data-theme="dark"] .usage-card,
+:root[data-theme="dark"] .table-card,
+:root[data-theme="dark"] .plan-card,
+:root[data-theme="dark"] .faq-item {
+  background: var(--surface) !important;
+  border-color: var(--border) !important;
+  color: var(--text-main) !important;
+}
+
+/* Page-specific element dark overrides */
+:root[data-theme="dark"] .dl-btn {
+  background: var(--bg-section) !important;
+  color: var(--text-main) !important;
+  border-color: var(--border) !important;
+}
+:root[data-theme="dark"] .dl-btn:hover {
+  background: rgba(59, 130, 246, 0.15) !important;
+  color: var(--royal) !important;
+  border-color: var(--royal) !important;
+}
+:root[data-theme="dark"] .dl-btn.primary {
+  background: var(--green) !important;
+  color: #fff !important;
+  border-color: var(--green) !important;
+}
+:root[data-theme="dark"] .dl-btn.primary:hover {
+  background: var(--green-dark) !important;
+  border-color: var(--saffron) !important;
+}
+:root[data-theme="dark"] .dl-format-csv  { background: rgba(46,125,50,0.2) !important; color: var(--green) !important; }
+:root[data-theme="dark"] .dl-format-pdf  { background: rgba(211,47,47,0.2) !important; color: var(--danger) !important; }
+:root[data-theme="dark"] .dl-format-json { background: rgba(245,124,0,0.2) !important; color: var(--orange) !important; }
+
+:root[data-theme="dark"] table th,
+:root[data-theme="dark"] .table-card th {
+  background: var(--bg-section) !important;
+  color: var(--text-muted) !important;
+  border-bottom: 2px solid var(--border-soft) !important;
+}
+:root[data-theme="dark"] table td,
+:root[data-theme="dark"] .table-card td {
+  border-bottom: 1px solid var(--border-soft) !important;
+  color: var(--text-main) !important;
+}
+:root[data-theme="dark"] table tr:hover td,
+:root[data-theme="dark"] .table-card tr:hover td {
+  background: rgba(59, 130, 246, 0.08) !important;
+}
+:root[data-theme="dark"] .status-badge.success {
+  background: rgba(46,125,50,0.2) !important;
+  color: var(--green) !important;
+}
+:root[data-theme="dark"] .status-badge.warning {
+  background: rgba(245,124,0,0.2) !important;
+  color: var(--orange) !important;
+}
+
+:root[data-theme="dark"] .current-plan-banner {
+  background: linear-gradient(135deg, rgba(46,125,50,0.18), rgba(244,163,0,0.12)) !important;
+  border-color: rgba(46,125,50,0.35) !important;
+}
+:root[data-theme="dark"] .current-plan-banner circle:first-child {
+  stroke: var(--border-soft) !important;
+}
+:root[data-theme="dark"] .feat-check.on {
+  background: rgba(46,125,50,0.25) !important;
+  color: var(--green) !important;
+}
+:root[data-theme="dark"] .feat-check.off {
+  background: var(--bg-section) !important;
+  color: var(--text-muted) !important;
+}
+:root[data-theme="dark"] .save-badge {
+  background: rgba(46,125,50,0.25) !important;
+  color: var(--green) !important;
+}
+
+:root[data-theme="dark"] .field-input,
+:root[data-theme="dark"] .field-select,
+:root[data-theme="dark"] .field-textarea,
+:root[data-theme="dark"] .filter-input,
+:root[data-theme="dark"] .filter-select,
+:root[data-theme="dark"] .action-btn,
+:root[data-theme="dark"] .page-btn,
+:root[data-theme="dark"] .density-btn,
+:root[data-theme="dark"] .s-nav-btn {
+  background: var(--bg-section) !important;
+  color: var(--text-main) !important;
+  border-color: var(--border) !important;
+}
+
+:root[data-theme="dark"] .toast,
+:root[data-theme="dark"] .modal-card {
+  background: var(--bg-white) !important;
+  color: var(--text-main) !important;
+}
+
+:root[data-theme="dark"] .toggle-row:hover,
+:root[data-theme="dark"] .session-row:hover,
+:root[data-theme="dark"] .s-nav-btn:hover {
+  background: rgba(59, 130, 246, 0.08) !important;
+}
+
+:root[data-theme="dark"] .s-nav-btn.active {
+  background: rgba(59, 130, 246, 0.15) !important;
+}
+
+:root[data-theme="dark"] .danger-zone {
+  background: rgba(211, 47, 47, 0.1) !important;
+  border-color: rgba(211, 47, 47, 0.3) !important;
+}
+
 /* ── BASE RESET ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -349,12 +500,15 @@ a  { text-decoration: none; color: inherit; }
   transition: width 0.3s cubic-bezier(0.4,0,0.2,1);
   position: relative;
   flex-shrink: 0;
-  overflow: visible;
+  overflow: hidden; /* Avoid layout overflow and scrollbars on sidebar itself */
   z-index: 100;
+  display: flex;
+  flex-direction: column;
+  height: 100%; /* Take full height of main-area */
 }
 .sidebar.expanded  { width: 280px; }
 .sidebar.collapsed { width: 88px; }
-.sidebar-nav { padding: 16px; display: flex; flex-direction: column; gap: 6px; margin-top: 48px; }
+.sidebar-nav { padding: 16px; display: flex; flex-direction: column; gap: 6px; margin-top: 56px; overflow-y: auto; flex: 1; max-height: calc(100vh - 72px - 24px); }
 .nav-item {
   display: flex;
   align-items: center;
@@ -393,24 +547,34 @@ a  { text-decoration: none; color: inherit; }
 
 .sidebar-toggle {
   position: absolute;
-  top: 18px;
-  right: -14px;
+  top: 12px;
+  right: 16px;
   z-index: 10;
-  width: 28px; height: 28px;
+  width: 40px; height: 40px;
   border-radius: 50%;
   background: var(--royal);
   color: #fff;
   border: 2px solid var(--royal);
   cursor: pointer;
   display: flex; align-items: center; justify-content: center;
-  font-size: 14px;
+  font-size: 18px;
   transition: var(--transition);
   box-shadow: var(--shadow-md);
+}
+.sidebar.collapsed .sidebar-toggle {
+  right: 24px; /* Perfectly center inside collapsed width of 88px */
 }
 .sidebar-toggle:hover {
   border-color: var(--saffron);
   box-shadow: 0 0 12px rgba(244,163,0,0.5);
 }
+.sidebar-toggle svg {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.sidebar.collapsed .sidebar-toggle svg {
+  transform: rotate(180deg);
+}
+
 
 /* ── TOAST NOTIFICATIONS ── */
 .toast-container {
@@ -611,4 +775,247 @@ a  { text-decoration: none; color: inherit; }
 @media (max-width: 600px) {
   .site-header { padding: 0 16px; }
   .btn-lg { padding: 13px 22px; font-size: 15px; }
+}
+
+/* Sidebar preload collapsed state */
+html.sidebar-collapsed-preload .sidebar {
+  width: 88px !important;
+  transition: none !important;
+}
+html.sidebar-collapsed-preload .sidebar .nav-label {
+  display: none !important;
+  transition: none !important;
+}
+html.sidebar-collapsed-preload .sidebar .nav-item {
+  justify-content: center !important;
+  padding: 14px !important;
+  transition: none !important;
+}
+html.sidebar-collapsed-preload .sidebar-toggle svg {
+  transform: rotate(180deg) !important;
+  transition: none !important;
+}
+
+/* ── COLOR SCHEME AND SCROLLBARS FOR DARK THEME ── */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+:root[data-theme="dark"] ::-webkit-scrollbar-track {
+  background: var(--bg-page) !important;
+}
+:root[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: var(--border) !important;
+  border-radius: 10px !important;
+}
+:root[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted) !important;
+}
+
+/* Force Light text for dark theme elements */
+:root[data-theme="dark"] body,
+:root[data-theme="dark"] .content,
+:root[data-theme="dark"] .card,
+:root[data-theme="dark"] .panel-card,
+:root[data-theme="dark"] .stat-card-big,
+:root[data-theme="dark"] .chart-card,
+:root[data-theme="dark"] .credit-card,
+:root[data-theme="dark"] .file-card,
+:root[data-theme="dark"] .history-card,
+:root[data-theme="dark"] .form-panel,
+:root[data-theme="dark"] .strip-card,
+:root[data-theme="dark"] .data-table td,
+:root[data-theme="dark"] .data-table th,
+:root[data-theme="dark"] .qs-key,
+:root[data-theme="dark"] .qs-val,
+:root[data-theme="dark"] .usage-title,
+:root[data-theme="dark"] .field-label,
+:root[data-theme="dark"] .setting-title,
+:root[data-theme="dark"] .setting-sub,
+:root[data-theme="dark"] .page-title,
+:root[data-theme="dark"] .section-title-h,
+:root[data-theme="dark"] .filter-label,
+:root[data-theme="dark"] .activity-card,
+:root[data-theme="dark"] .dl-card,
+:root[data-theme="dark"] .usage-card,
+:root[data-theme="dark"] .table-card,
+:root[data-theme="dark"] .plan-card,
+:root[data-theme="dark"] .faq-item,
+:root[data-theme="dark"] [style*="color:var(--navy)"],
+:root[data-theme="dark"] [style*="color: var(--navy)"] {
+  color: var(--text-main) !important;
+}
+
+:root[data-theme="dark"] .text-muted,
+:root[data-theme="dark"] .strip-lbl,
+:root[data-theme="dark"] .qs-key,
+:root[data-theme="dark"] [style*="color:var(--text-muted)"],
+:root[data-theme="dark"] [style*="color: var(--text-muted)"] {
+  color: var(--text-muted) !important;
+}
+
+/* ── DASHBOARD DENSITY: COMPACT MODE ── */
+[data-density="compact"] .content {
+  padding: 16px 24px !important;
+}
+[data-density="compact"] .page-header {
+  margin-bottom: 16px !important;
+}
+[data-density="compact"] .section-title-h,
+[data-density="compact"] .page-title {
+  font-size: 24px !important;
+}
+[data-density="compact"] .stats-grid,
+[data-density="compact"] .charts-grid {
+  gap: 12px !important;
+  margin-bottom: 16px !important;
+}
+[data-density="compact"] .credit-grid {
+  gap: 10px !important;
+  margin-bottom: 16px !important;
+}
+[data-density="compact"] .stat-card-big {
+  padding: 16px 20px !important;
+  min-height: 120px !important;
+}
+[data-density="compact"] .sc-icon-row {
+  margin-bottom: 8px !important;
+}
+[data-density="compact"] .sc-icon {
+  width: 40px !important;
+  height: 40px !important;
+  font-size: 18px !important;
+}
+[data-density="compact"] .sc-num {
+  font-size: 32px !important;
+  margin-bottom: 2px !important;
+}
+[data-density="compact"] .sc-label {
+  font-size: 11px !important;
+}
+[data-density="compact"] .chart-card {
+  padding: 16px 20px !important;
+}
+[data-density="compact"] .chart-header {
+  margin-bottom: 12px !important;
+}
+[data-density="compact"] .chart-title {
+  font-size: 15px !important;
+}
+[data-density="compact"] canvas {
+  max-height: 200px !important;
+}
+[data-density="compact"] .credit-card {
+  padding: 12px 16px !important;
+}
+[data-density="compact"] .credit-label {
+  font-size: 11px !important;
+  margin-bottom: 6px !important;
+}
+[data-density="compact"] .credit-bar-bg {
+  height: 8px !important;
+  margin-bottom: 4px !important;
+}
+[data-density="compact"] .data-table th {
+  padding: 8px 12px !important;
+  font-size: 11px !important;
+}
+[data-density="compact"] .data-table td {
+  padding: 8px 12px !important;
+  font-size: 13px !important;
+}
+[data-density="compact"] .panel-card {
+  padding: 18px 24px !important;
+}
+[data-density="compact"] .pc-header {
+  margin-bottom: 16px !important;
+  padding-bottom: 12px !important;
+}
+[data-density="compact"] .pc-title {
+  font-size: 17px !important;
+}
+[data-density="compact"] .settings-layout {
+  gap: 20px !important;
+}
+[data-density="compact"] .settings-nav {
+  padding: 12px 8px !important;
+}
+[data-density="compact"] .s-nav-btn {
+  padding: 10px 12px !important;
+  font-size: 13px !important;
+}
+[data-density="compact"] .toggle-row {
+  padding: 12px 16px !important;
+  margin-bottom: 10px !important;
+}
+[data-density="compact"] .setting-title {
+  font-size: 14px !important;
+}
+[data-density="compact"] .setting-sub {
+  font-size: 12px !important;
+}
+[data-density="compact"] .field-wrap {
+  margin-bottom: 12px !important;
+}
+[data-density="compact"] .field-label {
+  margin-bottom: 4px !important;
+}
+[data-density="compact"] .field-input,
+[data-density="compact"] .field-select,
+[data-density="compact"] .field-textarea {
+  padding: 10px 12px !important;
+  font-size: 13px !important;
+}
+[data-density="compact"] .divider {
+  margin: 12px 0 !important;
+}
+[data-density="compact"] .strip-card {
+  padding: 12px 14px !important;
+}
+[data-density="compact"] .strip-num {
+  font-size: 20px !important;
+}
+[data-density="compact"] .strip-lbl {
+  font-size: 11px !important;
+}
+[data-density="compact"] .filter-bar {
+  padding: 12px 16px !important;
+  margin-bottom: 16px !important;
+  gap: 12px !important;
+}
+[data-density="compact"] .filter-input,
+[data-density="compact"] .filter-select {
+  padding: 8px 12px !important;
+  font-size: 13px !important;
+}
+[data-density="compact"] .history-card {
+  border-radius: 12px !important;
+}
+[data-density="compact"] .hc-header {
+  padding: 14px 20px !important;
+}
+[data-density="compact"] .hc-title {
+  font-size: 16px !important;
+}
+[data-density="compact"] .identity-body {
+  padding: 12px 18px 18px !important;
+}
+[data-density="compact"] .profile-identity-card {
+  border-radius: 12px !important;
+}
+[data-density="compact"] .profile-banner {
+  height: 80px !important;
+}
+[data-density="compact"] .avatar-wrap {
+  margin-top: -35px !important;
+}
+[data-density="compact"] .avatar-xl {
+  width: 70px !important;
+  height: 70px !important;
+  font-size: 28px !important;
+}
+[data-density="compact"] .quick-stats-card {
+  padding: 16px 18px !important;
+}
+[data-density="compact"] .qs-row {
+  padding: 6px 0 !important;
 }

@@ -8,7 +8,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/user_styles.css">
   <style>
-    body { background: linear-gradient(135deg, #F5F7FA, #EEF3FB, #E9EEF7); min-height: 100vh; overflow: hidden; }
+    body { background: var(--bg-page); min-height: 100vh; overflow: hidden; }
     .app-shell { display: flex; flex-direction: column; height: 100vh; }
     .main-area  { display: flex; flex: 1; overflow: hidden; }
     .content    { flex: 1; overflow-y: auto; padding: 40px 48px; }
@@ -157,6 +157,20 @@
     @keyframes slideIn  { from { transform: translateX(120px); opacity: 0; } to { transform: none; opacity: 1; } }
     @keyframes slideOut { from { transform: none; opacity: 1; } to { transform: translateX(120px); opacity: 0; } }
   </style>
+  <script>
+    (function() {
+      const theme = localStorage.getItem('userTheme') || 'light';
+      document.documentElement.setAttribute('data-theme', theme);
+      const density = localStorage.getItem('userDensity') || 'comfortable';
+      document.documentElement.setAttribute('data-density', density);
+      const accent = localStorage.getItem('userAccentColor') || '#2E7D32';
+      document.documentElement.style.setProperty('--green', accent);
+      const savedState = localStorage.getItem('sidebarState') || 'expanded';
+      if (savedState === 'collapsed') {
+        document.documentElement.classList.add('sidebar-collapsed-preload');
+      }
+    })();
+  </script>
 </head>
 <body>
   <div class="animated-bg"></div>
@@ -166,9 +180,12 @@
     <header class="site-header">
       <a href="/user/dashboard" class="site-logo">STATXTRACT</a>
       <div class="header-right">
-        <button class="profile-btn" onclick="window.location.href='/user/profile'">
+        <button class="profile-btn" onclick="window.location.href='/user/profile'" id="profileBtn" style="padding: 6px 14px; text-align: left;">
           <div class="avatar" id="avatarInitial">U</div>
-          <span id="headerUsername">{{ username | default('My Profile') }}</span>
+          <div style="display: flex; flex-direction: column; line-height: 1.1;">
+            <span id="headerUsername" style="font-weight: 700; font-size: 13px;">{{ username | default('My Profile') }}</span>
+            <span id="headerEmail" style="font-size: 10px; opacity: 0.85; font-weight: 500;">{{ email | default('') }}</span>
+          </div>
         </button>
       </div>
     </header>
@@ -186,7 +203,11 @@
           <a href="/user/downloads" class="nav-item"><div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div><span class="nav-label">My Downloads</span></a>
           <a href="/user/usage" class="nav-item"><div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V10M18 20V4M6 20v-4"/></svg></div><span class="nav-label">Usage &amp; Limits</span></a>
           <a href="/user/plans" class="nav-item"><div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></div><span class="nav-label">Plans &amp; Pricing</span></a>
-          <a href="/user/settings" class="nav-item"><div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div><span class="nav-label">Settings</span></a>
+                    <a href="/user/feedback" class="nav-item">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></div>
+            <span class="nav-label">Feedback &amp; Requests</span>
+          </a>
+<a href="/user/settings" class="nav-item"><div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div><span class="nav-label">Settings</span></a>
           <a href="/user/profile" class="nav-item" style="margin-top:auto;"><div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div><span class="nav-label">My Profile</span></a>
         </nav>
       </aside>
@@ -289,13 +310,42 @@
   <script>
     document.getElementById('sidebarToggle').addEventListener('click', () => {
       const sb = document.getElementById('sidebar');
-      sb.classList.toggle('collapsed');
-      sb.classList.toggle('expanded');
+      const isCollapsed = sb.classList.contains('collapsed');
+      if (isCollapsed) {
+        sb.classList.remove('collapsed');
+        sb.classList.add('expanded');
+        localStorage.setItem('sidebarState', 'expanded');
+      } else {
+        sb.classList.remove('expanded');
+        sb.classList.add('collapsed');
+        localStorage.setItem('sidebarState', 'collapsed');
+      }
     });
 
-    const username = '{{ username | default("") }}' || sessionStorage.getItem('userEmail') || 'User';
+    (function() {
+      const savedState = localStorage.getItem('sidebarState') || 'expanded';
+      const sb = document.getElementById('sidebar');
+      if (sb) {
+        if (savedState === 'collapsed') {
+          sb.classList.remove('expanded');
+          sb.classList.add('collapsed');
+        } else {
+          sb.classList.remove('collapsed');
+          sb.classList.add('expanded');
+        }
+      }
+      document.documentElement.classList.remove('sidebar-collapsed-preload');
+    })();
+
+    const username = '{{ username | default("") }}' || 'User';
+    const email = '{{ email | default("") }}' || '';
     const displayName = username.includes('@') ? username.split('@')[0] : username;
-    document.getElementById('headerUsername').textContent = displayName.charAt(0).toUpperCase() + displayName.slice(1);
+    const initial = displayName.charAt(0).toUpperCase();
+    if (document.getElementById('avatarInitial')) document.getElementById('avatarInitial').textContent = initial;
+    if (document.getElementById('avatarBig')) document.getElementById('avatarBig').textContent = initial;
+    if (document.getElementById('headerUsername')) document.getElementById('headerUsername').textContent = displayName;
+    if (document.getElementById('headerEmail')) document.getElementById('headerEmail').textContent = email;
+    if (document.getElementById('usernameDisplay')) document.getElementById('usernameDisplay').textContent = displayName;
     document.getElementById('avatarInitial').textContent = displayName.charAt(0).toUpperCase();
 
     let currentPage = 1;

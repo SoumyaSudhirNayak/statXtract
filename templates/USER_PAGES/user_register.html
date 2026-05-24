@@ -662,6 +662,7 @@
       fd.append('password', password);
       fd.append('role', 'user');
       fd.append('org_type', selectedOrgType || '');
+      fd.append('phone', document.getElementById('phone')?.value.trim() || '');
 
       // Collect org-specific details and the file input
       let orgDetails = {};
@@ -737,7 +738,7 @@
         // Fallback: plain HTML form submit (no file)
         const f = document.createElement('form');
         f.method = 'POST'; f.action = '/register'; f.enctype = 'multipart/form-data';
-        [['username',username],['email',email],['password',password],['role','user'],['org_type',selectedOrgType||'']].forEach(([n,v]) => {
+        [['username',username],['email',email],['password',password],['role','user'],['org_type',selectedOrgType||''],['phone',document.getElementById('phone')?.value.trim() || '']].forEach(([n,v]) => {
           const i = document.createElement('input'); i.type='hidden'; i.name=n; i.value=v; f.appendChild(i);
         });
         document.body.appendChild(f); f.submit();

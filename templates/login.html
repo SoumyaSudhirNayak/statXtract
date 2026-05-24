@@ -596,12 +596,26 @@
             });
         });
 
-        // Add welcome animation
+        // Add welcome animation and query params checks
         window.addEventListener('load', function() {
             const welcomeMessage = document.querySelector('.welcome-message');
             setTimeout(() => {
-                welcomeMessage.style.animation = 'slideDown 0.5s ease-out';
+                if (welcomeMessage) welcomeMessage.style.animation = 'slideDown 0.5s ease-out';
             }, 500);
+
+            const urlParams = new URLSearchParams(window.location.search);
+            const error = urlParams.get('error');
+            const success = urlParams.get('success');
+            if (error) {
+                if (error === 'invalid') {
+                    showToast('Invalid credentials.', 'error');
+                } else {
+                    showToast(decodeURIComponent(error), 'error');
+                }
+            }
+            if (success) {
+                showToast(decodeURIComponent(success), 'success');
+            }
         });
     </script>
 </body>

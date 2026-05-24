@@ -501,7 +501,7 @@
                 <div class="title"><i class="fas fa-inbox"></i> Dataset Requests</div>
                 <div class="table-container">
                     <table>
-                        <thead><tr><th>User</th><th>Requested Dataset</th><th>Status</th><th>Requested At</th><th>Action</th></tr></thead>
+                        <thead><tr><th>Username</th><th>Requested Dataset</th><th>Survey</th><th>Status</th><th>Requested At</th><th>Actions</th></tr></thead>
                         <tbody id="requestsRows"></tbody>
                     </table>
                 </div>
@@ -510,7 +510,7 @@
                 <div class="title"><i class="fas fa-comment-dots"></i> User Feedback</div>
                 <div class="table-container">
                     <table>
-                        <thead><tr><th>User</th><th>Feedback Text</th><th>Category</th><th>Timestamp</th><th>Status</th><th>Actions</th></tr></thead>
+                        <thead><tr><th>Username</th><th>Category</th><th>Short Preview</th><th>Timestamp</th><th>Status</th><th>Actions</th></tr></thead>
                         <tbody id="feedbackRows"></tbody>
                     </table>
                 </div>
@@ -634,7 +634,7 @@
                             <div class="user-name">${esc(u.username || 'Analyst')}</div>
                             <div class="user-email">${esc(u.email)}</div>
                             <div class="user-badges">
-                                <span class="badge-role" style="${roleBadgeColor}">${esc(u.role)}</span>
+                                <span class="badge-role" style="${roleBadgeColor}">${esc(u.role_display || u.role)}</span>
                                 <span class="badge-plan" style="${planBadgeColor}">${esc(u.plan)}</span>
                                 <span class="pill ${isBlocked ? 'blocked' : 'active'}">${esc(u.status || 'active')}</span>
                             </div>
@@ -744,7 +744,7 @@
                         <div class="v-meta-grid">
                             <div class="v-meta-item">
                                 <span class="v-meta-label">Selected Role</span>
-                                <span class="v-meta-val">${esc(d.role || 'user')}</span>
+                                <span class="v-meta-val">${esc(d.org_type || d.role || 'user')}</span>
                             </div>
                             <div class="v-meta-item">
                                 <span class="v-meta-label">Uploaded At</span>
@@ -822,35 +822,51 @@
                 `;
             }).join("") || `<div style="text-align:center;color:var(--text-muted);padding:24px;">No pending verification requests.</div>`;
 
-            const reqs = reqRes.dataset_requests || [];
-            document.getElementById("requestsRows").innerHTML = reqs.slice(0, 40).map(r => row([
-                esc(r.user_email), esc(r.requested_dataset || "-"), esc(r.status || "pending"), dt(r.created_at),
-                `<div style="display:flex; gap:4px;">
-                    <button class="btn" style="background:#22c55e;" onclick="requestAction(${r.id}, 'approved', 'dataset_request')">Approve</button>
-                    <button class="btn" style="background:#3b82f6;" onclick="requestAction(${r.id}, 'reviewing', 'dataset_request')">Reviewing</button>
-                    <button class="btn red" onclick="requestAction(${r.id}, 'rejected', 'dataset_request')">Reject</button>
-                </div>`
-            ])).join("") || row(["-", "-", "-", "-", "-"]);
+            const reqs = (reqRes.dataset_requests || []).filter(r => r.status !== 'approved');
+            document.getElementById("requestsRows").innerHTML = reqs.slice(0, 40).map(r => {
+                const userDisplay = `<span title="${esc(r.user_email)}">${esc(r.username)}</span>`;
+                const statusClass = r.status === 'approved' ? 'active' : r.status === 'rejected' ? 'blocked' : 'respond_later';
+                return row([
+                    userDisplay,
+                    esc(r.requested_dataset || "-"),
+                    esc(r.survey_name || "-"),
+                    `<span class="pill ${statusClass}">${esc(r.status || 'pending')}</span>`,
+                    dt(r.created_at),
+                    `<div style="display:flex; gap:4px;">
+                        <button class="btn" style="background:#22c55e;" onclick="requestAction(${r.id}, 'approved', 'dataset_request')">Approve</button>
+                        <button class="btn" style="background:#3b82f6;" onclick="requestAction(${r.id}, 'reviewing', 'dataset_request')">Reviewing</button>
+                        <button class="btn red" onclick="requestAction(${r.id}, 'rejected', 'dataset_request')">Reject</button>
+                    </div>`
+                ]);
+            }).join("") || `<tr><td colspan="6" style="text-align:center;color:var(--text-muted);">No dataset requests.</td></tr>`;
 
-            const fb = reqRes.feedback || [];
+            const fb = (reqRes.feedback || []).filter(f => f.status !== 'resolved' && f.status !== 'read' && f.status !== 'archived');
             document.getElementById("feedbackRows").innerHTML = fb.slice(0, 40).map(f => {
-                const statusBadge = f.status === 'resolved' ? '<span class="pill active">resolved</span>' :
+                const statusBadge = f.status === 'resolved' || f.status === 'read' ? '<span class="pill active">read</span>' :
                                     f.status === 'archived' ? '<span class="pill" style="background:#f1f5f9; color:#64748b; border-color:#e2e8f0;">archived</span>' :
                                     f.status === 'respond_later' ? '<span class="pill" style="background:#fff7ed; color:#ea580c; border-color:#ffedd5;">respond_later</span>' :
                                     `<span class="pill">${esc(f.status || 'pending')}</span>`;
+                const userDisplay = `<span title="${esc(f.user_email)}">${esc(f.username)}</span>`;
+                const shortPreview = f.message ? (f.message.length > 40 ? f.message.substring(0, 40) + "..." : f.message) : "-";
+                
+                // Escape feedback variables to pass safely to onclick
+                const escMsg = esc(f.message);
+                const escTitle = esc(f.title);
+                const escCat = esc(f.category);
+                
                 return row([
-                    esc(f.user_email),
-                    esc(f.message || "-"),
-                    esc(f.requested_dataset || "General"),
+                    userDisplay,
+                    escCat,
+                    esc(shortPreview),
                     dt(f.created_at),
                     statusBadge,
                     `<div style="display:flex; gap:4px;">
-                        <button class="btn" style="background:#22c55e;" onclick="requestAction(${f.id}, 'resolved', 'feedback')">Resolve</button>
-                        <button class="btn" style="background:#ea580c;" onclick="requestAction(${f.id}, 'respond_later', 'feedback')">Later</button>
+                        <button class="btn" style="background:#3b82f6;" onclick="viewFeedback(${f.id}, '${esc(f.username)}', '${esc(f.user_email)}', '${esc(f.org_type)}', '${esc(f.current_plan)}', '${escCat}', '${escTitle}', \`${escMsg}\`, '${esc(f.status)}', '${dt(f.created_at)}')">View</button>
+                        <button class="btn" style="background:#22c55e;" onclick="requestAction(${f.id}, 'resolved', 'feedback')">Mark Read</button>
                         <button class="btn red" onclick="requestAction(${f.id}, 'archived', 'feedback')">Archive</button>
                     </div>`
                 ]);
-            }).join("") || row(["-", "-", "-", "-", "-", "-"]);
+            }).join("") || `<tr><td colspan="6" style="text-align:center;color:var(--text-muted);">No feedback items.</td></tr>`;
 
             allSuspicious = reqRes.suspicious_activity || [];
             renderSuspiciousTable();
@@ -1196,6 +1212,35 @@
             }
         }
 
+        function viewFeedback(id, username, email, orgType, plan, category, title, message, status, time) {
+            document.getElementById("fbModalUser").textContent = `${username} (${email}) — Plan: ${plan}`;
+            document.getElementById("fbModalOrg").textContent = `Org Type: ${orgType}`;
+            document.getElementById("fbModalCategory").textContent = category;
+            document.getElementById("fbModalTitle").textContent = title || "N/A";
+            document.getElementById("fbModalText").textContent = message;
+            document.getElementById("fbModalTime").textContent = time;
+            
+            const statusPill = document.getElementById("fbModalStatus");
+            statusPill.textContent = status || "pending";
+            statusPill.className = `pill ${status === 'resolved' || status === 'read' ? 'active' : status === 'archived' ? 'blocked' : 'respond_later'}`;
+            
+            document.getElementById("fbModalReadBtn").onclick = async () => {
+                await requestAction(id, 'resolved', 'feedback');
+                closeFeedbackModal();
+            };
+            document.getElementById("fbModalArchiveBtn").onclick = async () => {
+                await requestAction(id, 'archived', 'feedback');
+                closeFeedbackModal();
+            };
+            
+            const modal = document.getElementById("feedbackModal");
+            modal.style.display = "flex";
+        }
+
+        function closeFeedbackModal() {
+            document.getElementById("feedbackModal").style.display = "none";
+        }
+
         // Initialize Theme
         (function initTheme() {
             const savedTheme = localStorage.getItem('theme') || 'light';
@@ -1203,5 +1248,53 @@
             updateThemeUI(savedTheme);
         })();
     </script>
+
+    <!-- Feedback Detail Modal -->
+    <div id="feedbackModal" class="modal" style="display:none; position:fixed; z-index:10000; left:0; top:0; width:100%; height:100%; overflow:auto; background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px); align-items:center; justify-content:center;">
+        <div class="card" style="width: 90%; max-width: 600px; padding: 28px; background: var(--glass-bg); border: 1px solid var(--glass-border); border-radius: var(--radius); box-shadow: var(--shadow-heavy); position: relative; margin: auto;">
+            <button onclick="closeFeedbackModal()" style="position:absolute; top:16px; right:16px; background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:1.2rem;"><i class="fas fa-times"></i></button>
+            <div class="title" style="font-size:1.3rem; color:var(--primary); margin-bottom:18px;"><i class="fas fa-comment-dots"></i> Feedback Detail</div>
+            
+            <div style="display:grid; grid-template-columns:1fr; gap:16px; margin-bottom:20px;">
+                <div style="background:var(--bg-page); padding:14px; border-radius:10px; border:1px solid var(--glass-border);">
+                    <div style="font-size:0.75rem; text-transform:uppercase; color:var(--text-muted); font-weight:700; margin-bottom:4px;">User Details</div>
+                    <div style="font-size:0.9rem; font-weight:600; color:var(--text-main);" id="fbModalUser">Loading...</div>
+                    <div style="font-size:0.8rem; color:var(--text-muted);" id="fbModalOrg">Loading...</div>
+                </div>
+                
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                    <div style="background:var(--bg-page); padding:14px; border-radius:10px; border:1px solid var(--glass-border);">
+                        <div style="font-size:0.75rem; text-transform:uppercase; color:var(--text-muted); font-weight:700; margin-bottom:4px;">Category</div>
+                        <div style="font-size:0.9rem; font-weight:600; color:var(--text-main);" id="fbModalCategory">Loading...</div>
+                    </div>
+                    <div style="background:var(--bg-page); padding:14px; border-radius:10px; border:1px solid var(--glass-border);">
+                        <div style="font-size:0.75rem; text-transform:uppercase; color:var(--text-muted); font-weight:700; margin-bottom:4px;">Status</div>
+                        <div style="font-size:0.9rem; font-weight:600;" id="fbModalStatus">Loading...</div>
+                    </div>
+                </div>
+                
+                <div style="background:var(--bg-page); padding:14px; border-radius:10px; border:1px solid var(--glass-border);">
+                    <div style="font-size:0.75rem; text-transform:uppercase; color:var(--text-muted); font-weight:700; margin-bottom:4px;">Title</div>
+                    <div style="font-size:0.9rem; font-weight:600; color:var(--text-main);" id="fbModalTitle">Loading...</div>
+                </div>
+                
+                <div style="background:var(--bg-page); padding:16px; border-radius:10px; border:1px solid var(--glass-border); min-height:120px;">
+                    <div style="font-size:0.75rem; text-transform:uppercase; color:var(--text-muted); font-weight:700; margin-bottom:6px;">Feedback Text</div>
+                    <div style="font-size:0.88rem; line-height:1.5; color:var(--text-main); white-space:pre-wrap;" id="fbModalText">Loading...</div>
+                </div>
+                
+                <div style="background:var(--bg-page); padding:14px; border-radius:10px; border:1px solid var(--glass-border);">
+                    <div style="font-size:0.75rem; text-transform:uppercase; color:var(--text-muted); font-weight:700; margin-bottom:4px;">Submitted At</div>
+                    <div style="font-size:0.88rem; color:var(--text-main);" id="fbModalTime">Loading...</div>
+                </div>
+            </div>
+            
+            <div style="display:flex; justify-content:flex-end; gap:8px; border-top:1px solid var(--glass-border); padding-top:16px;">
+                <button class="btn" style="background:#22c55e;" id="fbModalReadBtn">Mark Read</button>
+                <button class="btn red" id="fbModalArchiveBtn">Archive</button>
+                <button class="btn" style="background:var(--secondary);" onclick="closeFeedbackModal()">Close</button>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
