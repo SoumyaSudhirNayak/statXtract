@@ -645,8 +645,8 @@
                     if (nadaJobPoller) {
                         clearInterval(nadaJobPoller);
                         nadaJobPoller = null;
+                        showToast(`Job ${status}`, status === 'COMPLETED' ? 'success' : 'error');
                     }
-                    showToast(`Job ${status}`, status === 'COMPLETED' ? 'success' : 'error');
                 }
             } catch (e) {
                 console.error(e);

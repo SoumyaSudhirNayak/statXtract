@@ -1356,49 +1356,58 @@
                 try {
                     const res = await fetch(`/upload/status/${jobId}`);
                     if (!res.ok) {
-                        clearInterval(pollInterval);
-                        statusMessage.textContent = `Status check failed (HTTP ${res.status}).`;
-                        showToast('Status check failed', 'error');
-                        submitBtn.disabled = false;
-                        submitBtn.innerHTML = '<i class="fas fa-cloud-upload-alt"></i> Upload & Process';
-                        if (uploadUiTimer) {
-                            clearInterval(uploadUiTimer);
-                            uploadUiTimer = null;
+                        if (pollInterval) {
+                            clearInterval(pollInterval);
+                            pollInterval = null;
+                            statusMessage.textContent = `Status check failed (HTTP ${res.status}).`;
+                            showToast('Status check failed', 'error');
+                            submitBtn.disabled = false;
+                            submitBtn.innerHTML = '<i class="fas fa-cloud-upload-alt"></i> Upload & Process';
+                            if (uploadUiTimer) {
+                                clearInterval(uploadUiTimer);
+                                uploadUiTimer = null;
+                            }
                         }
                         return;
                     }
                     const data = await res.json();
 
                     if (data.status === 'completed') {
-                        clearInterval(pollInterval);
-                        statusMessage.textContent = data.message || 'Completed.';
-                        progressFill.style.width = '100%';
-                        progressPercent.textContent = '100%';
-                        const onlyDuplicates = Array.isArray(data.processed_files) && data.processed_files.length > 0 && data.processed_files.every(f => f.status === 'duplicate');
-                        if (onlyDuplicates) {
-                            showToast('All files were duplicates and skipped', 'warning');
-                        } else {
-                            showToast('Dataset uploaded and processed!', 'success');
-                        }
+                        if (pollInterval) {
+                            clearInterval(pollInterval);
+                            pollInterval = null;
+                            statusMessage.textContent = data.message || 'Completed.';
+                            progressFill.style.width = '100%';
+                            progressPercent.textContent = '100%';
+                            const onlyDuplicates = Array.isArray(data.processed_files) && data.processed_files.length > 0 && data.processed_files.every(f => f.status === 'duplicate');
+                            if (onlyDuplicates) {
+                                showToast('All files were duplicates and skipped', 'warning');
+                            } else {
+                                showToast('Dataset uploaded and processed!', 'success');
+                            }
 
-                        renderProcessedFiles(data.processed_files);
-                        submitBtn.disabled = false;
-                        submitBtn.innerHTML = '<i class="fas fa-cloud-upload-alt"></i> Upload & Process';
-                        if (uploadUiTimer) {
-                            clearInterval(uploadUiTimer);
-                            uploadUiTimer = null;
+                            renderProcessedFiles(data.processed_files);
+                            submitBtn.disabled = false;
+                            submitBtn.innerHTML = '<i class="fas fa-cloud-upload-alt"></i> Upload & Process';
+                            if (uploadUiTimer) {
+                                clearInterval(uploadUiTimer);
+                                uploadUiTimer = null;
+                            }
                         }
                     } else if (data.status === 'failed') {
-                        clearInterval(pollInterval);
-                        statusMessage.textContent = 'Processing failed: ' + (data.error || 'Unknown error');
-                        showToast('Processing failed', 'error');
+                        if (pollInterval) {
+                            clearInterval(pollInterval);
+                            pollInterval = null;
+                            statusMessage.textContent = 'Processing failed: ' + (data.error || 'Unknown error');
+                            showToast('Processing failed', 'error');
 
-                        renderProcessedFiles(data.processed_files);
-                        submitBtn.disabled = false;
-                        submitBtn.innerHTML = '<i class="fas fa-cloud-upload-alt"></i> Upload & Process';
-                        if (uploadUiTimer) {
-                            clearInterval(uploadUiTimer);
-                            uploadUiTimer = null;
+                            renderProcessedFiles(data.processed_files);
+                            submitBtn.disabled = false;
+                            submitBtn.innerHTML = '<i class="fas fa-cloud-upload-alt"></i> Upload & Process';
+                            if (uploadUiTimer) {
+                                clearInterval(uploadUiTimer);
+                                uploadUiTimer = null;
+                            }
                         }
                     } else {
                         statusMessage.textContent = data.message || 'Processing...';

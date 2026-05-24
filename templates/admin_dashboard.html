@@ -1430,16 +1430,18 @@
                     if (nesstarJobPoller) {
                         clearInterval(nesstarJobPoller);
                         nesstarJobPoller = null;
-                    }
 
-                    const btn = document.getElementById('nesstarUploadBtn');
-                    btn.disabled = false;
-                    btn.innerHTML = '<i class="fas fa-upload"></i> Start Upload';
+                        const btn = document.getElementById('nesstarUploadBtn');
+                        if (btn) {
+                            btn.disabled = false;
+                            btn.innerHTML = '<i class="fas fa-upload"></i> Start Upload';
+                        }
 
-                    if (isCompleted) {
-                        showToast('Upload and ingestion completed successfully!', 'success');
-                    } else {
-                        showToast(`Upload failed: ${job.error || 'Unknown error'}`, 'error');
+                        if (isCompleted) {
+                            showToast('Upload and ingestion completed successfully!', 'success');
+                        } else {
+                            showToast(`Upload failed: ${job.error || 'Unknown error'}`, 'error');
+                        }
                     }
                 }
             } catch (e) {
@@ -1674,8 +1676,8 @@
                     if (nadaJobPoller) {
                         clearInterval(nadaJobPoller);
                         nadaJobPoller = null;
+                        showToast(`Job ${status}`, status === 'COMPLETED' ? 'success' : 'error');
                     }
-                    showToast(`Job ${status}`, status === 'COMPLETED' ? 'success' : 'error');
                 }
             } catch (e) {
                 showToast(e.message || 'Failed to fetch job status', 'error');
