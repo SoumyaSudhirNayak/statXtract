@@ -195,6 +195,11 @@ async def get_and_enforce_plan_limits(conn, user_email: str, user_role: str):
         if plan != "free":
             await conn.execute("UPDATE users SET plan = 'free', plan_expiry = NULL WHERE email = $1", user_email)
             plan = "free"
+            try:
+                from auth.api_token import sync_user_api_token
+                await sync_user_api_token(conn, user_email)
+            except Exception as e:
+                print(f"Error syncing API token after auto-downgrade: {e}")
 
     # Fetch limits dynamically from system_settings (with hardcoded fallback)
     limits = await _load_dynamic_plan_limits(conn, plan)

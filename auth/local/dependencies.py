@@ -14,6 +14,7 @@ ALGORITHM = os.getenv("ALGORITHM", "HS256")
 
 
 # ✅ Reads token from Authorization header or Cookie
+# ✅ Reads token from Authorization header or Cookie
 async def get_current_user(request: Request) -> TokenData:
     token = None
 
@@ -23,17 +24,67 @@ async def get_current_user(request: Request) -> TokenData:
         scheme, param = get_authorization_scheme_param(auth)
         if scheme.lower() == "bearer":
             token = param
+            if token and token.startswith("Bearer "):
+                token = token[7:]
+            elif token and token.startswith("bearer "):
+                token = token[7:]
+
+    # If the token is a developer/API token (starts with stx_live_)
+    if token and token.startswith("stx_live_"):
+        pool = getattr(request.app.state, "db", None)
+        if pool is not None:
+            async with pool.acquire() as conn:
+                token_row = await conn.fetchrow(
+                    """
+                    SELECT t.active AS token_active, t.plan AS token_plan, u.id AS user_id, u.email, u.is_blocked, u.status
+                    FROM api_tokens t
+                    JOIN users u ON t.user_id = u.id
+                    WHERE t.token = $1
+                    LIMIT 1
+                    """,
+                    token
+                )
+                if not token_row:
+                    raise HTTPException(status_code=401, detail="Invalid API token.")
+                if not token_row["token_active"]:
+                    raise HTTPException(status_code=401, detail="API token has been revoked or deactivated.")
+                if token_row["is_blocked"]:
+                    raise HTTPException(status_code=403, detail="User account is blocked.")
+                if token_row["status"] != "active":
+                    raise HTTPException(status_code=403, detail="User account is suspended.")
+                if token_row["token_plan"] not in ("pro", "enterprise", "admin"):
+                    raise HTTPException(status_code=403, detail="API access requires a Pro or Enterprise plan.")
+                
+                role_id = await conn.fetchval("SELECT role_id FROM users WHERE id = $1 LIMIT 1", token_row["user_id"])
+                role_str = str(role_id) if role_id is not None else "3"
+                return TokenData(username=token_row["email"], role=role_str)
+
+    # Detect if this is a developer programmatic/API request (Swagger/Postman/etc)
+    path = request.url.path
+    is_developer_api = (
+        (path == "/query" and request.method == "POST") or 
+        path.startswith("/datasets/")
+    )
+    referer = request.headers.get("referer", "")
+    is_swagger = "/docs" in referer or "/redoc" in referer
+    is_programmatic = not referer
+
+    if is_developer_api and (is_swagger or is_programmatic):
+        # Programmatic/developer access strictly requires a developer token (which wasn't supplied above)
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication credentials were not provided. Please authorize with a valid stx_live API token."
+        )
 
     # 2️⃣ Fallback to access_token cookie
-    if not token:
-        token = request.cookies.get("access_token")
+    cookie_token = request.cookies.get("access_token")
 
-    if not token:
+    if not cookie_token:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
     # 3️⃣ Decode JWT token
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(cookie_token, SECRET_KEY, algorithms=[ALGORITHM])
         email = payload.get("sub")
         role = payload.get("role")
         if email is None or role is None:

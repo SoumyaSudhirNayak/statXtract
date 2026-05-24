@@ -415,18 +415,20 @@
                   <div class="pc-desc">Access your bearer tokens and configure REST API integration settings.</div>
                 </div>
 
+                {% if plan in ('pro', 'enterprise', 'admin') %}
                 <div style="margin-bottom:24px;">
                   <div style="font-size:15px; font-weight:700; color:var(--text-main); margin-bottom:6px;">Production Bearer Token</div>
                   <div style="font-size:13px; color:var(--text-muted); margin-bottom:12px; line-height:1.5;">
                     This token grants REST API access based on your current plan. <strong>Never expose this in client-side code or public repositories.</strong>
                   </div>
                   <div class="api-box" id="apiBox">
-                    <span id="apiKeyDisplay">sk_live_StATxT34r•••••••••••••••••••</span>
+                    <span id="apiKeyDisplay">stx_live_••••••••••••••••••••••••••••••••</span>
                     <div class="api-box-btns">
                       <button class="api-copy-btn" onclick="revealOrCopyKey()">Reveal Key</button>
                     </div>
                   </div>
                 </div>
+
 
                 <div class="grid-2" style="margin-bottom:20px;">
                   <div class="field-wrap">
@@ -451,8 +453,18 @@
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.33"/></svg>
                     Regenerate Key
                   </button>
-                  <button class="btn btn-ghost" onclick="showToast('API docs opened in new tab.','info')">View API Docs</button>
+                  <button class="btn btn-ghost" onclick="window.open('/docs', '_blank')">View API Docs</button>
                 </div>
+                {% else %}
+                <div style="padding:32px 24px; text-align:center; background:var(--bg-section); border-radius:12px; border:2px dashed var(--border-soft); margin-top:12px;">
+                  <div style="font-size:32px; margin-bottom:16px;">🔑</div>
+                  <div style="font-size:15px; font-weight:700; color:var(--text-main); margin-bottom:8px;">API access available only for Pro and Enterprise plans.</div>
+                  <div style="font-size:13px; color:var(--text-muted); margin-bottom:20px; max-width:400px; margin-left:auto; margin-right:auto; line-height:1.6;">
+                    Upgrade your subscription to unlock programmatic database access, developer API endpoints, Swagger integration, and automated Postman query capabilities.
+                  </div>
+                  <button class="btn btn-primary" onclick="window.location.href='/user/plans'" style="margin: 0 auto; display:block;">Upgrade Now</button>
+                </div>
+                {% endif %}
               </div>
             </div>
 
@@ -611,6 +623,9 @@
       document.getElementById(`nav-${id}`).classList.add('active');
       document.querySelectorAll('.settings-panel').forEach(p => p.classList.remove('active'));
       document.getElementById(`panel-${id}`).classList.add('active');
+      if (id === 'api') {
+        fetchUsageInfo();
+      }
     }
 
     /* ── Setting Toggle ── */
@@ -630,26 +645,86 @@
     }
 
     /* ── API Key ── */
+    let cachedRealKey = '';
     let keyRevealed = false;
-    function revealOrCopyKey() {
+
+    async function revealOrCopyKey() {
       const disp = document.getElementById('apiKeyDisplay');
       const btn  = document.querySelector('.api-copy-btn');
+      if (!disp || !btn) return;
+
       if (!keyRevealed) {
-        disp.textContent = 'sk_live_StATxT34r93jd081_f92bA4cF8LmqzT0';
-        btn.textContent  = 'Copy to Clipboard';
-        keyRevealed = true;
+        try {
+          if (!cachedRealKey) {
+            const res = await fetch('/api/user/token');
+            if (!res.ok) {
+              const errText = await res.text();
+              throw new Error(errText || 'Forbidden');
+            }
+            const data = await res.json();
+            cachedRealKey = data.token;
+          }
+          if (cachedRealKey) {
+            disp.textContent = cachedRealKey;
+            btn.textContent  = 'Copy Key';
+            keyRevealed = true;
+          } else {
+            showToast('No active API token found. Try regenerating.', 'error');
+          }
+        } catch(e) {
+          showToast('Failed to load API key: ' + e.message, 'error');
+        }
       } else {
-        navigator.clipboard.writeText(disp.textContent).catch(() => {});
-        showToast('API key copied!', 'success');
+        if (cachedRealKey) {
+          navigator.clipboard.writeText(cachedRealKey).then(() => {
+            showToast('API key copied to clipboard!', 'success');
+          }).catch(() => {
+            showToast('Failed to copy to clipboard.', 'error');
+          });
+        }
       }
     }
 
-    function regenerateKey() {
-      showToast('New API key generated. Refresh to see it.', 'success');
-      keyRevealed = false;
-      document.getElementById('apiKeyDisplay').textContent = 'sk_live_New•••••••••••••••••••••••••';
-      document.querySelector('.api-copy-btn').textContent  = 'Reveal Key';
+    async function regenerateKey() {
+      if (!confirm('Are you sure you want to regenerate your API key? The existing key will be permanently deactivated.')) return;
+      try {
+        const res = await fetch('/api/user/token/regenerate', { method: 'POST' });
+        if (!res.ok) {
+          const errText = await res.text();
+          throw new Error(errText || 'Forbidden');
+        }
+        const data = await res.json();
+        cachedRealKey = data.token;
+        keyRevealed = false;
+        
+        const disp = document.getElementById('apiKeyDisplay');
+        const btn  = document.querySelector('.api-copy-btn');
+        if (disp) disp.textContent = 'stx_live_••••••••••••••••••••••••••••••••';
+        if (btn) btn.textContent  = 'Reveal Key';
+        
+        showToast('New API key generated successfully.', 'success');
+        fetchUsageInfo();
+      } catch(e) {
+        showToast('Failed to regenerate API key: ' + e.message, 'error');
+      }
     }
+
+    async function fetchUsageInfo() {
+      if (!document.getElementById('apiUsageToday')) return;
+      try {
+        const res = await fetch('/api/user/token/usage');
+        if (res.ok) {
+          const data = await res.json();
+          document.getElementById('apiUsageToday').textContent = data.today_requests;
+          document.getElementById('apiUsageMonth').textContent = data.month_requests;
+        }
+      } catch(e) {
+        console.error('Error fetching API usage info:', e);
+      }
+    }
+
+    // Call fetchUsageInfo on load
+    fetchUsageInfo();
 
     function selectColor(el, color) {
       document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('selected'));

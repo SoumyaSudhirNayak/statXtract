@@ -426,6 +426,19 @@ async def ensure_core_tables(conn: asyncpg.Connection) -> None:
         """
     )
 
+    await conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS api_tokens (
+            id SERIAL PRIMARY KEY,
+            token TEXT UNIQUE NOT NULL,
+            user_id INTEGER UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+            plan TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            active BOOLEAN DEFAULT TRUE
+        );
+        """
+    )
+
     keep_schemas = set()
     for display in SURVEY_SCHEMA_DISPLAY_NAMES:
         db_name = _to_pg_schema_name(display)

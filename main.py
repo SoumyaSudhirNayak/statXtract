@@ -1003,6 +1003,129 @@ async def user_delete_account(
     return response
 
 
+@app.get("/api/user/token")
+async def get_user_token_endpoint(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
+):
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        user_row = await conn.fetchrow(
+            "SELECT id, plan FROM users WHERE email = $1 LIMIT 1",
+            current_user.username
+        )
+        if not user_row:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        plan = (user_row["plan"] or "free").strip().lower()
+        if plan not in ("pro", "enterprise", "admin"):
+            raise HTTPException(
+                status_code=403,
+                detail="API access is restricted to Pro and Enterprise plans."
+            )
+            
+        # Retrieve token
+        token_row = await conn.fetchrow(
+            "SELECT token, active FROM api_tokens WHERE user_id = $1 LIMIT 1",
+            user_row["id"]
+        )
+        if not token_row:
+            # Sync user api token creates it
+            from auth.api_token import sync_user_api_token
+            await sync_user_api_token(conn, current_user.username)
+            token_row = await conn.fetchrow(
+                "SELECT token, active FROM api_tokens WHERE user_id = $1 LIMIT 1",
+                user_row["id"]
+            )
+            
+        if not token_row:
+            return {"token": None, "active": False}
+            
+        return {"token": token_row["token"], "active": token_row["active"]}
+
+
+@app.post("/api/user/token/regenerate")
+async def regenerate_user_token_endpoint(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
+):
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        user_row = await conn.fetchrow(
+            "SELECT id, plan FROM users WHERE email = $1 LIMIT 1",
+            current_user.username
+        )
+        if not user_row:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        plan = (user_row["plan"] or "free").strip().lower()
+        if plan not in ("pro", "enterprise", "admin"):
+            raise HTTPException(
+                status_code=403,
+                detail="API access is restricted to Pro and Enterprise plans."
+            )
+            
+        from auth.api_token import generate_api_token
+        new_token = generate_api_token()
+        
+        # Upsert
+        await conn.execute(
+            """
+            INSERT INTO api_tokens (token, user_id, plan, active, created_at)
+            VALUES ($1, $2, $3, TRUE, CURRENT_TIMESTAMP)
+            ON CONFLICT (user_id) DO UPDATE 
+            SET token = EXCLUDED.token, created_at = CURRENT_TIMESTAMP, active = TRUE
+            """,
+            new_token, user_row["id"], plan
+        )
+        
+        return {"token": new_token, "active": True}
+
+
+@app.get("/api/user/token/usage")
+async def get_user_token_usage_endpoint(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
+):
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        user_row = await conn.fetchrow(
+            "SELECT plan FROM users WHERE email = $1 LIMIT 1",
+            current_user.username
+        )
+        if not user_row or user_row["plan"] not in ("pro", "enterprise", "admin"):
+            raise HTTPException(
+                status_code=403,
+                detail="API access is restricted to Pro and Enterprise plans."
+            )
+            
+        today_count = await conn.fetchval(
+            """
+            SELECT COUNT(*) FROM usage_logs
+            WHERE user_email = $1 
+              AND (endpoint LIKE '/datasets/%' OR endpoint = '/query')
+              AND queried_at >= CURRENT_DATE
+            """,
+            current_user.username
+        ) or 0
+
+        month_count = await conn.fetchval(
+            """
+            SELECT COUNT(*) FROM usage_logs
+            WHERE user_email = $1 
+              AND (endpoint LIKE '/datasets/%' OR endpoint = '/query')
+              AND queried_at >= DATE_TRUNC('month', CURRENT_DATE)
+            """,
+            current_user.username
+        ) or 0
+
+        return {
+            "today_requests": today_count,
+            "month_requests": month_count,
+            "plan": user_row["plan"]
+        }
+
+
 @app.post("/api/user/update-profile")
 async def api_update_profile(
     request: Request,
@@ -5012,6 +5135,8 @@ async def admin_update_role_api(
             await conn.execute("UPDATE users SET role_id = $1 WHERE email = $2", role_id, email)
         if plan:
             await conn.execute("UPDATE users SET plan = $1 WHERE email = $2", plan, email)
+        from auth.api_token import sync_user_api_token
+        await sync_user_api_token(conn, email)
     return {"ok": True}
 
 
@@ -5059,6 +5184,8 @@ async def admin_block_user_api(
                 "",
                 email
             )
+        from auth.api_token import sync_user_api_token
+        await sync_user_api_token(conn, email)
     return {"ok": True}
 
 
@@ -5145,6 +5272,8 @@ async def admin_assign_plan_api(
                 plan,
                 email,
             )
+        from auth.api_token import sync_user_api_token
+        await sync_user_api_token(conn, email)
     return {"ok": True}
 
 
@@ -5983,6 +6112,9 @@ async def api_payments_verify_payment(
             expiry_date,
             current_user.username
         )
+
+        from auth.api_token import sync_user_api_token
+        await sync_user_api_token(conn, current_user.username)
 
         # Immediately log a governance log event for the upgrade
         await conn.execute(
