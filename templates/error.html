@@ -192,15 +192,15 @@
                     <i class="fas fa-envelope"></i> Contact Support
                 </a>
             {% elif error_type == 'ACCOUNT_FROZEN' %}
-                <a href="/user/dashboard" class="btn btn-primary">
+                <a href="{% if role == '1' or role == 'Admin' or role == 'admin' %}/admin/dashboard{% else %}/user/dashboard{% endif %}" class="btn btn-primary">
                     <i class="fas fa-columns"></i> View Dashboard
                 </a>
             {% elif error_type == 'VERIFICATION_PENDING' %}
-                <a href="/user/dashboard" class="btn btn-primary">
+                <a href="{% if role == '1' or role == 'Admin' or role == 'admin' %}/admin/dashboard{% else %}/user/dashboard{% endif %}" class="btn btn-primary">
                     <i class="fas fa-upload"></i> Upload Documents
                 </a>
             {% else %}
-                <a href="/user/dashboard" class="btn btn-primary">
+                <a href="{% if role == '1' or role == 'Admin' or role == 'admin' %}/admin/dashboard{% else %}/user/dashboard{% endif %}" class="btn btn-primary">
                     <i class="fas fa-arrow-left"></i> Back to Dashboard
                 </a>
             {% endif %}

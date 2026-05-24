@@ -544,13 +544,13 @@
             <button class="btn btn-primary" onclick="window.location.reload()" style="width:100%; padding:14px; border-radius:10px; font-weight:700; display:flex; align-items:center; justify-content:center; gap:8px; background:var(--primary-color, #2E5BBA); border:none; color:#fff; cursor:pointer;">
                 <i class="fas fa-sync-alt"></i> Refresh / Check Status
             </button>
-            <a href="/user/dashboard" style="color:var(--primary-color, #2E5BBA); font-weight:600; font-size:0.9rem; text-decoration:none; display:inline-flex; align-items:center; gap:6px;">
+            <a href="{% if role == '1' or role == 'Admin' or role == 'admin' %}/admin/dashboard{% else %}/user/dashboard{% endif %}" style="color:var(--primary-color, #2E5BBA); font-weight:600; font-size:0.9rem; text-decoration:none; display:inline-flex; align-items:center; gap:6px;">
                 <i class="fas fa-chevron-left"></i> Back to Dashboard
             </a>
         </div>
     </div>
 
-    <a href="/admin/dashboard" class="back-btn">
+    <a href="{% if role == '1' or role == 'Admin' or role == 'admin' %}/admin/dashboard{% else %}/user/dashboard{% endif %}" class="back-btn">
         <i class="fas fa-arrow-left"></i>
         <span>Back</span>
     </a>
@@ -637,7 +637,7 @@
                 const data = await res.json();
                 
                 // Admins bypass verification checks
-                const isUserAdmin = "{{ role }}" === "1";
+                const isUserAdmin = "{{ role }}" === "1" || "{{ role }}".toLowerCase() === "admin";
                 
                 if (!isUserAdmin && data && data.is_verified === false) {
                     const overlay = document.getElementById('verificationPendingOverlay');

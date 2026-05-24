@@ -245,6 +245,27 @@ templates = Jinja2Templates(directory="templates")
 app.add_middleware(SessionMiddleware, secret_key="yoursecretkey")
 
 
+def _get_request_role(request: Request) -> str:
+    try:
+        from auth.local.dependencies import SECRET_KEY, ALGORITHM
+        from jose import jwt
+        from fastapi.security.utils import get_authorization_scheme_param
+        token = None
+        auth = request.headers.get("Authorization")
+        if auth:
+            scheme, param = get_authorization_scheme_param(auth)
+            if scheme.lower() == "bearer":
+                token = param
+        if not token:
+            token = request.cookies.get("access_token")
+        if token:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            return str(payload.get("role", "3"))
+    except Exception:
+        pass
+    return "3"
+
+
 @app.exception_handler(HTTPException)
 async def governance_http_exception_handler(request: Request, exc: HTTPException):
     detail = exc.detail
@@ -333,13 +354,15 @@ async def governance_http_exception_handler(request: Request, exc: HTTPException
             elif error_type == "RATE_LIMIT":
                 title = "Rate Limit Exceeded"
                 
+            role = _get_request_role(request)
             return templates.TemplateResponse(
                 "error.html",
                 {
                     "request": request,
                     "title": title,
                     "message": message,
-                    "error_type": error_type
+                    "error_type": error_type,
+                    "role": role
                 },
                 status_code=status_code
             )
@@ -362,13 +385,15 @@ async def governance_http_exception_handler(request: Request, exc: HTTPException
                 return RedirectResponse(url="/user/login", status_code=302)
             elif path.startswith("/admin/") and path != "/login":
                 return RedirectResponse(url="/login", status_code=302)
+        role = _get_request_role(request)
         return templates.TemplateResponse(
             "error.html",
             {
                 "request": request,
                 "title": "Error Occurred",
                 "message": str(detail),
-                "error_type": "UNKNOWN"
+                "error_type": "UNKNOWN",
+                "role": role
             },
             status_code=status_code
         )
@@ -705,6 +730,7 @@ async def get_user_template_context(request: Request, current_user_email: str) -
         if user_row and user_row.get("plan_expiry"):
             plan_expiry_str = user_row["plan_expiry"].strftime("%d %b %Y")
 
+        is_admin_user = (str(user_row.get("role_id")) == "1")
         return {
             "username": user_row.get("username") or "User",
             "email": user_row.get("email"),
@@ -713,7 +739,7 @@ async def get_user_template_context(request: Request, current_user_email: str) -
             "phone": user_row.get("phone") or org_details.get("phone") or "",
             "org_details": org_details,
             "created_at": user_row.get("created_at"),
-            "is_verified": user_row.get("is_verified") or False,
+            "is_verified": True if is_admin_user else (user_row.get("is_verified") or False),
             "plan": user_row.get("plan") or "free",
             "is_blocked": user_row.get("is_blocked") or False,
             "total_queries": total_queries,
@@ -1156,11 +1182,12 @@ async def api_user_governance(
         billing_cycle = last_pay["billing_cycle"] if last_pay else "N/A"
         renewal_date = last_pay["expiry_date"] if last_pay else user_row["plan_expiry"]
         payment_status = last_pay["payment_status"] if last_pay else "N/A"
+        is_admin = str(current_user.role) == "1"
 
         return {
             "plan": plan_name,
             "role": role_name,
-            "is_verified": bool(user_row["is_verified"]),
+            "is_verified": True if is_admin else bool(user_row["is_verified"]),
             "is_blocked": bool(user_row["is_blocked"]),
             "status": str(user_row["status"]),
             "plan_expiry": format_local_timestamp_to_utc_iso(user_row["plan_expiry"]),
@@ -1659,8 +1686,9 @@ async def get_user_status_api(
         )
         if not row:
             return {"is_verified": False, "document_uploaded": False, "status": "inactive"}
+        is_admin = str(current_user.role) == "1"
         return {
-            "is_verified": bool(row["is_verified"]),
+            "is_verified": True if is_admin else bool(row["is_verified"]),
             "document_uploaded": bool(row["document_uploaded"]),
             "status": str(row["status"] or "active")
         }

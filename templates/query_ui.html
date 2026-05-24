@@ -913,7 +913,7 @@
             <button class="btn btn-primary" onclick="window.location.reload()" style="width:100%; padding:14px; border-radius:10px; font-weight:700; display:flex; align-items:center; justify-content:center; gap:8px; background:var(--primary-color, #2E5BBA); border:none; color:#fff; cursor:pointer;">
                 <i class="fas fa-sync-alt"></i> Refresh / Check Status
             </button>
-            <a href="/user/dashboard" style="color:var(--primary-color, #2E5BBA); font-weight:600; font-size:0.9rem; text-decoration:none; display:inline-flex; align-items:center; gap:6px;">
+            <a href="{% if role == '1' or role == 'Admin' or role == 'admin' %}/admin/dashboard{% else %}/user/dashboard{% endif %}" style="color:var(--primary-color, #2E5BBA); font-weight:600; font-size:0.9rem; text-decoration:none; display:inline-flex; align-items:center; gap:6px;">
                 <i class="fas fa-chevron-left"></i> Back to Dashboard
             </a>
         </div>
@@ -924,7 +924,7 @@
     <header>
         <nav class="app-nav">
             <div class="crumb-icon"><i class="fas fa-chart-pie"></i></div>
-            <a href="{% if role == '1' %}/admin/dashboard{% else %}/user/dashboard{% endif %}" class="crumb" style="text-decoration:none;">Dashboard</a>
+            <a href="{% if role == '1' or role == 'Admin' or role == 'admin' %}/admin/dashboard{% else %}/user/dashboard{% endif %}" class="crumb" style="text-decoration:none;">Dashboard</a>
             <span class="chev"><i class="fas fa-chevron-right"></i></span>
             <span class="crumb-active">Advanced Query</span>
         </nav>
@@ -2265,7 +2265,7 @@
                 cardBg = 'rgba(245, 158, 11, 0.03)';
                 cardBorder = 'rgba(245, 158, 11, 0.15)';
                 actionBtnHtml = `
-                    <a href="/user/dashboard" class="btn btn-primary" style="margin-top: 10px; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; background:#f59e0b; border-color:#f59e0b; color:#fff; padding: 10px 20px; border-radius: 8px;">
+                    <a href="{% if role == '1' or role == 'Admin' or role == 'admin' %}/admin/dashboard{% else %}/user/dashboard{% endif %}" class="btn btn-primary" style="margin-top: 10px; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; background:#f59e0b; border-color:#f59e0b; color:#fff; padding: 10px 20px; border-radius: 8px;">
                         <i class="fas fa-columns"></i> View Dashboard
                     </a>
                 `;
@@ -2277,7 +2277,7 @@
                 cardBg = 'rgba(46, 91, 186, 0.03)';
                 cardBorder = 'rgba(46, 91, 186, 0.15)';
                 actionBtnHtml = `
-                    <a href="/user/dashboard" class="btn btn-primary" style="margin-top: 10px; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; background:#2E5BBA; border-color:#2E5BBA; color:#fff; padding: 10px 20px; border-radius: 8px;">
+                    <a href="{% if role == '1' or role == 'Admin' or role == 'admin' %}/admin/dashboard{% else %}/user/dashboard{% endif %}" class="btn btn-primary" style="margin-top: 10px; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; background:#2E5BBA; border-color:#2E5BBA; color:#fff; padding: 10px 20px; border-radius: 8px;">
                         <i class="fas fa-upload"></i> Upload Verification Documents
                     </a>
                 `;
@@ -2286,7 +2286,7 @@
                 title = 'Usage Limit Exceeded';
                 iconColor = '#ef4444';
                 actionBtnHtml = `
-                    <a href="/user/dashboard" class="btn btn-primary" style="margin-top: 10px; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; background: var(--primary-color, #2E5BBA); color: #fff; padding: 10px 20px; border-radius: 8px;">
+                    <a href="{% if role == '1' or role == 'Admin' or role == 'admin' %}/admin/dashboard{% else %}/user/dashboard{% endif %}" class="btn btn-primary" style="margin-top: 10px; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; background: var(--primary-color, #2E5BBA); color: #fff; padding: 10px 20px; border-radius: 8px;">
                         <i class="fas fa-arrow-up-right-from-square"></i> Upgrade Subscription
                     </a>
                 `;
@@ -2863,7 +2863,7 @@
                     const idName = f.charAt(0).toUpperCase() + f.slice(1);
                     const btn = document.getElementById(`btnExport${idName}`);
                     if (btn) {
-                        const isAllowed = allowedFormats.includes(backendName) || data.role === 'admin';
+                        const isAllowed = allowedFormats.includes(backendName) || data.role.toLowerCase() === 'admin';
                         if (!isAllowed) {
                             btn.disabled = true;
                             btn.style.opacity = '0.5';
@@ -2883,7 +2883,7 @@
                 
                 const execBtn = document.querySelector('.execute-btn');
                 if (execBtn) {
-                    if (qRemaining <= 0 && data.role !== 'admin') {
+                    if (qRemaining <= 0 && data.role.toLowerCase() !== 'admin') {
                         execBtn.disabled = true;
                         execBtn.style.opacity = '0.5';
                         execBtn.style.cursor = 'not-allowed';
@@ -3003,7 +3003,7 @@
                 const data = await res.json();
                 
                 // Admins bypass verification checks
-                const isUserAdmin = "{{ role }}" === "1";
+                const isUserAdmin = "{{ role }}" === "1" || "{{ role }}".toLowerCase() === "admin";
                 
                 if (!isUserAdmin && data && data.is_verified === false) {
                     const overlay = document.getElementById('verificationPendingOverlay');
