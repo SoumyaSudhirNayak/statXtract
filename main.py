@@ -2196,7 +2196,8 @@ async def apply_config(schema, table, user, columns, rows):
     dataset_cfg = await get_dataset_configs(schema)
     table_cfg = dataset_cfg.get(table)
     if table_cfg is not None and table_cfg.get("show_table_to_users") is False:
-        raise TableHidden()
+        if _normalize_role(user_role) != "admin":
+            raise TableHidden()
 
     if not columns and rows is None:
         return [], None
