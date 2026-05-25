@@ -430,21 +430,21 @@ async def debug_routes():
 async def root(request: Request):
     return templates.TemplateResponse("splashscreen.html", {"request": request})
 
-@app.get("/module-selection", response_class=HTMLResponse)
+@app.get("/module-selection", response_class=HTMLResponse, include_in_schema=False)
 async def module_selection(request: Request):
     return templates.TemplateResponse("module_selection.html", {"request": request})
 
-@app.get("/user/module-selection", response_class=HTMLResponse)
+@app.get("/user/module-selection", response_class=HTMLResponse, include_in_schema=False)
 async def user_module_selection(request: Request):
     return templates.TemplateResponse("user_module_selection.html", {"request": request})
 
 
-@app.get("/login", response_class=HTMLResponse)
+@app.get("/login", response_class=HTMLResponse, include_in_schema=False)
 async def login_get(request: Request):
     return templates.TemplateResponse("login.html", {"request": request})
 
 
-@app.post("/login", response_class=HTMLResponse)
+@app.post("/login", response_class=HTMLResponse, include_in_schema=False)
 async def login_post(
     request: Request, form_data: OAuth2PasswordRequestForm = Depends()
 ):
@@ -469,12 +469,12 @@ async def login_post(
         return response
 
 
-@app.get("/register", response_class=HTMLResponse)
+@app.get("/register", response_class=HTMLResponse, include_in_schema=False)
 async def register_page(request: Request):
     return templates.TemplateResponse("register.html", {"request": request})
 
 
-@app.post("/register")
+@app.post("/register", include_in_schema=False)
 async def register_user(
     request: Request,
     username: str = Form(...),
@@ -625,12 +625,12 @@ async def logout(response: Response):
 # =================== USER DASHBOARD ROUTES ===================
 
 
-@app.get("/user/login", response_class=HTMLResponse)
+@app.get("/user/login", response_class=HTMLResponse, include_in_schema=False)
 async def user_login_page(request: Request):
     return templates.TemplateResponse("USER_PAGES/user_login.html", {"request": request})
 
 
-@app.get("/user/register", response_class=HTMLResponse)
+@app.get("/user/register", response_class=HTMLResponse, include_in_schema=False)
 async def user_register_page(request: Request):
     return templates.TemplateResponse("USER_PAGES/user_register.html", {"request": request})
 
@@ -752,7 +752,7 @@ async def get_user_template_context(request: Request, current_user_email: str) -
         }
 
 
-@app.get("/user/dashboard", response_class=HTMLResponse)
+@app.get("/user/dashboard", response_class=HTMLResponse, include_in_schema=False)
 async def user_dashboard_page(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
@@ -767,7 +767,7 @@ async def user_dashboard_page(
     )
 
 
-@app.get("/user/profile", response_class=HTMLResponse)
+@app.get("/user/profile", response_class=HTMLResponse, include_in_schema=False)
 async def user_profile_page(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
@@ -782,7 +782,7 @@ async def user_profile_page(
     )
 
 
-@app.get("/user/history", response_class=HTMLResponse)
+@app.get("/user/history", response_class=HTMLResponse, include_in_schema=False)
 async def user_history_page(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
@@ -797,7 +797,7 @@ async def user_history_page(
     )
 
 
-@app.get("/user/downloads", response_class=HTMLResponse)
+@app.get("/user/downloads", response_class=HTMLResponse, include_in_schema=False)
 async def user_downloads_page(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
@@ -812,7 +812,7 @@ async def user_downloads_page(
     )
 
 
-@app.get("/user/plans", response_class=HTMLResponse)
+@app.get("/user/plans", response_class=HTMLResponse, include_in_schema=False)
 async def user_plans_page(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
@@ -827,7 +827,7 @@ async def user_plans_page(
     )
 
 
-@app.get("/user/settings", response_class=HTMLResponse)
+@app.get("/user/settings", response_class=HTMLResponse, include_in_schema=False)
 async def user_settings_page(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
@@ -861,7 +861,7 @@ async def user_settings_page(
 
 
 
-@app.get("/user/usage", response_class=HTMLResponse)
+@app.get("/user/usage", response_class=HTMLResponse, include_in_schema=False)
 async def user_usage_page(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
@@ -876,7 +876,7 @@ async def user_usage_page(
     )
 
 
-@app.get("/user/feedback", response_class=HTMLResponse)
+@app.get("/user/feedback", response_class=HTMLResponse, include_in_schema=False)
 async def user_feedback_page(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
@@ -1691,7 +1691,7 @@ async def admin_suspicious_activity_feed(
 # =================== DASHBOARD ROUTES ===================
 
 
-@app.get("/admin/dashboard", response_class=HTMLResponse)
+@app.get("/admin/dashboard", response_class=HTMLResponse, include_in_schema=False)
 async def admin_dashboard(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
@@ -1753,7 +1753,7 @@ async def admin_dashboard(
     )
 
 
-@app.get("/admin/survey-config", response_class=HTMLResponse)
+@app.get("/admin/survey-config", response_class=HTMLResponse, include_in_schema=False)
 async def survey_config_page(
     request: Request,
     current_user: TokenData = Depends(
@@ -1770,7 +1770,7 @@ async def survey_config_page(
     )
 
 
-@app.get("/query", response_class=HTMLResponse)
+@app.get("/query", response_class=HTMLResponse, include_in_schema=False)
 async def query_page(
     request: Request,
     current_user: TokenData = Depends(
@@ -1817,7 +1817,7 @@ async def get_user_status_api(
         }
 
 
-@app.get("/upload", response_class=HTMLResponse)
+@app.get("/upload", response_class=HTMLResponse, include_in_schema=False)
 async def upload_form_ui(
     request: Request,
     current_user=Depends(get_current_active_user_with_role(["1", "2"])),
@@ -1828,7 +1828,7 @@ async def upload_form_ui(
 # =================== BEAUTIFUL TABLE PAGES ===================
 
 
-@app.get("/schemas-page", response_class=HTMLResponse)
+@app.get("/schemas-page", response_class=HTMLResponse, include_in_schema=False)
 async def schemas_page(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
@@ -1836,7 +1836,7 @@ async def schemas_page(
     return templates.TemplateResponse("schemas.html", {"request": request})
 
 
-@app.get("/datasets-page", response_class=HTMLResponse)
+@app.get("/datasets-page", response_class=HTMLResponse, include_in_schema=False)
 async def datasets_page(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
@@ -1844,7 +1844,7 @@ async def datasets_page(
     return templates.TemplateResponse("datasets.html", {"request": request})
 
 
-@app.get("/explorer", response_class=HTMLResponse)
+@app.get("/explorer", response_class=HTMLResponse, include_in_schema=False)
 async def explorer_page(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
@@ -1860,7 +1860,7 @@ async def explorer_page(
 
 
 
-@app.get("/metadata-detail/{schema}/{dataset}", response_class=HTMLResponse)
+@app.get("/metadata-detail/{schema}/{dataset}", response_class=HTMLResponse, include_in_schema=False)
 async def metadata_detail_page(
     request: Request,
     schema: str,
@@ -1873,7 +1873,7 @@ async def metadata_detail_page(
     )
 
 
-@app.get("/admin/metadata-browser", response_class=HTMLResponse)
+@app.get("/admin/metadata-browser", response_class=HTMLResponse, include_in_schema=False)
 async def metadata_browser_page(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
@@ -1881,7 +1881,7 @@ async def metadata_browser_page(
     return templates.TemplateResponse("metadata_browser.html", {"request": request})
 
 
-@app.get("/admin/nada-import", response_class=HTMLResponse)
+@app.get("/admin/nada-import", response_class=HTMLResponse, include_in_schema=False)
 async def nada_import_page(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
@@ -4141,7 +4141,7 @@ async def get_upload_status(
     }
 
 
-@app.get("/upload/progress/{job_id}", response_class=HTMLResponse)
+@app.get("/upload/progress/{job_id}", response_class=HTMLResponse, include_in_schema=False)
 async def upload_progress_page(
     request: Request,
     job_id: str,
@@ -4292,7 +4292,7 @@ async def admin_survey_config_page(
     )
 
 
-@app.get("/admin/change-password", response_class=HTMLResponse)
+@app.get("/admin/change-password", response_class=HTMLResponse, include_in_schema=False)
 async def admin_change_password_page(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
@@ -4307,7 +4307,7 @@ async def admin_change_password_page(
     )
 
 
-@app.post("/admin/change-password")
+@app.post("/admin/change-password", include_in_schema=False)
 async def admin_change_password(
     request: Request,
     current_password: str = Form(...),
@@ -4650,7 +4650,7 @@ async def update_variable_config(
         return {"error": f"Server error: {str(e)}"}
 
 
-@app.get("/admin/usage-logs", response_class=HTMLResponse)
+@app.get("/admin/usage-logs", response_class=HTMLResponse, include_in_schema=False)
 async def usage_logs_page(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
@@ -4666,7 +4666,7 @@ async def usage_logs_page(
     )
 
 
-@app.get("/admin/user-management", response_class=HTMLResponse)
+@app.get("/admin/user-management", response_class=HTMLResponse, include_in_schema=False)
 async def user_management_page(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
@@ -4682,7 +4682,7 @@ async def user_management_page(
     )
 
 
-@app.get("/admin/system-settings", response_class=HTMLResponse)
+@app.get("/admin/system-settings", response_class=HTMLResponse, include_in_schema=False)
 async def system_settings_page(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
