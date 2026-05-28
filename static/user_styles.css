@@ -1019,3 +1019,227 @@ html.sidebar-collapsed-preload .sidebar-toggle svg {
 [data-density="compact"] .qs-row {
   padding: 6px 0 !important;
 }
+
+/* ================================================================
+   MOBILE RESPONSIVENESS OVERRIDES (OScope: User Dashboard only)
+   ================================================================ */
+
+/* ── TABLET & SMALLER VIEWPORTS (<= 1024px) ── */
+@media (max-width: 1024px) {
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+  .credit-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+  .charts-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* ── MOBILE & TABLET PORTRAIT VIEWPORTS (<= 768px) ── */
+@media (max-width: 768px) {
+  /* 1. App Shell Layout Adjustment */
+  .app-shell {
+    height: 100vh !important;
+    overflow: hidden !important;
+  }
+  .main-area {
+    height: calc(100vh - 72px) !important;
+    overflow: hidden !important;
+  }
+  .content {
+    padding: 20px 16px !important;
+    overflow-y: auto !important;
+  }
+
+  /* 2. Responsive Header Elements */
+  .site-header {
+    padding: 0 16px !important;
+  }
+  .site-logo {
+    margin-left: 48px !important;
+    font-size: 20px !important;
+  }
+  #headerEmail {
+    display: none !important;
+  }
+  .profile-btn {
+    padding: 4px 10px !important;
+    font-size: 13px !important;
+  }
+  .profile-btn .avatar {
+    width: 28px !important;
+    height: 28px !important;
+  }
+
+  /* 3. Collapsible Sidebar Overlay */
+  html body .sidebar,
+  html body .sidebar.expanded,
+  html body .sidebar.collapsed {
+    position: fixed !important;
+    top: 72px !important;
+    left: -280px !important;
+    width: 280px !important;
+    min-width: 280px !important;
+    max-width: 280px !important;
+    height: calc(100vh - 72px) !important;
+    z-index: 10000 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    transform: none !important;
+    transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    background: var(--bg-white) !important;
+    border-right: 2px solid var(--border-soft) !important;
+    box-shadow: var(--shadow-xl) !important;
+    
+    /* Avoid stacking context / clipping issues on mobile */
+    backdrop-filter: none !important;
+    filter: none !important;
+    overflow: visible !important;
+    overflow-x: visible !important;
+  }
+
+  /* Sidebar Open State */
+  html body .sidebar.mobile-open {
+    left: 0 !important;
+  }
+  html body .sidebar.mobile-open .nav-label {
+    display: block !important;
+  }
+  html body .sidebar.mobile-open .nav-item {
+    justify-content: flex-start !important;
+    padding: 13px 14px !important;
+  }
+  html body .sidebar.mobile-open .nav-item .nav-icon {
+    width: 24px !important;
+    height: 24px !important;
+    font-size: 18px !important;
+  }
+
+  /* Backdrop Overlay */
+  .sidebar-overlay {
+    position: fixed !important;
+    top: 72px !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    background: rgba(0, 0, 0, 0.4) !important;
+    z-index: 9999 !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    transition: opacity 0.3s ease !important;
+  }
+  .sidebar-overlay.active {
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
+
+  /* 4. Hamburger / Close Icon (sidebar-toggle) */
+  html body .sidebar-toggle {
+    position: absolute !important;
+    top: -56px !important;
+    left: 296px !important; /* Positions it at 16px from viewport left when sidebar is closed (left: -280px) */
+    right: auto !important;
+    z-index: 10001 !important;
+    width: 40px !important;
+    height: 40px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    border-radius: var(--radius-md) !important;
+    background: var(--royal) !important;
+    color: #fff !important;
+    border: 2px solid var(--royal) !important;
+    transition: var(--transition) !important;
+    box-shadow: var(--shadow-md) !important;
+  }
+  html body .sidebar.mobile-open .sidebar-toggle {
+    left: 224px !important; /* Moves inside the open sidebar (280px - 40px - 16px) */
+  }
+  html body .sidebar-toggle svg {
+    display: none !important;
+  }
+  html body .sidebar-toggle::before {
+    content: '' !important;
+    display: block !important;
+    width: 18px !important;
+    height: 2px !important;
+    background: #fff !important;
+    position: absolute !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    box-shadow: 0 -6px 0 #fff, 0 6px 0 #fff !important;
+    transition: all 0.3s ease !important;
+  }
+  html body .sidebar.mobile-open .sidebar-toggle::before {
+    transform: translate(-50%, -50%) rotate(45deg) !important;
+    box-shadow: none !important;
+  }
+  html body .sidebar.mobile-open .sidebar-toggle::after {
+    content: '' !important;
+    display: block !important;
+    width: 18px !important;
+    height: 2px !important;
+    background: #fff !important;
+    position: absolute !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) rotate(-45deg) !important;
+    transition: all 0.3s ease !important;
+  }
+
+  /* 5. Grid layouts & Forms stacking */
+  .grid-2, .grid-3, .grid-4 {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+  .form-panel {
+    padding: 20px !important;
+  }
+
+  /* 6. Table responsiveness and horizontal scroll */
+  .table-card, .activity-card, .dict-table-container, [style*="overflow-x"] {
+    width: 100% !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+  .data-table, table {
+    min-width: 600px !important;
+  }
+}
+
+/* ── SMALL MOBILE VIEWPORTS (<= 425px) ── */
+@media (max-width: 425px) {
+  .stats-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .credit-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .page-title {
+    font-size: 24px !important;
+  }
+  .section-title-h {
+    font-size: 24px !important;
+  }
+  .welcome-banner, .started-card, .gov-banner {
+    padding: 16px !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
+  }
+  .started-icon, .gov-banner-icon {
+    font-size: 36px !important;
+  }
+  .page-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
+  }
+  .page-header button, .page-header a {
+    width: 100% !important;
+  }
+}
+
