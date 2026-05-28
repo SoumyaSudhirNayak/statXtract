@@ -258,7 +258,7 @@ async def set_user_clear_timestamp(conn, user_email: str, log_type: str):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("Starting up...")
-    app.state.db = await asyncpg.create_pool(dsn=DB_URL, min_size=1, max_size=5)
+    app.state.db = await asyncpg.create_pool(dsn=DB_URL, min_size=1, max_size=5,statement_cache_size=0)
     async with app.state.db.acquire() as conn:
         await ensure_core_tables(conn)
 
