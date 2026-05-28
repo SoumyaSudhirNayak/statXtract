@@ -168,6 +168,9 @@ ALGORITHM = os.getenv("ALGORITHM", "HS256")
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
+print("DATABASE_URL EXISTS:", bool(DB_URL))
+print("SECRET_KEY EXISTS:", bool(SECRET_KEY))
+
 
 async def get_qualified_table(conn, table_name: str) -> str:
     """
