@@ -37,6 +37,11 @@ Context: National Statistics Office (MoSPI) hosts anonymized unit-level microdat
 - **Central Security Layer** (`security/` module) — 6 specialized enforcement modules: access control engine, plan enforcer, usage tracker, warning manager, suspicious activity detector, and privacy guard.
 - **Governance Error Handling** — custom `HTTPException` handler that normalizes all security/governance errors into structured JSON (`error_type`, `message`) and a premium inline error card UI on the query page.
 - **Plan Governance Settings** — admin-configurable per-plan limits (queries/day, rows/day, download permissions) with a governance testing mode for validation.
+- **Auto-Refresh Engine** — standardized frontend auto-refresh logic across user and admin portal views (dashboard, downloads, history, usage) that silently updates database states every 9 seconds.
+- **Clear Payment Logs** — red outline button in Admin -> Payments section with a confirmation modal, calling `/api/admin/clear-payment-logs` (`DELETE FROM payments`) to clear all payment logs.
+- **Dynamic API Status** — dynamic status badges ("API Access Enabled" vs "API Access Restricted") in the User Profile snapshot responding in real-time to plan settings and user status.
+- **Auto Temporary Freeze System** — rate-limit automatic temporary freeze system (Free: 5m, Pro: 2m, Enterprise: 30s) triggering on excessive rate limit violations, tracked in the new `auto_temporary_freezes` table with real-time frontend countdowns on user dashboard and error page.
+- **Dark Mode fix** — integrated theme initialization in `user_explore.html` to fix dark theme display issues.
 
 Nesstar-specific ingest path:
 
@@ -340,6 +345,7 @@ Created on startup in `ensure_core_tables()`:
 - `usage_logs`
 - `variable_configs`
 - `dataset_registry` — maps `(survey_schema, dataset_schema, dataset_display_name)`.
+- `auto_temporary_freezes` — tracks user emails, violation counts, and freeze expiration dates for automatic rate-limiting freezes.
 
 Source: [db_init.py](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/utils/db_init.py#L4-L62)
 
@@ -521,6 +527,17 @@ Default limits:
 | Enterprise | 50,000 | 5,000,000 | Yes |
 | Admin | Unlimited | Unlimited | Yes |
 
+### Rate-Limit Automatic Temporary Freeze System
+
+Enforces temporary freeze durations when a user repeatedly violates request-rate limits.
+- **Trigger**: When a user triggers consecutive rate-limit violations within a 5-minute window, tracked in `auto_temporary_freezes`.
+- **Duration**:
+  - **Free Plan**: 5 minutes
+  - **Pro Plan**: 2 minutes
+  - **Enterprise/Other Plans**: 30 seconds
+- **Database Table**: `auto_temporary_freezes` (schema: `email`, `violation_count`, `freeze_expiry`, `last_violation`). This acts as an isolated status distinct from manual/admin freezes.
+- **Countdown Screens**: Raises a 403 Forbidden with details containing `"frozen"`. The frontend displays real-time countdown widgets on the user dashboard and the query error pages to guide the user.
+
 ### Governance Testing Mode
 
 - Activated via `system_settings` key `governance.testing_mode = true`.
@@ -577,6 +594,7 @@ Intercepts all `HTTPException`s and maps governance/security errors to a standar
 | 403 | Cell suppression (dict) | `PRIVACY_SUPPRESSION` | Includes `minimum_rows_required` and `actual_rows` |
 | 403 | Account blocked/frozen | `SENSITIVE_QUERY_BLOCKED` | User account status prevents access |
 | 403 | Unverified account | `SENSITIVE_QUERY_BLOCKED` | Account pending admin verification |
+| 403 | Account temporarily frozen (rate-limit) | `SENSITIVE_QUERY_BLOCKED` | Account temporarily frozen due to abuse; returns remaining seconds for countdown timer |
 
 Non-governance `HTTPException`s pass through unchanged.
 
@@ -601,9 +619,66 @@ The `generateChart()` function also handles governance errors, displaying the er
   - [security/usage_tracker.py](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/security/usage_tracker.py) — daily usage checks + logging
   - [security/suspicious_detector.py](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/security/suspicious_detector.py) — SQL injection detection
   - [security/privacy_guard.py](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/security/privacy_guard.py) — column access, cell suppression, label mapping
-- User Pages:
+- AI Query Engine:
+  - [ai_query/__init__.py](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/ai_query/__init__.py) — exports the AI query router
+  - [ai_query/nlp_engine.py](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/ai_query/nlp_engine.py) — Natural Language Processing, risk engine, textual summary generator
+  - [ai_query/routes.py](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/ai_query/routes.py) — Governed AI Query API endpoints (parse, execute, credits, history)
+- User Pages & Routes:
   - [templates/USER_PAGES/user_register.html](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/templates/USER_PAGES/user_register.html) — multi-step registration with org details + document upload
   - [templates/USER_PAGES/user_dashboard.html](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/templates/USER_PAGES/user_dashboard.html) — user dashboard
+  - [templates/USER_PAGES/user_explore.html](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/templates/USER_PAGES/user_explore.html) — Governed Dataset Explorer panel
+  - [templates/USER_PAGES/user_ai_query.html](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/templates/USER_PAGES/user_ai_query.html) — Governed AI Query Engine panel
+  - [query/user_explore.py](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/query/user_explore.py) — Governed Dataset Explorer API endpoints (tree, metadata, preview)
 - Admin Pages:
   - [templates/user_management.html](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/templates/user_management.html) — user management with expandable verification cards
   - [templates/system_settings.html](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/templates/system_settings.html) — system settings with plan governance controls
+- Test Suites:
+  - [tests/test_ai_query.py](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/tests/test_ai_query.py) — unit tests for NLP query parsing, risk classification, and summaries
+
+---
+
+## 18) Governed Dataset Explorer (User Explore)
+
+An interactive, premium-designed explorer that allows users to discover survey hierarchies, read documentation metadata, inspect variable profiles, and preview data under strict access controls.
+
+### Logical Navigation Tree
+- Users browse a tree layout of logical surveys (Annual Survey of Industries, PLFS, etc.) mapped dynamically to parent databases.
+- Lists all datasets and tables with row/column counts, filtering out internal metadata tables automatically.
+
+### Metadata Profiles
+- **General Access**: All users can view dataset metadata cards (title, abstract, keywords, geographic coverage, industrial coverage, methodologies, and collection procedures).
+- **Variable Profiling**: Lists variables, labels, decimal precision, concepts, and question text.
+- **Premium Analytics (Pro/Enterprise)**: Restricts advanced metadata value categories (frequency distribution charts) and variable statistics (mean, min, max, stddev, unique counts) to Pro and Enterprise subscription plans.
+
+### Governed Preview Panel
+- Allows tabular previews of data up to plan-specific row limits (Free: 5, Pro: 50, Enterprise/Admin: 100).
+- Applies Access Control Engine verification, parameterizes query syntax under the hood, maps coded values to DDI labels in real-time, and triggers cell suppression blocks if the matched rows are fewer than 5.
+- Logs preview requests and bandwidth bytes usage in global usage trackers.
+
+---
+
+## 19) AI Query Engine (Natural Language Query Layer)
+
+Allows users to execute natural language questions (English queries) against datasets. The NLP parsing logic translates human questions into clean SQL commands that are executed securely through the governance and privacy systems.
+
+### Credits System
+- Triggers monthly credit limits per subscription plan (Free: 3 queries/month, Pro/Enterprise: configured dynamically via system settings).
+- Usage is logged in `ai_query_logs` and credits are tracked in real-time. Admins bypass credit limits.
+
+### NLP Engine Parsing
+- Translates natural language prompts into:
+  - **Intent**: Categorizes intent (e.g., aggregations, grouping, filtering).
+  - **Filter Mapping**: Maps columns, operators (`BETWEEN`, `=`, `>=`, etc.), and matching values.
+  - **Aggregations & Group By**: Maps requested mathematical functions (`AVG`, `SUM`, `COUNT`, `MAX`, `MIN`) and grouping dimensions.
+  - **Auto-Quotes & Labels**: Safely quotes string patterns and aligns column names to Postgres schema values.
+
+### Query Risk & Safety Guardian
+- Evaluates risk score (0 to 100) based on factors like:
+  - Excessive nested identity filters (risk of identifying individual microdata subjects).
+  - Low limit values combined with deep filters.
+  - Presence of non-filterable or sensitive fields.
+- Blocks execution if risk level is classified as `high` for non-admin roles (returns 403 Forbidden details).
+
+### SQL Execution & Renders
+- Builds safe SELECT/aggregates/group-by queries, parameterizes input values, verifies column lists, applies cell suppression, maps labels, generates a textual summary of findings, and plots interactive visualizations using Chart.js.
+- Logs analytical data to `ai_query_logs` (logs prompts, execution times, risk logs, and query status).

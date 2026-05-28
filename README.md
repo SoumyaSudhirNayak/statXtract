@@ -1,4 +1,4 @@
-﻿# StatXtract – Statathon Dataset API Gateway
+# StatXtract – Statathon Dataset API Gateway
 
 StatXtract is a FastAPI-based gateway for exploring official survey microdata in a safe and structured way.  
 It focuses on:
@@ -28,6 +28,18 @@ It focuses on:
   - Cell suppression for queries returning fewer than 5 rows (for non-admins)
   - Daily row limits per user via `usage_logs`
 
+- **Governed Dataset Explorer**
+  - Hierarchical logical survey -> dataset -> table navigation tree.
+  - Variable profile schemas (label, decimal width, concepts) and descriptive DDI metadata card renderers.
+  - Pro/Enterprise tier limits restricting advanced stats (mean, min, max, stddev) and frequency distributions.
+  - Tabular governed previews (Free: 5, Pro: 50, Enterprise/Admin: 100 rows) with auto-labeling and suppression.
+
+- **AI Query Engine (Governed NLP Layer)**
+  - English prompt query translation into secure Postgres aggregations, filter expressions, and groupings.
+  - Credit tracking limits per subscription level (e.g., Free plan restricted to 3 monthly credits).
+  - Risk guardian classifier blocking queries scoring high for identity identification patterns.
+  - Interactive Chart.js plotting and text translation summaries of query output.
+
 - **Admin Dashboard & UI**
   - Glass-style admin dashboard with:
     - Total datasets
@@ -35,6 +47,13 @@ It focuses on:
     - Data schemas
     - System uptime
   - Query UI for interactive filtering and charting
+  - Integrated clear logs capabilities, including an admin-only "Clear Payment Logs" button
+
+- **Governance & Security Controls**
+  - **Rate-Limit Temporary Freeze**: Accounts are automatically temporarily frozen (Free: 5m, Pro: 2m, Enterprise: 30s) upon consecutive rate limit violations, featuring real-time countdown display widgets.
+  - **Dynamic API status badges**: Real-time status indicators ("API Access Enabled/Restricted") in the User Profile based on user limits.
+  - **Standardized Auto-Refresh**: Background polling timer updating stats and indicators every 9 seconds silently across portal views.
+  - **Theme Support**: Fixed dark mode integration for consistent user exploration layout styles.
 
 ---
 
@@ -44,10 +63,11 @@ Some key paths in this repository:
 
 - [main.py](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/main.py) – FastAPI application entrypoint (routes, admin dashboard, schema-aware querying)
 - [auth/local/](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/auth/local) – Local auth (register, login, JWT utilities, role checks)
-- [query/](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/query) – Query-related routers (safe query endpoints, suppression, logging)
+- [ai_query/](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/ai_query) – NLP parsing engine, risk checks, and API routes for Governed AI Queries
+- [query/](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/query) – Query-related routers (safe query endpoints, suppression, logging, user explore data endpoints)
 - [utils/](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/utils) – Ingestion pipeline, CSV/Excel/SAV conversion, metadata helpers, ingestion watcher
-- [templates/](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/templates) – HTML templates for login, admin dashboard, query UI, datasets view, upload progress
-- [tests/](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/tests) – Pytest suite for ingestion pipeline, watcher, and related helpers
+- [templates/](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/templates) – HTML templates for login, admin dashboard, query UI, datasets view, upload progress, user explore panel, and user AI query panel
+- [tests/](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/tests) – Pytest suite for ingestion pipeline, watcher, AI query parsing, and related helpers
 - [statathon-docs-only/](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/statathon-docs-only) – MkDocs configuration and standalone documentation site
 
 For a more narrative overview, see:
@@ -91,7 +111,7 @@ If you plan to use Nesstar-based `.sav` conversion, you will also need:
 
 ### 3. Initialize Core Tables
 
-Core tables (`users`, `datasets`, `usage_logs`, metadata tables, etc.) are created automatically on application startup via:
+Core tables (`users`, `datasets`, `usage_logs`, `auto_temporary_freezes`, metadata tables, etc.) are created automatically on application startup via:
 
 - [utils/db_init.py](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/utils/db_init.py)
 
@@ -152,6 +172,19 @@ There is also a **schema-aware** query endpoint mounted in [main.py](file:///e:/
 
 - `GET /datasets/{schema}/{table}/query`
 
+### Dataset Explorer (User Explore APIs)
+
+- `GET /api/user/explore/tree` – returns hierarchical list of surveys, datasets, and allowed tables.
+- `GET /api/user/explore/metadata` – returns general abstract metadata and variables dictionary; Pro/Enterprise plans also receive statistics and categories.
+- `GET /api/user/explore/preview` – governed table data preview (Free: 5, Pro: 50, Enterprise/Admin: 100 rows).
+
+### Governed AI Query (Natural Language Query APIs)
+
+- `POST /api/ai-query/parse` – parses natural language prompts into structured intent and filters without executing SQL.
+- `POST /api/ai-query/execute` – parses, validates governance, checks credits/risk score, executes SQL, applies suppression, and returns results + AI summary.
+- `GET /api/ai-query/credits` – checks monthly AI credit usage against plan limits.
+- `GET /api/ai-query/history` – returns personal NLP query history logs.
+
 ### Upload Dataset (Admin)
 
 - `POST /upload/`
@@ -167,8 +200,10 @@ After upload, the ingestion pipeline in [utils/ingestion_pipeline.py](file:///e:
 
 - **Cell Suppression**
   - For non-admin users, queries returning fewer than 5 rows are suppressed.
-- **Row Caps**
-  - Default daily limit for role `3` (users) is 100,000 rows.
+- **Row & Query Caps**
+  - Daily query count and row count limits enforced per subscription plan (Free, Pro, Enterprise) with per-user overrides.
+- **Auto Temporary Freeze**
+  - Triggers when a user exceeds request-rate limits consecutively. Freezes the account for plan-specific intervals (Free: 5m, Pro: 2m, Enterprise: 30s) and displays a real-time countdown in the UI.
 - **Usage Logging**
   - Every query is logged to `usage_logs` with:
     - user email
