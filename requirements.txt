@@ -7,7 +7,7 @@ starlette
 
 # --- Data Handling ---
 pandas
-pyreadstat
+pyreadstat==1.2.7
 sqlalchemy
 psycopg2-binary
 openpyxl
