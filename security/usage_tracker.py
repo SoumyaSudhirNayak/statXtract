@@ -4,18 +4,45 @@ from fastapi import HTTPException
 import time
 
 
+async def get_qualified_table(conn, table_name: str) -> str:
+    """
+    Dynamically resolves the schema for a table and returns its schema-qualified reference.
+    Falls back to current_schema() if the table or schema does not exist.
+    """
+    schema = await conn.fetchval(
+        """
+        SELECT table_schema 
+        FROM information_schema.tables 
+        WHERE LOWER(table_name) = LOWER($1) 
+        LIMIT 1
+        """,
+        table_name
+    )
+    if schema:
+        schema_ok = await conn.fetchval(
+            "SELECT EXISTS(SELECT 1 FROM information_schema.schemata WHERE schema_name = $1)",
+            schema
+        )
+        if schema_ok:
+            return f'"{schema}"."{table_name}"'
+            
+    fallback_schema = await conn.fetchval("SELECT current_schema()") or "public"
+    return f'"{fallback_schema}"."{table_name}"'
+
+
 async def check_daily_usage(conn, user_email: str, limits: dict, rows_requested: int = 0):
     """
     Checks the user's monthly usage logs from usage_logs.
     Raises HTTPException 429 if the user has exceeded query or row limits for this month.
     """
     # Fetch this month's query count and row count sum
+    usage_table = await get_qualified_table(conn, "usage_logs")
     monthly = await conn.fetchrow(
-        """
+        f"""
         SELECT 
             COUNT(*) AS monthly_queries,
             COALESCE(SUM(rows_returned), 0) AS monthly_rows
-        FROM usage_logs
+        FROM {usage_table}
         WHERE user_email = $1
           AND queried_at >= DATE_TRUNC('month', CURRENT_DATE)
         """,
@@ -53,13 +80,16 @@ async def get_daily_usage_credits(conn, user_email: str, limits: dict) -> dict:
     """
     Returns the user's credit usage for this month: queries, rows, downloads.
     """
+    usage_table = await get_qualified_table(conn, "usage_logs")
+    download_table = await get_qualified_table(conn, "download_logs")
+
     # Query and row usage
     monthly = await conn.fetchrow(
-        """
+        f"""
         SELECT 
             COUNT(*) AS monthly_queries,
             COALESCE(SUM(rows_returned), 0) AS monthly_rows
-        FROM usage_logs
+        FROM {usage_table}
         WHERE user_email = $1
           AND queried_at >= DATE_TRUNC('month', CURRENT_DATE)
         """,
@@ -70,8 +100,8 @@ async def get_daily_usage_credits(conn, user_email: str, limits: dict) -> dict:
 
     # Download usage
     monthly_downloads = await conn.fetchval(
-        """
-        SELECT COUNT(*) FROM download_logs
+        f"""
+        SELECT COUNT(*) FROM {download_table}
         WHERE user_email = $1 AND created_at >= DATE_TRUNC('month', CURRENT_DATE)
         """,
         user_email
@@ -79,8 +109,8 @@ async def get_daily_usage_credits(conn, user_email: str, limits: dict) -> dict:
 
     # AI query usage
     ai_queries_used = await conn.fetchval(
-        """
-        SELECT COUNT(*) FROM usage_logs
+        f"""
+        SELECT COUNT(*) FROM {usage_table}
         WHERE user_email = $1 
           AND endpoint LIKE '%/ai%'
           AND queried_at >= DATE_TRUNC('month', CURRENT_DATE)
@@ -106,17 +136,21 @@ async def get_daily_usage_credits(conn, user_email: str, limits: dict) -> dict:
         "ai_queries_used": int(ai_queries_used),
         "ai_queries_remaining": max(0, max_ai - int(ai_queries_used)),
         "ai_queries_limit": max_ai,
+        "api_access": limits.get("api_access", False),
+        "api_access_enabled": limits.get("api_access", False),
     }
+
 
 
 async def log_api_usage(conn, user_email: str, endpoint: str, schema_name: str, table_name: str, rows_returned: int, bytes_sent: int, query_time_ms: int = 0, status: str = "success", filters: str = None):
     """
     Logs API queries to the usage_logs database table.
     """
+    usage_table = await get_qualified_table(conn, "usage_logs")
     try:
         await conn.execute(
-            """
-            INSERT INTO usage_logs (user_email, endpoint, schema_name, table_name, rows_returned, bytes_sent, query_time_ms, status, filters, queried_at)
+            f"""
+            INSERT INTO {usage_table} (user_email, endpoint, schema_name, table_name, rows_returned, bytes_sent, query_time_ms, status, filters, queried_at)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP)
             """,
             user_email,
@@ -133,8 +167,8 @@ async def log_api_usage(conn, user_email: str, endpoint: str, schema_name: str, 
         # Fallback: try without the new columns (for backward compatibility)
         try:
             await conn.execute(
-                """
-                INSERT INTO usage_logs (user_email, endpoint, schema_name, table_name, rows_returned, bytes_sent, queried_at)
+                f"""
+                INSERT INTO {usage_table} (user_email, endpoint, schema_name, table_name, rows_returned, bytes_sent, queried_at)
                 VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
                 """,
                 user_email,
@@ -152,10 +186,11 @@ async def log_file_download(conn, file_name: str, user_email: str, size_bytes: i
     """
     Logs file downloads to the download_logs database table with governance columns.
     """
+    download_table = await get_qualified_table(conn, "download_logs")
     try:
         await conn.execute(
-            """
-            INSERT INTO download_logs (file_name, user_email, size_bytes, dataset_schema, export_format, rows_exported, status, created_at)
+            f"""
+            INSERT INTO {download_table} (file_name, user_email, size_bytes, dataset_schema, export_format, rows_exported, status, created_at)
             VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP)
             """,
             file_name,
@@ -170,8 +205,8 @@ async def log_file_download(conn, file_name: str, user_email: str, size_bytes: i
         # Fallback without new columns
         try:
             await conn.execute(
-                """
-                INSERT INTO download_logs (file_name, user_email, size_bytes, created_at)
+                f"""
+                INSERT INTO {download_table} (file_name, user_email, size_bytes, created_at)
                 VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
                 """,
                 file_name,
@@ -198,9 +233,10 @@ async def check_download_limits(conn, user_email: str, limits: dict):
             status_code=403,
             detail="Access Denied: File downloads and data exports are restricted on your current subscription plan. Please upgrade."
         )
+    download_table = await get_qualified_table(conn, "download_logs")
     monthly_downloads = await conn.fetchval(
-        """
-        SELECT COUNT(*) FROM download_logs
+        f"""
+        SELECT COUNT(*) FROM {download_table}
         WHERE user_email = $1 AND created_at >= DATE_TRUNC('month', CURRENT_DATE)
         """,
         user_email

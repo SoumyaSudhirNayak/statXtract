@@ -395,8 +395,8 @@
             </div>
             <div class="header-actions">
                 <div class="theme-toggle" id="theme-toggle" onclick="toggleTheme()">
-                    <i class="fas fa-moon"></i>
-                    <span>Dark Mode</span>
+                    <i id="themeIcon" class="fas fa-moon"></i>
+                    <span id="themeText">Dark Mode</span>
                 </div>
             </div>
         </header>
@@ -509,11 +509,11 @@
             const icon = document.getElementById('themeIcon');
             const text = document.getElementById('themeText');
             if (theme === 'dark') {
-                icon.className = 'fas fa-sun';
-                text.textContent = 'Light Mode';
+                if (icon) icon.className = 'fas fa-sun';
+                if (text) text.textContent = 'Light Mode';
             } else {
-                icon.className = 'fas fa-moon';
-                text.textContent = 'Dark Mode';
+                if (icon) icon.className = 'fas fa-moon';
+                if (text) text.textContent = 'Dark Mode';
             }
             localStorage.setItem('nada_theme', theme);
         }

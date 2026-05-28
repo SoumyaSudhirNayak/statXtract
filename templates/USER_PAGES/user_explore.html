@@ -1,0 +1,1165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Explore Data — STATXTRACT</title>
+  <meta name="description" content="Explore governed datasets, metadata, and visual analytics securely.">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/user_styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script>
+    (function() {
+      const theme = localStorage.getItem('userTheme') || 'light';
+      document.documentElement.setAttribute('data-theme', theme);
+      const density = localStorage.getItem('userDensity') || 'comfortable';
+      document.documentElement.setAttribute('data-density', density);
+      const accent = localStorage.getItem('userAccentColor') || '#2E7D32';
+      document.documentElement.style.setProperty('--green', accent);
+      const savedState = localStorage.getItem('sidebarState') || 'expanded';
+      if (savedState === 'collapsed') {
+        document.documentElement.classList.add('sidebar-collapsed-preload');
+      }
+    })();
+  </script>
+  <style>
+    body { background: var(--bg-page); min-height: 100vh; overflow: hidden; }
+    .app-shell { display: flex; flex-direction: column; height: 100vh; width: 100%; max-width: 100%; overflow: hidden; }
+    .main-area { display: flex; flex: 1; overflow: hidden; width: 100%; max-width: 100%; }
+
+    /* ── SIDEBAR OVERRIDES ── */
+    .sidebar {
+      flex-shrink: 0 !important;
+      height: 100vh !important;
+      overflow-y: auto !important;
+      overflow-x: hidden !important;
+    }
+    .sidebar.expanded {
+      width: 280px !important;
+      min-width: 280px !important;
+      max-width: 280px !important;
+    }
+    .sidebar.collapsed {
+      width: 88px !important;
+      min-width: 88px !important;
+      max-width: 88px !important;
+    }
+    .sidebar-nav {
+      padding: 12px !important;
+      gap: 4px !important;
+      margin-top: 48px !important;
+    }
+    .nav-item {
+      padding: 10px 12px !important;
+    }
+    .sidebar-toggle {
+      position: absolute !important;
+      top: 12px !important;
+      right: 16px !important;
+    }
+    .sidebar.collapsed .sidebar-toggle {
+      right: 24px !important;
+    }
+
+    .nav-svg { width: 20px; height: 20px; flex-shrink: 0; }
+    .nav-item.active {
+      background: var(--green);
+      color: #fff;
+      border-color: var(--green);
+      box-shadow: 0 6px 20px rgba(46,125,50,0.4);
+    }
+    .nav-item.active:hover { background: var(--green); color: #fff; }
+
+    .content { flex: 1; overflow-y: auto; overflow-x: hidden; min-width: 0; padding: 24px 30px; width: 100%; max-width: 100%; display: flex; flex-direction: column; }
+    .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-shrink: 0; }
+    .page-title { font-family: var(--font-head); font-size: 30px; font-weight: 900; color: var(--text-main); line-height: 1.1; }
+    .page-title span { color: var(--green); }
+
+    /* ── EXPLORE GRID WORKSPACE ── */
+    .explore-workspace {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      gap: 24px;
+      flex: 1;
+      overflow: hidden;
+      min-height: 0;
+      width: 100%;
+    }
+    @media(max-width: 1024px) {
+      .explore-workspace { grid-template-columns: 1fr; }
+    }
+
+    /* ── LEFT TREE BROWSER ── */
+    .tree-panel {
+      background: var(--glass);
+      backdrop-filter: blur(12px);
+      border: 2px solid var(--border);
+      border-radius: 18px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      overflow: hidden;
+    }
+    .search-container {
+      position: relative;
+      margin-bottom: 16px;
+    }
+    .search-input {
+      width: 100%;
+      padding: 10px 14px 10px 36px;
+      border: 2px solid var(--border);
+      border-radius: 12px;
+      background: var(--bg-white);
+      color: var(--text-main);
+      font-size: 13.5px;
+      outline: none;
+      transition: all 0.3s;
+    }
+    .search-input:focus {
+      border-color: var(--green);
+      box-shadow: 0 0 0 3px rgba(46,125,50,0.15);
+    }
+    .search-icon {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    .tree-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+
+    /* Tree Node Styling */
+    .tree-node {
+      margin-bottom: 4px;
+      user-select: none;
+    }
+    .tree-row {
+      display: flex;
+      align-items: center;
+      padding: 8px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-main);
+      transition: all 0.2s;
+      gap: 8px;
+    }
+    .tree-row:hover {
+      background: rgba(0,0,0,0.04);
+    }
+    .tree-row.survey-node {
+      font-weight: 700;
+      color: var(--royal);
+      background: rgba(46,91,186,0.05);
+    }
+    .tree-row.dataset-node {
+      font-weight: 600;
+      padding-left: 20px;
+    }
+    .tree-row.table-node {
+      padding-left: 36px;
+      color: var(--text-muted);
+    }
+    .tree-row.table-node:hover {
+      background: rgba(46,125,50,0.08);
+      color: var(--green);
+    }
+    .tree-row.active {
+      background: var(--green) !important;
+      color: #fff !important;
+    }
+    .tree-row.active i { color: #fff !important; }
+    .tree-row.active span { color: #fff !important; }
+
+    .node-arrow {
+      width: 14px;
+      height: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.2s;
+    }
+    .node-arrow.collapsed {
+      transform: rotate(-90deg);
+    }
+    .node-children {
+      margin-left: 0;
+      display: block;
+    }
+    .node-children.hidden {
+      display: none;
+    }
+
+    /* ── RIGHT MAIN WORKSPACE ── */
+    .workspace-panel {
+      background: var(--glass);
+      backdrop-filter: blur(12px);
+      border: 2px solid var(--border);
+      border-radius: 18px;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* Empty State */
+    .empty-state-ws {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      padding: 40px;
+      text-align: center;
+      color: var(--text-muted);
+    }
+    .empty-state-icon {
+      font-size: 64px;
+      margin-bottom: 20px;
+      color: var(--green);
+      animation: pulse 2s infinite;
+    }
+
+    /* Workspace Content */
+    .ws-content {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      overflow: hidden;
+    }
+    .ws-header {
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--border-soft);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+      background: rgba(255,255,255,0.4);
+    }
+    .ws-header-title h2 {
+      font-family: var(--font-head);
+      font-size: 20px;
+      font-weight: 800;
+      color: var(--text-main);
+    }
+    .ws-header-title p {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    /* Tabs Header */
+    .tabs-bar {
+      display: flex;
+      gap: 4px;
+      padding: 0 20px;
+      border-bottom: 1px solid var(--border-soft);
+      background: rgba(0,0,0,0.01);
+      flex-shrink: 0;
+    }
+    .tab-btn {
+      padding: 12px 18px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+      border: none;
+      background: none;
+      cursor: pointer;
+      position: relative;
+      transition: all 0.2s;
+    }
+    .tab-btn:hover {
+      color: var(--green);
+    }
+    .tab-btn.active {
+      color: var(--green);
+    }
+    .tab-btn.active::after {
+      content: '';
+      position: absolute;
+      bottom: -1px;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: var(--green);
+      border-radius: 3px 3px 0 0;
+    }
+
+    /* Tab Content panels */
+    .tab-panels {
+      flex: 1;
+      overflow: hidden;
+      position: relative;
+    }
+    .tab-panel {
+      position: absolute;
+      inset: 0;
+      display: none;
+      flex-direction: column;
+      padding: 24px;
+      overflow-y: auto;
+    }
+    .tab-panel.active {
+      display: flex;
+    }
+
+    /* ── METADATA VIEW ── */
+    .meta-section {
+      margin-bottom: 24px;
+    }
+    .meta-title-sub {
+      font-family: var(--font-head);
+      font-size: 14px;
+      font-weight: 800;
+      color: var(--royal);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 12px;
+      border-left: 3px solid var(--royal);
+      padding-left: 8px;
+    }
+    .meta-grid-info {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+    }
+    @media(max-width: 768px) {
+      .meta-grid-info { grid-template-columns: 1fr; }
+    }
+    .meta-item {
+      background: rgba(0,0,0,0.015);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+    }
+    .meta-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+    .meta-value {
+      font-size: 13.5px;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+    .keyword-tag {
+      display: inline-block;
+      padding: 4px 10px;
+      background: rgba(46,91,186,0.1);
+      color: var(--royal);
+      border-radius: 20px;
+      font-size: 11.5px;
+      font-weight: 600;
+      margin-right: 6px;
+      margin-bottom: 6px;
+    }
+
+    /* ── DICTIONARY GRID ── */
+    .dict-table-container {
+      flex: 1;
+      overflow: auto;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+    }
+    .dict-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+    }
+    .dict-table th {
+      position: sticky;
+      top: 0;
+      background: #f1f5f9;
+      padding: 12px 16px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      border-bottom: 2px solid var(--border);
+      z-index: 10;
+    }
+    .dict-table td {
+      padding: 12px 16px;
+      font-size: 13px;
+      border-bottom: 1px solid var(--border-soft);
+      vertical-align: top;
+    }
+    .dict-table tr:hover { background: rgba(0,0,0,0.015); }
+    .col-highlight { font-weight: 700; color: var(--green); }
+
+    /* Frequency badge & stats list */
+    .premium-callout {
+      background: linear-gradient(135deg, rgba(244,163,0,0.08), rgba(123,31,162,0.08));
+      border: 2px dashed rgba(244,163,0,0.4);
+      border-radius: 12px;
+      padding: 16px;
+      text-align: center;
+      margin-top: 16px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+    .premium-callout a { color: var(--royal); text-decoration: underline; font-weight: 700; }
+
+    /* ── FILTER CONTAINER ── */
+    .filter-panel-card {
+      background: rgba(0,0,0,0.015);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px;
+      margin-bottom: 16px;
+      flex-shrink: 0;
+    }
+    .filter-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+    }
+    .filter-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: #fff;
+      border: 1px solid var(--border);
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+    .filter-remove {
+      color: var(--danger);
+      cursor: pointer;
+      font-weight: 800;
+      margin-left: 4px;
+    }
+    .add-filter-btn {
+      padding: 8px 14px;
+      background: var(--royal);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 12.5px;
+      font-weight: 600;
+      transition: background 0.2s;
+    }
+    .add-filter-btn:hover { background: #22438c; }
+
+    /* Modal for filter builder */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 10000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .modal-card {
+      background: #fff;
+      border-radius: 16px;
+      width: 100%;
+      max-width: 480px;
+      padding: 24px;
+      box-shadow: 0 12px 36px rgba(0,0,0,0.15);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .modal-title { font-family: var(--font-head); font-size: 18px; font-weight: 800; color: var(--text-main); }
+
+    /* ── CHART WORKSPACE ── */
+    .chart-config-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-bottom: 20px;
+      flex-shrink: 0;
+    }
+    @media(max-width: 600px) {
+      .chart-config-row { grid-template-columns: 1fr; }
+    }
+    .chart-container-ws {
+      flex: 1;
+      min-height: 300px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0,0,0,0.01);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px;
+      position: relative;
+    }
+
+    /* Banners & Badges */
+    .gov-warning-ws {
+      background: linear-gradient(135deg, rgba(211,47,47,0.1), rgba(211,47,47,0.03));
+      border: 2px solid rgba(211,47,47,0.3);
+      border-radius: 12px;
+      padding: 12px 18px;
+      color: var(--danger);
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .limit-badge-ws {
+      background: rgba(46,125,50,0.1);
+      color: var(--green);
+      font-size: 11.5px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 20px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    /* VerificationOverlay */
+    .verification-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(248, 250, 252, 0.95);
+      z-index: 50;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px;
+      text-align: center;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(1); opacity: 0.8; }
+      50% { transform: scale(1.05); opacity: 1; }
+      100% { transform: scale(1); opacity: 0.8; }
+    }
+  </style>
+</head>
+<body>
+  <div class="animated-bg"></div>
+  <div class="toast-container" id="toastContainer"></div>
+
+  <div class="app-shell">
+    <!-- ── HEADER ── -->
+    <header class="site-header">
+      <a href="/user/dashboard" class="site-logo">STATXTRACT</a>
+      <div class="header-right">
+        <button class="profile-btn" onclick="window.location.href='/user/profile'" id="profileBtn" style="padding: 6px 14px; text-align: left;">
+          <div class="avatar" id="avatarInitial">U</div>
+          <div style="display: flex; flex-direction: column; line-height: 1.1;">
+            <span id="headerUsername" style="font-weight: 700; font-size: 13px;">{{ username | default('My Profile') }}</span>
+            <span id="headerEmail" style="font-size: 10px; opacity: 0.85; font-weight: 500;">{{ email | default('') }}</span>
+          </div>
+        </button>
+      </div>
+    </header>
+
+    <div class="main-area">
+      <!-- ── SIDEBAR ── -->
+      <aside class="sidebar expanded" id="sidebar">
+        <button class="sidebar-toggle" id="sidebarToggle" title="Toggle Sidebar">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <nav class="sidebar-nav">
+          <a href="/user/dashboard" class="nav-item">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div>
+            <span class="nav-label">Dashboard</span>
+          </a>
+          <a href="/query" class="nav-item">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>
+            <span class="nav-label">Advanced Query</span>
+          </a>
+          <a href="/user/ai-query" class="nav-item">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a4 4 0 0 1 4 4v1a4 4 0 0 1-8 0V6a4 4 0 0 1 4-4z"/><path d="M18 14h-1a7 7 0 0 0-10 0H6a4 4 0 0 0-4 4v2h20v-2a4 4 0 0 0-4-4z"/><circle cx="12" cy="5" r="1"/></svg></div>
+            <span class="nav-label">AI Query</span>
+          </a>
+          <a href="/user/explore-data" class="nav-item active">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg></div>
+            <span class="nav-label">Explore Data</span>
+          </a>
+          <a href="/user/history" class="nav-item">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+            <span class="nav-label">Query History</span>
+          </a>
+          <a href="/user/downloads" class="nav-item">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div>
+            <span class="nav-label">My Downloads</span>
+          </a>
+          <a href="/user/usage" class="nav-item">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V10M18 20V4M6 20v-4"/></svg></div>
+            <span class="nav-label">Usage &amp; Limits</span>
+          </a>
+          <a href="/user/plans" class="nav-item">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></div>
+            <span class="nav-label">Plans &amp; Pricing</span>
+          </a>
+          <a href="/user/feedback" class="nav-item">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></div>
+            <span class="nav-label">Feedback &amp; Requests</span>
+          </a>
+          <a href="/user/settings" class="nav-item">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1-4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div>
+            <span class="nav-label">Settings</span>
+          </a>
+          <a href="/user/profile" class="nav-item" style="margin-top:auto;">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+            <span class="nav-label">My Profile</span>
+          </a>
+        </nav>
+      </aside>
+
+      <!-- ── MAIN CONTENT ── -->
+      <main class="content">
+        <!-- Page Header -->
+        <div class="page-header">
+          <div>
+            <h1 class="page-title">DATA EXPLORER</h1>
+            <p style="font-size: 13px; color: var(--text-muted); font-weight: 500; margin-top: 4px;">Browse datasets, inspect descriptions, Metadata, Column names</p>
+          </div>
+          <div class="limit-badge-ws" id="planBadgeWS">Free Plan</div>
+        </div>
+
+        <!-- Explore Workspace Grid -->
+        <div class="explore-workspace">
+          <!-- Left Column Tree Panel -->
+          <div class="tree-panel">
+            <div class="search-container">
+              <span class="search-icon">🔍</span>
+              <input type="text" id="treeSearch" class="search-input" placeholder="Search datasets or tables..." oninput="handleSearch()">
+            </div>
+            
+            <div class="tree-scroll" id="treeScroll">
+              <div style="text-align:center; padding: 30px; font-size:13px; color:var(--text-muted);">
+                <span>Loading explorer tree...</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right Column Main Workspace -->
+          <div class="workspace-panel">
+            <!-- Account Verification Cover Overlay (If user is not verified yet) -->
+            <div class="verification-overlay" id="verificationCover" style="display: none;">
+              <div style="width:70px; height:70px; border-radius:50%; background:rgba(244,163,0,0.15); color:#F4A300; display:grid; place-items:center; font-size:32px; margin-bottom:20px;">⚠️</div>
+              <h2 style="font-family:var(--font-head); font-weight:900; font-size:24px; color:var(--text-main); margin-bottom:8px;">Verification Required</h2>
+              <p style="font-size:14px; color:var(--text-muted); max-width:420px; line-height:1.6; margin-bottom:20px;">Your researcher/analyst portal account is currently pending verification. Explore Data is restricted until your profile documents are approved by the administrators.</p>
+              <button class="btn" style="background:var(--royal); font-size:13px;" onclick="window.location.reload()">Refresh Verification Status</button>
+            </div>
+
+            <!-- Workspace Default Empty State -->
+            <div class="empty-state-ws" id="wsEmptyState">
+              <div class="empty-state-icon">🧭</div>
+              <h3 style="font-family:var(--font-head); font-size:20px; font-weight:800; color:var(--text-main); margin-bottom:8px;">Select a Table</h3>
+              <p style="font-size:13.5px; color:var(--text-muted); max-width:320px; line-height:1.5;">Click any database table folder in the left hierarchy tree to inspect details, previews, and metadata views under governance controls.</p>
+            </div>
+
+            <!-- Workspace Content Details -->
+            <div class="ws-content" id="wsContent" style="display: none;">
+              <!-- Header info -->
+              <div class="ws-header">
+                <div class="ws-header-title">
+                  <h2 id="wsHeaderTitle">Dataset Table Name</h2>
+                  <p id="wsHeaderSubtitle">Schema: public | Table: users</p>
+                </div>
+                <div id="wsHeaderBadge" class="limit-badge-ws">Governed View</div>
+              </div>
+
+              <!-- Workspace Tabs -->
+              <div class="tabs-bar">
+                <button class="tab-btn active" onclick="switchTab('tab-metadata')">📖 Metadata &amp; DDI</button>
+                <button class="tab-btn" onclick="switchTab('tab-dictionary')">📋 Column Dictionary</button>
+              </div>
+
+              <!-- Tab Panels Container -->
+              <div class="tab-panels">
+                
+                <!-- Panel 1: Metadata -->
+                <div class="tab-panel active" id="tab-metadata">
+                  <div class="meta-section">
+                    <div class="meta-title-sub">Dataset Overview</div>
+                    <div class="meta-item" style="margin-bottom: 16px;">
+                      <div class="meta-label">Title</div>
+                      <div class="meta-value" id="metaTitle">Loading dataset title...</div>
+                    </div>
+                    <div class="meta-item">
+                      <div class="meta-label">Abstract / Study Description</div>
+                      <div class="meta-value" id="metaAbstract" style="font-weight: 500; line-height: 1.6; font-size: 13px;">No abstract details populated.</div>
+                    </div>
+                  </div>
+
+                  <div class="meta-section">
+                    <div class="meta-title-sub">DDI Study Details</div>
+                    <div class="meta-grid-info">
+                      <div class="meta-item">
+                        <div class="meta-label">Producer</div>
+                        <div class="meta-value" id="metaProducer">-</div>
+                      </div>
+                      <div class="meta-item">
+                        <div class="meta-label">Keywords</div>
+                        <div class="meta-value" id="metaKeywords" style="font-weight: 500;">-</div>
+                      </div>
+                      <div class="meta-item">
+                        <div class="meta-label">Geographic Coverage</div>
+                        <div class="meta-value" id="metaGeography">-</div>
+                      </div>
+                      <div class="meta-item">
+                        <div class="meta-label">Methodology / Mode</div>
+                        <div class="meta-value" id="metaMethod">-</div>
+                      </div>
+                      <div class="meta-item">
+                        <div class="meta-label">File Case Count</div>
+                        <div class="meta-value" id="metaCases">-</div>
+                      </div>
+                      <div class="meta-item">
+                        <div class="meta-label">File Variable Count</div>
+                        <div class="meta-value" id="metaVars">-</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Panel 2: Column Dictionary -->
+                <div class="tab-panel" id="tab-dictionary">
+                  <div class="dict-table-container">
+                    <table class="dict-table" style="width: 100%; table-layout: fixed;">
+                      <thead>
+                        <tr>
+                          <th style="width: 30%;">Variable Name</th>
+                          <th style="width: 50%;">DDI Label</th>
+                          <th style="width: 20%;">Data Type</th>
+                        </tr>
+                      </thead>
+                      <tbody id="dictTableBody">
+                        <tr><td colspan="3" style="text-align:center; padding:30px; color:var(--text-muted);">Loading column dictionary...</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="height:20px;"></div>
+      </main>
+    </div>
+  </div>
+
+
+  <script>
+    // ── Sidebar Toggle ──
+    document.getElementById('sidebarToggle').addEventListener('click', () => {
+      const sb = document.getElementById('sidebar');
+      const isCollapsed = sb.classList.contains('collapsed');
+      if (isCollapsed) {
+        sb.classList.remove('collapsed');
+        sb.classList.add('expanded');
+        localStorage.setItem('sidebarState', 'expanded');
+      } else {
+        sb.classList.remove('expanded');
+        sb.classList.add('collapsed');
+        localStorage.setItem('sidebarState', 'collapsed');
+      }
+    });
+
+    (function() {
+      const savedState = localStorage.getItem('sidebarState') || 'expanded';
+      const sb = document.getElementById('sidebar');
+      if (sb) {
+        if (savedState === 'collapsed') {
+          sb.classList.remove('expanded');
+          sb.classList.add('collapsed');
+        } else {
+          sb.classList.remove('collapsed');
+          sb.classList.add('expanded');
+        }
+      }
+    })();
+
+    // ── Global State variables ──
+    let userPlan = 'free';
+    let rawTreeData = [];
+    let activeSchema = '';
+    let activeTable = '';
+    let tableMetadata = null;
+    let filtersList = []; // Array of {column, operator, value}
+    let chartInstance = null;
+
+    // Toast alerts helper
+    function showToast(msg, type='info') {
+      const tc = document.getElementById('toastContainer');
+      const t  = document.createElement('div');
+      t.className = `toast ${type}`;
+      const icons = {success:'✅', info:'ℹ️', warning:'⚠️'};
+      t.innerHTML = `<span>${icons[type]||'ℹ️'}</span><span>${msg}</span>`;
+      tc.appendChild(t);
+      setTimeout(() => { t.style.animation='slideOut 0.3s ease forwards'; setTimeout(()=>t.remove(),300); }, 4000);
+    }
+
+    // ── Load User Verification & Plan Details ──
+    async function loadUserPortalDetails(silent = false) {
+      try {
+        const res = await fetch('/api/user/status');
+        const status = await res.json();
+        
+        const isUserAdmin = '{{ role }}' === '1' || '{{ role }}'.toLowerCase() === 'admin';
+        
+        // Block unverified users from workspace
+        if (!isUserAdmin && status && status.is_verified === false) {
+          document.getElementById('verificationCover').style.display = 'flex';
+          return;
+        } else {
+          document.getElementById('verificationCover').style.display = 'none';
+        }
+
+        // Get limits details
+        const govRes = await fetch('/api/user/governance');
+        const gov = await govRes.json();
+        userPlan = gov.plan || 'free';
+        document.getElementById('planBadgeWS').textContent = userPlan.toUpperCase() + ' PLAN';
+        
+        if (userPlan === 'free') {
+          document.getElementById('planBadgeWS').className = 'limit-badge-ws';
+          document.getElementById('planBadgeWS').style.setProperty('background', 'rgba(107, 114, 128, 0.1)', 'important');
+          document.getElementById('planBadgeWS').style.setProperty('color', '#6b7280', 'important');
+        } else if (userPlan === 'pro') {
+          document.getElementById('planBadgeWS').className = 'limit-badge-ws';
+          document.getElementById('planBadgeWS').style.setProperty('background', 'rgba(46, 91, 186, 0.15)', 'important');
+          document.getElementById('planBadgeWS').style.setProperty('color', 'var(--royal)', 'important');
+        } else {
+          document.getElementById('planBadgeWS').className = 'limit-badge-ws';
+          document.getElementById('planBadgeWS').style.setProperty('background', 'rgba(46, 125, 50, 0.15)', 'important');
+          document.getElementById('planBadgeWS').style.setProperty('color', 'var(--green)', 'important');
+        }
+
+        // Populate tree browser list
+        await loadExplorerTree(silent);
+      } catch (e) {
+        console.error('Failed to load user portal details:', e);
+        if (!silent) showToast('Error initializing data explorer details', 'warning');
+      }
+    }
+
+    // Initialize portal view
+    document.addEventListener('DOMContentLoaded', () => loadUserPortalDetails(false));
+
+    // ── Retrieve tree data ──
+    async function loadExplorerTree(silent = false) {
+      try {
+        const res = await fetch('/api/user/explore/tree');
+        if (!res.ok) {
+          const err = await res.json();
+          if (!silent) showToast(err.detail || 'Error loading survey structures', 'warning');
+          return;
+        }
+        
+        // Save state of expanded nodes
+        const expandedNodeIds = Array.from(document.querySelectorAll('.node-children:not(.hidden)')).map(el => el.id);
+        
+        rawTreeData = await res.json();
+        
+        const searchInput = document.getElementById('treeSearch');
+        const searchValue = searchInput ? searchInput.value : '';
+        
+        renderTree(rawTreeData);
+        
+        if (searchValue) {
+          handleSearch();
+        } else {
+          expandedNodeIds.forEach(id => {
+            const el = document.getElementById(id);
+            const arrow = document.getElementById(`arrow-${id}`);
+            if (el) el.classList.remove('hidden');
+            if (arrow) arrow.classList.remove('collapsed');
+          });
+        }
+        
+        // Restore active table highlight
+        if (activeSchema && activeTable) {
+          const activeRow = document.getElementById(`table-row-${activeSchema}-${activeTable}`);
+          if (activeRow) activeRow.classList.add('active');
+        }
+      } catch (e) {
+        console.error(e);
+        if (!silent) showToast('Connection error fetching datasets registry', 'warning');
+      }
+    }
+
+    // Render tree view DOM
+    function renderTree(data) {
+      const scrollArea = document.getElementById('treeScroll');
+      if (data.length === 0) {
+        scrollArea.innerHTML = '<div style="text-align:center; padding:30px; font-size:13px; color:var(--text-muted);">No surveys or datasets are registered.</div>';
+        return;
+      }
+
+      scrollArea.innerHTML = '';
+      data.forEach((surveyNode, sIdx) => {
+        const sDiv = document.createElement('div');
+        sDiv.className = 'tree-node';
+        sDiv.id = `survey-node-${sIdx}`;
+        
+        // Survey header row
+        const sRow = document.createElement('div');
+        sRow.className = 'tree-row survey-node';
+        sRow.onclick = () => toggleNodeCollapse(`survey-children-${sIdx}`, sRow);
+        sRow.innerHTML = `
+          <div class="node-arrow collapsed" id="arrow-survey-children-${sIdx}">▼</div>
+          <span style="font-size:15px;">📁</span>
+          <span style="flex:1; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${surveyNode.display_name}</span>
+        `;
+        sDiv.appendChild(sRow);
+
+        // Datasets children container
+        const childrenDiv = document.createElement('div');
+        childrenDiv.className = 'node-children hidden';
+        childrenDiv.id = `survey-children-${sIdx}`;
+
+        surveyNode.datasets.forEach((datasetNode, dIdx) => {
+          const dDiv = document.createElement('div');
+          dDiv.className = 'tree-node';
+          
+          // Dataset header row
+          const dRow = document.createElement('div');
+          dRow.className = 'tree-row dataset-node';
+          dRow.onclick = () => toggleNodeCollapse(`dataset-children-${sIdx}-${dIdx}`, dRow);
+          dRow.innerHTML = `
+            <div class="node-arrow collapsed" id="arrow-dataset-children-${sIdx}-${dIdx}">▼</div>
+            <span>📁</span>
+            <span style="flex:1; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${datasetNode.display_name}</span>
+          `;
+          dDiv.appendChild(dRow);
+
+          // Tables children container
+          const tablesDiv = document.createElement('div');
+          tablesDiv.className = 'node-children hidden';
+          tablesDiv.id = `dataset-children-${sIdx}-${dIdx}`;
+
+          datasetNode.tables.forEach((tableNode) => {
+            const tRow = document.createElement('div');
+            tRow.className = 'tree-row table-node';
+            tRow.id = `table-row-${datasetNode.schema}-${tableNode.table_name}`;
+            tRow.onclick = () => selectSurveyTable(datasetNode.schema, tableNode.table_name, tRow);
+            tRow.innerHTML = `
+              <span>📄</span>
+              <span style="flex:1; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${tableNode.table_name}</span>
+            `;
+            tablesDiv.appendChild(tRow);
+          });
+
+          dDiv.appendChild(tablesDiv);
+          childrenDiv.appendChild(dDiv);
+        });
+
+        sDiv.appendChild(childrenDiv);
+        scrollArea.appendChild(sDiv);
+      });
+    }
+
+    // Toggle expand/collapse tree nodes
+    function toggleNodeCollapse(childrenId, rowElem) {
+      const container = document.getElementById(childrenId);
+      const arrow = document.getElementById(`arrow-${childrenId}`);
+      if (container.classList.contains('hidden')) {
+        container.classList.remove('hidden');
+        arrow.classList.remove('collapsed');
+      } else {
+        container.classList.add('hidden');
+        arrow.classList.add('collapsed');
+      }
+    }
+
+    // Tree Search Filter
+    function handleSearch() {
+      const val = document.getElementById('treeSearch').value.toLowerCase().trim();
+      if (!val) {
+        renderTree(rawTreeData);
+        return;
+      }
+
+      // Filter local tree copy
+      const filtered = [];
+      rawTreeData.forEach(surveyNode => {
+        const matchesSurvey = surveyNode.display_name.toLowerCase().includes(val);
+        const filteredDatasets = [];
+
+        surveyNode.datasets.forEach(datasetNode => {
+          const matchesDataset = datasetNode.display_name.toLowerCase().includes(val);
+          const filteredTables = datasetNode.tables.filter(tableNode => 
+            tableNode.table_name.toLowerCase().includes(val)
+          );
+
+          if (matchesDataset || filteredTables.length > 0 || matchesSurvey) {
+            filteredDatasets.push({
+              ...datasetNode,
+              tables: matchesDataset || matchesSurvey ? datasetNode.tables : filteredTables
+            });
+          }
+        });
+
+        if (matchesSurvey || filteredDatasets.length > 0) {
+          filtered.push({
+            ...surveyNode,
+            datasets: filteredDatasets
+          });
+        }
+      });
+
+      renderTree(filtered);
+
+      // Expand all nodes automatically during search matches
+      document.querySelectorAll('.node-children').forEach(node => {
+        node.classList.remove('hidden');
+      });
+      document.querySelectorAll('.node-arrow').forEach(arrow => {
+        arrow.classList.remove('collapsed');
+      });
+    }
+
+    // Select table tree action
+    function selectSurveyTable(schema, table, rowElem) {
+      // Remove previous active classes
+      document.querySelectorAll('.tree-row.table-node').forEach(elem => elem.classList.remove('active'));
+      rowElem.classList.add('active');
+
+      activeSchema = schema;
+      activeTable = table;
+      
+      // Update workspace header
+      document.getElementById('wsHeaderTitle').textContent = table;
+      document.getElementById('wsHeaderSubtitle').textContent = `Schema: ${schema} | Table: ${table}`;
+
+      // Transition empty state out, content in
+      document.getElementById('wsEmptyState').style.display = 'none';
+      document.getElementById('wsContent').style.display = 'flex';
+
+      // Load Metadata automatically
+      loadTableMetadata();
+
+      // Go to first tab (Metadata)
+      switchTab('tab-metadata');
+    }
+
+    // ── Tab Management ──
+    function switchTab(panelId) {
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.remove('active'));
+
+      // Find tab button by index or name match
+      const buttonText = panelId === 'tab-metadata' ? '📖 Metadata' : '📋 Column';
+      
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        if (btn.textContent.includes(buttonText)) btn.classList.add('active');
+      });
+
+      document.getElementById(panelId).classList.add('active');
+    }
+
+    // ── Retrieve Table Metadata (DDI descriptors + Columns Dictionary) ──
+    async function loadTableMetadata() {
+      const dictTBody = document.getElementById('dictTableBody');
+      dictTBody.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:30px; color:var(--text-muted);">Loading column dictionary...</td></tr>';
+      
+      try {
+        const res = await fetch(`/api/user/explore/metadata?schema=${activeSchema}&table=${activeTable}`);
+        if (!res.ok) {
+          const err = await res.json();
+          showToast(err.detail || 'Access denied by privacy engine rules.', 'warning');
+          return;
+        }
+        
+        tableMetadata = await res.json();
+
+        // 1. Render DDI Metadata
+        const dMeta = tableMetadata.dataset_metadata || {};
+        document.getElementById('metaTitle').textContent = dMeta.title || activeTable.toUpperCase();
+        document.getElementById('metaAbstract').textContent = dMeta.abstract || 'No abstract or methodology overview populated for this study.';
+        document.getElementById('metaProducer').textContent = dMeta.producer || 'Unknown / Not specified';
+        document.getElementById('metaGeography').textContent = dMeta.geographic_coverage || 'National / Regional';
+        document.getElementById('metaMethod').textContent = dMeta.methodology || dMeta.collection_mode || 'Survey / Sample Interview';
+        document.getElementById('metaCases').textContent = dMeta.file_case_count ? Number(dMeta.file_case_count).toLocaleString() : 'N/A';
+        document.getElementById('metaVars').textContent = dMeta.file_variable_count ? Number(dMeta.file_variable_count).toLocaleString() : 'N/A';
+
+        // Render keywords as tag pills
+        const kwArea = document.getElementById('metaKeywords');
+        kwArea.innerHTML = '';
+        let keywords = [];
+        if (typeof dMeta.keywords === 'string') {
+          keywords = dMeta.keywords.split(',').map(k => k.trim());
+        } else if (Array.isArray(dMeta.keywords)) {
+          keywords = dMeta.keywords;
+        }
+        if (keywords.length > 0 && keywords[0]) {
+          keywords.forEach(kw => {
+            const span = document.createElement('span');
+            span.className = 'keyword-tag';
+            span.textContent = kw;
+            kwArea.appendChild(span);
+          });
+        } else {
+          kwArea.textContent = 'None Specified';
+        }
+
+        // 2. Render Column Dictionary
+        const variables = tableMetadata.variables || [];
+
+        if (variables.length === 0) {
+          // If no variables fetched, build basic info from columns
+          dictTBody.innerHTML = '';
+          tableMetadata.columns.forEach(col => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+              <td class="col-highlight" style="width: 30%;">${col.name}</td>
+              <td style="width: 50%; font-weight:600;">${col.name}</td>
+              <td style="width: 20%; color:var(--text-muted); font-family:monospace;">${col.type}</td>
+            `;
+            dictTBody.appendChild(tr);
+          });
+        } else {
+          dictTBody.innerHTML = '';
+          variables.forEach(v => {
+            const vName = v.variable_name;
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+              <td class="col-highlight" style="width: 30%;">${vName}</td>
+              <td style="font-weight:600; width: 50%;">${v.label || '-'}</td>
+              <td style="color:var(--text-muted); font-family:monospace; font-size:12px; width: 20%;">${v.ddi_type || v.final_type || 'numeric'}</td>
+            `;
+            dictTBody.appendChild(tr);
+          });
+        }
+
+      } catch (e) {
+        console.error(e);
+        dictTBody.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:30px; color:var(--danger);">Connection failed loading column dictionary.</td></tr>';
+      }
+    }
+
+    // Safe frontend refresh
+    setInterval(() => {
+      loadUserPortalDetails(true);
+      if (activeSchema && activeTable) {
+        loadTableMetadata();
+      }
+    }, 9000);
+  </script>
+</body>
+</html>

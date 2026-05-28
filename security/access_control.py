@@ -2,7 +2,7 @@
 from fastapi import HTTPException
 from .warning_manager import verify_user_status, issue_governance_warning
 from .plan_enforcer import get_and_enforce_plan_limits, is_export_format_allowed
-from .usage_tracker import check_daily_usage, check_download_limits
+from .usage_tracker import check_daily_usage, check_download_limits, get_qualified_table
 from .suspicious_detector import detect_suspicious_activity, check_behavioral_patterns
 
 def _normalize_role(role_value) -> str:
@@ -89,9 +89,10 @@ async def check_user_access(
             plan_name = plan_limits.get("plan", "free")
             requests_limit = plan_limits.get("rate_limit", 5)
 
+            usage_table = await get_qualified_table(conn, "usage_logs")
             recent_count = await conn.fetchval(
-                """
-                SELECT COUNT(*) FROM usage_logs
+                f"""
+                SELECT COUNT(*) FROM {usage_table}
                 WHERE user_email = $1 AND queried_at >= NOW() - INTERVAL '1 minute'
                 """,
                 user_email
@@ -100,30 +101,45 @@ async def check_user_access(
             if recent_count >= requests_limit:
                 # Increment user's suspicious score / activity logs
                 try:
+                    suspicious_table = await get_qualified_table(conn, "suspicious_activity_logs")
+                    users_table = await get_qualified_table(conn, "users")
                     await conn.execute(
-                        """
-                        INSERT INTO suspicious_activity_logs (user_email, activity_type, risk_score, detail, created_at)
+                        f"""
+                        INSERT INTO {suspicious_table} (user_email, activity_type, risk_score, detail, created_at)
                         VALUES ($1, 'rate_limit_exceeded', 20, $2, CURRENT_TIMESTAMP)
                         """,
                         user_email,
                         f"Rate limit of {requests_limit} req/min exceeded (Current: {recent_count})"
                     )
                     await conn.execute(
-                        "UPDATE users SET suspicious_score = COALESCE(suspicious_score, 0) + 10 WHERE email = $1",
+                        f"UPDATE {users_table} SET suspicious_score = COALESCE(suspicious_score, 0) + 10 WHERE email = $1",
                         user_email
-                    )
-                    await issue_governance_warning(
-                        conn, user_email,
-                        violation_type="rate_limit_exceeded",
-                        message=f"Rate limit exceeded: {recent_count} requests in 1 minute. Limit is {requests_limit}/min."
                     )
                 except Exception as e:
                     print(f"Error logging rate limit violation: {e}")
 
-                raise HTTPException(
-                    status_code=429,
-                    detail=f"Rate Limit Exceeded: You have exceeded the limit of {requests_limit} requests per minute for your {plan_name.upper()} plan. Please slow down."
-                )
+                from security.warning_manager import check_and_handle_rate_limit_abuse
+                is_frozen = await check_and_handle_rate_limit_abuse(conn, user_email, plan_name)
+
+                if is_frozen:
+                    from datetime import datetime
+                    expiry = await conn.fetchval(
+                        "SELECT freeze_expiry FROM auto_temporary_freezes WHERE email = $1",
+                        user_email
+                    )
+                    remaining = 0
+                    if expiry:
+                        remaining = max(0, int((expiry - datetime.utcnow()).total_seconds()))
+                    raise HTTPException(
+                        status_code=403,
+                        detail=f"Access Denied: Your account has been temporarily frozen due to excessive requests. Please wait {remaining} seconds before retrying."
+                    )
+                else:
+                    raise HTTPException(
+                        status_code=429,
+                        detail="Too many requests. Please slow down."
+                    )
+
 
         # Enforce daily quota checks (Daily queries and rows sum)
         await check_daily_usage(conn, user_email, plan_limits, rows_requested)

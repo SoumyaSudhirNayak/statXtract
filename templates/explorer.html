@@ -486,6 +486,22 @@
             color: #fff;
         }
 
+        .btn-danger {
+            background: rgba(220, 38, 38, 0.1);
+            color: #dc2626;
+            border-color: rgba(220, 38, 38, 0.3);
+        }
+
+        [data-theme="dark"] .btn-danger {
+            color: #ef4444;
+            background: rgba(220, 38, 38, 0.15);
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+            color: #fff;
+        }
+
         .loading-spinner {
             text-align: center;
             padding: 60px;
@@ -516,6 +532,92 @@
             font-size: 3.5rem;
             margin-bottom: 20px;
             color: var(--primary-color);
+        }
+
+        /* ── MODAL ── */
+        .modal-overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(15, 23, 42, 0.6);
+          backdrop-filter: blur(8px);
+          z-index: 10000;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          opacity: 0;
+          pointer-events: none;
+          transition: opacity 0.3s ease;
+        }
+        .modal-overlay.active {
+          opacity: 1;
+          pointer-events: auto;
+        }
+        .modal-card {
+          background: var(--glass-bg);
+          border: 1px solid var(--glass-border);
+          border-radius: 20px;
+          width: 90%;
+          max-width: 500px;
+          padding: 32px;
+          box-shadow: var(--shadow-light);
+          transform: translateY(20px);
+          transition: transform 0.3s ease;
+          color: var(--text-main);
+        }
+        .modal-overlay.active .modal-card {
+          transform: translateY(0);
+        }
+        .modal-title {
+          font-size: 20px;
+          font-weight: 800;
+          color: #dc2626;
+          margin-bottom: 12px;
+        }
+        .modal-desc {
+          font-size: 14px;
+          color: var(--text-muted);
+          line-height: 1.5;
+          margin-bottom: 24px;
+        }
+
+        /* ── TOAST ── */
+        .toast-container {
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            z-index: 11000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .toast {
+            min-width: 300px;
+            background: var(--glass-bg);
+            backdrop-filter: blur(15px);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            padding: 14px 18px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: var(--shadow-light);
+            font-size: 0.95rem;
+            font-weight: 500;
+            color: var(--text-main);
+            animation: toastSlideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: var(--transition);
+        }
+        .toast.success { border-left: 4px solid #10b981; }
+        .toast.error   { border-left: 4px solid #ef4444; }
+        .toast.info    { border-left: 4px solid var(--primary-color); }
+        
+        @keyframes toastSlideIn {
+            from { transform: translateX(120px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes toastSlideOut {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(120px); opacity: 0; }
         }
         
     </style>
@@ -620,7 +722,126 @@
 
     </div>
 
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- Delete Dataset Confirmation Modal -->
+    <div class="modal-overlay" id="deleteDatasetModal">
+        <div class="modal-card">
+            <h2 class="modal-title"><i class="fas fa-exclamation-triangle"></i> Delete Dataset Permanently</h2>
+            <p class="modal-desc" id="deleteModalDesc">
+                Are you sure you want to permanently delete this dataset, all of its tables, and all associated metadata? This action is irreversible.
+            </p>
+            <div style="display: flex; justify-content: flex-end; gap: 12px;">
+                <button type="button" onclick="closeDeleteModal()" style="padding: 10px 20px; border-radius: 8px; border: 1px solid var(--glass-border); background: transparent; color: var(--text-main); font-weight: 500; cursor: pointer; transition: var(--transition);">Cancel</button>
+                <button type="button" id="confirmDeleteBtn" onclick="performDeleteDataset()" style="padding: 10px 20px; border-radius: 8px; border: none; background: #dc2626; color: #fff; font-weight: 600; cursor: pointer; transition: var(--transition); display: flex; align-items: center; gap: 8px;">
+                    <i class="fas fa-spinner fa-spin" id="deleteSpinner" style="display:none;"></i>
+                    <span id="deleteBtnText">Delete</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <script>
+        const isAdmin = "{{ role }}" === "1" || "{{ role }}".toLowerCase() === "admin";
+        
+        let datasetToDeleteSchema = null;
+        let datasetToDeleteName = null;
+
+        function confirmDeleteDataset(schema, name) {
+            datasetToDeleteSchema = schema;
+            datasetToDeleteName = name;
+            
+            const desc = document.getElementById('deleteModalDesc');
+            if (desc) {
+                desc.innerHTML = `Are you sure you want to permanently delete dataset <strong>${name}</strong> (schema: <code>${schema}</code>), all of its tables, and all associated metadata? This action is irreversible.`;
+            }
+            
+            const modal = document.getElementById('deleteDatasetModal');
+            if (modal) {
+                modal.classList.add('active');
+            }
+        }
+
+        function closeDeleteModal() {
+            const modal = document.getElementById('deleteDatasetModal');
+            if (modal) {
+                modal.classList.remove('active');
+            }
+            
+            // Reset spinner/button state
+            const spinner = document.getElementById('deleteSpinner');
+            const btnText = document.getElementById('deleteBtnText');
+            const confirmBtn = document.getElementById('confirmDeleteBtn');
+            if (spinner) spinner.style.display = 'none';
+            if (btnText) btnText.textContent = 'Delete';
+            if (confirmBtn) confirmBtn.disabled = false;
+            
+            datasetToDeleteSchema = null;
+            datasetToDeleteName = null;
+        }
+
+        async function performDeleteDataset() {
+            if (!datasetToDeleteSchema) return;
+            
+            const spinner = document.getElementById('deleteSpinner');
+            const btnText = document.getElementById('deleteBtnText');
+            const confirmBtn = document.getElementById('confirmDeleteBtn');
+            
+            if (spinner) spinner.style.display = 'inline-block';
+            if (btnText) btnText.textContent = 'Deleting...';
+            if (confirmBtn) confirmBtn.disabled = true;
+            
+            try {
+                const response = await fetch('/admin/datasets/delete', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        schema: datasetToDeleteSchema,
+                        dataset_display_name: datasetToDeleteName
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    showToast(data.message || 'Dataset deleted successfully.', 'success');
+                    closeDeleteModal();
+                    
+                    // Reload datasets list
+                    if (state.selectedSchema) {
+                        loadDatasets(state.selectedSchema);
+                    } else {
+                        navigateToLevel(1);
+                        loadSchemas();
+                    }
+                } else {
+                    showToast(data.detail || 'Failed to delete dataset.', 'error');
+                    closeDeleteModal();
+                }
+            } catch (error) {
+                console.error('Error deleting dataset:', error);
+                showToast('An error occurred while deleting the dataset.', 'error');
+                closeDeleteModal();
+            }
+        }
+
+        function showToast(msg, type='info') {
+            const tc = document.getElementById('toastContainer');
+            if (!tc) return;
+            const t = document.createElement('div');
+            t.className = `toast ${type}`;
+            const icons = { success: '✅', error: '❌', info: 'ℹ️' };
+            t.innerHTML = `<span>${icons[type]||'ℹ️'}</span><span>${msg}</span>`;
+            tc.appendChild(t);
+            setTimeout(() => {
+                t.style.animation = 'toastSlideOut 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards';
+                setTimeout(() => t.remove(), 300);
+            }, 4000);
+        }
+
         // State management
         let state = {
             level: 1, // 1: Schemas, 2: Datasets, 3: Tables
@@ -664,14 +885,28 @@
         document.addEventListener('DOMContentLoaded', () => {
             checkVerificationStatus();
             loadSchemas();
+
+            // Safe frontend refresh
+            setInterval(() => {
+                checkVerificationStatus();
+                if (state.level === 1) {
+                    loadSchemas(true);
+                } else if (state.level === 2 && state.selectedSchema) {
+                    loadDatasets(state.selectedSchema, true);
+                } else if (state.level === 3 && state.selectedDataset) {
+                    loadTables(state.selectedDataset, true);
+                }
+            }, 9000);
         });
 
         // ================= LOADING DATA =================
 
-        async function loadSchemas() {
+        async function loadSchemas(silent = false) {
             try {
-                document.getElementById('schemas-loading').style.display = 'block';
-                document.getElementById('schemas-grid').innerHTML = '';
+                if (!silent) {
+                    document.getElementById('schemas-loading').style.display = 'block';
+                    document.getElementById('schemas-grid').innerHTML = '';
+                }
                 
                 const res = await fetch('/surveys');
                 const data = await res.json();
@@ -685,19 +920,22 @@
             } catch (e) {
                 console.error("Error fetching schemas", e);
             } finally {
-                document.getElementById('schemas-loading').style.display = 'none';
+                if (!silent) {
+                    document.getElementById('schemas-loading').style.display = 'none';
+                }
             }
         }
 
-        async function loadDatasets(schemaObj) {
+        async function loadDatasets(schemaObj, silent = false) {
             try {
                 // Change View First
                 state.selectedSchema = schemaObj;
-                navigateToLevel(2);
-                
-                document.getElementById('datasets-loading').style.display = 'block';
-                document.getElementById('datasets-grid').innerHTML = '';
-                document.getElementById('datasets-empty').style.display = 'none';
+                if (!silent) {
+                    navigateToLevel(2);
+                    document.getElementById('datasets-loading').style.display = 'block';
+                    document.getElementById('datasets-grid').innerHTML = '';
+                    document.getElementById('datasets-empty').style.display = 'none';
+                }
                 
                 const res = await fetch(`/surveys/${schemaObj.survey}/datasets`);
                 const data = await res.json();
@@ -708,24 +946,28 @@
                     renderDatasetsList();
                 } else {
                     state.datasets = [];
+                    document.getElementById('datasets-grid').innerHTML = '';
                     document.getElementById('datasets-empty').style.display = 'block';
                 }
             } catch (e) {
                 console.error("Error fetching datasets", e);
             } finally {
-                document.getElementById('datasets-loading').style.display = 'none';
+                if (!silent) {
+                    document.getElementById('datasets-loading').style.display = 'none';
+                }
             }
         }
 
-        async function loadTables(datasetObj) {
+        async function loadTables(datasetObj, silent = false) {
             try {
                 state.selectedDataset = datasetObj;
-                navigateToLevel(3);
-                
-                document.getElementById('tables-loading').style.display = 'block';
-                document.getElementById('tables-list').innerHTML = '';
-                document.getElementById('tables-empty').style.display = 'none';
-                document.getElementById('table-search').value = '';
+                if (!silent) {
+                    navigateToLevel(3);
+                    document.getElementById('tables-loading').style.display = 'block';
+                    document.getElementById('tables-list').innerHTML = '';
+                    document.getElementById('tables-empty').style.display = 'none';
+                    document.getElementById('table-search').value = '';
+                }
                 
                 // Fetch tables
                 const res = await fetch(`/surveys/${state.selectedSchema.survey}/${encodeURIComponent(datasetObj.schema)}/tables`);
@@ -733,15 +975,22 @@
                 
                 if(data && Array.isArray(data) && data.length > 0) {
                     state.tables = data;
-                    renderTablesList(data);
+                    if (silent) {
+                        filterTables();
+                    } else {
+                        renderTablesList(data);
+                    }
                 } else {
                     state.tables = [];
+                    document.getElementById('tables-list').innerHTML = '';
                     document.getElementById('tables-empty').style.display = 'block';
                 }
             } catch(e) {
                 console.error("Error fetching tables", e);
             } finally {
-                document.getElementById('tables-loading').style.display = 'none';
+                if (!silent) {
+                    document.getElementById('tables-loading').style.display = 'none';
+                }
             }
         }
 
@@ -813,11 +1062,21 @@
                 card.style.animationDelay = `${idx * 0.1}s`;
                 card.onclick = () => loadTables(ds);
                 
+                let deleteBtnHtml = '';
+                if (isAdmin) {
+                    deleteBtnHtml = `
+                        <button class="action-btn btn-danger" onclick="event.stopPropagation(); confirmDeleteDataset('${ds.schema}', '${ds.display_name.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}')" title="Delete Dataset">
+                            <i class="fas fa-trash"></i> Delete
+                        </button>
+                    `;
+                }
+
                 card.innerHTML = `
-                    <div style="position: absolute; top: 15px; right: 15px; z-index: 10;">
+                    <div style="position: absolute; top: 15px; right: 15px; z-index: 10; display: flex; gap: 8px;">
                         <a href="/metadata-detail/${state.selectedSchema.survey}/${ds.schema}" class="action-btn btn-meta" onclick="event.stopPropagation()" title="View Detailed Metadata">
                             <i class="fas fa-info-circle"></i> Info
                         </a>
+                        ${deleteBtnHtml}
                     </div>
                     <i class="fas fa-folder-open schema-icon"></i>
                     <div class="schema-info">

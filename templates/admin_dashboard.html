@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Dashboard - Data Analytics Platform</title>
+    <title>StatXtract Admin Dashboard</title>
 
     <!-- Fonts -->
     <link
@@ -858,7 +858,7 @@
     <div class="main-container">
         <!-- Header -->
         <div class="header fade-in">
-            <h1><i class="fas fa-tachometer-alt"></i> Admin Dashboard</h1>
+            <h1><i class="fas fa-tachometer-alt"></i> StatXtract Admin Dashboard</h1>
             <p>Manage your Data Analytics Platform</p>
 
             <!-- User Info Section -->
@@ -868,7 +868,7 @@
                         <i class="fas fa-user-shield"></i>
                     </div>
                     <div class="user-text">
-                        <span class="username">{{ username }}</span>
+                        <span class="username">{{ username.split('@')[0] if '@' in username else username }}</span>
                         <span class="user-email">{{ email }}</span>
                         <span class="user-role">{{ role|title }} Access</span>
                     </div>

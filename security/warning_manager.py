@@ -97,13 +97,41 @@ async def verify_user_status(conn, user_email: str, action_type: str, user_role:
             detail=f"Access Denied: Your account has been blocked. Reason: {reason}"
         )
 
+    # Check for automatic temporary rate-limit freeze
+    try:
+        auto_freeze = await conn.fetchrow(
+            "SELECT freeze_expiry FROM auto_temporary_freezes WHERE email = $1",
+            user_email
+        )
+        if auto_freeze and auto_freeze["freeze_expiry"] and auto_freeze["freeze_expiry"] > datetime.utcnow():
+            remaining_seconds = max(0, int((auto_freeze["freeze_expiry"] - datetime.utcnow()).total_seconds()))
+            raise HTTPException(
+                status_code=403,
+                detail=f"Access Denied: Your account has been temporarily frozen due to excessive requests. Please wait {remaining_seconds} seconds before retrying."
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error checking auto temporary freeze: {e}")
+
     # 2. Check if user is frozen
     user_status = row["status"].strip().lower()
     if user_status == "frozen":
+        freeze_until = row["freeze_until"]
+        remaining_seconds = 0
+        if freeze_until:
+            now = datetime.utcnow()
+            if freeze_until.tzinfo is not None:
+                from datetime import timezone
+                now = datetime.now(timezone.utc)
+            delta = freeze_until - now
+            remaining_seconds = max(0, int(delta.total_seconds()))
+
         raise HTTPException(
             status_code=403,
-            detail="Access Denied: Your account is currently frozen. Please contact support."
+            detail=f"Access Denied: Your account is temporarily frozen due to excessive requests. Please wait {remaining_seconds} seconds before retrying."
         )
+
 
     # 3. Check if user is verified (only block query and download actions)
     if action_type in ("query", "download") and not row["is_verified"]:
@@ -179,39 +207,59 @@ async def issue_governance_warning(conn, user_email: str, violation_type: str, m
             )
         except Exception as e:
             print(f"⚠️ warning_manager: Failed to block account: {e}")
-    elif is_rate_limit:
-        # Rate limit freeze: free- 5mins, pro- 2 min, enterprise-30 secs.
-        plan = row["plan"].strip().lower()
-        if "free" in plan:
-            duration = timedelta(minutes=5)
-            duration_str = "5 minutes"
-        elif "pro" in plan:
-            duration = timedelta(minutes=2)
-            duration_str = "2 minutes"
-        else:
-            duration = timedelta(seconds=30)
-            duration_str = "30 seconds"
+    elif violation_type in ("rate_limit_exceeded", "suspicious_query_pattern"):
+        if new_count >= 2:
+            # Rate limit or suspicious query pattern freeze (repeated violation): free- 5mins, pro- 2 min, enterprise-30 secs.
+            plan = row["plan"].strip().lower()
+            if "free" in plan:
+                duration = timedelta(minutes=5)
+                duration_str = "5 minutes"
+            elif "pro" in plan:
+                duration = timedelta(minutes=2)
+                duration_str = "2 minutes"
+            else:
+                duration = timedelta(seconds=30)
+                duration_str = "30 seconds"
 
-        freeze_until = datetime.utcnow() + duration
-        try:
-            await conn.execute(
-                """
-                UPDATE users SET warning_count = $1, status = 'frozen', freeze_until = $2
-                WHERE email = $3
-                """,
-                new_count, freeze_until, user_email
-            )
-            await conn.execute(
-                """
-                INSERT INTO governance_logs (user_email, event_type, detail, metadata, created_at)
-                VALUES ($1, 'account_frozen', $2, $3, CURRENT_TIMESTAMP)
-                """,
-                user_email,
-                f"Account frozen for {duration_str} due to rate limit violation. Unfreezes at {freeze_until.isoformat()}",
-                json.dumps({"freeze_until": freeze_until.isoformat(), "violations": new_count, "last_violation": violation_type, "rate_limit_freeze": True})
-            )
-        except Exception as e:
-            print(f"⚠️ warning_manager: Failed to freeze account on rate limit: {e}")
+            freeze_until = datetime.utcnow() + duration
+            try:
+                await conn.execute(
+                    """
+                    UPDATE users SET warning_count = $1, status = 'frozen', freeze_until = $2
+                    WHERE email = $3
+                    """,
+                    new_count, freeze_until, user_email
+                )
+                await conn.execute(
+                    """
+                    INSERT INTO governance_logs (user_email, event_type, detail, metadata, created_at)
+                    VALUES ($1, 'account_frozen', $2, $3, CURRENT_TIMESTAMP)
+                    """,
+                    user_email,
+                    f"Account frozen for {duration_str} due to repeated {violation_type.replace('_', ' ')}. Unfreezes at {freeze_until.isoformat()}",
+                    json.dumps({"freeze_until": freeze_until.isoformat(), "violations": new_count, "last_violation": violation_type, "temporary_freeze": True})
+                )
+            except Exception as e:
+                print(f"⚠️ warning_manager: Failed to freeze account on rate limit/suspicious: {e}")
+        else:
+            # First rate limit / suspicious query pattern violation: just a warning
+            try:
+                await conn.execute(
+                    "UPDATE users SET warning_count = $1 WHERE email = $2",
+                    new_count, user_email
+                )
+                await conn.execute(
+                    """
+                    INSERT INTO governance_logs (user_email, event_type, detail, metadata, created_at)
+                    VALUES ($1, 'warning_issued', $2, $3, CURRENT_TIMESTAMP)
+                    """,
+                    user_email,
+                    f"Governance warning issued for {violation_type.replace('_', ' ')}",
+                    json.dumps({"violations": new_count, "violation_type": violation_type, "message": message})
+                )
+            except Exception as e:
+                print(f"⚠️ warning_manager: Failed to log warning event: {e}")
+
     elif new_count >= 3:
         # Freeze account for 24 hours
         freeze_until = datetime.utcnow() + timedelta(hours=24)
@@ -346,3 +394,91 @@ async def get_user_governance_notices(conn, user_email: str):
         return [dict(r) for r in rows]
     except Exception:
         return []
+
+
+async def check_and_handle_rate_limit_abuse(conn, user_email: str, plan_name: str) -> bool:
+    """
+    Checks rate limit violations and applies automatic temporary freeze.
+    Returns True if user is frozen, False otherwise.
+    """
+    now = datetime.utcnow()
+    
+    # Get current auto-freeze tracking record
+    row = await conn.fetchrow(
+        "SELECT violation_count, freeze_expiry, last_violation FROM auto_temporary_freezes WHERE email = $1",
+        user_email
+    )
+    
+    if row:
+        freeze_expiry = row["freeze_expiry"]
+        # If currently frozen
+        if freeze_expiry and freeze_expiry > now:
+            return True
+            
+        last_violation = row["last_violation"]
+        violation_count = row["violation_count"] or 0
+        
+        # consecutive rate-limit violations within short window (5 minutes)
+        if last_violation and (now - last_violation) <= timedelta(minutes=5):
+            new_count = violation_count + 1
+        else:
+            new_count = 1
+            
+        if new_count >= 3:
+            # Trigger freeze duration depending on plan
+            plan = plan_name.strip().lower()
+            if "free" in plan:
+                duration = timedelta(minutes=5)
+            elif "pro" in plan:
+                duration = timedelta(minutes=2)
+            else:
+                duration = timedelta(seconds=30)
+                
+            freeze_expiry = now + duration
+            await conn.execute(
+                """
+                INSERT INTO auto_temporary_freezes (email, violation_count, freeze_expiry, last_violation)
+                VALUES ($1, $2, $3, $4)
+                ON CONFLICT (email) DO UPDATE 
+                SET violation_count = EXCLUDED.violation_count,
+                    freeze_expiry = EXCLUDED.freeze_expiry,
+                    last_violation = EXCLUDED.last_violation
+                """,
+                user_email, new_count, freeze_expiry, now
+            )
+            # Log governance notice
+            try:
+                await conn.execute(
+                    """
+                    INSERT INTO governance_logs (user_email, event_type, detail, metadata, created_at)
+                    VALUES ($1, 'auto_temp_freeze', $2, $3, CURRENT_TIMESTAMP)
+                    """,
+                    user_email,
+                    f"Account automatically temporarily frozen due to excessive rate limit violations.",
+                    json.dumps({"freeze_expiry": freeze_expiry.isoformat(), "violations": new_count})
+                )
+            except Exception:
+                pass
+            return True
+        else:
+            # Just increment violation count and update last_violation
+            await conn.execute(
+                """
+                UPDATE auto_temporary_freezes 
+                SET violation_count = $1, last_violation = $2, freeze_expiry = NULL
+                WHERE email = $3
+                """,
+                new_count, now, user_email
+            )
+            return False
+    else:
+        # First violation
+        await conn.execute(
+            """
+            INSERT INTO auto_temporary_freezes (email, violation_count, freeze_expiry, last_violation)
+            VALUES ($1, 1, NULL, $2)
+            """,
+            user_email, now
+        )
+        return False
+

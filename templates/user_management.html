@@ -475,9 +475,41 @@
             color: var(--text-muted);
             font-weight: 500;
         }
+
+        /* Toast notifications */
+        .toast-container {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .toast {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            color: var(--text-main);
+            padding: 12px 20px;
+            border-radius: 10px;
+            box-shadow: var(--shadow-heavy);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 500;
+            font-size: 0.9rem;
+            animation: toastIn 0.3s ease-out;
+        }
+        .toast.success { border-left: 4px solid #22c55e; }
+        .toast.error { border-left: 4px solid #ef4444; }
+        @keyframes toastIn {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
     </style>
 </head>
 <body>
+    <div class="toast-container" id="toastContainer"></div>
     <a class="back" href="/admin/dashboard"><i class="fas fa-arrow-left"></i> Dashboard</a>
     <div class="theme-toggle" id="theme-toggle" onclick="toggleTheme()">
         <i class="fas fa-moon"></i>
@@ -516,7 +548,12 @@
                 </div>
             </div>
             <div class="card">
-                <div class="title"><i class="fas fa-shield-alt"></i> Suspicious Activity</div>
+                <div class="title" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                    <span><i class="fas fa-shield-alt"></i> Suspicious Activity</span>
+                    <button class="btn btn-sm" onclick="confirmClearSuspiciousLogs()" style="background: #ef4444; color: #fff; padding: 6px 12px; font-size: 0.75rem; border: none; font-weight: 600; cursor: pointer; border-radius: 8px;">
+                        <i class="fas fa-trash-alt"></i> Clear Logs
+                    </button>
+                </div>
                 <div class="table-container">
                     <table>
                         <thead><tr><th>User</th><th>Activity Reason</th><th>Timestamp</th><th>Severity</th><th>Warning Count</th><th>Action Triggered</th><th>Actions</th></tr></thead>
@@ -543,7 +580,13 @@
                 <div class="meta">Limits are read from user profile settings and used for policy UI alignment.</div>
             </div>
             <div class="card full">
-                <div class="title"><i class="fas fa-credit-card"></i> Payments &amp; Plans</div>
+                <div class="title" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                    <span><i class="fas fa-credit-card"></i> Payments &amp; Plans</span>
+                    <button class="btn btn-sm" onclick="confirmClearPaymentLogs()" style="background: transparent; color: #ef4444; border: 1px solid #ef4444; padding: 6px 12px; font-size: 0.75rem; font-weight: 600; cursor: pointer; border-radius: 8px; display: inline-flex; align-items: center; gap: 6px;">
+                        <i class="fas fa-trash-alt"></i> Clear Payment Logs
+                    </button>
+                </div>
+
                 
                 <!-- Revenue & Subscription Summary Strip -->
                 <div style="display: flex; gap: 14px; margin-bottom: 20px; flex-wrap: wrap;">
@@ -608,6 +651,9 @@
             if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.detail || j.error || `HTTP ${r.status}`); }
             return r.json();
         }        async function loadAll() {
+            const expandedUsers = Array.from(document.querySelectorAll('#usersCardGrid .user-card.expanded')).map(el => el.id);
+            const expandedVerifications = Array.from(document.querySelectorAll('#verificationCardsContainer .verification-card.expanded')).map(el => el.id);
+
             const [usersRes, reqRes, payRes] = await Promise.all([
                 fetch("/admin/users").then(r => r.json()),
                 fetch("/admin/requests").then(r => r.json()),
@@ -636,33 +682,35 @@
                             <div class="user-badges">
                                 <span class="badge-role" style="${roleBadgeColor}">${esc(u.role_display || u.role)}</span>
                                 <span class="badge-plan" style="${planBadgeColor}">${esc(u.plan)}</span>
-                                <span class="pill ${isBlocked ? 'blocked' : 'active'}">${esc(u.status || 'active')}</span>
+                                <span class="pill ${u.status === 'blocked' ? 'blocked' : (u.status === 'frozen' ? 'frozen' : 'active')}" ${u.status === 'frozen' ? 'style="background: #6366f1; color: white; border-color: #6366f1;"' : ''}>${esc(u.status || 'active')}</span>
                             </div>
+
                         </div>
                     </div>
                     
-                    <div class="user-stats-strip">
-                        <div class="stat-item">
-                            <span class="stat-label">Queries (Today / Limit)</span>
-                            <span class="stat-value">${u.queries_today || 0} / ${(u.max_queries_day || 0).toLocaleString()}</span>
+                    <div class="user-stats-strip" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 12px; background: rgba(0,0,0,0.02); padding: 12px; border-radius: 8px;">
+                        <div class="stat-item" style="display: flex; flex-direction: column;">
+                            <span class="stat-label" style="font-size: 0.72rem; text-transform: uppercase; color: var(--text-muted);">Queries (Total / Remaining)</span>
+                            <span class="stat-value" style="font-size: 0.85rem; font-weight: 600;">${u.total_queries || 0} / ${u.queries_remaining || 0}</span>
                         </div>
-                        <div class="stat-item">
-                            <span class="stat-label">Rows (Today / Limit)</span>
-                            <span class="stat-value">${(u.rows_today || 0).toLocaleString()} / ${(u.max_rows_day || 0).toLocaleString()}</span>
+                        <div class="stat-item" style="display: flex; flex-direction: column;">
+                            <span class="stat-label" style="font-size: 0.72rem; text-transform: uppercase; color: var(--text-muted);">Rows (Total / Remaining)</span>
+                            <span class="stat-value" style="font-size: 0.85rem; font-weight: 600;">${(u.total_rows || 0).toLocaleString()} / ${(u.rows_remaining || 0).toLocaleString()}</span>
                         </div>
-                        <div class="stat-item">
-                            <span class="stat-label">Rate Limit</span>
-                            <span class="stat-value">${u.rate_limit || 5} req/min</span>
+                        <div class="stat-item" style="display: flex; flex-direction: column;">
+                            <span class="stat-label" style="font-size: 0.72rem; text-transform: uppercase; color: var(--text-muted);">Downloads (Total / Remaining)</span>
+                            <span class="stat-value" style="font-size: 0.85rem; font-weight: 600;">${u.total_downloads || 0} / ${u.downloads_remaining || 0}</span>
                         </div>
-                        <div class="stat-item">
-                            <span class="stat-label">Downloads</span>
-                            <span class="stat-value">${u.downloads_today || 0} / ${u.max_downloads || 0} ${u.downloads_allowed ? '✅' : '❌'}</span>
+                        <div class="stat-item" style="display: flex; flex-direction: column;">
+                            <span class="stat-label" style="font-size: 0.72rem; text-transform: uppercase; color: var(--text-muted);">AI Credits (Total / Remaining)</span>
+                            <span class="stat-value" style="font-size: 0.85rem; font-weight: 600;">${u.total_ai_queries || 0} / ${u.ai_queries_remaining || 0}</span>
                         </div>
                     </div>
 
                     <div class="user-governance-summary">
                         <div>Risk Score: <span class="gov-score" style="${scoreColor}">${u.suspicious_score || 0}</span></div>
                         <div>Warnings: <span class="gov-score" style="${warnColor}">${u.warning_count || 0}</span></div>
+                        <div>Rate Limit: <strong>${u.rate_limit || 5} req/min</strong></div>
                         <div>Verified: <strong>${u.is_verified ? 'Yes' : 'No'}</strong></div>
                     </div>
                     
@@ -699,7 +747,11 @@
                                 <button class="btn" style="flex: 1; background: #6366f1;" onclick="unfreezeUser('${esc(u.email)}')">
                                     <i class="fas fa-key"></i> Unfreeze
                                 </button>
-                            ` : ''}
+                            ` : (u.status === 'active' ? `
+                                <button class="btn" style="flex: 1; background: #6366f1;" onclick="freezeUser('${esc(u.email)}')">
+                                    <i class="fas fa-snowflake"></i> Freeze
+                                </button>
+                            ` : '')}
                             ${(!u.is_verified && u.document_uploaded) ? `
                                 <button class="btn" style="flex: 1; background: var(--primary);" onclick="verifyUser('${esc(u.email)}', true)">
                                     <i class="fas fa-check"></i> Verify User
@@ -709,11 +761,17 @@
                         <div class="meta" style="margin-top:10px;">
                             <div>Created: ${dt(u.created_at)}</div>
                             <div>Last Active: ${dt(u.last_active)}</div>
+                            ${(u.status === 'frozen' && u.freeze_until) ? `<div>Freeze Expiry: <strong style="color: #6366f1;">${dt(u.freeze_until)}</strong></div>` : ''}
                         </div>
                     </div>
                 </div>
                 `;
             }).join("") || `<div style="text-align:center;color:var(--text-muted);padding:24px;grid-column:1/-1;">No users registered.</div>`;
+
+            expandedUsers.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.classList.add('expanded');
+            });
 
             const docs = reqRes.documents || [];
             document.getElementById("verificationCardsContainer").innerHTML = docs.slice(0, 40).map(d => {
@@ -821,6 +879,11 @@
                 </div>
                 `;
             }).join("") || `<div style="text-align:center;color:var(--text-muted);padding:24px;">No pending verification requests.</div>`;
+
+            expandedVerifications.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.classList.add('expanded');
+            });
 
             const reqs = (reqRes.dataset_requests || []).filter(r => r.status !== 'approved');
             document.getElementById("requestsRows").innerHTML = reqs.slice(0, 40).map(r => {
@@ -1192,6 +1255,11 @@
 
         loadAll();
 
+        // Safe frontend refresh
+        setInterval(() => {
+            loadAll();
+        }, 9000);
+
         // Theme Toggle Functionality
         function toggleTheme() {
             const html = document.documentElement;
@@ -1247,6 +1315,99 @@
             document.documentElement.setAttribute('data-theme', savedTheme);
             updateThemeUI(savedTheme);
         })();
+
+        function confirmClearSuspiciousLogs() {
+            const modal = document.getElementById('clearConfirmModal');
+            modal.style.display = 'flex';
+            modal.offsetHeight;
+            modal.style.opacity = '1';
+            modal.style.pointerEvents = 'auto';
+            modal.querySelector('.confirm-modal-card').style.transform = 'scale(1)';
+        }
+
+        function closeClearConfirmModal() {
+            const modal = document.getElementById('clearConfirmModal');
+            modal.style.opacity = '0';
+            modal.style.pointerEvents = 'none';
+            modal.querySelector('.confirm-modal-card').style.transform = 'scale(0.9)';
+            setTimeout(() => {
+                modal.style.display = 'none';
+            }, 300);
+        }
+
+        async function executeClearHistory() {
+            try {
+                const res = await fetch('/api/admin/clear-suspicious-logs', { method: 'POST' });
+                if (!res.ok) {
+                    const errData = await res.json();
+                    throw new Error(errData.detail || 'Failed to clear suspicious activity logs');
+                }
+                closeClearConfirmModal();
+                alertSuccessToast('Suspicious activity logs cleared successfully!');
+                // Refresh UI immediately
+                loadAll();
+            } catch (err) {
+                alertErrorToast(err.message);
+            }
+        }
+
+        function confirmClearPaymentLogs() {
+            const modal = document.getElementById('clearPaymentLogsModal');
+            modal.style.display = 'flex';
+            modal.offsetHeight;
+            modal.style.opacity = '1';
+            modal.style.pointerEvents = 'auto';
+            modal.querySelector('.confirm-modal-card').style.transform = 'scale(1)';
+        }
+
+        function closeClearPaymentLogsModal() {
+            const modal = document.getElementById('clearPaymentLogsModal');
+            modal.style.opacity = '0';
+            modal.style.pointerEvents = 'none';
+            modal.querySelector('.confirm-modal-card').style.transform = 'scale(0.9)';
+            setTimeout(() => {
+                modal.style.display = 'none';
+            }, 300);
+        }
+
+        async function executeClearPaymentLogs() {
+            try {
+                const res = await fetch('/api/admin/clear-payment-logs', { method: 'POST' });
+                if (!res.ok) {
+                    const errData = await res.json();
+                    throw new Error(errData.detail || 'Failed to clear payment logs');
+                }
+                closeClearPaymentLogsModal();
+                alertSuccessToast('Payment logs cleared successfully!');
+                // Refresh UI immediately
+                loadAll();
+            } catch (err) {
+                alertErrorToast(err.message);
+            }
+        }
+
+
+        function alertSuccessToast(msg) {
+            const container = document.getElementById('toastContainer');
+            if (container) {
+                const toast = document.createElement('div');
+                toast.className = 'toast success';
+                toast.innerHTML = `<i class="fas fa-check-circle"></i> <span>${msg}</span>`;
+                container.appendChild(toast);
+                setTimeout(() => toast.remove(), 4000);
+            }
+        }
+
+        function alertErrorToast(msg) {
+            const container = document.getElementById('toastContainer');
+            if (container) {
+                const toast = document.createElement('div');
+                toast.className = 'toast error';
+                toast.innerHTML = `<i class="fas fa-exclamation-circle"></i> <span>${msg}</span>`;
+                container.appendChild(toast);
+                setTimeout(() => toast.remove(), 4000);
+            }
+        }
     </script>
 
     <!-- Feedback Detail Modal -->
@@ -1293,6 +1454,32 @@
                 <button class="btn" style="background:#22c55e;" id="fbModalReadBtn">Mark Read</button>
                 <button class="btn red" id="fbModalArchiveBtn">Archive</button>
                 <button class="btn" style="background:var(--secondary);" onclick="closeFeedbackModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Clear History Confirmation Modal -->
+    <div id="clearConfirmModal" class="confirm-modal-overlay" style="display:none; position: fixed; inset: 0; z-index: 9999; background: rgba(0,0,0,0.6); align-items: center; justify-content: center; backdrop-filter: blur(4px); opacity: 0; pointer-events: none; transition: opacity 0.3s ease;">
+        <div class="confirm-modal-card" style="background: var(--glass-bg, #fff); border: 2px solid var(--border, rgba(0,0,0,0.1)); border-radius: 18px; padding: 30px; width: 100%; max-width: 400px; box-shadow: 0 16px 36px rgba(0,0,0,0.25); text-align: center; transform: scale(0.9); transition: transform 0.3s ease;">
+            <div style="font-size: 40px; margin-bottom: 15px; color: #ef4444;">⚠️</div>
+            <h3 style="font-family: sans-serif; font-size: 20px; font-weight: 800; color: var(--text-main, #1c1c1c); margin-bottom: 12px;">Confirm Action</h3>
+            <p style="font-family: sans-serif; font-size: 15px; color: var(--text-muted, #6b7280); margin-bottom: 24px;">Are you sure you want to clear history?</p>
+            <div style="display: flex; gap: 12px; justify-content: center;">
+                <button onclick="closeClearConfirmModal()" style="padding: 10px 20px; border-radius: 10px; border: 2px solid var(--border, #d1d5db); background: transparent; color: var(--text-main, #1c1c1c); font-weight: 600; cursor: pointer; font-size: 14px; transition: all 0.2s;">Cancel</button>
+                <button id="confirmClearBtn" onclick="executeClearHistory()" style="padding: 10px 20px; border-radius: 10px; border: none; background: #ef4444; color: #fff; font-weight: 600; cursor: pointer; font-size: 14px; transition: all 0.2s;">Confirm Clear</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Clear Payment Logs Confirmation Modal -->
+    <div id="clearPaymentLogsModal" class="confirm-modal-overlay" style="display:none; position: fixed; inset: 0; z-index: 9999; background: rgba(0,0,0,0.6); align-items: center; justify-content: center; backdrop-filter: blur(4px); opacity: 0; pointer-events: none; transition: opacity 0.3s ease;">
+        <div class="confirm-modal-card" style="background: var(--glass-bg, #fff); border: 2px solid var(--border, rgba(0,0,0,0.1)); border-radius: 18px; padding: 30px; width: 100%; max-width: 400px; box-shadow: 0 16px 36px rgba(0,0,0,0.25); text-align: center; transform: scale(0.9); transition: transform 0.3s ease;">
+            <div style="font-size: 40px; margin-bottom: 15px; color: #ef4444;">⚠️</div>
+            <h3 style="font-family: sans-serif; font-size: 20px; font-weight: 800; color: var(--text-main, #1c1c1c); margin-bottom: 12px;">Clear Payment Logs?</h3>
+            <p style="font-family: sans-serif; font-size: 15px; color: var(--text-muted, #6b7280); margin-bottom: 24px;">This will remove stored payment activity logs only.<br>Active subscriptions and plans will remain unaffected.</p>
+            <div style="display: flex; gap: 12px; justify-content: center;">
+                <button onclick="closeClearPaymentLogsModal()" style="padding: 10px 20px; border-radius: 10px; border: 2px solid var(--border, #d1d5db); background: transparent; color: var(--text-main, #1c1c1c); font-weight: 600; cursor: pointer; font-size: 14px; transition: all 0.2s;">Cancel</button>
+                <button id="confirmClearPaymentLogsBtn" onclick="executeClearPaymentLogs()" style="padding: 10px 20px; border-radius: 10px; border: none; background: #ef4444; color: #fff; font-weight: 600; cursor: pointer; font-size: 14px; transition: all 0.2s;">Clear Logs</button>
             </div>
         </div>
     </div>

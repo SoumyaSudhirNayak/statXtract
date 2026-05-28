@@ -1,0 +1,1165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Query — STATXTRACT</title>
+  <meta name="description" content="Natural Language AI Query Engine — Ask questions about your data in plain English with governance-enforced results.">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/user_styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    body { background: var(--bg-page); min-height: 100vh; overflow: hidden; }
+    .app-shell { display: flex; flex-direction: column; height: 100vh; width: 100%; max-width: 100%; overflow: hidden; }
+    .main-area { display: flex; flex: 1; overflow: hidden; width: 100%; max-width: 100%; }
+
+    /* ── SIDEBAR OVERRIDES ── */
+    .sidebar {
+      flex-shrink: 0 !important;
+      height: 100vh !important;
+      overflow-y: auto !important;
+      overflow-x: hidden !important;
+    }
+    .sidebar.expanded {
+      width: 280px !important;
+      min-width: 280px !important;
+      max-width: 280px !important;
+    }
+    .sidebar.collapsed {
+      width: 88px !important;
+      min-width: 88px !important;
+      max-width: 88px !important;
+    }
+    .sidebar-nav {
+      padding: 12px !important;
+      gap: 4px !important;
+      margin-top: 48px !important;
+    }
+    .nav-item {
+      padding: 10px 12px !important;
+    }
+    .sidebar-toggle {
+      position: absolute !important;
+      top: 12px !important;
+      right: 16px !important;
+    }
+    .sidebar.collapsed .sidebar-toggle {
+      right: 24px !important;
+    }
+
+    .nav-svg { width: 20px; height: 20px; flex-shrink: 0; }
+    .nav-item.active {
+      background: var(--green);
+      color: #fff;
+      border-color: var(--green);
+      box-shadow: 0 6px 20px rgba(46,125,50,0.4);
+    }
+    .nav-item.active:hover { background: var(--green); color: #fff; }
+
+    .content { flex: 1; overflow-y: auto; overflow-x: hidden; min-width: 0; padding: 24px 30px; width: 100%; max-width: 100%; }
+    .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 28px; }
+    .page-title { font-family: var(--font-head); font-size: 30px; font-weight: 900; color: var(--text-main); line-height: 1.1; }
+    .page-title span { color: var(--green); }
+
+    /* ── AI QUERY LAYOUT ── */
+    .ai-layout { display: grid; grid-template-columns: 340px 1fr; gap: 24px; width: 100%; max-width: 100%; }
+    @media(max-width:1200px) { .ai-layout { grid-template-columns: 1fr; } }
+
+    /* ── LEFT PANEL ── */
+    .ai-config-panel {
+      background: var(--glass);
+      backdrop-filter: blur(12px);
+      border: 2px solid var(--border);
+      border-radius: 18px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      position: sticky;
+      top: 20px;
+      align-self: flex-start;
+      height: fit-content;
+      flex-shrink: 0;
+    }
+
+    .ai-section-title {
+      font-family: var(--font-head);
+      font-size: 15px;
+      font-weight: 800;
+      color: var(--text-main);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .ai-select {
+      width: 100%;
+      padding: 12px 14px;
+      border: 2px solid var(--border);
+      border-radius: 12px;
+      background: var(--bg-white);
+      font-family: var(--font-body);
+      font-size: 14px;
+      color: var(--text-main);
+      outline: none;
+      transition: var(--transition);
+    }
+    .ai-select:focus { border-color: var(--green); box-shadow: 0 0 0 3px rgba(46,125,50,0.15); }
+
+    .prompt-box {
+      width: 100%;
+      min-height: 80px;
+      max-height: 150px;
+      padding: 10px 12px;
+      border: 2px solid var(--border);
+      border-radius: 12px;
+      background: var(--bg-white);
+      font-family: var(--font-body);
+      font-size: 14px;
+      color: var(--text-main);
+      resize: vertical;
+      outline: none;
+      transition: var(--transition);
+      line-height: 1.5;
+    }
+    .prompt-box:focus { border-color: var(--green); box-shadow: 0 0 0 3px rgba(46,125,50,0.15), 0 0 25px rgba(144,238,144,0.15); }
+    .prompt-box::placeholder { color: var(--text-muted); font-weight: 500; }
+
+    .example-prompts { display: flex; flex-wrap: wrap; gap: 6px; }
+    .example-prompt {
+      padding: 6px 10px;
+      border: 1px solid var(--border-soft);
+      border-radius: 8px;
+      font-size: 11px;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: var(--transition);
+      background: rgba(0,0,0,0.02);
+      text-align: left;
+      font-weight: 500;
+      max-width: 100%;
+      text-overflow: ellipsis;
+      overflow: hidden;
+      white-space: nowrap;
+    }
+    .example-prompt:hover {
+      border-color: var(--green);
+      color: var(--green);
+      background: var(--green-light);
+      transform: translateY(-1px);
+    }
+
+    .ai-btn-group { display: flex; gap: 10px; }
+    .ai-btn-group .btn { flex: 1; font-size: 14px; padding: 12px 16px; }
+
+    /* ── CREDITS CARD ── */
+    .credits-card {
+      background: linear-gradient(135deg, rgba(46,125,50,0.06), rgba(46,91,186,0.05));
+      border: 2px solid rgba(46,125,50,0.2);
+      border-radius: 12px;
+      padding: 12px 14px;
+    }
+    .credits-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .credits-label { font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+    .credits-value { font-family: var(--font-head); font-size: 18px; font-weight: 800; color: var(--green); }
+    .credits-bar-bg { height: 6px; background: #E5E7EB; border-radius: 6px; overflow: hidden; }
+    .credits-bar-fill { height: 100%; border-radius: 6px; background: linear-gradient(90deg, #2E7D32, #66BB6A); transition: width 0.8s ease; }
+    .credits-sub { font-size: 10px; color: var(--text-muted); margin-top: 5px; font-weight: 500; }
+
+    .ai-results-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      min-width: 0;
+      width: 100%;
+      max-width: 100%;
+      overflow: hidden;
+    }
+
+    .ai-card {
+      background: var(--glass);
+      backdrop-filter: blur(12px);
+      border: 2px solid var(--border);
+      border-radius: 18px;
+      overflow: hidden;
+      transition: var(--transition);
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+    }
+    .ai-card:hover { border-color: var(--royal); box-shadow: 0 8px 28px rgba(46,91,186,0.1); }
+
+    .ai-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 22px;
+      border-bottom: 1px solid var(--border-soft);
+      background: rgba(0,0,0,0.01);
+    }
+    .ai-card-title {
+      font-family: var(--font-head);
+      font-size: 15px;
+      font-weight: 800;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .ai-card-body { padding: 18px 22px; min-width: 0; width: 100%; box-sizing: border-box; }
+
+    /* ── RISK INDICATOR ── */
+    .risk-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+    .risk-low    { background: var(--green-light); color: var(--green); }
+    .risk-medium { background: #FFF3E0; color: #F57C00; }
+    .risk-high   { background: #FFEBEE; color: #D32F2F; }
+
+    /* ── FILTERS PANEL ── */
+    .filter-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .filter-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 600;
+      background: rgba(46,91,186,0.08);
+      color: var(--royal);
+      border: 1px solid rgba(46,91,186,0.2);
+    }
+    .filter-chip .chip-col { font-weight: 700; }
+    .filter-chip .chip-op { color: var(--text-muted); font-weight: 500; }
+    .filter-chip .chip-val { color: var(--green); font-weight: 700; }
+
+    .agg-chip {
+      background: rgba(46,125,50,0.08);
+      color: var(--green);
+      border-color: rgba(46,125,50,0.2);
+    }
+
+    /* ── SQL PREVIEW ── */
+    .sql-preview {
+      background: #1E293B;
+      color: #E2E8F0;
+      border-radius: 12px;
+      padding: 16px 18px;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      line-height: 1.6;
+      overflow-x: auto;
+      white-space: nowrap;
+      width: 100%;
+      max-width: 100%;
+    }
+    .sql-keyword { color: #7DD3FC; font-weight: 700; }
+    .sql-table   { color: #86EFAC; }
+    .sql-string  { color: #FCD34D; }
+
+    /* ── RESULTS TABLE ── */
+    .results-table-wrap {
+      max-height: 400px;
+      overflow-x: auto;
+      overflow-y: auto;
+      border-radius: 12px;
+      border: 1px solid var(--border-soft);
+      width: 100%;
+      max-width: 100%;
+    }
+    .results-table {
+      width: 100%;
+      table-layout: auto;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    .results-table thead { background: var(--navy); color: #fff; position: sticky; top: 0; z-index: 2; }
+    .results-table th {
+      padding: 8px 12px;
+      text-align: left;
+      font-weight: 700;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      white-space: nowrap;
+    }
+    .results-table td {
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border-soft);
+      color: var(--text-main);
+      white-space: nowrap;
+      font-size: 12px;
+    }
+    .results-table tbody tr:hover { background: rgba(46,91,186,0.04); }
+
+    /* ── SUMMARY CARD ── */
+    .ai-summary {
+      background: linear-gradient(135deg, rgba(46,125,50,0.06), rgba(46,91,186,0.04));
+      border: 2px solid rgba(46,125,50,0.15);
+      border-radius: 14px;
+      padding: 18px 22px;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-main);
+      line-height: 1.7;
+    }
+    .ai-summary::before {
+      content: '🤖 ';
+      font-size: 18px;
+    }
+
+    /* ── CHART AREA ── */
+    .chart-container { padding: 16px; }
+    .chart-container canvas { max-height: 280px; }
+
+    /* ── LOADING STATE ── */
+    .ai-loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 40px;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+    .ai-loading .spinner {
+      width: 24px;
+      height: 24px;
+      border: 3px solid rgba(46,125,50,0.2);
+      border-top-color: var(--green);
+    }
+
+    /* ── EMPTY STATE ── */
+    .ai-empty {
+      text-align: center;
+      padding: 48px 28px;
+      color: var(--text-muted);
+    }
+    .ai-empty-icon { font-size: 48px; margin-bottom: 16px; opacity: 0.6; }
+    .ai-empty-title { font-family: var(--font-head); font-size: 18px; font-weight: 800; color: var(--text-main); margin-bottom: 8px; }
+    .ai-empty-desc { font-size: 14px; font-weight: 500; }
+
+    /* ── TOAST ── */
+    .toast-container { position: fixed; top: 88px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 10px; }
+    .toast { min-width: 300px; background: #fff; border-radius: 12px; padding: 14px 18px; display: flex; align-items: center; gap: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.12); border: 1px solid var(--border); font-size: 14px; font-weight: 500; animation: slideIn 0.3s ease; }
+    .toast.success { border-left: 4px solid var(--green); }
+    .toast.info    { border-left: 4px solid var(--royal); }
+    .toast.warning { border-left: 4px solid var(--saffron); }
+    .toast.error   { border-left: 4px solid var(--danger); }
+    @keyframes slideIn { from{ transform: translateX(120px); opacity: 0; } to{ transform: none; opacity: 1; } }
+    @keyframes slideOut { from{ transform: none; opacity: 1; } to{ transform: translateX(120px); opacity: 0; } }
+
+    /* ── EXECUTION TIME ── */
+    .exec-time { font-size: 12px; color: var(--text-muted); font-weight: 600; display: flex; align-items: center; gap: 4px; }
+
+    /* ── RESPONSIVE ── */
+    @media(max-width:900px) {
+      .content { padding: 20px; }
+      .ai-layout { grid-template-columns: 1fr; }
+      .ai-config-panel { max-height: none; }
+    }
+  </style>
+  <script>
+    (function() {
+      const theme = localStorage.getItem('userTheme') || 'light';
+      document.documentElement.setAttribute('data-theme', theme);
+      const density = localStorage.getItem('userDensity') || 'comfortable';
+      document.documentElement.setAttribute('data-density', density);
+      const accent = localStorage.getItem('userAccentColor') || '#2E7D32';
+      document.documentElement.style.setProperty('--green', accent);
+      const savedState = localStorage.getItem('sidebarState') || 'expanded';
+      if (savedState === 'collapsed') {
+        document.documentElement.classList.add('sidebar-collapsed-preload');
+      }
+    })();
+  </script>
+</head>
+<body>
+  <div class="animated-bg"></div>
+  <div class="toast-container" id="toastContainer"></div>
+
+  <div class="app-shell">
+    <!-- ── HEADER ── -->
+    <header class="site-header">
+      <a href="/user/dashboard" class="site-logo">STATXTRACT</a>
+      <div class="header-right">
+        <button class="profile-btn" onclick="window.location.href='/user/profile'" id="profileBtn" style="padding: 6px 14px; text-align: left;">
+          <div class="avatar" id="avatarInitial">U</div>
+          <div style="display: flex; flex-direction: column; line-height: 1.1;">
+            <span id="headerUsername" style="font-weight: 700; font-size: 13px;">{{ username | default('My Profile') }}</span>
+            <span id="headerEmail" style="font-size: 10px; opacity: 0.85; font-weight: 500;">{{ email | default('') }}</span>
+          </div>
+        </button>
+      </div>
+    </header>
+
+    <div class="main-area">
+      <!-- ── SIDEBAR ── -->
+      <aside class="sidebar expanded" id="sidebar">
+        <button class="sidebar-toggle" id="sidebarToggle" title="Toggle Sidebar">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <nav class="sidebar-nav">
+          <a href="/user/dashboard" class="nav-item">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div>
+            <span class="nav-label">Dashboard</span>
+          </a>
+          <a href="/query" class="nav-item">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>
+            <span class="nav-label">Advanced Query</span>
+          </a>
+          <a href="/user/ai-query" class="nav-item active">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a4 4 0 0 1 4 4v1a4 4 0 0 1-8 0V6a4 4 0 0 1 4-4z"/><path d="M18 14h-1a7 7 0 0 0-10 0H6a4 4 0 0 0-4 4v2h20v-2a4 4 0 0 0-4-4z"/><circle cx="12" cy="5" r="1"/></svg></div>
+            <span class="nav-label">AI Query</span>
+          </a>
+          <a href="/user/explore-data" class="nav-item">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg></div>
+            <span class="nav-label">Explore Data</span>
+          </a>
+          <a href="/user/history" class="nav-item">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+            <span class="nav-label">Query History</span>
+          </a>
+          <a href="/user/downloads" class="nav-item">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div>
+            <span class="nav-label">My Downloads</span>
+          </a>
+          <a href="/user/usage" class="nav-item">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V10M18 20V4M6 20v-4"/></svg></div>
+            <span class="nav-label">Usage &amp; Limits</span>
+          </a>
+          <a href="/user/plans" class="nav-item">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></div>
+            <span class="nav-label">Plans &amp; Pricing</span>
+          </a>
+          <a href="/user/feedback" class="nav-item">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></div>
+            <span class="nav-label">Feedback &amp; Requests</span>
+          </a>
+          <a href="/user/settings" class="nav-item">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div>
+            <span class="nav-label">Settings</span>
+          </a>
+          <a href="/user/profile" class="nav-item" style="margin-top:auto;">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+            <span class="nav-label">My Profile</span>
+          </a>
+        </nav>
+      </aside>
+
+      <!-- ── MAIN CONTENT ── -->
+      <main class="content">
+        <div class="page-header">
+          <div>
+            <h1 class="page-title">🤖 <span>AI</span> Query Engine</h1>
+            <p style="font-size: 13px; color: var(--text-muted); font-weight: 500; margin-top: 4px;">Ask questions about your data in natural language — governed and transparent</p>
+          </div>
+          <div class="exec-time" id="execTime" style="display:none;">
+            ⚡ <span id="execTimeVal">0</span>ms
+          </div>
+        </div>
+
+        <div class="ai-layout">
+          <!-- ═══ LEFT PANEL: Configuration ═══ -->
+          <div class="ai-config-panel">
+            <!-- Credits Card -->
+            <div class="credits-card">
+              <div class="credits-header">
+                <span class="credits-label">🤖 AI Credits</span>
+                <span class="credits-value" id="creditsDisplay">—/—</span>
+              </div>
+              <div class="credits-bar-bg"><div class="credits-bar-fill" id="creditsBar" style="width:0%"></div></div>
+              <div class="credits-sub" id="creditsSub">Loading credits...</div>
+            </div>
+
+            <!-- Schema Selection -->
+            <div>
+              <div class="ai-section-title">📁 Schema</div>
+              <select class="ai-select" id="schemaSelect">
+                <option value="">Select a schema...</option>
+              </select>
+            </div>
+
+            <!-- Dataset Selection -->
+            <div>
+              <div class="ai-section-title">📊 Dataset</div>
+              <select class="ai-select" id="datasetSelect" disabled>
+                <option value="">Select a dataset...</option>
+              </select>
+            </div>
+
+            <!-- Table Selection -->
+            <div>
+              <div class="ai-section-title">📋 Table</div>
+              <select class="ai-select" id="tableSelect" disabled>
+                <option value="">Select a table...</option>
+              </select>
+            </div>
+
+            <!-- Prompt Input -->
+            <div>
+              <div class="ai-section-title">💬 Your Question</div>
+              <textarea class="prompt-box" id="promptInput" placeholder="Ask a question about your data...&#10;&#10;Example: Show female workers aged 20-30 from Delhi" maxlength="500"></textarea>
+            </div>
+
+            <!-- Example Prompts -->
+            <div>
+              <div class="ai-section-title" style="font-size:12px; color: var(--text-muted);">💡 Try these</div>
+              <div class="example-prompts">
+                <button class="example-prompt" onclick="setPrompt('Show female workers aged 20-30 from Delhi')">Show female workers aged 20-30 from Delhi</button>
+                <button class="example-prompt" onclick="setPrompt('Compare literacy rates across states')">Compare literacy rates across states</button>
+                <button class="example-prompt" onclick="setPrompt('Average rural household income in Karnataka')">Average rural household income in Karnataka</button>
+                <button class="example-prompt" onclick="setPrompt('Count of male employed workers by education level')">Count of male employed workers by education level</button>
+                <button class="example-prompt" onclick="setPrompt('Show top 50 records for urban married females')">Show top 50 records for urban married females</button>
+              </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="ai-btn-group">
+              <button class="btn btn-outline-blue" id="parseBtn" onclick="parseQuery()" disabled>
+                🔍 Parse
+              </button>
+              <button class="btn btn-primary" id="executeBtn" onclick="executeQuery()" disabled>
+                ⚡ Execute
+              </button>
+            </div>
+          </div>
+
+          <!-- ═══ RIGHT PANEL: Results ═══ -->
+          <div class="ai-results-panel" id="resultsPanel">
+            <!-- Empty State -->
+            <div class="ai-card" id="emptyState">
+              <div class="ai-card-body">
+                <div class="ai-empty">
+                  <div class="ai-empty-icon">🤖</div>
+                  <div class="ai-empty-title">Ask a Question</div>
+                  <div class="ai-empty-desc">Select a schema, dataset, and table, then type your question in natural language.<br>The AI engine will parse your intent, validate governance, and return results.</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Risk & Governance Card (hidden initially) -->
+            <div class="ai-card" id="riskCard" style="display:none;">
+              <div class="ai-card-header">
+                <div class="ai-card-title">🛡️ Governance & Risk</div>
+                <span class="risk-badge risk-low" id="riskBadge">LOW</span>
+              </div>
+              <div class="ai-card-body">
+                <div style="display:flex; gap:16px; flex-wrap:wrap; align-items:center;">
+                  <div>
+                    <div style="font-size:12px; color: var(--text-muted); font-weight:600; text-transform:uppercase; margin-bottom:4px;">Risk Score</div>
+                    <div style="font-family: var(--font-head); font-size:28px; font-weight:800;" id="riskScore">0</div>
+                  </div>
+                  <div>
+                    <div style="font-size:12px; color: var(--text-muted); font-weight:600; text-transform:uppercase; margin-bottom:4px;">Intent</div>
+                    <div class="badge badge-blue" id="intentBadge">exploratory</div>
+                  </div>
+                  <div>
+                    <div style="font-size:12px; color: var(--text-muted); font-weight:600; text-transform:uppercase; margin-bottom:4px;">Confidence</div>
+                    <div style="font-family: var(--font-head); font-size:18px; font-weight:800; color: var(--green);" id="confidenceVal">0%</div>
+                  </div>
+                </div>
+                <div id="riskFactors" style="margin-top:12px; display:none;">
+                  <div style="font-size:12px; color: var(--text-muted); font-weight:600; text-transform:uppercase; margin-bottom:6px;">Risk Factors</div>
+                  <div id="riskFactorsList" style="font-size:13px; color: var(--danger); font-weight:500;"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Interpreted Filters Card (hidden initially) -->
+            <div class="ai-card" id="filtersCard" style="display:none;">
+              <div class="ai-card-header">
+                <div class="ai-card-title">🔎 Interpreted Filters</div>
+              </div>
+              <div class="ai-card-body">
+                <div class="filter-chips" id="filterChips"></div>
+                <div id="warningsList" style="margin-top:10px; display:none;"></div>
+              </div>
+            </div>
+
+            <!-- SQL Preview Card (hidden initially) -->
+            <div class="ai-card" id="sqlCard" style="display:none;">
+              <div class="ai-card-header">
+                <div class="ai-card-title">📝 Generated SQL</div>
+                <span class="badge badge-green">Read-Only</span>
+              </div>
+              <div class="ai-card-body">
+                <div class="sql-preview" id="sqlPreview"></div>
+              </div>
+            </div>
+
+            <!-- AI Summary Card (hidden initially) -->
+            <div class="ai-card" id="summaryCard" style="display:none;">
+              <div class="ai-card-header">
+                <div class="ai-card-title">🤖 AI Summary</div>
+              </div>
+              <div class="ai-card-body">
+                <div class="ai-summary" id="summaryText"></div>
+              </div>
+            </div>
+
+            <!-- Results Table Card (hidden initially) -->
+            <div class="ai-card" id="resultsCard" style="display:none;">
+              <div class="ai-card-header">
+                <div class="ai-card-title">📊 Query Results</div>
+                <span class="badge badge-green" id="rowCountBadge">0 rows</span>
+              </div>
+              <div class="ai-card-body">
+                <div class="results-table-wrap" id="resultsTableWrap"></div>
+              </div>
+            </div>
+
+            <!-- Chart Card (hidden initially) -->
+            <div class="ai-card" id="chartCard" style="display:none;">
+              <div class="ai-card-header">
+                <div class="ai-card-title">📈 Visualization</div>
+              </div>
+              <div class="ai-card-body">
+                <div class="chart-container">
+                  <canvas id="aiChart"></canvas>
+                </div>
+              </div>
+            </div>
+
+            <!-- Loading State (hidden) -->
+            <div class="ai-card" id="loadingCard" style="display:none;">
+              <div class="ai-card-body">
+                <div class="ai-loading">
+                  <div class="spinner"></div>
+                  <span id="loadingText">Processing your query...</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="height:40px;"></div>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    // ── Sidebar Toggle ──
+    document.getElementById('sidebarToggle').addEventListener('click', () => {
+      const sb = document.getElementById('sidebar');
+      const isCollapsed = sb.classList.contains('collapsed');
+      if (isCollapsed) {
+        sb.classList.remove('collapsed');
+        sb.classList.add('expanded');
+        localStorage.setItem('sidebarState', 'expanded');
+      } else {
+        sb.classList.remove('expanded');
+        sb.classList.add('collapsed');
+        localStorage.setItem('sidebarState', 'collapsed');
+      }
+    });
+    (function() {
+      const savedState = localStorage.getItem('sidebarState') || 'expanded';
+      const sb = document.getElementById('sidebar');
+      if (sb) {
+        if (savedState === 'collapsed') { sb.classList.remove('expanded'); sb.classList.add('collapsed'); }
+        else { sb.classList.remove('collapsed'); sb.classList.add('expanded'); }
+      }
+      document.documentElement.classList.remove('sidebar-collapsed-preload');
+    })();
+
+    // ── User Info ──
+    const username = '{{ username | default("") }}' || 'User';
+    const email = '{{ email | default("") }}';
+    const displayName = username.includes('@') ? username.split('@')[0] : username;
+    document.getElementById('avatarInitial').textContent = displayName.charAt(0).toUpperCase();
+    document.getElementById('headerUsername').textContent = displayName;
+    document.getElementById('headerEmail').textContent = email;
+
+    // ── Toast ──
+    function showToast(msg, type='info') {
+      const tc = document.getElementById('toastContainer');
+      const t = document.createElement('div');
+      t.className = `toast ${type}`;
+      const icons = {success:'✅', info:'ℹ️', warning:'⚠️', error:'❌'};
+      t.innerHTML = `<span>${icons[type]||'ℹ️'}</span><span>${msg}</span>`;
+      tc.appendChild(t);
+      setTimeout(() => { t.style.animation='slideOut 0.3s ease forwards'; setTimeout(()=>t.remove(),300); }, 4000);
+    }
+
+    function setPrompt(text) {
+      document.getElementById('promptInput').value = text;
+      document.getElementById('promptInput').focus();
+    }
+
+    // ── State ──
+    let currentSchema = '';
+    let currentDataset = '';
+    let currentTable = '';
+    let lastParsed = null;
+    let aiChartInstance = null;
+
+    // ── Load Schemas ──
+    async function loadSchemas() {
+      try {
+        const res = await fetch('/surveys');
+        const data = await res.json();
+        const sel = document.getElementById('schemaSelect');
+        sel.innerHTML = '<option value="">Select a schema...</option>';
+        (data || []).forEach(s => {
+          sel.innerHTML += `<option value="${s.survey}">${s.display_name}</option>`;
+        });
+      } catch(e) { console.error('Schema load error:', e); }
+    }
+
+    // ── Load Datasets ──
+    async function loadDatasets(schema) {
+      const sel = document.getElementById('datasetSelect');
+      sel.innerHTML = '<option value="">Loading...</option>';
+      sel.disabled = true;
+      try {
+        const res = await fetch(`/surveys/${encodeURIComponent(schema)}/datasets`);
+        const data = await res.json();
+        sel.innerHTML = '<option value="">Select a dataset...</option>';
+        const datasets = data || [];
+        if (datasets.length === 0) {
+          sel.innerHTML = '<option value="">No datasets found</option>';
+        }
+        datasets.forEach(d => {
+          sel.innerHTML += `<option value="${d.schema}">${d.display_name}</option>`;
+        });
+        sel.disabled = false;
+      } catch(e) {
+        sel.innerHTML = '<option value="">Error loading datasets</option>';
+        console.error('Dataset load error:', e);
+      }
+    }
+
+    // ── Load Tables ──
+    async function loadTables(datasetSchema) {
+      const sel = document.getElementById('tableSelect');
+      sel.innerHTML = '<option value="">Loading...</option>';
+      sel.disabled = true;
+      try {
+        const res = await fetch(`/surveys/${encodeURIComponent(currentSchema)}/${encodeURIComponent(datasetSchema)}/tables`);
+        const data = await res.json();
+        sel.innerHTML = '<option value="">Select a table...</option>';
+        const tables = data || [];
+        if (tables.length === 0) {
+          sel.innerHTML = '<option value="">No tables found</option>';
+        }
+        tables.forEach(t => {
+          const name = t.table_name || t.name || t;
+          sel.innerHTML += `<option value="${name}">${name}</option>`;
+        });
+        sel.disabled = false;
+      } catch(e) {
+        sel.innerHTML = '<option value="">Error loading tables</option>';
+        console.error('Table load error:', e);
+      }
+    }
+
+    // ── Event Listeners ──
+    document.getElementById('schemaSelect').addEventListener('change', function() {
+      currentSchema = this.value;
+      if (currentSchema) {
+        loadDatasets(currentSchema);
+      }
+      document.getElementById('tableSelect').innerHTML = '<option value="">Select a table...</option>';
+      document.getElementById('tableSelect').disabled = true;
+      updateButtons();
+    });
+
+    document.getElementById('datasetSelect').addEventListener('change', function() {
+      currentDataset = this.value;
+      if (currentDataset) {
+        loadTables(currentDataset);
+      }
+      updateButtons();
+    });
+
+    document.getElementById('tableSelect').addEventListener('change', function() {
+      currentTable = this.value;
+      updateButtons();
+    });
+
+    document.getElementById('promptInput').addEventListener('input', updateButtons);
+
+    function updateButtons() {
+      const hasTable = currentTable && currentTable.trim();
+      const hasPrompt = document.getElementById('promptInput').value.trim();
+      document.getElementById('parseBtn').disabled = !(hasTable && hasPrompt);
+      document.getElementById('executeBtn').disabled = !(hasTable && hasPrompt);
+    }
+
+    // ── Load Credits ──
+    async function loadCredits() {
+      try {
+        const res = await fetch('/api/ai-query/credits');
+        if (!res.ok) return;
+        const data = await res.json();
+        const used = data.used || 0;
+        const limit = data.limit || 0;
+        const remaining = data.remaining || 0;
+        document.getElementById('creditsDisplay').textContent = `${remaining}/${limit}`;
+        const pct = limit > 0 ? Math.min(100, (used / limit) * 100) : 0;
+        document.getElementById('creditsBar').style.width = pct + '%';
+        if (pct > 80) {
+          document.getElementById('creditsBar').style.background = 'linear-gradient(90deg, #F57C00, #FF9800)';
+        } else if (pct > 95) {
+          document.getElementById('creditsBar').style.background = 'linear-gradient(90deg, #D32F2F, #EF5350)';
+        }
+        document.getElementById('creditsSub').textContent = `${used} used this month • ${remaining} remaining`;
+      } catch(e) { console.error('Credits load error:', e); }
+    }
+
+    // ── Parse Query ──
+    async function parseQuery() {
+      const prompt = document.getElementById('promptInput').value.trim();
+      if (!prompt || !currentTable) return;
+
+      showLoading('Parsing your query...');
+
+      try {
+        const res = await fetch('/api/ai-query/parse', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            prompt: prompt,
+            table_name: currentTable,
+            schema_name: currentDataset || 'public'
+          })
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.detail || 'Parse failed');
+        }
+
+        const data = await res.json();
+        lastParsed = data;
+        hideLoading();
+        showParsedResults(data);
+        showToast('Query parsed successfully', 'success');
+      } catch(e) {
+        hideLoading();
+        showToast(e.message || 'Parse failed', 'error');
+      }
+    }
+
+    // ── Execute Query ──
+    async function executeQuery() {
+      const prompt = document.getElementById('promptInput').value.trim();
+      if (!prompt || !currentTable) return;
+
+      showLoading('Executing governed AI query...');
+      document.getElementById('emptyState').style.display = 'none';
+
+      try {
+        const res = await fetch('/api/ai-query/execute', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            prompt: prompt,
+            table_name: currentTable,
+            schema_name: currentDataset || 'public',
+            limit: 200
+          })
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          const detail = typeof err.detail === 'object' ? err.detail.detail || JSON.stringify(err.detail) : (err.detail || 'Execution failed');
+          throw new Error(detail);
+        }
+
+        const data = await res.json();
+        hideLoading();
+        showFullResults(data);
+        loadCredits(); // Refresh credits after execution
+        showToast(`Query executed in ${data.execution_time_ms}ms — ${data.row_count} rows`, 'success');
+      } catch(e) {
+        hideLoading();
+        showToast(e.message || 'Execution failed', 'error');
+      }
+    }
+
+    // ── Display: Parsed Results ──
+    function showParsedResults(data) {
+      document.getElementById('emptyState').style.display = 'none';
+      showRiskCard(data.risk, data.parsed);
+      showFiltersCard(data.parsed);
+    }
+
+    // ── Display: Full Results ──
+    function showFullResults(data) {
+      document.getElementById('emptyState').style.display = 'none';
+      
+      // Show execution time
+      document.getElementById('execTime').style.display = 'flex';
+      document.getElementById('execTimeVal').textContent = data.execution_time_ms;
+
+      // Risk & Governance
+      showRiskCard(data.risk, data.parsed);
+
+      // Filters
+      showFiltersCard(data.parsed);
+
+      // SQL Preview
+      showSqlCard(data.sql_preview);
+
+      // Summary
+      showSummaryCard(data.summary);
+
+      // Results Table
+      showResultsTable(data.results, data.columns, data.row_count);
+
+      // Chart
+      showChart(data.results, data.columns, data.parsed);
+
+      // Update credits display
+      if (data.credits) {
+        const used = data.credits.used || 0;
+        const limit = data.credits.limit || 0;
+        const remaining = data.credits.remaining || 0;
+        document.getElementById('creditsDisplay').textContent = `${remaining}/${limit}`;
+        const pct = limit > 0 ? Math.min(100, (used / limit) * 100) : 0;
+        document.getElementById('creditsBar').style.width = pct + '%';
+        document.getElementById('creditsSub').textContent = `${used} used this month • ${remaining} remaining`;
+      }
+    }
+
+    function showRiskCard(risk, parsed) {
+      const card = document.getElementById('riskCard');
+      card.style.display = '';
+      
+      const badge = document.getElementById('riskBadge');
+      badge.textContent = (risk.level || 'low').toUpperCase();
+      badge.className = `risk-badge risk-${risk.level || 'low'}`;
+      
+      document.getElementById('riskScore').textContent = risk.score || 0;
+      document.getElementById('intentBadge').textContent = parsed.intent || 'exploratory';
+      document.getElementById('confidenceVal').textContent = Math.round((parsed.confidence || 0) * 100) + '%';
+
+      const factorsDiv = document.getElementById('riskFactors');
+      const factorsList = document.getElementById('riskFactorsList');
+      if (risk.factors && risk.factors.length > 0) {
+        factorsDiv.style.display = '';
+        factorsList.innerHTML = risk.factors.map(f => `<div style="margin-bottom:4px;">⚠️ ${f}</div>`).join('');
+      } else {
+        factorsDiv.style.display = 'none';
+      }
+    }
+
+    function showFiltersCard(parsed) {
+      const card = document.getElementById('filtersCard');
+      card.style.display = '';
+      
+      const chips = document.getElementById('filterChips');
+      let html = '';
+      
+      // Show filters
+      (parsed.filters || []).forEach(f => {
+        html += `<span class="filter-chip">
+          <span class="chip-col">${f.column}</span>
+          <span class="chip-op">${f.operator}</span>
+          <span class="chip-val">${f.value}</span>
+        </span>`;
+      });
+      
+      // Show aggregations
+      (parsed.aggregations || []).forEach(a => {
+        html += `<span class="filter-chip agg-chip">
+          <span class="chip-col">${a.function}</span>
+          <span class="chip-op">(</span>
+          <span class="chip-val">${a.column}</span>
+          <span class="chip-op">)</span>
+        </span>`;
+      });
+
+      // Show group by
+      (parsed.group_by || []).forEach(g => {
+        html += `<span class="filter-chip" style="background:rgba(123,31,162,0.08); color:#7B1FA2; border-color:rgba(123,31,162,0.2);">
+          <span class="chip-op">GROUP BY</span>
+          <span class="chip-col">${g}</span>
+        </span>`;
+      });
+
+      if (!html) {
+        html = '<span style="color: var(--text-muted); font-size:13px; font-weight:500;">No specific filters extracted — general data exploration</span>';
+      }
+      chips.innerHTML = html;
+
+      // Warnings
+      const warningsDiv = document.getElementById('warningsList');
+      if (parsed.warnings && parsed.warnings.length > 0) {
+        warningsDiv.style.display = '';
+        warningsDiv.innerHTML = parsed.warnings.map(w => 
+          `<div style="font-size:12px; color: var(--saffron); font-weight:600; margin-bottom:3px;">⚠️ ${w}</div>`
+        ).join('');
+      } else {
+        warningsDiv.style.display = 'none';
+      }
+    }
+
+    function showSqlCard(sql) {
+      const card = document.getElementById('sqlCard');
+      card.style.display = '';
+      
+      let placeholders = [];
+      let tempSql = (sql || '')
+        .replace(/"([^"]+)"/g, (match, p1) => {
+          placeholders.push(`<span class="sql-table">"${p1}"</span>`);
+          return `___PLACEHOLDER_${placeholders.length - 1}___`;
+        })
+        .replace(/'([^']+)'/g, (match, p1) => {
+          placeholders.push(`<span class="sql-string">'${p1}'</span>`);
+          return `___PLACEHOLDER_${placeholders.length - 1}___`;
+        });
+      
+      tempSql = tempSql.replace(/\b(SELECT|FROM|WHERE|AND|OR|BETWEEN|LIKE|IN|GROUP BY|ORDER BY|LIMIT|OFFSET|AS|COUNT|AVG|SUM|MIN|MAX|ILIKE)\b/gi, '<span class="sql-keyword">$1</span>');
+      
+      for (let i = 0; i < placeholders.length; i++) {
+        tempSql = tempSql.replace(`___PLACEHOLDER_${i}___`, placeholders[i]);
+      }
+      
+      document.getElementById('sqlPreview').innerHTML = tempSql;
+    }
+
+    function showSummaryCard(summary) {
+      const card = document.getElementById('summaryCard');
+      card.style.display = '';
+      document.getElementById('summaryText').textContent = summary || 'No summary available.';
+    }
+
+    function showResultsTable(results, columns, rowCount) {
+      const card = document.getElementById('resultsCard');
+      card.style.display = '';
+      document.getElementById('rowCountBadge').textContent = `${rowCount} rows`;
+      
+      if (!results || results.length === 0) {
+        document.getElementById('resultsTableWrap').innerHTML = '<div style="padding:30px; text-align:center; color: var(--text-muted);">No results found</div>';
+        return;
+      }
+
+      const cols = columns || Object.keys(results[0]);
+      let html = '<table class="results-table"><thead><tr>';
+      cols.forEach(c => { html += `<th>${c}</th>`; });
+      html += '</tr></thead><tbody>';
+      
+      results.forEach(row => {
+        html += '<tr>';
+        cols.forEach(c => {
+          let val = row[c];
+          if (val === null || val === undefined) val = '-';
+          html += `<td>${val}</td>`;
+        });
+        html += '</tr>';
+      });
+      html += '</tbody></table>';
+      document.getElementById('resultsTableWrap').innerHTML = html;
+    }
+
+    function showChart(results, columns, parsed) {
+      const card = document.getElementById('chartCard');
+      if (!results || results.length === 0 || results.length > 50) {
+        card.style.display = 'none';
+        return;
+      }
+
+      // Only show chart for aggregation/comparison results or small datasets
+      const cols = columns || Object.keys(results[0]);
+      if (cols.length < 2) { card.style.display = 'none'; return; }
+
+      // Find a good label column and value column
+      let labelCol = null;
+      let valueCol = null;
+      
+      for (const c of cols) {
+        const firstVal = results[0][c];
+        if (typeof firstVal === 'string' && !labelCol) labelCol = c;
+        if (typeof firstVal === 'number' && !valueCol) valueCol = c;
+      }
+
+      if (!labelCol || !valueCol) { card.style.display = 'none'; return; }
+
+      card.style.display = '';
+      
+      const labels = results.map(r => {
+        const v = String(r[labelCol] || '');
+        return v.length > 20 ? v.slice(0,18)+'...' : v;
+      });
+      const data = results.map(r => Number(r[valueCol]) || 0);
+      
+      const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+      Chart.defaults.color = isDark ? '#9CA3AF' : '#6B7280';
+      
+      if (aiChartInstance) aiChartInstance.destroy();
+      
+      const chartType = parsed.intent === 'comparison' ? 'bar' : (results.length <= 10 ? 'doughnut' : 'bar');
+      
+      aiChartInstance = new Chart(document.getElementById('aiChart').getContext('2d'), {
+        type: chartType,
+        data: {
+          labels: labels,
+          datasets: [{
+            label: valueCol,
+            data: data,
+            backgroundColor: chartType === 'doughnut' 
+              ? ['#2E5BBA','#2E7D32','#F4A300','#7B1FA2','#D32F2F','#1976D2','#F57C00','#00897B','#C62828','#4527A0']
+              : 'rgba(46,125,50,0.8)',
+            borderRadius: chartType === 'bar' ? 8 : 0,
+            borderWidth: 0,
+            hoverOffset: 8,
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { 
+            legend: { display: chartType === 'doughnut', position: 'right' } 
+          },
+          scales: chartType !== 'doughnut' ? {
+            y: { beginAtZero: true, grid: { color: isDark ? '#374151' : '#E5E7EB' } },
+            x: { grid: { display: false } }
+          } : undefined,
+        }
+      });
+    }
+
+    function showLoading(text) {
+      document.getElementById('loadingCard').style.display = '';
+      document.getElementById('loadingText').textContent = text || 'Processing...';
+      // Hide result cards during loading
+      ['riskCard','filtersCard','sqlCard','summaryCard','resultsCard','chartCard'].forEach(id => {
+        document.getElementById(id).style.display = 'none';
+      });
+    }
+
+    function hideLoading() {
+      document.getElementById('loadingCard').style.display = 'none';
+    }
+
+    // ── Keyboard shortcuts ──
+    document.getElementById('promptInput').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        if (!document.getElementById('executeBtn').disabled) {
+          executeQuery();
+        }
+      }
+    });
+
+    // ── Init ──
+    loadSchemas();
+    loadCredits();
+  </script>
+</body>
+</html>

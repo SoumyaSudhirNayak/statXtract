@@ -59,6 +59,9 @@ from query.query_data import router as query_router
 from query.query_data import log_usage  # Add this for log_usage
 from nada_routes import router as nada_router
 from fastapi import HTTPException  # Add this for HTTPException
+
+# Import AI Query router
+from ai_query.routes import router as ai_query_router
 from datetime import date
 
 # Central Security module imports
@@ -165,6 +168,91 @@ ALGORITHM = os.getenv("ALGORITHM", "HS256")
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
+
+async def get_qualified_table(conn, table_name: str) -> str:
+    """
+    Dynamically resolves the schema for a table and returns its schema-qualified reference.
+    Falls back to current_schema() if the table or schema does not exist.
+    Prioritizes 'public' schema to avoid shadow conflicts with tables in other schemas.
+    """
+    schema = await conn.fetchval(
+        """
+        SELECT table_schema 
+        FROM information_schema.tables 
+        WHERE LOWER(table_name) = LOWER($1) 
+        ORDER BY CASE WHEN table_schema = 'public' THEN 1 ELSE 2 END
+        LIMIT 1
+        """,
+        table_name
+    )
+    if schema:
+        schema_ok = await conn.fetchval(
+            "SELECT EXISTS(SELECT 1 FROM information_schema.schemata WHERE schema_name = $1)",
+            schema
+        )
+        if schema_ok:
+            return f'"{schema}"."{table_name}"'
+            
+    fallback_schema = await conn.fetchval("SELECT current_schema()") or "public"
+    return f'"{fallback_schema}"."{table_name}"'
+
+
+async def get_admin_clear_cutoff(conn, log_type: str):
+    """
+    Returns the cleared_at timestamp for a given log type from admin_log_clear_timestamps.
+    Returns None if the log type has never been cleared (show all records).
+    """
+    try:
+        return await conn.fetchval(
+            "SELECT cleared_at FROM admin_log_clear_timestamps WHERE log_type = $1",
+            log_type
+        )
+    except Exception:
+        return None
+
+
+async def set_admin_clear_timestamp(conn, log_type: str, cleared_by: str):
+    """
+    Sets or updates the admin clear timestamp for a log type.
+    Admin analytics views will only show records created after this timestamp.
+    """
+    await conn.execute(
+        """
+        INSERT INTO admin_log_clear_timestamps (log_type, cleared_at, cleared_by)
+        VALUES ($1, CURRENT_TIMESTAMP, $2)
+        ON CONFLICT (log_type) DO UPDATE SET cleared_at = CURRENT_TIMESTAMP, cleared_by = $2
+        """,
+        log_type, cleared_by
+    )
+
+
+async def get_user_clear_cutoff(conn, user_email: str, log_type: str):
+    """
+    Returns the cleared_at timestamp for a given user and log type from user_log_clear_timestamps.
+    Returns None if the user has never cleared this log type.
+    """
+    try:
+        return await conn.fetchval(
+            "SELECT cleared_at FROM user_log_clear_timestamps WHERE user_email = $1 AND log_type = $2",
+            user_email, log_type
+        )
+    except Exception:
+        return None
+
+
+async def set_user_clear_timestamp(conn, user_email: str, log_type: str):
+    """
+    Sets or updates the user clear timestamp for a log type.
+    User history views will only show records created after this timestamp.
+    """
+    await conn.execute(
+        """
+        INSERT INTO user_log_clear_timestamps (user_email, log_type, cleared_at)
+        VALUES ($1, $2, CURRENT_TIMESTAMP)
+        ON CONFLICT (user_email, log_type) DO UPDATE SET cleared_at = CURRENT_TIMESTAMP
+        """,
+        user_email, log_type
+    )
 
 # FastAPI lifespan management
 @asynccontextmanager
@@ -408,6 +496,7 @@ async def governance_http_exception_handler(request: Request, exc: HTTPException
 app.include_router(local_auth_router)
 app.include_router(query_router)
 app.include_router(nada_router)
+app.include_router(ai_query_router)
 
 
 # OAuth2 setup
@@ -687,20 +776,23 @@ async def get_user_template_context(request: Request, current_user_email: str) -
                 pass
 
         # Total queries
+        usage_table = await get_qualified_table(conn, "usage_logs")
+        download_table = await get_qualified_table(conn, "download_logs")
+
         total_queries = await conn.fetchval(
-            "SELECT COUNT(*) FROM usage_logs WHERE user_email = $1",
+            f"SELECT COUNT(*) FROM {usage_table} WHERE user_email = $1",
             current_user_email
         ) or 0
 
         # Total downloads
         total_downloads = await conn.fetchval(
-            "SELECT COUNT(*) FROM download_logs WHERE user_email = $1",
+            f"SELECT COUNT(*) FROM {download_table} WHERE user_email = $1",
             current_user_email
         ) or 0
 
         # Rows accessed
         rows_accessed = await conn.fetchval(
-            "SELECT COALESCE(SUM(rows_returned), 0) FROM usage_logs WHERE user_email = $1",
+            f"SELECT COALESCE(SUM(rows_returned), 0) FROM {usage_table} WHERE user_email = $1",
             current_user_email
         ) or 0
 
@@ -876,6 +968,21 @@ async def user_usage_page(
     )
 
 
+@app.get("/user/ai-query", response_class=HTMLResponse, include_in_schema=False)
+async def user_ai_query_page(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
+):
+    ctx = await get_user_template_context(request, current_user.username)
+    return templates.TemplateResponse(
+        "USER_PAGES/user_ai_query.html", 
+        {
+            "request": request,
+            **ctx
+        }
+    )
+
+
 @app.get("/user/feedback", response_class=HTMLResponse, include_in_schema=False)
 async def user_feedback_page(
     request: Request,
@@ -988,10 +1095,15 @@ async def user_delete_account(
             raise HTTPException(status_code=400, detail="Invalid password verification.")
         
         # Anonymize governance logs
-        await conn.execute("UPDATE governance_logs SET user_email = 'deleted_user@statxtract.in' WHERE user_email = $1", current_user.username)
-        await conn.execute("UPDATE usage_logs SET user_email = 'deleted_user@statxtract.in' WHERE user_email = $1", current_user.username)
-        await conn.execute("UPDATE query_logs SET user_email = 'deleted_user@statxtract.in' WHERE user_email = $1", current_user.username)
-        await conn.execute("UPDATE download_logs SET user_email = 'deleted_user@statxtract.in' WHERE user_email = $1", current_user.username)
+        gov_table = await get_qualified_table(conn, "governance_logs")
+        usage_table = await get_qualified_table(conn, "usage_logs")
+        query_table = await get_qualified_table(conn, "query_logs")
+        download_table = await get_qualified_table(conn, "download_logs")
+
+        await conn.execute(f"UPDATE {gov_table} SET user_email = 'deleted_user@statxtract.in' WHERE user_email = $1", current_user.username)
+        await conn.execute(f"UPDATE {usage_table} SET user_email = 'deleted_user@statxtract.in' WHERE user_email = $1", current_user.username)
+        await conn.execute(f"UPDATE {query_table} SET user_email = 'deleted_user@statxtract.in' WHERE user_email = $1", current_user.username)
+        await conn.execute(f"UPDATE {download_table} SET user_email = 'deleted_user@statxtract.in' WHERE user_email = $1", current_user.username)
         await conn.execute("DELETE FROM user_documents WHERE user_email = $1", current_user.username)
         await conn.execute("DELETE FROM user_requests WHERE user_email = $1", current_user.username)
         
@@ -1099,9 +1211,10 @@ async def get_user_token_usage_endpoint(
                 detail="API access is restricted to Pro and Enterprise plans."
             )
             
+        usage_table = await get_qualified_table(conn, "usage_logs")
         today_count = await conn.fetchval(
-            """
-            SELECT COUNT(*) FROM usage_logs
+            f"""
+            SELECT COUNT(*) FROM {usage_table}
             WHERE user_email = $1 
               AND (endpoint LIKE '/datasets/%' OR endpoint = '/query')
               AND queried_at >= CURRENT_DATE
@@ -1110,8 +1223,8 @@ async def get_user_token_usage_endpoint(
         ) or 0
 
         month_count = await conn.fetchval(
-            """
-            SELECT COUNT(*) FROM usage_logs
+            f"""
+            SELECT COUNT(*) FROM {usage_table}
             WHERE user_email = $1 
               AND (endpoint LIKE '/datasets/%' OR endpoint = '/query')
               AND queried_at >= DATE_TRUNC('month', CURRENT_DATE)
@@ -1307,18 +1420,35 @@ async def api_user_governance(
         payment_status = last_pay["payment_status"] if last_pay else "N/A"
         is_admin = str(current_user.role) == "1"
 
+        auto_freeze = await conn.fetchrow(
+            "SELECT freeze_expiry FROM auto_temporary_freezes WHERE email = $1",
+            user_email
+        )
+        status_val = str(user_row["status"])
+        freeze_until_val = user_row["freeze_until"]
+        auto_frozen = False
+        remaining_seconds = 0
+        
+        if auto_freeze and auto_freeze["freeze_expiry"] and auto_freeze["freeze_expiry"] > datetime.utcnow():
+            status_val = "frozen"
+            freeze_until_val = auto_freeze["freeze_expiry"]
+            auto_frozen = True
+            remaining_seconds = max(0, int((auto_freeze["freeze_expiry"] - datetime.utcnow()).total_seconds()))
+
         return {
             "plan": plan_name,
             "role": role_name,
             "is_verified": True if is_admin else bool(user_row["is_verified"]),
             "is_blocked": bool(user_row["is_blocked"]),
-            "status": str(user_row["status"]),
+            "status": status_val,
             "plan_expiry": format_local_timestamp_to_utc_iso(user_row["plan_expiry"]),
             "billing_cycle": billing_cycle,
             "renewal_date": format_local_timestamp_to_utc_iso(renewal_date),
             "payment_status": payment_status,
             "cancel_at_period_end": bool(user_row["cancel_at_period_end"]),
             "testing_mode": False,
+            "auto_frozen": auto_frozen,
+            "remaining_seconds": remaining_seconds,
             "limits": {
                 "max_queries_per_day": plan_limits.get("max_queries_per_day", 1000),
                 "max_rows_per_day": plan_limits.get("max_rows_per_day", 100000),
@@ -1336,7 +1466,7 @@ async def api_user_governance(
             "warnings": warnings,
             "warning_count": int(user_row["warning_count"]),
             "suspicious_score": int(user_row["suspicious_score"]),
-            "freeze_until": format_utc_timestamp_to_utc_iso(user_row["freeze_until"]),
+            "freeze_until": format_utc_timestamp_to_utc_iso(freeze_until_val),
             "governance_notices": notices,
         }
 
@@ -1359,6 +1489,12 @@ async def api_user_query_history(
         conditions = ["user_email = $1"]
         params = [user_email]
 
+        # Filter by user clear history cutoff
+        cutoff = await get_user_clear_cutoff(conn, user_email, "query_history")
+        if cutoff:
+            params.append(cutoff)
+            conditions.append(f"queried_at > ${len(params)}")
+
         if q:
             search_param = f"%{q}%"
             params.append(search_param)
@@ -1375,8 +1511,9 @@ async def api_user_query_history(
 
         where_clause = "WHERE " + " AND ".join(conditions)
 
+        usage_table = await get_qualified_table(conn, "usage_logs")
         total = await conn.fetchval(
-            f"SELECT COUNT(*) FROM usage_logs {where_clause}",
+            f"SELECT COUNT(*) FROM {usage_table} {where_clause}",
             *params
         ) or 0
 
@@ -1396,7 +1533,7 @@ async def api_user_query_history(
                 COALESCE(status, 'success') AS status,
                 queried_at AS timestamp,
                 endpoint
-            FROM usage_logs
+            FROM {usage_table}
             {where_clause}
             ORDER BY queried_at DESC
             LIMIT ${limit_param} OFFSET ${offset_param}
@@ -1436,6 +1573,12 @@ async def api_user_download_history(
         conditions = ["user_email = $1"]
         params = [user_email]
 
+        # Filter by user clear downloads cutoff
+        cutoff = await get_user_clear_cutoff(conn, user_email, "download_history")
+        if cutoff:
+            params.append(cutoff)
+            conditions.append(f"created_at > ${len(params)}")
+
         if q:
             search_param = f"%{q}%"
             params.append(search_param)
@@ -1443,8 +1586,9 @@ async def api_user_download_history(
 
         where_clause = "WHERE " + " AND ".join(conditions)
 
+        download_table = await get_qualified_table(conn, "download_logs")
         total = await conn.fetchval(
-            f"SELECT COUNT(*) FROM download_logs {where_clause}",
+            f"SELECT COUNT(*) FROM {download_table} {where_clause}",
             *params
         ) or 0
 
@@ -1463,7 +1607,7 @@ async def api_user_download_history(
                 COALESCE(size_bytes, 0) AS size_bytes,
                 COALESCE(status, 'success') AS status,
                 created_at AS timestamp
-            FROM download_logs
+            FROM {download_table}
             {where_clause}
             ORDER BY created_at DESC
             LIMIT ${limit_param} OFFSET ${offset_param}
@@ -1484,6 +1628,88 @@ async def api_user_download_history(
             "per_page": per_page,
             "downloads": downloads_list,
         }
+
+
+@app.post("/api/user/clear-query-history")
+async def clear_user_query_history(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
+):
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        await set_user_clear_timestamp(conn, current_user.username, "query_history")
+    return {"message": "Query history cleared successfully"}
+
+
+@app.post("/api/user/clear-download-history")
+async def clear_user_download_history(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
+):
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        await set_user_clear_timestamp(conn, current_user.username, "download_history")
+    return {"message": "Download history cleared successfully"}
+
+
+@app.post("/api/admin/clear-query-logs")
+async def clear_admin_query_logs(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
+):
+    """Clears admin view of query logs without affecting user personal history."""
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        await set_admin_clear_timestamp(conn, "query_logs", current_user.username)
+    return {"message": "Admin query logs view cleared successfully"}
+
+
+@app.post("/api/admin/clear-download-logs")
+async def clear_admin_download_logs(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
+):
+    """Clears admin view of download logs without affecting user personal history."""
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        await set_admin_clear_timestamp(conn, "download_logs", current_user.username)
+    return {"message": "Admin download logs view cleared successfully"}
+
+
+@app.post("/api/admin/clear-suspicious-logs")
+async def clear_admin_suspicious_logs(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
+):
+    """Clears admin view of suspicious activity logs."""
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        await set_admin_clear_timestamp(conn, "suspicious_logs", current_user.username)
+    return {"message": "Admin suspicious activity logs view cleared successfully"}
+
+
+@app.post("/api/admin/clear-ai-query-logs")
+async def clear_admin_ai_query_logs(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
+):
+    """Clears admin view of AI query logs without affecting user personal history."""
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        await set_admin_clear_timestamp(conn, "ai_query_logs", current_user.username)
+    return {"message": "Admin AI query logs view cleared successfully"}
+
+
+@app.post("/api/admin/clear-payment-logs")
+async def clear_admin_payment_logs(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
+):
+    """Clears all payment logs / transaction history from the database."""
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        await conn.execute("DELETE FROM payments")
+    return {"message": "Payment logs cleared successfully"}
 
 
 @app.get("/api/user/credits")
@@ -1536,26 +1762,31 @@ async def admin_user_governance_detail(
             raise HTTPException(status_code=404, detail="User not found")
 
         # Get usage today
+        usage_table = await get_qualified_table(conn, "usage_logs")
+        download_table = await get_qualified_table(conn, "download_logs")
+        suspicious_table = await get_qualified_table(conn, "suspicious_activity_logs")
+        gov_logs_table = await get_qualified_table(conn, "governance_logs")
+
         usage_today = await conn.fetchrow(
-            """
+            f"""
             SELECT COUNT(*) AS queries, COALESCE(SUM(rows_returned), 0) AS rows
-            FROM usage_logs
+            FROM {usage_table}
             WHERE user_email = $1 AND queried_at >= CURRENT_DATE
             """,
             email
         )
 
         downloads_today = await conn.fetchval(
-            "SELECT COUNT(*) FROM download_logs WHERE user_email = $1 AND created_at >= CURRENT_DATE",
+            f"SELECT COUNT(*) FROM {download_table} WHERE user_email = $1 AND created_at >= CURRENT_DATE",
             email
         ) or 0
 
         # Recent queries
         recent_queries = await conn.fetch(
-            """
+            f"""
             SELECT schema_name, table_name, rows_returned, COALESCE(query_time_ms, 0) AS query_time_ms,
                    COALESCE(status, 'success') AS status, queried_at
-            FROM usage_logs WHERE user_email = $1
+            FROM {usage_table} WHERE user_email = $1
             ORDER BY queried_at DESC LIMIT 10
             """,
             email
@@ -1563,10 +1794,10 @@ async def admin_user_governance_detail(
 
         # Recent downloads
         recent_downloads = await conn.fetch(
-            """
+            f"""
             SELECT file_name, COALESCE(dataset_schema, '-') AS dataset, COALESCE(export_format, 'csv') AS format,
                    size_bytes, created_at
-            FROM download_logs WHERE user_email = $1
+            FROM {download_table} WHERE user_email = $1
             ORDER BY created_at DESC LIMIT 10
             """,
             email
@@ -1577,9 +1808,9 @@ async def admin_user_governance_detail(
 
         # Suspicious activity
         suspicious = await conn.fetch(
-            """
+            f"""
             SELECT activity_type, risk_score, detail, created_at
-            FROM suspicious_activity_logs WHERE user_email = $1
+            FROM {suspicious_table} WHERE user_email = $1
             ORDER BY created_at DESC LIMIT 10
             """,
             email
@@ -1587,9 +1818,9 @@ async def admin_user_governance_detail(
 
         # Governance logs
         gov_logs = await conn.fetch(
-            """
+            f"""
             SELECT event_type, detail, created_at
-            FROM governance_logs WHERE user_email = $1
+            FROM {gov_logs_table} WHERE user_email = $1
             ORDER BY created_at DESC LIMIT 10
             """,
             email
@@ -1652,14 +1883,27 @@ async def admin_suspicious_activity_feed(
     """Suspicious activity feed for admin dashboard."""
     pool = request.app.state.db
     async with pool.acquire() as conn:
-        activities = await conn.fetch(
-            """
-            SELECT user_email, activity_type, risk_score, detail, dataset_affected, created_at
-            FROM suspicious_activity_logs
-            ORDER BY created_at DESC
-            LIMIT 50
-            """
-        )
+        suspicious_clear_cutoff = await get_admin_clear_cutoff(conn, "suspicious_logs")
+        if suspicious_clear_cutoff:
+            activities = await conn.fetch(
+                """
+                SELECT user_email, activity_type, risk_score, detail, dataset_affected, created_at
+                FROM suspicious_activity_logs
+                WHERE created_at > $1
+                ORDER BY created_at DESC
+                LIMIT 50
+                """,
+                suspicious_clear_cutoff
+            )
+        else:
+            activities = await conn.fetch(
+                """
+                SELECT user_email, activity_type, risk_score, detail, dataset_affected, created_at
+                FROM suspicious_activity_logs
+                ORDER BY created_at DESC
+                LIMIT 50
+                """
+            )
 
         # Users with highest suspicious scores
         risky_users = await conn.fetch(
@@ -4707,14 +4951,23 @@ async def admin_usage_logs_api(
 ):
     pool = request.app.state.db
     async with pool.acquire() as conn:
+        usage_table = await get_qualified_table(conn, "usage_logs")
+        query_table = await get_qualified_table(conn, "query_logs")
+        download_table = await get_qualified_table(conn, "download_logs")
+
+        usage_schema = usage_table.split(".")[0].strip('"')
+        query_schema = query_table.split(".")[0].strip('"')
+        download_schema = download_table.split(".")[0].strip('"')
+
         usage_cols = {
             r["column_name"]
             for r in await conn.fetch(
                 """
                 SELECT column_name
                 FROM information_schema.columns
-                WHERE table_schema = 'public' AND table_name = 'usage_logs'
-                """
+                WHERE table_schema = $1 AND table_name = 'usage_logs'
+                """,
+                usage_schema
             )
         }
         query_cols = {
@@ -4723,8 +4976,9 @@ async def admin_usage_logs_api(
                 """
                 SELECT column_name
                 FROM information_schema.columns
-                WHERE table_schema = 'public' AND table_name = 'query_logs'
-                """
+                WHERE table_schema = $1 AND table_name = 'query_logs'
+                """,
+                query_schema
             )
         }
         download_cols = {
@@ -4733,8 +4987,9 @@ async def admin_usage_logs_api(
                 """
                 SELECT column_name
                 FROM information_schema.columns
-                WHERE table_schema = 'public' AND table_name = 'download_logs'
-                """
+                WHERE table_schema = $1 AND table_name = 'download_logs'
+                """,
+                download_schema
             )
         }
 
@@ -4756,17 +5011,25 @@ async def admin_usage_logs_api(
         download_has_file = "file_name" in download_cols
         download_has_identity = "user_email" in download_cols
 
+        # Fetch admin clear cutoff timestamps
+        query_clear_cutoff = await get_admin_clear_cutoff(conn, "query_logs")
+        download_clear_cutoff = await get_admin_clear_cutoff(conn, "download_logs")
+
         query_logs = []
         if usage_time_col and usage_has_identity:
             try:
                 filters_col_expr = "COALESCE(filters, '-')" if "filters" in usage_cols else "'-'"
                 status_col_expr = "COALESCE(status, 'success')" if "status" in usage_cols else "'success'"
                 query_time_ms_expr = "COALESCE(query_time_ms, 0)" if "query_time_ms" in usage_cols else "0"
-                where_clause = ""
+                where_parts = []
                 params = []
+                if query_clear_cutoff:
+                    params.append(query_clear_cutoff)
+                    where_parts.append(f"{usage_time_col} > ${len(params)}")
                 if q:
-                    where_clause = "WHERE user_email ILIKE $1 OR schema_name ILIKE $1 OR table_name ILIKE $1 OR filters ILIKE $1 OR status ILIKE $1"
-                    params = [f"%{q}%"]
+                    params.append(f"%{q}%")
+                    where_parts.append(f"(user_email ILIKE ${len(params)} OR schema_name ILIKE ${len(params)} OR table_name ILIKE ${len(params)} OR filters ILIKE ${len(params)} OR status ILIKE ${len(params)})")
+                where_clause = ("WHERE " + " AND ".join(where_parts)) if where_parts else ""
                 query_logs = await conn.fetch(
                     f"""
                     SELECT
@@ -4780,7 +5043,7 @@ async def admin_usage_logs_api(
                         {query_time_ms_expr} AS query_time_ms,
                         {status_col_expr} AS status,
                         {usage_time_col} AS time
-                    FROM usage_logs
+                    FROM {usage_table}
                     {where_clause}
                     ORDER BY {usage_time_col} DESC
                     LIMIT 100
@@ -4793,11 +5056,15 @@ async def admin_usage_logs_api(
             try:
                 dataset_expr = "COALESCE(dataset_name, '-') || '/' || COALESCE(table_name, '-')" if query_has_dataset else "'-'"
                 filters_expr = "COALESCE(filters, '-')" if query_has_filters else "'-'"
-                where_clause = ""
+                where_parts = []
                 params = []
+                if query_clear_cutoff:
+                    params.append(query_clear_cutoff)
+                    where_parts.append(f"{query_time_col} > ${len(params)}")
                 if q:
-                    where_clause = "WHERE user_email ILIKE $1 OR dataset_name ILIKE $1 OR table_name ILIKE $1 OR filters ILIKE $1"
-                    params = [f"%{q}%"]
+                    params.append(f"%{q}%")
+                    where_parts.append(f"(user_email ILIKE ${len(params)} OR dataset_name ILIKE ${len(params)} OR table_name ILIKE ${len(params)} OR filters ILIKE ${len(params)})")
+                where_clause = ("WHERE " + " AND ".join(where_parts)) if where_parts else ""
                 query_logs = await conn.fetch(
                     f"""
                     SELECT
@@ -4808,7 +5075,7 @@ async def admin_usage_logs_api(
                         0 AS query_time_ms,
                         'success' AS status,
                         {query_time_col} AS time
-                    FROM query_logs
+                    FROM {query_table}
                     {where_clause}
                     ORDER BY {query_time_col} DESC
                     LIMIT 100
@@ -4821,11 +5088,15 @@ async def admin_usage_logs_api(
         usage_downloads = []
         if usage_time_col and usage_has_identity and usage_endpoint_col:
             try:
-                where_clause = "WHERE endpoint ILIKE '/downloads/%'"
+                where_parts = ["endpoint ILIKE '/downloads/%'"]
                 params = []
+                if download_clear_cutoff:
+                    params.append(download_clear_cutoff)
+                    where_parts.append(f"{usage_time_col} > ${len(params)}")
                 if q:
-                    where_clause += " AND (user_email ILIKE $1 OR endpoint ILIKE $1 OR status ILIKE $1)"
-                    params = [f"%{q}%"]
+                    params.append(f"%{q}%")
+                    where_parts.append(f"(user_email ILIKE ${len(params)} OR endpoint ILIKE ${len(params)} OR status ILIKE ${len(params)})")
+                where_clause = "WHERE " + " AND ".join(where_parts)
                 usage_downloads = await conn.fetch(
                     f"""
                     SELECT
@@ -4836,7 +5107,7 @@ async def admin_usage_logs_api(
                         0 AS rows_exported,
                         'success' AS status,
                         {usage_time_col} AS time
-                    FROM usage_logs
+                    FROM {usage_table}
                     {where_clause}
                     ORDER BY {usage_time_col} DESC
                     LIMIT 100
@@ -4852,11 +5123,15 @@ async def admin_usage_logs_api(
                 format_col_expr = "COALESCE(export_format, 'csv')" if "export_format" in download_cols else "'csv'"
                 rows_col_expr = "COALESCE(rows_exported, 0)" if "rows_exported" in download_cols else "0"
                 status_col_expr = "COALESCE(status, 'success')" if "status" in download_cols else "'success'"
-                where_clause = ""
+                where_parts = []
                 params = []
+                if download_clear_cutoff:
+                    params.append(download_clear_cutoff)
+                    where_parts.append(f"{download_time_col} > ${len(params)}")
                 if q:
-                    where_clause = "WHERE user_email ILIKE $1 OR file_name ILIKE $1 OR dataset_schema ILIKE $1 OR export_format ILIKE $1 OR status ILIKE $1"
-                    params = [f"%{q}%"]
+                    params.append(f"%{q}%")
+                    where_parts.append(f"(user_email ILIKE ${len(params)} OR file_name ILIKE ${len(params)} OR dataset_schema ILIKE ${len(params)} OR export_format ILIKE ${len(params)} OR status ILIKE ${len(params)})")
+                where_clause = ("WHERE " + " AND ".join(where_parts)) if where_parts else ""
                 table_downloads = await conn.fetch(
                     f"""
                     SELECT
@@ -4867,7 +5142,7 @@ async def admin_usage_logs_api(
                         {rows_col_expr} AS rows_exported,
                         {status_col_expr} AS status,
                         {download_time_col} AS time
-                    FROM download_logs
+                    FROM {download_table}
                     {where_clause}
                     ORDER BY {download_time_col} DESC
                     LIMIT 100
@@ -4895,28 +5170,37 @@ async def admin_usage_logs_api(
         if usage_time_col and usage_has_identity:
             try:
                 admin_emails_subquery = "SELECT email FROM users WHERE role_id = 1"
-                total_queries = await conn.fetchval(f"SELECT COUNT(*) FROM usage_logs WHERE user_email NOT IN ({admin_emails_subquery})")
-                active_users = await conn.fetchval(f"SELECT COUNT(DISTINCT user_email) FROM usage_logs WHERE user_email NOT IN ({admin_emails_subquery})")
-                rows_accessed = await conn.fetchval(f"SELECT COALESCE(SUM({usage_rows_col or '0'}), 0) FROM usage_logs WHERE user_email NOT IN ({admin_emails_subquery})")
+                cutoff_cond = ""
+                cutoff_params = []
+                if query_clear_cutoff:
+                    cutoff_params = [query_clear_cutoff]
+                    cutoff_cond = f" AND {usage_time_col} > $1"
+                total_queries = await conn.fetchval(f"SELECT COUNT(*) FROM {usage_table} WHERE user_email NOT IN ({admin_emails_subquery}){cutoff_cond}", *cutoff_params)
+                active_users = await conn.fetchval(f"SELECT COUNT(DISTINCT user_email) FROM {usage_table} WHERE user_email NOT IN ({admin_emails_subquery}){cutoff_cond}", *cutoff_params)
+                rows_accessed = await conn.fetchval(f"SELECT COALESCE(SUM({usage_rows_col or '0'}), 0) FROM {usage_table} WHERE user_email NOT IN ({admin_emails_subquery}){cutoff_cond}", *cutoff_params)
                 queries_over_time = await conn.fetch(
                     f"""
                     SELECT TO_CHAR(DATE({usage_time_col}), 'YYYY-MM-DD') AS day, COUNT(*) AS count
-                    FROM usage_logs
+                    FROM {usage_table}
                     WHERE {usage_time_col} >= NOW() - INTERVAL '14 days'
                       AND user_email NOT IN ({admin_emails_subquery})
+                      {f"AND {usage_time_col} > $1" if query_clear_cutoff else ""}
                     GROUP BY DATE({usage_time_col})
                     ORDER BY DATE({usage_time_col})
-                    """
+                    """,
+                    *cutoff_params
                 )
                 queries_over_time_hourly = await conn.fetch(
                     f"""
                     SELECT TO_CHAR(DATE_TRUNC('hour', {usage_time_col}), 'YYYY-MM-DD HH24:00') AS hour, COUNT(*) AS count
-                    FROM usage_logs
+                    FROM {usage_table}
                     WHERE {usage_time_col} >= NOW() - INTERVAL '24 hours'
                       AND user_email NOT IN ({admin_emails_subquery})
+                      {f"AND {usage_time_col} > $1" if query_clear_cutoff else ""}
                     GROUP BY DATE_TRUNC('hour', {usage_time_col})
                     ORDER BY DATE_TRUNC('hour', {usage_time_col})
-                    """
+                    """,
+                    *cutoff_params
                 )
                 top_users = await conn.fetch(
                     f"""
@@ -4931,18 +5215,21 @@ async def admin_usage_logs_api(
                     FROM users u
                     LEFT JOIN (
                         SELECT user_email, COUNT(*) AS queries_count, SUM(COALESCE(rows_returned, 0)) AS rows_sum
-                        FROM usage_logs
+                        FROM {usage_table}
+                        {f"WHERE {usage_time_col} > $1" if query_clear_cutoff else ""}
                         GROUP BY user_email
                     ) q ON u.email = q.user_email
                     LEFT JOIN (
                         SELECT user_email, COUNT(*) AS downloads_count
-                        FROM download_logs
+                        FROM {download_table}
+                        {f"WHERE {download_time_col} > $1" if download_clear_cutoff else ""}
                         GROUP BY user_email
                     ) d ON u.email = d.user_email
                     WHERE u.role_id != 1
                     ORDER BY queries_used DESC, u.email ASC
                     LIMIT 10
-                    """
+                    """,
+                    *cutoff_params
                 )
             except Exception:
                 total_queries = 0
@@ -4955,28 +5242,37 @@ async def admin_usage_logs_api(
         if (not total_queries) and query_time_col and query_has_identity:
             try:
                 admin_emails_subquery = "SELECT email FROM users WHERE role_id = 1"
-                total_queries = await conn.fetchval(f"SELECT COUNT(*) FROM query_logs WHERE user_email NOT IN ({admin_emails_subquery})")
-                active_users = await conn.fetchval(f"SELECT COUNT(DISTINCT user_email) FROM query_logs WHERE user_email NOT IN ({admin_emails_subquery})")
-                rows_accessed = await conn.fetchval(f"SELECT COALESCE(SUM({query_rows_col or '0'}), 0) FROM query_logs WHERE user_email NOT IN ({admin_emails_subquery})")
+                cutoff_cond_fb = ""
+                cutoff_params_fb = []
+                if query_clear_cutoff:
+                    cutoff_params_fb = [query_clear_cutoff]
+                    cutoff_cond_fb = f" AND {query_time_col} > $1"
+                total_queries = await conn.fetchval(f"SELECT COUNT(*) FROM {query_table} WHERE user_email NOT IN ({admin_emails_subquery}){cutoff_cond_fb}", *cutoff_params_fb)
+                active_users = await conn.fetchval(f"SELECT COUNT(DISTINCT user_email) FROM {query_table} WHERE user_email NOT IN ({admin_emails_subquery}){cutoff_cond_fb}", *cutoff_params_fb)
+                rows_accessed = await conn.fetchval(f"SELECT COALESCE(SUM({query_rows_col or '0'}), 0) FROM {query_table} WHERE user_email NOT IN ({admin_emails_subquery}){cutoff_cond_fb}", *cutoff_params_fb)
                 queries_over_time = await conn.fetch(
                     f"""
                     SELECT TO_CHAR(DATE({query_time_col}), 'YYYY-MM-DD') AS day, COUNT(*) AS count
-                    FROM query_logs
+                    FROM {query_table}
                     WHERE {query_time_col} >= NOW() - INTERVAL '14 days'
                       AND user_email NOT IN ({admin_emails_subquery})
+                      {f"AND {query_time_col} > $1" if query_clear_cutoff else ""}
                     GROUP BY DATE({query_time_col})
                     ORDER BY DATE({query_time_col})
-                    """
+                    """,
+                    *cutoff_params_fb
                 )
                 queries_over_time_hourly = await conn.fetch(
                     f"""
                     SELECT TO_CHAR(DATE_TRUNC('hour', {query_time_col}), 'YYYY-MM-DD HH24:00') AS hour, COUNT(*) AS count
-                    FROM query_logs
+                    FROM {query_table}
                     WHERE {query_time_col} >= NOW() - INTERVAL '24 hours'
                       AND user_email NOT IN ({admin_emails_subquery})
+                      {f"AND {query_time_col} > $1" if query_clear_cutoff else ""}
                     GROUP BY DATE_TRUNC('hour', {query_time_col})
                     ORDER BY DATE_TRUNC('hour', {query_time_col})
-                    """
+                    """,
+                    *cutoff_params_fb
                 )
                 top_users = await conn.fetch(
                     f"""
@@ -4991,18 +5287,21 @@ async def admin_usage_logs_api(
                     FROM users u
                     LEFT JOIN (
                         SELECT user_email, COUNT(*) AS queries_count, SUM(COALESCE(rows_returned, 0)) AS rows_sum
-                        FROM query_logs
+                        FROM {query_table}
+                        {f"WHERE {query_time_col} > $1" if query_clear_cutoff else ""}
                         GROUP BY user_email
                     ) q ON u.email = q.user_email
                     LEFT JOIN (
                         SELECT user_email, COUNT(*) AS downloads_count
-                        FROM download_logs
+                        FROM {download_table}
+                        {f"WHERE {download_time_col} > $1" if download_clear_cutoff else ""}
                         GROUP BY user_email
                     ) d ON u.email = d.user_email
                     WHERE u.role_id != 1
                     ORDER BY queries_used DESC, u.email ASC
                     LIMIT 10
-                    """
+                    """,
+                    *cutoff_params_fb
                 )
             except Exception:
                 pass
@@ -5069,6 +5368,7 @@ async def admin_users_api(
                 COALESCE(u.blocked_reason, '') AS blocked_reason,
                 COALESCE(u.warning_count, 0) AS warning_count,
                 COALESCE(u.suspicious_score, 0) AS suspicious_score,
+                u.freeze_until,
                 u.last_active,
                 u.created_at
             FROM users u
@@ -5083,6 +5383,7 @@ async def admin_users_api(
             ud["last_active"] = format_local_timestamp_to_utc_iso(ud["last_active"])
             ud["created_at"] = format_local_timestamp_to_utc_iso(ud["created_at"])
             ud["plan_expiry"] = format_local_timestamp_to_utc_iso(ud["plan_expiry"])
+            ud["freeze_until"] = format_local_timestamp_to_utc_iso(ud["freeze_until"])
             # Compute effective plan limits for this user
             try:
                 user_role_id = {"admin": "1", "analyst": "2", "user": "3"}.get(ud.get("role", "user"), "3")
@@ -5096,20 +5397,81 @@ async def admin_users_api(
             except Exception:
                 pass
             try:
-                usage = await conn.fetchrow(
-                    "SELECT COUNT(*) AS queries_today, COALESCE(SUM(rows_returned),0) AS rows_today FROM usage_logs WHERE user_email = $1 AND queried_at >= CURRENT_DATE",
+                usage_table = await get_qualified_table(conn, "usage_logs")
+                download_table = await get_qualified_table(conn, "download_logs")
+
+                # Today's limits for backward compatibility
+                usage_today = await conn.fetchrow(
+                    f"SELECT COUNT(*) AS queries_today, COALESCE(SUM(rows_returned),0) AS rows_today FROM {usage_table} WHERE user_email = $1 AND queried_at >= CURRENT_DATE",
                     ud["email"]
                 )
-                ud["queries_today"] = int(usage["queries_today"] or 0) if usage else 0
-                ud["rows_today"] = int(usage["rows_today"] or 0) if usage else 0
+                ud["queries_today"] = int(usage_today["queries_today"] or 0) if usage_today else 0
+                ud["rows_today"] = int(usage_today["rows_today"] or 0) if usage_today else 0
             except Exception:
                 ud["queries_today"] = 0
                 ud["rows_today"] = 0
+
             try:
-                dl = await conn.fetchval("SELECT COUNT(*) FROM download_logs WHERE user_email = $1 AND created_at >= CURRENT_DATE", ud["email"])
-                ud["downloads_today"] = int(dl or 0)
+                download_table = await get_qualified_table(conn, "download_logs")
+                dl_today = await conn.fetchval(f"SELECT COUNT(*) FROM {download_table} WHERE user_email = $1 AND created_at >= CURRENT_DATE", ud["email"])
+                ud["downloads_today"] = int(dl_today or 0)
             except Exception:
                 ud["downloads_today"] = 0
+
+            # Cumulative / Lifetime totals
+            try:
+                usage_table = await get_qualified_table(conn, "usage_logs")
+                lifetime = await conn.fetchrow(
+                    f"""
+                    SELECT 
+                        COUNT(*) AS total_queries,
+                        COALESCE(SUM(rows_returned), 0) AS total_rows
+                    FROM {usage_table}
+                    WHERE user_email = $1
+                    """,
+                    ud["email"]
+                )
+                ud["total_queries"] = int(lifetime["total_queries"] or 0) if lifetime else 0
+                ud["total_rows"] = int(lifetime["total_rows"] or 0) if lifetime else 0
+            except Exception:
+                ud["total_queries"] = 0
+                ud["total_rows"] = 0
+
+            try:
+                download_table = await get_qualified_table(conn, "download_logs")
+                ud["total_downloads"] = await conn.fetchval(
+                    f"SELECT COUNT(*) FROM {download_table} WHERE user_email = $1",
+                    ud["email"]
+                ) or 0
+            except Exception:
+                ud["total_downloads"] = 0
+
+            try:
+                usage_table = await get_qualified_table(conn, "usage_logs")
+                ud["total_ai_queries"] = await conn.fetchval(
+                    f"""
+                    SELECT COUNT(*) FROM {usage_table}
+                    WHERE user_email = $1 AND endpoint LIKE '%/ai%'
+                    """,
+                    ud["email"]
+                ) or 0
+            except Exception:
+                ud["total_ai_queries"] = 0
+
+            # Monthly governance / limits remaining
+            try:
+                from security.usage_tracker import get_daily_usage_credits
+                credits = await get_daily_usage_credits(conn, ud["email"], effective)
+                ud["queries_remaining"] = credits.get("queries_remaining", 0)
+                ud["rows_remaining"] = credits.get("rows_remaining", 0)
+                ud["downloads_remaining"] = credits.get("downloads_remaining", 0)
+                ud["ai_queries_remaining"] = credits.get("ai_queries_remaining", 0)
+            except Exception:
+                ud["queries_remaining"] = 0
+                ud["rows_remaining"] = 0
+                ud["downloads_remaining"] = 0
+                ud["ai_queries_remaining"] = 0
+
             enriched.append(ud)
     return {"users": enriched}
 
@@ -5292,13 +5654,18 @@ async def admin_reset_usage_api(
     async with pool.acquire() as conn:
         async with conn.transaction():
             # Clear usage records
-            await conn.execute("DELETE FROM usage_logs WHERE user_email = $1", email)
-            await conn.execute("DELETE FROM download_logs WHERE user_email = $1", email)
+            usage_table = await get_qualified_table(conn, "usage_logs")
+            download_table = await get_qualified_table(conn, "download_logs")
+            users_table = await get_qualified_table(conn, "users")
+            gov_logs_table = await get_qualified_table(conn, "governance_logs")
+
+            await conn.execute(f"DELETE FROM {usage_table} WHERE user_email = $1", email)
+            await conn.execute(f"DELETE FROM {download_table} WHERE user_email = $1", email)
             
             # Reset user safety metrics and status in user table
             await conn.execute(
-                """
-                UPDATE users 
+                f"""
+                UPDATE {users_table} 
                 SET warning_count = 0, 
                     suspicious_score = 0, 
                     status = 'active', 
@@ -5310,8 +5677,8 @@ async def admin_reset_usage_api(
             
             # Log governance reset event
             await conn.execute(
-                """
-                INSERT INTO governance_logs (user_email, event_type, detail, created_at)
+                f"""
+                INSERT INTO {gov_logs_table} (user_email, event_type, detail, created_at)
                 VALUES ($1, 'usage_reset', 'Admin reset user usage limits and warnings', CURRENT_TIMESTAMP)
                 """,
                 email
@@ -5371,17 +5738,32 @@ async def admin_delete_user_api(
     async with pool.acquire() as conn:
         async with conn.transaction():
             # Delete related logs first to avoid foreign key / dependency constraints (if any)
-            await conn.execute("DELETE FROM usage_logs WHERE user_email = $1", email)
-            await conn.execute("DELETE FROM download_logs WHERE user_email = $1", email)
-            await conn.execute("DELETE FROM query_logs WHERE user_email = $1", email)
-            await conn.execute("DELETE FROM suspicious_activity_logs WHERE user_email = $1", email)
-            await conn.execute("DELETE FROM governance_warnings WHERE user_email = $1", email)
-            await conn.execute("DELETE FROM governance_logs WHERE user_email = $1", email)
-            await conn.execute("DELETE FROM user_documents WHERE user_email = $1", email)
-            await conn.execute("DELETE FROM user_requests WHERE user_email = $1", email)
-            await conn.execute("DELETE FROM payments WHERE user_email = $1", email)
+            usage_table = await get_qualified_table(conn, "usage_logs")
+            download_table = await get_qualified_table(conn, "download_logs")
+            query_table = await get_qualified_table(conn, "query_logs")
+            susp_table = await get_qualified_table(conn, "suspicious_activity_logs")
+            warn_table = await get_qualified_table(conn, "governance_warnings")
+            gov_table = await get_qualified_table(conn, "governance_logs")
+            docs_table = await get_qualified_table(conn, "user_documents")
+            reqs_table = await get_qualified_table(conn, "user_requests")
+            pay_table = await get_qualified_table(conn, "payments")
+            users_table = await get_qualified_table(conn, "users")
+            user_clear_table = await get_qualified_table(conn, "user_log_clear_timestamps")
+            ai_query_table = await get_qualified_table(conn, "ai_query_logs")
+
+            await conn.execute(f"DELETE FROM {usage_table} WHERE user_email = $1", email)
+            await conn.execute(f"DELETE FROM {download_table} WHERE user_email = $1", email)
+            await conn.execute(f"DELETE FROM {query_table} WHERE user_email = $1", email)
+            await conn.execute(f"DELETE FROM {susp_table} WHERE user_email = $1", email)
+            await conn.execute(f"DELETE FROM {warn_table} WHERE user_email = $1", email)
+            await conn.execute(f"DELETE FROM {gov_table} WHERE user_email = $1", email)
+            await conn.execute(f"DELETE FROM {docs_table} WHERE user_email = $1", email)
+            await conn.execute(f"DELETE FROM {reqs_table} WHERE user_email = $1", email)
+            await conn.execute(f"DELETE FROM {pay_table} WHERE email = $1", email)
+            await conn.execute(f"DELETE FROM {user_clear_table} WHERE user_email = $1", email)
+            await conn.execute(f"DELETE FROM {ai_query_table} WHERE user_email = $1", email)
             # Delete user
-            await conn.execute("DELETE FROM users WHERE email = $1", email)
+            await conn.execute(f"DELETE FROM {users_table} WHERE email = $1", email)
             
     return {"ok": True}
 
@@ -5467,6 +5849,13 @@ async def admin_requests_api(
             docs = []
         admin_emails_subquery = "SELECT email FROM users WHERE role_id = 1"
         try:
+            suspicious_clear_cutoff = await get_admin_clear_cutoff(conn, "suspicious_logs")
+            where_parts = [f"l.user_email NOT IN ({admin_emails_subquery})"]
+            params = []
+            if suspicious_clear_cutoff:
+                params.append(suspicious_clear_cutoff)
+                where_parts.append(f"l.created_at > ${len(params)}")
+            where_clause = "WHERE " + " AND ".join(where_parts)
             suspicious = await conn.fetch(
                 f"""
                 SELECT 
@@ -5480,10 +5869,11 @@ async def admin_requests_api(
                     COALESCE(u.status, 'active') AS auto_action
                 FROM suspicious_activity_logs l
                 JOIN users u ON u.email = l.user_email
-                WHERE l.user_email NOT IN ({admin_emails_subquery})
+                {where_clause}
                 ORDER BY l.created_at DESC
                 LIMIT 100
-                """
+                """,
+                *params
             )
         except Exception as e:
             print(f"Error fetching suspicious activity logs: {e}")
@@ -6246,3 +6636,122 @@ def custom_openapi():
 
 
 app.openapi = custom_openapi
+
+from query.user_explore import router as user_explore_router
+app.include_router(user_explore_router)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ADMIN — DELETE DATASET (schema + tables + metadata + config)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.post("/admin/datasets/delete")
+async def admin_delete_dataset(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
+):
+    """
+    Permanently deletes a dataset schema and all associated data:
+      - All user tables inside the schema
+      - Internal metadata tables (dataset_metadata, variables, variable_categories, etc.)
+      - dataset_registry entries
+      - dataset_configs entries
+      - variable_configs entries
+      - The PostgreSQL schema itself
+    Admin-only.  Requires JSON body: { "schema": "...", "dataset_display_name": "..." }
+    """
+    body = await request.json()
+    schema_name = (body.get("schema") or "").strip()
+    dataset_display = (body.get("dataset_display_name") or "").strip()
+
+    if not schema_name:
+        raise HTTPException(status_code=400, detail="schema is required")
+
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        # ── 1. Verify the schema actually exists in PostgreSQL ──
+        schema_exists = await conn.fetchval(
+            """
+            SELECT EXISTS (
+                SELECT 1 FROM information_schema.schemata
+                WHERE schema_name = $1
+            )
+            """,
+            schema_name,
+        )
+        if not schema_exists:
+            raise HTTPException(status_code=404, detail="Dataset schema not found. It may have already been deleted.")
+
+        # ── 2. Gather all tables inside the schema for logging ──
+        all_tables = await conn.fetch(
+            """
+            SELECT table_name
+            FROM information_schema.tables
+            WHERE table_type = 'BASE TABLE'
+              AND table_schema = $1
+            ORDER BY table_name
+            """,
+            schema_name,
+        )
+        table_names = [r["table_name"] for r in all_tables]
+
+        # ── 3. Perform deletion inside a transaction ──
+        async with conn.transaction():
+            # 3a. Delete dataset_configs entries for this schema
+            try:
+                await conn.execute(
+                    "DELETE FROM dataset_configs WHERE schema_name = $1",
+                    schema_name,
+                )
+            except Exception:
+                pass  # Table may not exist or no entries
+
+            # 3b. Delete variable_configs entries for this schema
+            try:
+                await conn.execute(
+                    "DELETE FROM variable_configs WHERE schema_name = $1",
+                    schema_name,
+                )
+            except Exception:
+                pass
+
+            # 3c. Delete dataset_registry entries for this schema
+            try:
+                await conn.execute(
+                    "DELETE FROM dataset_registry WHERE dataset_schema = $1",
+                    schema_name,
+                )
+            except Exception:
+                pass
+
+            # 3d. Drop the entire PostgreSQL schema (CASCADE removes all tables inside)
+            await conn.execute(f'DROP SCHEMA IF EXISTS "{schema_name}" CASCADE')
+
+        # ── 4. Log the admin action ──
+        try:
+            usage_table = await get_qualified_table(conn, "usage_logs")
+            await conn.execute(
+                f"""
+                INSERT INTO {usage_table} (user_email, endpoint, schema_name, table_name, rows_returned, bytes_sent, query_time_ms, status, filters, queried_at)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP)
+                """,
+                current_user.username,
+                "/admin/datasets/delete",
+                schema_name,
+                ",".join(table_names[:10]),  # Log first 10 table names
+                len(table_names),
+                0,
+                0,
+                "DELETE_DATASET",
+                f"Deleted schema={schema_name} display={dataset_display} tables={len(table_names)}",
+            )
+        except Exception as e:
+            print(f"⚠️ Failed to log dataset deletion: {e}")
+
+        return {
+            "success": True,
+            "message": f"Dataset '{dataset_display or schema_name}' and all metadata deleted successfully.",
+            "deleted_schema": schema_name,
+            "deleted_tables_count": len(table_names),
+            "deleted_tables": table_names,
+        }

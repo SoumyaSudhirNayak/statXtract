@@ -439,7 +439,71 @@ async def ensure_core_tables(conn: asyncpg.Connection) -> None:
         """
     )
 
+    # AI Query Logs table (for the Governed Natural Language Query Layer)
+    await conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS ai_query_logs (
+            id SERIAL PRIMARY KEY,
+            user_email TEXT NOT NULL,
+            prompt TEXT NOT NULL,
+            parsed_intent TEXT,
+            parsed_filters JSONB,
+            generated_sql TEXT,
+            risk_level TEXT DEFAULT 'low',
+            risk_score INTEGER DEFAULT 0,
+            risk_factors JSONB,
+            query_type TEXT,
+            rows_returned INTEGER DEFAULT 0,
+            execution_time_ms INTEGER DEFAULT 0,
+            status TEXT DEFAULT 'completed',
+            table_name TEXT,
+            schema_name TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """
+    )
+
+    # Admin log clear timestamps — tracks when admin last "cleared" each log type
+    # Admin clear operations update this timestamp instead of deleting records.
+    # Admin analytics views filter records to only show those after the clear timestamp.
+    # User personal history is completely unaffected.
+    await conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS admin_log_clear_timestamps (
+            log_type TEXT PRIMARY KEY,
+            cleared_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            cleared_by TEXT
+        );
+        """
+    )
+
+    # User log clear timestamps — tracks when a user last cleared their query or download history.
+    # This enables user-scoped clear that does NOT delete records from the global tables (leaving admin logs and global analytics unaffected).
+    await conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS user_log_clear_timestamps (
+            user_email TEXT NOT NULL,
+            log_type TEXT NOT NULL,
+            cleared_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (user_email, log_type)
+        );
+        """
+    )
+
+    # Auto temporary freeze tracking — tracks rate-limit violations and dynamic temporary freeze state.
+    await conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS auto_temporary_freezes (
+            email TEXT PRIMARY KEY,
+            violation_count INTEGER DEFAULT 0,
+            freeze_expiry TIMESTAMP,
+            last_violation TIMESTAMP
+        );
+        """
+    )
+
     keep_schemas = set()
+
     for display in SURVEY_SCHEMA_DISPLAY_NAMES:
         db_name = _to_pg_schema_name(display)
         keep_schemas.add(db_name)

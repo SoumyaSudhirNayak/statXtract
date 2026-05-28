@@ -104,9 +104,41 @@
         .bars i { display:block; flex:1; border-radius:6px 6px 0 0; background: linear-gradient(180deg, var(--primary), var(--primary-dark)); opacity: 0.8; }
         .legend { display:flex; justify-content:space-between; color: var(--text-muted); font-size:.8rem; margin-top:10px; }
         @media (max-width: 1000px) { .grid { grid-template-columns: 1fr; } }
+         
+         /* Toast notifications */
+         .toast-container {
+             position: fixed;
+             bottom: 24px;
+             right: 24px;
+             z-index: 9999;
+             display: flex;
+             flex-direction: column;
+             gap: 10px;
+         }
+         .toast {
+             background: var(--glass-bg);
+             border: 1px solid var(--glass-border);
+             color: var(--text-main);
+             padding: 12px 20px;
+             border-radius: 10px;
+             box-shadow: var(--shadow-heavy);
+             display: flex;
+             align-items: center;
+             gap: 10px;
+             font-weight: 500;
+             font-size: 0.9rem;
+             animation: toastIn 0.3s ease-out;
+         }
+         .toast.success { border-left: 4px solid #22c55e; }
+         .toast.error { border-left: 4px solid #ef4444; }
+         @keyframes toastIn {
+             from { transform: translateY(20px); opacity: 0; }
+             to { transform: translateY(0); opacity: 1; }
+         }
     </style>
 </head>
 <body>
+    <div class="toast-container" id="toastContainer"></div>
     <a class="back" href="/admin/dashboard"><i class="fas fa-arrow-left"></i> Dashboard</a>
     <div class="theme-toggle" id="theme-toggle" onclick="toggleTheme()">
         <i class="fas fa-moon"></i>
@@ -128,7 +160,12 @@
         </div>
         <div class="grid">
             <div class="card full">
-                <div class="title"><i class="fas fa-database"></i> Query Logs</div>
+                <div class="title" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                    <span><i class="fas fa-database"></i> Query Logs</span>
+                    <button class="btn btn-sm" onclick="confirmClearAdminLogs('query')" style="background: #ef4444; color: #fff; padding: 6px 12px; font-size: 0.75rem; border: none; font-weight: 600; cursor: pointer; border-radius: 8px;">
+                        <i class="fas fa-trash-alt"></i> Clear Query Logs
+                    </button>
+                </div>
                 <div style="overflow-x:auto;">
                     <table>
                         <thead><tr><th>User</th><th>Dataset/Table</th><th class="col-filters">Filters</th><th>Rows</th><th>Duration</th><th>Status</th><th>Time</th></tr></thead>
@@ -145,7 +182,12 @@
                 </div>
             </div>
             <div class="card full">
-                <div class="title"><i class="fas fa-download"></i> Download Logs</div>
+                <div class="title" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                    <span><i class="fas fa-download"></i> Download Logs</span>
+                    <button class="btn btn-sm" onclick="confirmClearAdminLogs('download')" style="background: #ef4444; color: #fff; padding: 6px 12px; font-size: 0.75rem; border: none; font-weight: 600; cursor: pointer; border-radius: 8px;">
+                        <i class="fas fa-trash-alt"></i> Clear Download Logs
+                    </button>
+                </div>
                 <div style="overflow-x:auto;">
                     <table>
                         <thead><tr><th>File Name</th><th>User</th><th>Format</th><th>Rows</th><th>Size</th><th>Status</th><th>Time</th></tr></thead>
@@ -182,6 +224,92 @@
                         </thead>
                         <tbody id="topUsersRows"></tbody>
                     </table>
+                </div>
+            </div>
+
+            <!-- AI Query Analytics Layer -->
+            <div class="card full" style="margin-top: 18px; border: 1px solid rgba(123, 31, 162, 0.4); background: linear-gradient(135deg, var(--glass-bg), rgba(123, 31, 162, 0.03));">
+                <div class="title" style="color: #7B1FA2; display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                    <span><i class="fas fa-robot"></i> AI Query Insights &amp; Governance</span>
+                    <button class="btn btn-sm" onclick="confirmClearAdminLogs('ai')" style="background: #ef4444; color: #fff; padding: 6px 12px; font-size: 0.75rem; border: none; font-weight: 600; cursor: pointer; border-radius: 8px;">
+                        <i class="fas fa-trash-alt"></i> Clear AI Query Logs
+                    </button>
+                </div>
+                <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 20px;">Premium NLP query monitoring, safety risk distribution, and identity privacy governance analytics.</p>
+                
+                <!-- AI Metrics Strip -->
+                <div class="stats" style="grid-template-columns: repeat(3, 1fr); margin-bottom: 24px;">
+                    <div class="card" style="border-left: 4px solid #7B1FA2;"><div id="aiToday" class="num" style="color: #7B1FA2;">0</div><div class="label">AI Queries Today</div></div>
+                    <div class="card" style="border-left: 4px solid #8E24AA;"><div id="aiMonth" class="num" style="color: #8E24AA;">0</div><div class="label">AI Queries This Month</div></div>
+                    <div class="card" style="border-left: 4px solid #D32F2F;"><div id="aiBlocked" class="num" style="color: #D32F2F;">0</div><div class="label">Blocked (High Risk/Credits)</div></div>
+                </div>
+
+                <!-- AI Split Layout -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                    <!-- High-Risk Prompts -->
+                    <div class="card" style="background: rgba(211, 47, 47, 0.02); border: 1px solid rgba(211, 47, 47, 0.15);">
+                        <div class="title" style="color: #D32F2F; font-size: 1rem;"><i class="fas fa-exclamation-triangle"></i> Recent High-Risk AI Prompts</div>
+                        <div style="overflow-x:auto;">
+                            <table style="border: none; background: transparent;">
+                                <thead>
+                                    <tr><th>User</th><th>Prompt</th><th>Risk Score</th><th>Time</th></tr>
+                                </thead>
+                                <tbody id="aiHighRiskRows">
+                                    <tr><td colspan="4" style="text-align:center; color:var(--text-muted);">Loading high risk audits...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Common Prompts & Risk Distribution -->
+                    <div style="display: flex; flex-direction: column; gap: 20px;">
+                        <div class="card">
+                            <div class="title" style="font-size: 1rem;"><i class="fas fa-comments"></i> Popular AI Prompts</div>
+                            <div style="overflow-x:auto;">
+                                <table style="border: none; background: transparent;">
+                                    <thead>
+                                        <tr><th>Prompt</th><th>Usage Count</th></tr>
+                                    </thead>
+                                    <tbody id="aiCommonRows">
+                                        <tr><td colspan="2" style="text-align:center; color:var(--text-muted);">Loading popular prompts...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        
+                        <div class="card">
+                            <div class="title" style="font-size: 1rem;"><i class="fas fa-shield-halved"></i> Risk Level Distribution</div>
+                            <div style="display: flex; justify-content: space-around; align-items: center; padding: 10px 0;">
+                                <div style="text-align: center;">
+                                    <div id="riskLowCount" style="font-size: 1.5rem; font-weight: 700; color: #2E7D32;">0</div>
+                                    <div style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600;">LOW RISK</div>
+                                </div>
+                                <div style="text-align: center;">
+                                    <div id="riskMedCount" style="font-size: 1.5rem; font-weight: 700; color: #F4A300;">0</div>
+                                    <div style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600;">MED RISK</div>
+                                </div>
+                                <div style="text-align: center;">
+                                    <div id="riskHighCount" style="font-size: 1.5rem; font-weight: 700; color: #D32F2F;">0</div>
+                                    <div style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600;">HIGH RISK</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Top AI Users -->
+                <div class="card" style="margin-top: 20px;">
+                    <div class="title" style="color: #7B1FA2; font-size: 1rem;"><i class="fas fa-user-astronaut"></i> Top AI Query Users</div>
+                    <div style="overflow-x:auto;">
+                        <table style="border: none; background: transparent;">
+                            <thead>
+                                <tr><th>User Email</th><th>AI Queries Run</th><th>Average Risk Score</th></tr>
+                            </thead>
+                            <tbody id="aiTopUsersRows">
+                                <tr><td colspan="3" style="text-align:center; color:var(--text-muted);">Loading AI users...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
@@ -289,7 +417,68 @@
             allTopUsers = fullChartData.top_users || [];
             
             renderQotChart();
-            renderTopUsersTable();
+            if (lastSortedCol !== -1) {
+                sortTopUsers(lastSortedCol, topUsersSortDir);
+            } else {
+                renderTopUsersTable();
+            }
+
+            // Fetch AI Analytics
+            try {
+                const aiRes = await fetch("/api/ai-query/admin/analytics", { credentials: "same-origin" });
+                if (aiRes.ok) {
+                    const aiData = await aiRes.json();
+                    
+                    // Populate counts
+                    document.getElementById("aiToday").textContent = fmt(aiData.ai_queries_today);
+                    document.getElementById("aiMonth").textContent = fmt(aiData.ai_queries_month);
+                    document.getElementById("aiBlocked").textContent = fmt(aiData.blocked_queries);
+                    
+                    // High-risk prompts
+                    const hrRows = (aiData.high_risk_prompts || []).map(p => {
+                        const dateStr = p.created_at ? new Date(p.created_at).toLocaleString() : "-";
+                        return `<tr>
+                            <td>${esc(p.user_email)}</td>
+                            <td><code>${esc(p.prompt)}</code></td>
+                            <td><span class="pill blocked" style="font-weight:bold;">${p.risk_score}/100</span></td>
+                            <td>${dateStr}</td>
+                        </tr>`;
+                    }).join("");
+                    document.getElementById("aiHighRiskRows").innerHTML = hrRows || `<tr><td colspan="4" style="text-align:center;color:var(--text-muted);">No high-risk prompts detected.</td></tr>`;
+                    
+                    // Common prompts
+                    const cpRows = (aiData.common_prompts || []).map(p => {
+                        return `<tr>
+                            <td><code>${esc(p.prompt)}</code></td>
+                            <td><strong>${fmt(p.usage_count)}</strong></td>
+                        </tr>`;
+                    }).join("");
+                    document.getElementById("aiCommonRows").innerHTML = cpRows || `<tr><td colspan="2" style="text-align:center;color:var(--text-muted);">No prompts recorded.</td></tr>`;
+                    
+                    // Risk distribution
+                    const dist = aiData.risk_distribution || {};
+                    document.getElementById("riskLowCount").textContent = fmt(dist.low || 0);
+                    document.getElementById("riskMedCount").textContent = fmt(dist.medium || 0);
+                    document.getElementById("riskHighCount").textContent = fmt(dist.high || 0);
+                    
+                    // Top AI Users
+                    const tuRows = (aiData.top_users || []).map(u => {
+                        const avgRisk = Number(u.avg_risk || 0).toFixed(1);
+                        let riskColor = "color: #2E7D32;";
+                        if (u.avg_risk >= 60) riskColor = "color: #D32F2F;";
+                        else if (u.avg_risk >= 30) riskColor = "color: #F4A300;";
+                        
+                        return `<tr>
+                            <td>${esc(u.user_email)}</td>
+                            <td><strong>${fmt(u.query_count)}</strong></td>
+                            <td><span style="font-weight:700; ${riskColor}">${avgRisk}</span></td>
+                        </tr>`;
+                    }).join("");
+                    document.getElementById("aiTopUsersRows").innerHTML = tuRows || `<tr><td colspan="3" style="text-align:center;color:var(--text-muted);">No active AI users yet.</td></tr>`;
+                }
+            } catch (err) {
+                console.error("Error loading AI analytics:", err);
+            }
         }
         
         const esc = (s) => String(s ?? "").replace(/"/g, "&quot;");
@@ -314,8 +503,10 @@
             }).join("") || `<tr><td colspan="6" style="text-align:center;color:var(--text-muted);">No top users found.</td></tr>`;
         }
 
-        function sortTopUsers(colIdx) {
-            if (lastSortedCol === colIdx) {
+        function sortTopUsers(colIdx, forceDirection = null) {
+            if (forceDirection !== null) {
+                topUsersSortDir = forceDirection;
+            } else if (lastSortedCol === colIdx) {
                 topUsersSortDir *= -1;
             } else {
                 topUsersSortDir = 1;
@@ -452,6 +643,11 @@
             document.getElementById("downloadRows").innerHTML = row(["No data", "No data", "csv", "0", "0 B", "failed", "-"]);
         });
 
+        // Safe frontend refresh
+        setInterval(() => {
+            loadUsage().catch(() => {});
+        }, 9000);
+
         // Theme Toggle Functionality
         function toggleTheme() {
             const html = document.documentElement;
@@ -478,6 +674,89 @@
             document.documentElement.setAttribute('data-theme', savedTheme);
             updateThemeUI(savedTheme);
         })();
+
+        let activeClearType = null;
+
+        function confirmClearAdminLogs(type) {
+            activeClearType = type;
+            const modal = document.getElementById('clearConfirmModal');
+            modal.style.display = 'flex';
+            modal.offsetHeight;
+            modal.style.opacity = '1';
+            modal.style.pointerEvents = 'auto';
+            modal.querySelector('.confirm-modal-card').style.transform = 'scale(1)';
+        }
+
+        function closeClearConfirmModal() {
+            const modal = document.getElementById('clearConfirmModal');
+            modal.style.opacity = '0';
+            modal.style.pointerEvents = 'none';
+            modal.querySelector('.confirm-modal-card').style.transform = 'scale(0.9)';
+            setTimeout(() => {
+                modal.style.display = 'none';
+            }, 300);
+        }
+
+        async function executeClearHistory() {
+            if (!activeClearType) return;
+            let url = '';
+            if (activeClearType === 'query') {
+                url = '/api/admin/clear-query-logs';
+            } else if (activeClearType === 'download') {
+                url = '/api/admin/clear-download-logs';
+            } else if (activeClearType === 'ai') {
+                url = '/api/admin/clear-ai-query-logs';
+            }
+
+            try {
+                const res = await fetch(url, { method: 'POST' });
+                if (!res.ok) {
+                    const errData = await res.json();
+                    throw new Error(errData.detail || 'Failed to clear logs');
+                }
+                closeClearConfirmModal();
+                alertSuccessToast('Logs cleared successfully!');
+                // Refresh UI immediately
+                loadUsage();
+            } catch (err) {
+                alertErrorToast(err.message);
+            }
+        }
+
+        function alertSuccessToast(msg) {
+            const container = document.getElementById('toastContainer');
+            if (container) {
+                const toast = document.createElement('div');
+                toast.className = 'toast success';
+                toast.innerHTML = `<i class="fas fa-check-circle"></i> <span>${msg}</span>`;
+                container.appendChild(toast);
+                setTimeout(() => toast.remove(), 4000);
+            }
+        }
+
+        function alertErrorToast(msg) {
+            const container = document.getElementById('toastContainer');
+            if (container) {
+                const toast = document.createElement('div');
+                toast.className = 'toast error';
+                toast.innerHTML = `<i class="fas fa-exclamation-circle"></i> <span>${msg}</span>`;
+                container.appendChild(toast);
+                setTimeout(() => toast.remove(), 4000);
+            }
+        }
     </script>
+
+    <!-- Clear History Confirmation Modal -->
+    <div id="clearConfirmModal" class="confirm-modal-overlay" style="display:none; position: fixed; inset: 0; z-index: 9999; background: rgba(0,0,0,0.6); align-items: center; justify-content: center; backdrop-filter: blur(4px); opacity: 0; pointer-events: none; transition: opacity 0.3s ease;">
+        <div class="confirm-modal-card" style="background: var(--glass-bg, #fff); border: 2px solid var(--border, rgba(0,0,0,0.1)); border-radius: 18px; padding: 30px; width: 100%; max-width: 400px; box-shadow: 0 16px 36px rgba(0,0,0,0.25); text-align: center; transform: scale(0.9); transition: transform 0.3s ease;">
+            <div style="font-size: 40px; margin-bottom: 15px; color: #ef4444;">⚠️</div>
+            <h3 style="font-family: sans-serif; font-size: 20px; font-weight: 800; color: var(--text-main, #1c1c1c); margin-bottom: 12px;">Confirm Action</h3>
+            <p style="font-family: sans-serif; font-size: 15px; color: var(--text-muted, #6b7280); margin-bottom: 24px;">Are you sure you want to clear history?</p>
+            <div style="display: flex; gap: 12px; justify-content: center;">
+                <button onclick="closeClearConfirmModal()" style="padding: 10px 20px; border-radius: 10px; border: 2px solid var(--border, #d1d5db); background: transparent; color: var(--text-main, #1c1c1c); font-weight: 600; cursor: pointer; font-size: 14px; transition: all 0.2s;">Cancel</button>
+                <button id="confirmClearBtn" onclick="executeClearHistory()" style="padding: 10px 20px; border-radius: 10px; border: none; background: #ef4444; color: #fff; font-weight: 600; cursor: pointer; font-size: 14px; transition: all 0.2s;">Confirm Clear</button>
+            </div>
+        </div>
+    </div>
 </body>
 </html>

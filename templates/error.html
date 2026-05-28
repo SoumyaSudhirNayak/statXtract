@@ -217,6 +217,31 @@
             const savedTheme = localStorage.getItem('theme') || 'light';
             document.documentElement.setAttribute('data-theme', savedTheme);
         })();
+
+        {% if error_type == 'ACCOUNT_FROZEN' %}
+        document.addEventListener("DOMContentLoaded", function() {
+            const p = document.querySelector(".error-card p");
+            if (p) {
+                const match = p.textContent.match(/wait (\d+) seconds/i);
+                if (match) {
+                    let seconds = parseInt(match[1], 10);
+                    const updateTimer = () => {
+                        if (seconds <= 0) {
+                            p.innerHTML = "Your account is active. You can now <a href='/user/dashboard' style='color: var(--theme-color, #ef4444); font-weight: 600;'>return to your dashboard</a>.";
+                            return;
+                        }
+                        let minutes = Math.floor(seconds / 60);
+                        let secs = seconds % 60;
+                        let timeStr = minutes > 0 ? `${minutes}m ${secs}s` : `${secs}s`;
+                        p.innerHTML = `Your account is temporarily frozen due to excessive requests.<br>Please wait <strong style="color: #ef4444; font-size: 1.1rem;">${timeStr}</strong> before retrying.`;
+                        seconds--;
+                        setTimeout(updateTimer, 1000);
+                    };
+                    updateTimer();
+                }
+            }
+        });
+        {% endif %}
     </script>
 </body>
 </html>

@@ -112,6 +112,30 @@ async def query_data(
     user_role = str(current_user.role)
 
     async with pool.acquire() as conn:
+        # Resolve correct schema for table_name dynamically
+        schema_row = await conn.fetchrow(
+            """
+            SELECT table_schema, table_name
+            FROM information_schema.tables 
+            WHERE LOWER(table_name) = LOWER($1) 
+            LIMIT 1
+            """,
+            table_name
+        )
+        if schema_row:
+            schema_name = schema_row["table_schema"]
+            table_name = schema_row["table_name"]
+        else:
+            schema_name = await conn.fetchval("SELECT current_schema()") or "public"
+
+        # Validate that the schema exists in the database
+        schema_ok = await conn.fetchval(
+            "SELECT EXISTS(SELECT 1 FROM information_schema.schemata WHERE schema_name = $1)",
+            schema_name
+        )
+        if not schema_ok:
+            schema_name = await conn.fetchval("SELECT current_schema()") or "public"
+
         accept = request.headers.get("accept", "")
         is_export = "text/csv" in accept or (format in ["csv", "excel", "pdf", "json"])
         action_type = "export" if is_export else "query"
@@ -123,7 +147,7 @@ async def query_data(
                 conn=conn,
                 user=current_user,
                 action_type=action_type,
-                schema_name="public",
+                schema_name=schema_name,
                 table_name=table_name,
                 rows_requested=limit,
                 export_type=export_fmt,
@@ -140,7 +164,8 @@ async def query_data(
 
             # Discover label columns for substitution
             actual_columns = await conn.fetch(
-                "SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = $1",
+                "SELECT column_name FROM information_schema.columns WHERE table_schema = $1 AND table_name = $2",
+                schema_name,
                 table_name
             )
             all_cols = [c["column_name"] for c in actual_columns]
@@ -151,7 +176,7 @@ async def query_data(
             requested_cols = [c.strip() for c in (columns.split(",") if columns else all_cols) if c.strip()]
             allowed_cols = await check_columns_and_filters(
                 conn=conn,
-                schema="public",
+                schema=schema_name,
                 table=table_name,
                 user_role=user_role,
                 columns=requested_cols,
@@ -174,7 +199,7 @@ async def query_data(
                 except ValueError as e:
                     raise HTTPException(status_code=400, detail=str(e))
 
-            sql = f'SELECT {col_sql} FROM "{table_name}" {where_clause} LIMIT {limit} OFFSET {offset}'
+            sql = f'SELECT {col_sql} FROM "{schema_name}"."{table_name}" {where_clause} LIMIT {limit} OFFSET {offset}'
 
             try:
                 rows = await conn.fetch(sql)
@@ -188,14 +213,14 @@ async def query_data(
             
             # Enforce cell suppression and value mapping via privacy guard
             try:
-                label_map = await get_column_labels(conn, table_name, schema="public")
+                label_map = await get_column_labels(conn, table_name, schema=schema_name)
                 labels = {c: (label_map.get(c) or {}) for c in allowed_cols}
             except Exception:
                 labels = {}
 
             filtered_data = await apply_privacy_and_labeling(
                 conn=conn,
-                schema="public",
+                schema=schema_name,
                 table=table_name,
                 user_role=user_role,
                 columns=allowed_cols,
@@ -206,7 +231,7 @@ async def query_data(
             # Log as completed
             await log_api_usage(
                 conn, current_user.username,
-                f"/datasets/{table_name}/query", "public", table_name,
+                f"/datasets/{table_name}/query", schema_name, table_name,
                 len(filtered_data), len(json.dumps(filtered_data, default=str).encode()),
                 status="completed",
                 filters=filters
@@ -270,7 +295,7 @@ async def query_data(
                         fontName='Helvetica-Bold'
                     )
 
-                    elements.append(Paragraph(f"Dataset Export: {table_name} (Schema: public)", title_style))
+                    elements.append(Paragraph(f"Dataset Export: {table_name} (Schema: {schema_name})", title_style))
                     elements.append(Spacer(1, 10))
 
                     if filtered_data:
@@ -319,7 +344,7 @@ async def query_data(
                     file_name=filename,
                     user_email=current_user.username,
                     size_bytes=size_bytes,
-                    dataset_schema="public",
+                    dataset_schema=schema_name,
                     export_format=export_fmt,
                     rows_exported=len(filtered_data),
                     status="success"
@@ -360,7 +385,7 @@ async def query_data(
             # Log to usage_logs
             await log_api_usage(
                 conn, current_user.username,
-                f"/datasets/{table_name}/query", "public", table_name,
+                f"/datasets/{table_name}/query", schema_name, table_name,
                 0, 0, status=status, filters=filters
             )
             if is_export:
@@ -370,7 +395,7 @@ async def query_data(
                     file_name=f"{table_name}_query.{export_fmt}",
                     user_email=current_user.username,
                     size_bytes=0,
-                    dataset_schema="public",
+                    dataset_schema=schema_name,
                     export_format=export_fmt,
                     rows_exported=0,
                     status=status
@@ -379,7 +404,7 @@ async def query_data(
         except Exception as e:
             await log_api_usage(
                 conn, current_user.username,
-                f"/datasets/{table_name}/query", "public", table_name,
+                f"/datasets/{table_name}/query", schema_name, table_name,
                 0, 0, status="failed", filters=filters
             )
             if is_export:
@@ -389,7 +414,7 @@ async def query_data(
                     file_name=f"{table_name}_query.{export_fmt}",
                     user_email=current_user.username,
                     size_bytes=0,
-                    dataset_schema="public",
+                    dataset_schema=schema_name,
                     export_format=export_fmt,
                     rows_exported=0,
                     status="failed"
