@@ -518,13 +518,13 @@ async def debug_routes():
 # =================== AUTHENTICATION ROUTES ===================
 
 
-# @app.get("/", response_class=HTMLResponse, include_in_schema=False)
-# async def root(request: Request):
-#     return templates.TemplateResponse("splashscreen.html", {"request": request})
-
-@app.get("/", include_in_schema=False)
-async def root():
-    return {"status": "ok", "message": "Railway diagnostic test"}
+@app.get("/", response_class=HTMLResponse, include_in_schema=False)
+async def root(request: Request):
+    return templates.TemplateResponse(
+        request=request,
+        name="splashscreen.html",
+        context={}
+    )
 
 @app.get("/module-selection", response_class=HTMLResponse, include_in_schema=False)
 async def module_selection(request: Request):
