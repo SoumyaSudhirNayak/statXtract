@@ -447,16 +447,17 @@ async def governance_http_exception_handler(request: Request, exc: HTTPException
                 
             role = _get_request_role(request)
             return templates.TemplateResponse(
-                "error.html",
-                {
+        request=request,
+        name="error.html",
+        context={
                     "request": request,
                     "title": title,
                     "message": message,
                     "error_type": error_type,
                     "role": role
                 },
-                status_code=status_code
-            )
+        status_code=status_code
+    )
 
         content = {
             "success": False,
@@ -478,16 +479,17 @@ async def governance_http_exception_handler(request: Request, exc: HTTPException
                 return RedirectResponse(url="/login", status_code=302)
         role = _get_request_role(request)
         return templates.TemplateResponse(
-            "error.html",
-            {
+        request=request,
+        name="error.html",
+        context={
                 "request": request,
                 "title": "Error Occurred",
                 "message": str(detail),
                 "error_type": "UNKNOWN",
                 "role": role
             },
-            status_code=status_code
-        )
+        status_code=status_code
+    )
 
 
     if isinstance(detail, dict):
@@ -528,16 +530,28 @@ async def root(request: Request):
 
 @app.get("/module-selection", response_class=HTMLResponse, include_in_schema=False)
 async def module_selection(request: Request):
-    return templates.TemplateResponse("module_selection.html", {"request": request})
+    return templates.TemplateResponse(
+        request=request,
+        name="module_selection.html",
+        context={"request": request}
+    )
 
 @app.get("/user/module-selection", response_class=HTMLResponse, include_in_schema=False)
 async def user_module_selection(request: Request):
-    return templates.TemplateResponse("user_module_selection.html", {"request": request})
+    return templates.TemplateResponse(
+        request=request,
+        name="user_module_selection.html",
+        context={"request": request}
+    )
 
 
 @app.get("/login", response_class=HTMLResponse, include_in_schema=False)
 async def login_get(request: Request):
-    return templates.TemplateResponse("login.html", {"request": request})
+    return templates.TemplateResponse(
+        request=request,
+        name="login.html",
+        context={"request": request}
+    )
 
 
 @app.post("/login", response_class=HTMLResponse, include_in_schema=False)
@@ -551,8 +565,10 @@ async def login_post(
             form_data.password.encode(), user["hashed_password"].encode()
         ):
             return templates.TemplateResponse(
-                "login.html", {"request": request, "error": "Invalid credentials"}
-            )
+        request=request,
+        name="login.html",
+        context={"request": request, "error": "Invalid credentials"}
+    )
 
         access_token = create_access_token(
             data={"sub": user["email"], "role": user["role_id"]}
@@ -567,7 +583,11 @@ async def login_post(
 
 @app.get("/register", response_class=HTMLResponse, include_in_schema=False)
 async def register_page(request: Request):
-    return templates.TemplateResponse("register.html", {"request": request})
+    return templates.TemplateResponse(
+        request=request,
+        name="register.html",
+        context={"request": request}
+    )
 
 
 @app.post("/register", include_in_schema=False)
@@ -598,8 +618,10 @@ async def register_user(
                     content={"detail": "User with this email already exists"},
                 )
             return templates.TemplateResponse(
-                "register.html", {"request": request, "error": "User already exists"}
-            )
+        request=request,
+        name="register.html",
+        context={"request": request, "error": "User already exists"}
+    )
 
         # 🔒 BLOCK ADMIN REGISTRATION
         if role.lower() == "admin":
@@ -609,12 +631,14 @@ async def register_user(
                     content={"detail": "Admin registration is disabled."},
                 )
             return templates.TemplateResponse(
-                "register.html",
-                {
+        request=request,
+        name="register.html",
+        context={
                     "request": request,
                     "error": "Admin registration is disabled. Only user accounts can be created.",
                 },
-            )
+        
+    )
 
         # Only allow user registration
         role_row = await conn.fetchrow("SELECT id FROM roles WHERE name = $1", "user")
@@ -625,9 +649,11 @@ async def register_user(
                     content={"detail": "User role not found in database"},
                 )
             return templates.TemplateResponse(
-                "register.html",
-                {"request": request, "error": "User role not found in database"},
-            )
+        request=request,
+        name="register.html",
+        context={"request": request, "error": "User role not found in database"},
+        
+    )
 
         role_id = role_row["id"]
         hashed_pw = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
@@ -723,12 +749,20 @@ async def logout(response: Response):
 
 @app.get("/user/login", response_class=HTMLResponse, include_in_schema=False)
 async def user_login_page(request: Request):
-    return templates.TemplateResponse("USER_PAGES/user_login.html", {"request": request})
+    return templates.TemplateResponse(
+        request=request,
+        name="USER_PAGES/user_login.html",
+        context={"request": request}
+    )
 
 
 @app.get("/user/register", response_class=HTMLResponse, include_in_schema=False)
 async def user_register_page(request: Request):
-    return templates.TemplateResponse("USER_PAGES/user_register.html", {"request": request})
+    return templates.TemplateResponse(
+        request=request,
+        name="USER_PAGES/user_register.html",
+        context={"request": request}
+    )
 
 
 async def get_user_template_context(request: Request, current_user_email: str) -> dict:
@@ -858,11 +892,13 @@ async def user_dashboard_page(
 ):
     ctx = await get_user_template_context(request, current_user.username)
     return templates.TemplateResponse(
-        "USER_PAGES/user_dashboard.html",
-        {
+        request=request,
+        name="USER_PAGES/user_dashboard.html",
+        context={
             "request": request,
             **ctx
         },
+        
     )
 
 
@@ -873,8 +909,9 @@ async def user_profile_page(
 ):
     ctx = await get_user_template_context(request, current_user.username)
     return templates.TemplateResponse(
-        "USER_PAGES/user_profile.html", 
-        {
+        request=request,
+        name="USER_PAGES/user_profile.html",
+        context={
             "request": request,
             **ctx
         }
@@ -888,8 +925,9 @@ async def user_history_page(
 ):
     ctx = await get_user_template_context(request, current_user.username)
     return templates.TemplateResponse(
-        "USER_PAGES/user_history.html", 
-        {
+        request=request,
+        name="USER_PAGES/user_history.html",
+        context={
             "request": request,
             **ctx
         }
@@ -903,8 +941,9 @@ async def user_downloads_page(
 ):
     ctx = await get_user_template_context(request, current_user.username)
     return templates.TemplateResponse(
-        "USER_PAGES/user_downloads.html", 
-        {
+        request=request,
+        name="USER_PAGES/user_downloads.html",
+        context={
             "request": request,
             **ctx
         }
@@ -918,8 +957,9 @@ async def user_plans_page(
 ):
     ctx = await get_user_template_context(request, current_user.username)
     return templates.TemplateResponse(
-        "USER_PAGES/user_plans.html", 
-        {
+        request=request,
+        name="USER_PAGES/user_plans.html",
+        context={
             "request": request,
             **ctx
         }
@@ -949,8 +989,9 @@ async def user_settings_page(
             pass
 
     return templates.TemplateResponse(
-        "USER_PAGES/user_settings.html", 
-        {
+        request=request,
+        name="USER_PAGES/user_settings.html",
+        context={
             "request": request,
             "login_time": login_time,
             "client_ip": request.client.host if request.client else "127.0.0.1",
@@ -967,8 +1008,9 @@ async def user_usage_page(
 ):
     ctx = await get_user_template_context(request, current_user.username)
     return templates.TemplateResponse(
-        "USER_PAGES/user_usage.html", 
-        {
+        request=request,
+        name="USER_PAGES/user_usage.html",
+        context={
             "request": request,
             **ctx
         }
@@ -982,8 +1024,9 @@ async def user_ai_query_page(
 ):
     ctx = await get_user_template_context(request, current_user.username)
     return templates.TemplateResponse(
-        "USER_PAGES/user_ai_query.html", 
-        {
+        request=request,
+        name="USER_PAGES/user_ai_query.html",
+        context={
             "request": request,
             **ctx
         }
@@ -997,8 +1040,9 @@ async def user_feedback_page(
 ):
     ctx = await get_user_template_context(request, current_user.username)
     return templates.TemplateResponse(
-        "USER_PAGES/user_feedback.html", 
-        {
+        request=request,
+        name="USER_PAGES/user_feedback.html",
+        context={
             "request": request,
             **ctx
         }
@@ -1990,8 +2034,9 @@ async def admin_dashboard(
         data_schemas = len(schemas_rows)
 
     return templates.TemplateResponse(
-        "admin_dashboard.html",
-        {
+        request=request,
+        name="admin_dashboard.html",
+        context={
             "request": request,
             "username": current_user.username,
             "email": current_user.username,  # Since username is email in your case
@@ -2001,6 +2046,7 @@ async def admin_dashboard(
             "data_schemas": data_schemas,
             "uptime": uptime_str,
         },
+        
     )
 
 
@@ -2012,12 +2058,14 @@ async def survey_config_page(
     ),
 ):
     return templates.TemplateResponse(
-        "survey_config.html",
-        {
+        request=request,
+        name="survey_config.html",
+        context={
             "request": request,
             "username": current_user.username,
             "role": current_user.role,
         },
+        
     )
 
 
@@ -2030,11 +2078,13 @@ async def query_page(
 ):
     ctx = await get_user_template_context(request, current_user.username)
     return templates.TemplateResponse(
-        "query_ui.html",
-        {
+        request=request,
+        name="query_ui.html",
+        context={
             "request": request,
             **ctx
         },
+        
     )
 
 
@@ -2073,7 +2123,11 @@ async def upload_form_ui(
     request: Request,
     current_user=Depends(get_current_active_user_with_role(["1", "2"])),
 ):
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse(
+        request=request,
+        name="index.html",
+        context={"request": request}
+    )
 
 
 # =================== BEAUTIFUL TABLE PAGES ===================
@@ -2084,7 +2138,11 @@ async def schemas_page(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
 ):
-    return templates.TemplateResponse("schemas.html", {"request": request})
+    return templates.TemplateResponse(
+        request=request,
+        name="schemas.html",
+        context={"request": request}
+    )
 
 
 @app.get("/datasets-page", response_class=HTMLResponse, include_in_schema=False)
@@ -2092,7 +2150,11 @@ async def datasets_page(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
 ):
-    return templates.TemplateResponse("datasets.html", {"request": request})
+    return templates.TemplateResponse(
+        request=request,
+        name="datasets.html",
+        context={"request": request}
+    )
 
 
 @app.get("/explorer", response_class=HTMLResponse, include_in_schema=False)
@@ -2102,11 +2164,13 @@ async def explorer_page(
 ):
     ctx = await get_user_template_context(request, current_user.username)
     return templates.TemplateResponse(
-        "explorer.html",
-        {
+        request=request,
+        name="explorer.html",
+        context={
             "request": request,
             **ctx
         },
+        
     )
 
 
@@ -2119,8 +2183,9 @@ async def metadata_detail_page(
     current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
 ):
     return templates.TemplateResponse(
-        "metadata_detail.html",
-        {"request": request, "schema": schema, "dataset": dataset}
+        request=request,
+        name="metadata_detail.html",
+        context={"request": request, "schema": schema, "dataset": dataset}
     )
 
 
@@ -2129,7 +2194,11 @@ async def metadata_browser_page(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
 ):
-    return templates.TemplateResponse("metadata_browser.html", {"request": request})
+    return templates.TemplateResponse(
+        request=request,
+        name="metadata_browser.html",
+        context={"request": request}
+    )
 
 
 @app.get("/admin/nada-import", response_class=HTMLResponse, include_in_schema=False)
@@ -2137,7 +2206,11 @@ async def nada_import_page(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
 ):
-    return templates.TemplateResponse("nada_import.html", {"request": request})
+    return templates.TemplateResponse(
+        request=request,
+        name="nada_import.html",
+        context={"request": request}
+    )
 
 
 # =================== API ROUTES ===================
@@ -4403,12 +4476,14 @@ async def upload_progress_page(
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     return templates.TemplateResponse(
-        "upload_progress.html",
-        {
+        request=request,
+        name="upload_progress.html",
+        context={
             "request": request,
             "job_id": job_id,
             "filename": job.get("filename") or "Upload",
         },
+        
     )
 
 @app.post("/upload/", response_class=HTMLResponse)
@@ -4517,9 +4592,11 @@ async def upload_dataset(
         
         # Return page with polling logic
         return templates.TemplateResponse(
-            "upload_progress.html",
-            {"request": request, "job_id": job_id, "filename": file.filename},
-        )
+        request=request,
+        name="upload_progress.html",
+        context={"request": request, "job_id": job_id, "filename": file.filename},
+        
+    )
 
     except Exception as e:
         print(f"❌ Upload initiation failed: {e}")
@@ -4537,10 +4614,12 @@ async def admin_survey_config_page(
     current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
 ):
     return templates.TemplateResponse(
-        "survey_config.html",
-        {
+        request=request,
+        name="survey_config.html",
+        context={
             "request": request,
         },
+        
     )
 
 
@@ -4550,12 +4629,14 @@ async def admin_change_password_page(
     current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
 ):
     return templates.TemplateResponse(
-        "admin_change_password.html",
-        {
+        request=request,
+        name="admin_change_password.html",
+        context={
             "request": request,
             "username": current_user.username,
             "email": current_user.username,
         },
+        
     )
 
 
@@ -4569,25 +4650,29 @@ async def admin_change_password(
 ):
     if new_password != confirm_password:
         return templates.TemplateResponse(
-            "admin_change_password.html",
-            {
+        request=request,
+        name="admin_change_password.html",
+        context={
                 "request": request,
                 "username": current_user.username,
                 "email": current_user.username,
                 "error": "New passwords do not match",
             },
-        )
+        
+    )
 
     if len(new_password) < 8:
         return templates.TemplateResponse(
-            "admin_change_password.html",
-            {
+        request=request,
+        name="admin_change_password.html",
+        context={
                 "request": request,
                 "username": current_user.username,
                 "email": current_user.username,
                 "error": "Password must be at least 8 characters long",
             },
-        )
+        
+    )
 
     pool = request.app.state.db
     async with pool.acquire() as conn:
@@ -4599,14 +4684,16 @@ async def admin_change_password(
             current_password.encode(), user["hashed_password"].encode()
         ):
             return templates.TemplateResponse(
-                "admin_change_password.html",
-                {
+        request=request,
+        name="admin_change_password.html",
+        context={
                     "request": request,
                     "username": current_user.username,
                     "email": current_user.username,
                     "error": "Current password is incorrect",
                 },
-            )
+        
+    )
 
         # Update password
         new_hashed = bcrypt.hashpw(new_password.encode(), bcrypt.gensalt()).decode()
@@ -4908,13 +4995,15 @@ async def usage_logs_page(
     current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
 ):
     return templates.TemplateResponse(
-        "usage.html",
-        {
+        request=request,
+        name="usage.html",
+        context={
             "request": request,
             "username": current_user.username,
             "email": current_user.username,
             "role": current_user.role,
         },
+        
     )
 
 
@@ -4924,13 +5013,15 @@ async def user_management_page(
     current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
 ):
     return templates.TemplateResponse(
-        "user_management.html",
-        {
+        request=request,
+        name="user_management.html",
+        context={
             "request": request,
             "username": current_user.username,
             "email": current_user.username,
             "role": current_user.role,
         },
+        
     )
 
 
@@ -4940,13 +5031,15 @@ async def system_settings_page(
     current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
 ):
     return templates.TemplateResponse(
-        "system_settings.html",
-        {
+        request=request,
+        name="system_settings.html",
+        context={
             "request": request,
             "username": current_user.username,
             "email": current_user.username,
             "role": current_user.role,
         },
+        
     )
 
 
