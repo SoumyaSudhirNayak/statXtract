@@ -22,8 +22,9 @@ async def user_explore_page(
     from main import get_user_template_context, templates
     ctx = await get_user_template_context(request, current_user.username)
     return templates.TemplateResponse(
-        "USER_PAGES/user_explore.html",
-        {
+        request=request,
+        name="USER_PAGES/user_explore.html",
+        context={
             "request": request,
             **ctx
         },

@@ -56,6 +56,7 @@ from auth.local.routes import router as local_auth_router
 
 # Import query router
 from query.query_data import router as query_router
+from query.user_explore import router as user_explore_router
 from query.query_data import log_usage  # Add this for log_usage
 from nada_routes import router as nada_router
 from fastapi import HTTPException  # Add this for HTTPException
@@ -500,6 +501,7 @@ async def governance_http_exception_handler(request: Request, exc: HTTPException
 # Include routers
 app.include_router(local_auth_router)
 app.include_router(query_router)
+app.include_router(user_explore_router)
 app.include_router(nada_router)
 app.include_router(ai_query_router)
 
@@ -6737,8 +6739,7 @@ def custom_openapi():
 
 app.openapi = custom_openapi
 
-from query.user_explore import router as user_explore_router
-app.include_router(user_explore_router)
+
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
