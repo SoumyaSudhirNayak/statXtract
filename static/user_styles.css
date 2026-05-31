@@ -1208,11 +1208,123 @@ html.sidebar-collapsed-preload .sidebar-toggle svg {
   .data-table, table {
     min-width: 600px !important;
   }
+
+  /* 7. Data Explorer Mobile Responsiveness (Issue 1) */
+  .explore-workspace {
+    grid-template-columns: 1fr !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+  .tree-panel {
+    height: 350px !important;
+    margin-bottom: 16px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  .workspace-panel {
+    height: 550px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  .meta-section, .dict-table-container, .ws-content, .tab-panel, .meta-item {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  .dict-table-container {
+    overflow-x: auto !important;
+    overflow-y: auto !important;
+  }
+  .dict-table {
+    min-width: 600px !important;
+  }
+  .tabs-bar {
+    flex-wrap: wrap !important;
+    padding: 0 10px !important;
+    gap: 2px !important;
+  }
+  .tab-btn {
+    padding: 8px 10px !important;
+    font-size: 12px !important;
+  }
+  .meta-grid-info {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  /* 8. AI Query Mobile Responsiveness (Issue 2) */
+  .ai-layout {
+    grid-template-columns: 1fr !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+  .ai-config-panel {
+    position: static !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    margin-bottom: 24px !important;
+    height: auto !important;
+  }
+  .ai-select, .prompt-box, .example-prompts, .ai-section-title {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  .ai-btn-group {
+    flex-direction: column !important;
+    width: 100% !important;
+    gap: 8px !important;
+  }
+  .ai-btn-group .btn {
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  .ai-results-panel, .ai-result-panel {
+    width: 100% !important;
+    margin-top: 24px !important;
+  }
+
+  /* 9. History Page Stats Strip (Issue 3) */
+  .stats-strip {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 12px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  .strip-card {
+    padding: 12px 14px !important;
+    gap: 10px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  .strip-num {
+    font-size: 20px !important;
+  }
+  .strip-lbl {
+    font-size: 11px !important;
+  }
+  .strip-icon {
+    width: 36px !important;
+    height: 36px !important;
+    font-size: 16px !important;
+  }
+
+  /* 10. Global Mobile Overflow Protection (Issue 4) */
+  html, body {
+    max-width: 100% !important;
+    overflow-x: hidden !important;
+  }
+  .content, .app-shell, .main-area {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
 }
 
 /* ── SMALL MOBILE VIEWPORTS (<= 425px) ── */
 @media (max-width: 425px) {
-  .stats-grid {
+  .stats-grid, .stats-strip {
     grid-template-columns: 1fr !important;
   }
   .credit-grid {
