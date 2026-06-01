@@ -735,7 +735,9 @@
         const canvas = await html2canvas(template, {
           backgroundColor: '#ffffff',
           scale: 2,
-          useCORS: true
+          useCORS: true,
+          width: 800,
+          windowWidth: 800
         });
 
         const imgData = canvas.toDataURL('image/png');
