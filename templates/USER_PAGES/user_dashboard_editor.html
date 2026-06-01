@@ -68,6 +68,18 @@
     [data-theme="dark"] .btn-ghost { color: #94a3b8; }
     [data-theme="dark"] .btn-ghost:hover { background: #1e293b; }
 
+    /* Fix select dropdown options visibility in dark mode */
+    #pageSizeSelector option,
+    .form-select option {
+      background-color: #ffffff !important;
+      color: #1e293b !important;
+    }
+    [data-theme="dark"] #pageSizeSelector option,
+    [data-theme="dark"] .form-select option {
+      background-color: #1e293b !important;
+      color: #f1f5f9 !important;
+    }
+
     /* ── Theme Toggle ── */
     .theme-toggle {
       background: none; border: 2px solid var(--ds-border); border-radius: 8px;
@@ -1102,7 +1114,7 @@
       'dashboard_xl': { width: 3200, height: 2000, name: 'Dashboard XL' }
     };
 
-    let canvasPreset = designerSettings.page_size || 'dashboard_lg';
+    let canvasPreset = designerSettings.page_size || '{{ canvas_preset }}' || 'dashboard_lg';
     let showGridlines = designerSettings.show_gridlines !== undefined ? designerSettings.show_gridlines : true;
     let snapToGrid = designerSettings.snap_to_grid !== undefined ? designerSettings.snap_to_grid : true;
 
@@ -2482,13 +2494,14 @@
       Object.values(chartInstances).forEach(chart => chart.destroy());
       chartInstances = {};
 
+      grid.style.display = 'block'; // Always keep canvas visible for drag-and-drop workspace
+
       if (widgetsList.length === 0) {
-        grid.style.display = 'none';
         empty.style.display = 'block';
+        grid.innerHTML = '';
         return;
       }
 
-      grid.style.display = 'block'; // Canvas mode is absolute position block
       empty.style.display = 'none';
       grid.innerHTML = '';
 
