@@ -922,6 +922,127 @@ async def user_profile_page(
     )
 
 
+@app.get("/api/user/export-data")
+async def api_export_user_data(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
+):
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        # 1. Fetch user profile data
+        user_row = await conn.fetchrow(
+            """
+            SELECT email, username, org_type, org_details, phone, is_verified, plan, plan_expiry, created_at, last_active 
+            FROM users 
+            WHERE email = $1
+            """,
+            current_user.username
+        )
+        if not user_row:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        user_data = dict(user_row)
+        if user_data.get("created_at"):
+            user_data["created_at"] = user_data["created_at"].isoformat()
+        if user_data.get("last_active"):
+            user_data["last_active"] = user_data["last_active"].isoformat()
+        if user_data.get("plan_expiry"):
+            user_data["plan_expiry"] = user_data["plan_expiry"].isoformat()
+
+        # 2. Fetch query/usage logs
+        usage_table = await get_qualified_table(conn, "usage_logs")
+        usage_rows = await conn.fetch(
+            f"SELECT * FROM {usage_table} WHERE user_email = $1 ORDER BY queried_at DESC LIMIT 500",
+            current_user.username
+        )
+        usage_logs = []
+        for r in usage_rows:
+            item = dict(r)
+            if item.get("queried_at"):
+                item["queried_at"] = item["queried_at"].isoformat()
+            usage_logs.append(item)
+
+        # 3. Fetch dashboards
+        dashboard_rows = await conn.fetch(
+            "SELECT * FROM dashboards WHERE user_email = $1 AND NOT COALESCE(is_deleted, FALSE) ORDER BY updated_at DESC",
+            current_user.username
+        )
+        dashboards = []
+        for r in dashboard_rows:
+            item = dict(r)
+            if item.get("created_at"):
+                item["created_at"] = item["created_at"].isoformat()
+            if item.get("updated_at"):
+                item["updated_at"] = item["updated_at"].isoformat()
+            dashboards.append(item)
+
+        # 4. Fetch widgets
+        widget_rows = await conn.fetch(
+            """
+            SELECT dw.* 
+            FROM dashboard_widgets dw
+            JOIN dashboards d ON dw.dashboard_id = d.id
+            WHERE d.user_email = $1 AND NOT COALESCE(d.is_deleted, FALSE)
+            ORDER BY dw.id ASC
+            """,
+            current_user.username
+        )
+        widgets = []
+        for r in widget_rows:
+            item = dict(r)
+            if item.get("created_at"):
+                item["created_at"] = item["created_at"].isoformat()
+            if item.get("updated_at"):
+                item["updated_at"] = item["updated_at"].isoformat()
+            widgets.append(item)
+
+        # 5. Fetch documents metadata
+        doc_rows = await conn.fetch(
+            "SELECT * FROM user_documents WHERE user_email = $1 ORDER BY id DESC",
+            current_user.username
+        )
+        documents = []
+        for r in doc_rows:
+            item = dict(r)
+            if item.get("uploaded_at"):
+                item["uploaded_at"] = item["uploaded_at"].isoformat()
+            documents.append(item)
+
+        # 6. Fetch requests/feedback
+        req_rows = await conn.fetch(
+            "SELECT * FROM user_requests WHERE user_email = $1 ORDER BY id DESC",
+            current_user.username
+        )
+        requests_list = []
+        for r in req_rows:
+            item = dict(r)
+            if item.get("created_at"):
+                item["created_at"] = item["created_at"].isoformat()
+            requests_list.append(item)
+
+        # Structure the final payload
+        export_bundle = {
+            "export_metadata": {
+                "system": "STATXTRACT",
+                "export_date": datetime.utcnow().isoformat(),
+                "user_email": current_user.username
+            },
+            "profile": user_data,
+            "usage_history": usage_logs,
+            "dashboards": dashboards,
+            "widgets": widgets,
+            "documents": documents,
+            "requests_and_feedback": requests_list
+        }
+
+        json_str = json.dumps(export_bundle, default=str)
+        return Response(
+            content=json_str,
+            media_type="application/json",
+            headers={"Content-Disposition": f"attachment; filename=statxtract_data_export_{current_user.username.replace('@', '_')}.json"}
+        )
+
+
 @app.get("/user/history", response_class=HTMLResponse, include_in_schema=False)
 async def user_history_page(
     request: Request,

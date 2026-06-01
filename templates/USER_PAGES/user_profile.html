@@ -7,7 +7,49 @@
   <meta name="description" content="View and update your STATXTRACT user profile, personal information, and account settings.">
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/user_styles.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
   <style>
+    /* ── PDF Export CSS overrides to fix dark theme text contrast issues ── */
+    #pdfReportTemplate {
+      background-color: #ffffff !important;
+      color: #1e293b !important;
+    }
+    #pdfReportTemplate td,
+    #pdfReportTemplate th,
+    #pdfReportTemplate div,
+    #pdfReportTemplate span,
+    #pdfReportTemplate h1,
+    #pdfReportTemplate h2,
+    #pdfReportTemplate h3,
+    #pdfReportTemplate p {
+      color: #1e293b !important;
+    }
+    #pdfReportTemplate td {
+      color: #334155 !important;
+    }
+    #pdfReportTemplate th {
+      color: #475569 !important;
+    }
+    #pdfReportTemplate h1 {
+      color: #2E7D32 !important;
+    }
+    #pdfReportTemplate h2 {
+      color: #1e293b !important;
+    }
+    #pdfReportTemplate h3 {
+      color: #0f172a !important;
+    }
+    #pdfReportTemplate .pdf-keep-color {
+      color: inherit !important;
+    }
+
+    .export-option-card:hover {
+      border-color: var(--green) !important;
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(46,125,50,0.12);
+      background: #fff !important;
+    }
     body { background: var(--bg-page); min-height: 100vh; overflow: hidden; }
     .app-shell { display: flex; flex-direction: column; height: 100vh; }
     .main-area  { display: flex; flex: 1; overflow: hidden; }
@@ -221,7 +263,7 @@
       <main class="content">
         <div class="page-header">
           <h1 class="section-title-h">My Profile</h1>
-          <button class="btn btn-outline-blue">
+          <button class="btn btn-outline-blue" onclick="openDownloadModal()">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             Download My Data
           </button>
@@ -550,7 +592,329 @@
       tc.appendChild(t);
       setTimeout(() => { t.style.animation='slideOut 0.3s ease forwards'; setTimeout(()=>t.remove(),300); }, 4000);
     }
+
+    // ── Download My Data (JSON) ──
+    async function downloadMyData() {
+      showToast('Preparing your personal data export...', 'info');
+      try {
+        const response = await fetch('/api/user/export-data');
+        if (!response.ok) {
+          showToast('Failed to generate export bundle.', 'error');
+          return;
+        }
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `statxtract_data_export_${email.replace('@', '_')}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showToast('Your personal data bundle has been downloaded!', 'success');
+      } catch (e) {
+        showToast('Error during data export generation.', 'error');
+      }
+    }
+
+    // ── Multi-format Selection Handlers ──
+    function openDownloadModal() {
+      document.getElementById('downloadDataModal').style.display = 'flex';
+    }
+
+    function closeDownloadModal() {
+      document.getElementById('downloadDataModal').style.display = 'none';
+    }
+
+    async function exportDataFormat(format) {
+      closeDownloadModal();
+      if (format === 'json') {
+        await downloadMyData();
+        return;
+      }
+
+      showToast(`Generating your personal data in ${format.toUpperCase()} format...`, 'info');
+      try {
+        const response = await fetch('/api/user/export-data');
+        if (!response.ok) {
+          showToast('Failed to retrieve your account data.', 'error');
+          return;
+        }
+        const data = await response.json();
+        
+        if (format === 'csv') {
+          downloadCSVData(data);
+        } else if (format === 'pdf') {
+          await generateVisualPDF(data);
+        }
+      } catch (e) {
+        console.error(e);
+        showToast('Error during data export generation.', 'error');
+      }
+    }
+
+    function downloadCSVData(data) {
+      const history = data.usage_history || [];
+      const headers = ['Queried At', 'Endpoint', 'Schema', 'Table', 'Status', 'Rows Returned', 'Execution Time (ms)'];
+      let csvContent = "data:text/csv;charset=utf-8,";
+      csvContent += headers.join(",") + "\n";
+      
+      history.forEach(row => {
+        const line = [
+          row.queried_at || '',
+          row.endpoint || '',
+          row.schema_name || '',
+          row.table_name || '',
+          row.status || '',
+          row.rows_returned != null ? row.rows_returned : '',
+          row.execution_time_ms != null ? row.execution_time_ms : ''
+        ].map(val => {
+          const str = String(val).replace(/"/g, '""');
+          return str.includes(',') ? `"${str}"` : str;
+        });
+        csvContent += line.join(",") + "\n";
+      });
+
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `statxtract_query_history_${email.replace('@', '_')}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      showToast('Your CSV history logs spreadsheet has been downloaded!', 'success');
+    }
+
+    async function generateVisualPDF(data) {
+      const profile = data.profile || {};
+      
+      document.getElementById('pdfReportDate').textContent = new Date().toLocaleDateString(undefined, {
+        year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
+      });
+      document.getElementById('pdfName').textContent = profile.username || username;
+      document.getElementById('pdfEmail').textContent = profile.email || email;
+      document.getElementById('pdfRole').textContent = profile.org_type || 'User';
+      document.getElementById('pdfMemberSince').textContent = '{{ member_since | default("Jan 2026") }}';
+      document.getElementById('pdfVerified').textContent = profile.is_verified ? 'Verified' : 'Verification Pending';
+      document.getElementById('pdfPlan').textContent = profile.plan || 'free';
+      
+      document.getElementById('pdfQueries').textContent = '{{ credits.get("queries_used", 0) }} / {{ credits.get("queries_limit", 200) }}';
+      document.getElementById('pdfDownloads').textContent = '{{ credits.get("downloads_remaining", 0) }}';
+      document.getElementById('pdfAICredits').textContent = '{{ credits.get("ai_queries_remaining", 0) }}';
+      document.getElementById('pdfExpiry').textContent = '{{ plan_expiry or "N/A" }}';
+      
+      document.getElementById('pdfStatQueries').textContent = '{{ total_queries | default(0) }}';
+      document.getElementById('pdfStatDownloads').textContent = '{{ total_downloads | default(0) }}';
+      document.getElementById('pdfStatRows').textContent = '{{ rows_accessed | default(0) }}';
+
+      const tbody = document.querySelector('#pdfActivityTable tbody');
+      tbody.innerHTML = '';
+      const history = data.usage_history || [];
+      if (history.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 12px; color: #94a3b8;">No query logs recorded.</td></tr>`;
+      } else {
+        history.forEach((row, ri) => {
+          const bg = ri % 2 === 0 ? 'transparent' : '#f8fafc';
+          const tr = document.createElement('tr');
+          tr.style.background = bg;
+          tr.style.borderBottom = '1px solid #e2e8f0';
+          tr.innerHTML = `
+            <td style="padding: 8px 4px; color: #475569; word-wrap: break-word; overflow-wrap: break-word; word-break: break-all; white-space: normal;">${row.queried_at ? new Date(row.queried_at).toLocaleString() : ''}</td>
+            <td style="padding: 8px 4px; font-weight: 600; color: #0f172a; word-wrap: break-word; overflow-wrap: break-word; word-break: break-all; white-space: normal;">${row.endpoint || ''}</td>
+            <td style="padding: 8px 4px; color: #475569; word-wrap: break-word; overflow-wrap: break-word; word-break: break-all; white-space: normal;">${row.table_name || ''}</td>
+            <td style="padding: 8px 4px; color: #475569; word-wrap: break-word; overflow-wrap: break-word; word-break: break-all; white-space: normal;">${row.rows_returned != null ? row.rows_returned : ''}</td>
+            <td style="padding: 8px 4px; word-wrap: break-word; overflow-wrap: break-word; word-break: break-all; white-space: normal;"><span style="padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; background: ${row.status === 'success' ? '#dcfce7' : '#fee2e2'}; color: ${row.status === 'success' ? '#15803d' : '#b91c1c'};">${row.status || ''}</span></td>
+          `;
+          tbody.appendChild(tr);
+        });
+      }
+
+      const template = document.getElementById('pdfReportTemplate');
+
+      try {
+        const canvas = await html2canvas(template, {
+          backgroundColor: '#ffffff',
+          scale: 2,
+          useCORS: true
+        });
+
+        const imgData = canvas.toDataURL('image/png');
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF('p', 'mm', 'a4');
+        const pdfW = pdf.internal.pageSize.getWidth();
+        const pdfH = (canvas.height * pdfW) / canvas.width;
+        const pdfHeight = pdf.internal.pageSize.getHeight(); // A4 height (297 mm)
+
+        const pageCount = Math.ceil(pdfH / pdfHeight);
+        for (let i = 0; i < pageCount; i++) {
+          if (i > 0) {
+            pdf.addPage();
+          }
+          const yPosition = -i * pdfHeight;
+          pdf.addImage(imgData, 'PNG', 0, yPosition, pdfW, pdfH);
+        }
+
+        pdf.save(`statxtract_activity_report_${email.replace('@', '_')}.pdf`);
+        showToast('Your custom PDF activity report has been downloaded!', 'success');
+      } catch (err) {
+        console.error(err);
+        showToast('Failed to render visual PDF.', 'error');
+      }
+    }
   </script>
+
+  <!-- Download Data Modal Overlay -->
+  <div class="modal-overlay" id="downloadDataModal" style="position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 10000; display: none; align-items: center; justify-content: center; padding: 20px; backdrop-filter: blur(6px);">
+    <div class="modal-card" style="background: var(--bg-page); border-radius: 18px; width: 100%; max-width: 480px; padding: 28px; box-shadow: 0 16px 48px rgba(0,0,0,0.2); display: flex; flex-direction: column; gap: 18px; border: 2px solid var(--border); max-height: 90vh; overflow-y: auto; text-align: left;">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-soft); padding-bottom: 12px;">
+        <div style="font-family: var(--font-head); font-size: 19px; font-weight: 800; color: var(--text-main);">Download My Data</div>
+        <button onclick="closeDownloadModal()" style="background: none; border: none; font-size: 18px; cursor: pointer; color: var(--text-muted); font-weight: 700;">✕</button>
+      </div>
+      
+      <p style="font-size: 13.5px; color: var(--text-muted); line-height: 1.5; margin: 0;">Select your preferred format to export your profile, activity statistics, and query history logs.</p>
+      
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <!-- Option 1: PDF -->
+        <div onclick="exportDataFormat('pdf')" style="display: flex; align-items: center; gap: 14px; padding: 14px; border: 2.5px solid var(--border); border-radius: 12px; cursor: pointer; transition: all 0.25s; background: rgba(255,255,255,0.8);" class="export-option-card">
+          <div style="font-size: 28px; padding: 6px; background: rgba(220,38,38,0.1); border-radius: 10px;">📑</div>
+          <div style="flex: 1;">
+            <div style="font-size: 14.5px; font-weight: 800; color: var(--text-main);">PDF Visual Report</div>
+            <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">Download a beautifully formatted visual activity report.</div>
+          </div>
+        </div>
+        
+        <!-- Option 2: JSON -->
+        <div onclick="exportDataFormat('json')" style="display: flex; align-items: center; gap: 14px; padding: 14px; border: 2.5px solid var(--border); border-radius: 12px; cursor: pointer; transition: all 0.25s; background: rgba(255,255,255,0.8);" class="export-option-card">
+          <div style="font-size: 28px; padding: 6px; background: rgba(30,144,255,0.1); border-radius: 10px;">⚙️</div>
+          <div style="flex: 1;">
+            <div style="font-size: 14.5px; font-weight: 800; color: var(--text-main);">JSON Complete Backup</div>
+            <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">Export raw complete structured backup of all your account logs.</div>
+          </div>
+        </div>
+        
+        <!-- Option 3: CSV -->
+        <div onclick="exportDataFormat('csv')" style="display: flex; align-items: center; gap: 14px; padding: 14px; border: 2.5px solid var(--border); border-radius: 12px; cursor: pointer; transition: all 0.25s; background: rgba(255,255,255,0.8);" class="export-option-card">
+          <div style="font-size: 28px; padding: 6px; background: rgba(46,125,50,0.1); border-radius: 10px;">📊</div>
+          <div style="flex: 1;">
+            <div style="font-size: 14.5px; font-weight: 800; color: var(--text-main);">CSV Logs Spreadsheet</div>
+            <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">Export complete query and download transaction list to spreadsheet.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hidden PDF Report Template -->
+  <div id="pdfReportTemplate" style="position: absolute; left: -9999px; top: -9999px; width: 800px; padding: 40px; background: #ffffff; color: #1e293b; font-family: 'Inter', sans-serif; box-sizing: border-box;">
+    <!-- Brand Header -->
+    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #2E7D32; padding-bottom: 20px; margin-bottom: 30px;">
+      <div>
+        <h1 style="font-family: 'Poppins', sans-serif; font-size: 28px; font-weight: 900; color: #2E7D32; margin: 0; letter-spacing: 1px;">STATXTRACT</h1>
+        <p style="font-size: 11px; text-transform: uppercase; letter-spacing: 2px; color: #64748b; margin: 4px 0 0 0; font-weight: 700;">Data Analytics & Export Portal</p>
+      </div>
+      <div style="text-align: right;">
+        <h2 style="font-size: 18px; font-weight: 800; color: #1e293b; margin: 0;">USER PROFILE REPORT</h2>
+        <p style="font-size: 11px; color: #64748b; margin: 4px 0 0 0;">Generated: <span id="pdfReportDate"></span></p>
+      </div>
+    </div>
+
+    <!-- Main Grid: Profile Info & Plan Usage -->
+    <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 24px; margin-bottom: 30px;">
+      <!-- Profile Card -->
+      <div style="border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; background: #f8fafc;">
+        <h3 style="font-size: 14px; font-weight: 700; color: #1e293b; margin: 0 0 16px 0; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;">Account Details</h3>
+        <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+          <tr>
+            <td style="padding: 6px 0; color: #64748b; font-weight: 600;">Full Name:</td>
+            <td style="padding: 6px 0; font-weight: 700; color: #0f172a; text-align: right;" id="pdfName"></td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; color: #64748b; font-weight: 600;">Email:</td>
+            <td style="padding: 6px 0; font-weight: 700; color: #0f172a; text-align: right;" id="pdfEmail"></td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; color: #64748b; font-weight: 600;">Account Role:</td>
+            <td style="padding: 6px 0; font-weight: 700; color: #0f172a; text-align: right;" id="pdfRole"></td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; color: #64748b; font-weight: 600;">Member Since:</td>
+            <td style="padding: 6px 0; font-weight: 700; color: #0f172a; text-align: right;" id="pdfMemberSince"></td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; color: #64748b; font-weight: 600;">Verification Status:</td>
+            <td style="padding: 6px 0; font-weight: 700; color: #2E7D32; text-align: right;" id="pdfVerified" class="pdf-keep-color">Verified</td>
+          </tr>
+        </table>
+      </div>
+
+      <!-- Plan Credits -->
+      <div style="border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; background: #f8fafc;">
+        <h3 style="font-size: 14px; font-weight: 700; color: #1e293b; margin: 0 0 16px 0; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;">Plan Credits</h3>
+        <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+          <tr>
+            <td style="padding: 6px 0; color: #64748b; font-weight: 600;">Current Plan:</td>
+            <td style="padding: 6px 0; font-weight: 700; color: #2b6cb0; text-align: right; text-transform: uppercase;" id="pdfPlan" class="pdf-keep-color"></td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; color: #64748b; font-weight: 600;">Remaining Queries:</td>
+            <td style="padding: 6px 0; font-weight: 700; color: #2E7D32; text-align: right;" id="pdfQueries" class="pdf-keep-color"></td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; color: #64748b; font-weight: 600;">Downloads Left:</td>
+            <td style="padding: 6px 0; font-weight: 700; color: #2E7D32; text-align: right;" id="pdfDownloads" class="pdf-keep-color"></td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; color: #64748b; font-weight: 600;">AI Queries Left:</td>
+            <td style="padding: 6px 0; font-weight: 700; color: #764ba2; text-align: right;" id="pdfAICredits" class="pdf-keep-color"></td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; color: #64748b; font-weight: 600;">Expiry Date:</td>
+            <td style="padding: 6px 0; font-weight: 700; color: #0f172a; text-align: right;" id="pdfExpiry"></td>
+          </tr>
+        </table>
+      </div>
+    </div>
+
+    <!-- Quick Stats Cards (Horizontal row) -->
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 30px;">
+      <div style="border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px; text-align: center;">
+        <div style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Queries Executed</div>
+        <div style="font-size: 24px; font-weight: 900; color: #2E7D32; margin-top: 4px;" id="pdfStatQueries" class="pdf-keep-color">0</div>
+      </div>
+      <div style="border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px; text-align: center;">
+        <div style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Files Downloaded</div>
+        <div style="font-size: 24px; font-weight: 900; color: #2E5BBA; margin-top: 4px;" id="pdfStatDownloads" class="pdf-keep-color">0</div>
+      </div>
+      <div style="border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px; text-align: center;">
+        <div style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Rows Accessed</div>
+        <div style="font-size: 24px; font-weight: 900; color: #dd6b20; margin-top: 4px;" id="pdfStatRows" class="pdf-keep-color">0</div>
+      </div>
+    </div>
+
+    <!-- Activity Log Summary -->
+    <div style="border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 20px;">
+      <h3 style="font-size: 14px; font-weight: 700; color: #1e293b; margin: 0 0 16px 0; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;">Recent Activity Log</h3>
+      <table style="width: 100%; border-collapse: collapse; font-size: 10px; text-align: left; table-layout: fixed;" id="pdfActivityTable">
+        <thead>
+          <tr style="border-bottom: 2px solid #cbd5e1; color: #475569;">
+            <th style="padding: 8px 4px; font-weight: 700; width: 140px;">Timestamp</th>
+            <th style="padding: 8px 4px; font-weight: 700; width: 230px;">Action/Endpoint</th>
+            <th style="padding: 8px 4px; font-weight: 700; width: 170px;">Table Name</th>
+            <th style="padding: 8px 4px; font-weight: 700; width: 80px;">Rows</th>
+            <th style="padding: 8px 4px; font-weight: 700; width: 80px;">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Rows will be injected -->
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Footer Disclaimer -->
+    <div style="text-align: center; font-size: 10px; color: #94a3b8; margin-top: 40px; border-top: 1px solid #e2e8f0; padding-top: 16px;">
+      This profile activity report is generated securely for the registered user by STATXTRACT. • All rights reserved © 2026.
+    </div>
+  </div>
   <script src="/static/user_mobile.js"></script>
 </body>
 </html>
