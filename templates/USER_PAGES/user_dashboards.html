@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard Studio — STATXTRACT</title>
+  <script>
+    (function() {
+      const theme = localStorage.getItem('userTheme') || 'light';
+      document.documentElement.setAttribute('data-theme', theme);
+      if (localStorage.getItem('sidebarState') === 'collapsed') {
+        document.documentElement.classList.add('sidebar-collapsed-preload');
+      }
+    })();
+  </script>
+  <meta name="description" content="Build and customize your own analytics dashboards with Dashboard Studio.">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/user_styles.css">
+  <style>
+    :root {
+      --ds-bg: #f8f9fc;
+      --ds-card: rgba(255,255,255,0.92);
+      --ds-border: #e2e8f0;
+      --ds-border-soft: #f1f5f9;
+      --ds-text: #1e293b;
+      --ds-text-muted: #64748b;
+      --ds-royal: #2E5BBA;
+      --ds-green: #2E7D32;
+      --ds-danger: #dc2626;
+    }
+    [data-theme="dark"] {
+      --ds-bg: #0f172a;
+      --ds-card: rgba(30,41,59,0.95);
+      --ds-border: #334155;
+      --ds-border-soft: #1e293b;
+      --ds-text: #f1f5f9;
+      --ds-text-muted: #94a3b8;
+      --ds-royal: #60a5fa;
+      --ds-green: #4ade80;
+      --ds-danger: #f87171;
+    }
+
+    body { background: var(--bg-page); min-height: 100vh; overflow: hidden; }
+    [data-theme="dark"] body { background: var(--ds-bg); }
+    .app-shell { display: flex; flex-direction: column; height: 100vh; }
+    .main-area  { display: flex; flex: 1; overflow: hidden; }
+    .content    { flex: 1; overflow-y: auto; padding: 40px 48px; }
+    .nav-svg    { width: 20px; height: 20px; flex-shrink: 0; }
+    .nav-item.active { background: var(--green); color: #fff; border-color: var(--green); box-shadow: 0 6px 20px rgba(46,125,50,0.4); }
+    .nav-item.active:hover { background: var(--green); color: #fff; }
+
+    [data-theme="dark"] .site-header { background: rgba(15,23,42,0.95); border-color: #334155; }
+    [data-theme="dark"] .sidebar { background: rgba(15,23,42,0.98); border-color: #334155; }
+    [data-theme="dark"] .nav-item { color: #94a3b8; }
+    [data-theme="dark"] .nav-item:hover { background: #1e293b; color: #e2e8f0; }
+    [data-theme="dark"] .content { background: #0f172a; }
+    [data-theme="dark"] .page-title { color: #f1f5f9; }
+    [data-theme="dark"] .form-input { background: #1e293b; color: #f1f5f9; border-color: #334155; }
+    [data-theme="dark"] .btn-ghost { color: #94a3b8; }
+
+    .db-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-bottom: 32px;
+    }
+    .page-header {
+      margin-bottom: 32px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 20px;
+    }
+    @media(max-width: 1024px) { .db-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media(max-width: 768px) {
+      .db-grid { grid-template-columns: 1fr; gap: 16px; }
+      .content { padding: 24px 16px; }
+      .page-header { flex-direction: column; align-items: stretch; gap: 16px; }
+      .page-header .btn { width: 100%; justify-content: center; }
+      .limit-banner { flex-direction: column; align-items: stretch; gap: 12px; }
+      .limit-progress { width: 100%; }
+      .db-actions { flex-direction: column; gap: 8px; }
+      .db-actions .btn { width: 100%; }
+    }
+
+    .db-card {
+      background: var(--ds-card); backdrop-filter: blur(12px);
+      border: 2px solid var(--ds-border); border-radius: 18px;
+      padding: 24px; display: flex; flex-direction: column;
+      justify-content: space-between;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); min-height: 220px;
+    }
+    .db-card:hover {
+      transform: translateY(-5px); border-color: var(--ds-green);
+      box-shadow: 0 12px 36px rgba(46, 125, 50, 0.12);
+    }
+    [data-theme="dark"] .db-card { background: rgba(30,41,59,0.9); border-color: #334155; }
+    [data-theme="dark"] .db-card:hover { border-color: #4ade80; box-shadow: 0 12px 36px rgba(74,222,128,0.1); }
+
+    .db-title {
+      font-family: var(--font-head); font-size: 18px; font-weight: 800;
+      color: var(--ds-text); margin-bottom: 8px; line-height: 1.2;
+    }
+    .db-meta {
+      font-size: 12px; color: var(--ds-text-muted); margin-bottom: 20px;
+      display: flex; flex-direction: column; gap: 4px;
+    }
+    .db-badge {
+      display: inline-flex; align-items: center; padding: 4px 12px;
+      border-radius: 20px; font-size: 11px; font-weight: 700;
+      background: linear-gradient(135deg, rgba(46,125,50,0.1), rgba(46,91,186,0.08));
+      color: var(--ds-green); width: fit-content; margin-bottom: 12px;
+    }
+    .db-actions { display: flex; gap: 8px; margin-top:auto; }
+    .db-actions .btn { flex: 1; padding: 8px 12px; font-size: 13px; border-radius: 8px; }
+
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 10000;
+      display: none; align-items: center; justify-content: center; padding: 20px;
+      backdrop-filter: blur(6px);
+    }
+    .modal-overlay.active { display: flex; }
+    .modal-card {
+      background: var(--ds-card); border-radius: 18px; width: 100%;
+      max-width: 480px; padding: 28px;
+      box-shadow: 0 16px 48px rgba(0,0,0,0.2);
+      display: flex; flex-direction: column; gap: 16px;
+      border: 2px solid var(--ds-border);
+    }
+    [data-theme="dark"] .modal-card { background: #1e293b; border-color: #334155; }
+    .modal-title {
+      font-family: var(--font-head); font-size: 20px; font-weight: 800;
+      color: var(--ds-text);
+      background: linear-gradient(135deg, #2E5BBA, #7c3aed);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 12px; }
+
+    .limit-banner {
+      background: var(--ds-card); border: 2px solid var(--ds-border);
+      border-radius: 16px; padding: 20px;
+      margin-bottom: 24px; display: flex; justify-content: space-between;
+      align-items: center; flex-wrap: wrap; gap: 16px;
+    }
+    [data-theme="dark"] .limit-banner { background: rgba(30,41,59,0.7); border-color: #334155; }
+    .limit-progress {
+      height: 6px; border-radius: 3px; background: var(--ds-border-soft);
+      width: 200px; overflow: hidden; margin-top: 8px;
+    }
+    .limit-progress-fill {
+      height: 100%; border-radius: 3px;
+      background: linear-gradient(90deg, var(--ds-green), var(--ds-royal));
+      transition: width 0.5s ease;
+    }
+
+    .empty-state-v2 {
+      text-align: center; padding: 60px 40px;
+      background: var(--ds-card); border: 2px dashed var(--ds-border);
+      border-radius: 20px; color: var(--ds-text-muted);
+    }
+    [data-theme="dark"] .empty-state-v2 { background: rgba(30,41,59,0.5); border-color: #334155; }
+    .empty-icon-v2 {
+      width: 80px; height: 80px; margin: 0 auto 20px;
+      background: linear-gradient(135deg, #2E5BBA, #7c3aed);
+      border-radius: 20px; display: flex; align-items: center;
+      justify-content: center; font-size: 36px;
+    }
+    .empty-title-v2 { font-family: var(--font-head); font-size: 22px; font-weight: 800; color: var(--ds-text); margin-bottom: 10px; }
+    .empty-desc-v2 { font-size: 14px; max-width: 440px; margin: 0 auto 24px; line-height: 1.6; color: var(--ds-text-muted); }
+  </style>
+</head>
+<body>
+  <div class="animated-bg"></div>
+  <div class="toast-container" id="toastContainer"></div>
+
+  <div class="app-shell">
+    <header class="site-header">
+      <a href="/user/dashboard" class="site-logo">STATXTRACT</a>
+      <div class="header-right">
+        <button class="profile-btn" onclick="window.location.href='/user/profile'" id="profileBtn" style="padding: 6px 14px; text-align: left;">
+          <div class="avatar" id="avatarInitial">U</div>
+          <div style="display: flex; flex-direction: column; line-height: 1.1;">
+            <span id="headerUsername" style="font-weight: 700; font-size: 13px;">{{ username | default('My Profile') }}</span>
+            <span id="headerEmail" style="font-size: 10px; opacity: 0.85; font-weight: 500;">{{ email | default('') }}</span>
+          </div>
+        </button>
+      </div>
+    </header>
+
+    <div class="main-area">
+      <aside class="sidebar expanded" id="sidebar">
+        <button class="sidebar-toggle" id="sidebarToggle" title="Toggle Sidebar">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <nav class="sidebar-nav">
+          <a href="/user/dashboard" class="nav-item">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div>
+            <span class="nav-label">Dashboard</span>
+          </a>
+          <a href="/query" class="nav-item">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>
+            <span class="nav-label">Advanced Query</span>
+          </a>
+          <a href="/user/ai-query" class="nav-item">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a4 4 0 0 1 4 4v1a4 4 0 0 1-8 0V6a4 4 0 0 1 4-4z"/><path d="M18 14h-1a7 7 0 0 0-10 0H6a4 4 0 0 0-4 4v2h20v-2a4 4 0 0 0-4-4z"/><circle cx="12" cy="5" r="1"/></svg></div>
+            <span class="nav-label">AI Query</span>
+          </a>
+          <a href="/user/explore-data" class="nav-item">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg></div>
+            <span class="nav-label">Explore Data</span>
+          </a>
+          <a href="/user/dashboards" class="nav-item active" id="navDashboardStudio">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/></svg></div>
+            <span class="nav-label">Dashboard Studio</span>
+          </a>
+          <a href="/user/history" class="nav-item">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+            <span class="nav-label">Query History</span>
+          </a>
+          <a href="/user/downloads" class="nav-item">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div>
+            <span class="nav-label">My Downloads</span>
+          </a>
+          <a href="/user/usage" class="nav-item">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V10M18 20V4M6 20v-4"/></svg></div>
+            <span class="nav-label">Usage &amp; Limits</span>
+          </a>
+          <a href="/user/plans" class="nav-item">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></div>
+            <span class="nav-label">Plans &amp; Pricing</span>
+          </a>
+          <a href="/user/feedback" class="nav-item">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></div>
+            <span class="nav-label">Feedback &amp; Requests</span>
+          </a>
+          <a href="/user/settings" class="nav-item">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div>
+            <span class="nav-label">Settings</span>
+          </a>
+          <a href="/user/profile" class="nav-item" style="margin-top:auto;">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+            <span class="nav-label">My Profile</span>
+          </a>
+        </nav>
+      </aside>
+
+      <main class="content">
+        <div class="page-header">
+          <div>
+            <h1 class="page-title">DASHBOARD STUDIO</h1>
+            <p style="font-size: 13px; color: var(--ds-text-muted); font-weight: 500; margin-top: 4px;">Create, customize, and manage your self-service analytics dashboards</p>
+          </div>
+          <button class="btn btn-primary" onclick="openCreateModal()">
+            <span>➕</span> Create Dashboard
+          </button>
+        </div>
+
+        <!-- Limit Banner (V2: Dynamic from system_settings) -->
+        <div class="limit-banner" id="limitBanner">
+          <div>
+            <div style="font-weight: 800; color: var(--ds-text); font-size:15px; margin-bottom: 2px;">Plan: <span id="planName" style="color:var(--ds-royal);">PRO</span></div>
+            <div style="font-size: 13px; color: var(--ds-text-muted); font-weight: 500;">Usage: <strong id="dbCount">0</strong> / <span id="dbLimit">3</span> dashboards</div>
+            <div class="limit-progress">
+              <div class="limit-progress-fill" id="limitProgressFill" style="width: 0%;"></div>
+            </div>
+          </div>
+          <button class="btn btn-ghost" id="upgradeBtn" onclick="window.location.href='/user/plans'" style="display:none; font-size:12.5px; padding: 8px 16px;">Upgrade Plan</button>
+        </div>
+
+        <div class="db-grid" id="dbGrid"></div>
+
+        <div class="empty-state-v2" id="emptyState" style="display:none;">
+          <div class="empty-icon-v2">📊</div>
+          <div class="empty-title-v2">No Dashboards Yet</div>
+          <p class="empty-desc-v2">Get started by creating your first custom dashboard to compile metrics, data tables, and interactive charts from your query history.</p>
+          <button class="btn btn-primary" onclick="openCreateModal()" style="padding: 10px 28px;">Create Dashboard</button>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- Create Dashboard Modal -->
+  <div class="modal-overlay" id="createModal">
+    <div class="modal-card">
+      <div class="modal-title" id="modalTitle">New Dashboard</div>
+      <div class="form-field">
+        <label class="form-label" style="color:var(--ds-text-muted);">Dashboard Name</label>
+        <input type="text" class="form-input" id="dbNameInput" placeholder="e.g. Sales Metrics, Usage Trends" maxlength="100">
+      </div>
+      <div class="form-field" id="createModalPresetField">
+        <label class="form-label" style="color:var(--ds-text-muted);">Canvas Size Preset</label>
+        <select class="form-select" id="dbPresetSelect" style="width: 100%; padding: 8px 12px; border: 2px solid var(--ds-border); border-radius: 8px; background: var(--ds-card); color: var(--ds-text);">
+          <option value="dashboard_lg">Dashboard Large (1366 × 768 px)</option>
+          <option value="dashboard_xl">Dashboard XL (3000 × 2000 px)</option>
+          <option value="a4_portrait">A4 Portrait (794 × 1123 px)</option>
+          <option value="a4_landscape">A4 Landscape (1123 × 794 px)</option>
+          <option value="a3_portrait">A3 Portrait (1123 × 1587 px)</option>
+          <option value="a3_landscape">A3 Landscape (1587 × 1123 px)</option>
+          <option value="presentation">Presentation Slide 16:9 (1920 × 1080 px)</option>
+        </select>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="closeCreateModal()">Cancel</button>
+        <button class="btn btn-primary" id="saveDbBtn" onclick="saveDashboard()">Create</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Theme is inherited globally from userTheme
+
+    // Sidebar
+    document.getElementById('sidebarToggle').addEventListener('click', () => {
+      const sb = document.getElementById('sidebar');
+      const isCollapsed = sb.classList.contains('collapsed');
+      if (isCollapsed) { sb.classList.remove('collapsed'); sb.classList.add('expanded'); localStorage.setItem('sidebarState', 'expanded'); }
+      else { sb.classList.remove('expanded'); sb.classList.add('collapsed'); localStorage.setItem('sidebarState', 'collapsed'); }
+    });
+
+    (function() {
+      const savedState = localStorage.getItem('sidebarState') || 'expanded';
+      const sb = document.getElementById('sidebar');
+      if (sb) {
+        if (savedState === 'collapsed') { sb.classList.remove('expanded'); sb.classList.add('collapsed'); }
+        else { sb.classList.remove('collapsed'); sb.classList.add('expanded'); }
+      }
+      document.documentElement.classList.remove('sidebar-collapsed-preload');
+    })();
+
+    function showToast(msg, type='info') {
+      const tc = document.getElementById('toastContainer');
+      const t = document.createElement('div');
+      t.className = `toast ${type}`;
+      const icons = {success:'✅', info:'ℹ️', warning:'⚠️', error:'❌'};
+      t.innerHTML = `<span>${icons[type]||'ℹ️'}</span><span>${msg}</span>`;
+      tc.appendChild(t);
+      setTimeout(() => { t.style.animation='slideOut 0.3s ease forwards'; setTimeout(()=>t.remove(),300); }, 4000);
+    }
+
+    let userPlan = 'pro';
+    let dashboardLimit = 3;
+    let currentEditingId = null;
+
+    async function loadDashboards() {
+      try {
+        // V2: Use new limits endpoint instead of governance + hardcoded values
+        const [limitsRes, dbRes] = await Promise.all([
+          fetch('/api/user/dashboard-studio/limits'),
+          fetch('/api/user/dashboards')
+        ]);
+        const limits = await limitsRes.json();
+        const dbs = await dbRes.json();
+
+        userPlan = (limits.plan || 'pro').toLowerCase();
+        dashboardLimit = limits.limit;
+        const isUnlimited = limits.unlimited;
+
+        document.getElementById('planName').textContent = userPlan.toUpperCase();
+        document.getElementById('dbLimit').textContent = isUnlimited ? '∞' : limits.limit;
+        document.getElementById('dbCount').textContent = dbs.length;
+
+        // Progress bar
+        const progressFill = document.getElementById('limitProgressFill');
+        if (isUnlimited) {
+          progressFill.style.width = '30%';
+          progressFill.style.background = 'linear-gradient(90deg, #4ade80, #2E5BBA)';
+        } else {
+          const pct = limits.limit > 0 ? Math.min(100, (dbs.length / limits.limit) * 100) : 0;
+          progressFill.style.width = pct + '%';
+          if (pct >= 90) progressFill.style.background = 'linear-gradient(90deg, #f87171, #dc2626)';
+        }
+
+        // Show upgrade button for non-unlimited
+        if (!isUnlimited && limits.remaining <= 0) {
+          document.getElementById('upgradeBtn').style.display = 'block';
+        } else {
+          document.getElementById('upgradeBtn').style.display = 'none';
+        }
+
+        renderDashboards(dbs);
+      } catch (e) {
+        showToast('Error loading dashboards.', 'error');
+      }
+    }
+
+    function renderDashboards(dbs) {
+      const grid = document.getElementById('dbGrid');
+      const empty = document.getElementById('emptyState');
+
+      if (dbs.length === 0) { grid.style.display = 'none'; empty.style.display = 'block'; return; }
+      grid.style.display = 'grid'; empty.style.display = 'none';
+
+      grid.innerHTML = dbs.map(d => {
+        const createdDate = new Date(d.created_at).toLocaleDateString('en-IN', {
+          year: 'numeric', month: 'short', day: 'numeric'
+        });
+        const updatedDate = new Date(d.updated_at).toLocaleDateString('en-IN', {
+          year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+        });
+        return `
+          <div class="db-card">
+            <div>
+              <div class="db-badge">${d.widget_count} Widget${d.widget_count !== 1 ? 's' : ''}</div>
+              <div class="db-title">${d.name}</div>
+              <div class="db-meta">
+                <span>Created: <strong>${createdDate}</strong></span>
+                <span>Updated: <strong>${updatedDate}</strong></span>
+              </div>
+            </div>
+            <div class="db-actions">
+              <button class="btn btn-primary" onclick="window.location.href='/user/dashboard-view/${d.id}'">View</button>
+              <button class="btn btn-outline-blue" onclick="window.location.href='/user/dashboard-editor/${d.id}'">Edit</button>
+              <button class="btn btn-ghost" onclick="openRenameModal(${d.id}, '${d.name.replace(/'/g, "\\'")}')" style="flex:0; padding:8px 10px;">✏️</button>
+              <button class="btn btn-danger" onclick="deleteDashboard(${d.id})" style="flex:0; padding:8px 10px;">🗑️</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function openCreateModal() {
+      currentEditingId = null;
+      document.getElementById('modalTitle').textContent = 'New Dashboard';
+      document.getElementById('saveDbBtn').textContent = 'Create';
+      document.getElementById('dbNameInput').value = '';
+      document.getElementById('createModalPresetField').style.display = 'block';
+      document.getElementById('createModal').classList.add('active');
+      document.getElementById('dbNameInput').focus();
+    }
+
+    function openRenameModal(id, name) {
+      currentEditingId = id;
+      document.getElementById('modalTitle').textContent = 'Rename Dashboard';
+      document.getElementById('saveDbBtn').textContent = 'Save';
+      document.getElementById('dbNameInput').value = name;
+      document.getElementById('createModalPresetField').style.display = 'none';
+      document.getElementById('createModal').classList.add('active');
+      document.getElementById('dbNameInput').focus();
+    }
+
+    function closeCreateModal() {
+      document.getElementById('createModal').classList.remove('active');
+    }
+
+    async function saveDashboard() {
+      const name = document.getElementById('dbNameInput').value.trim();
+      if (!name) { showToast('Dashboard name is required.', 'warning'); return; }
+
+      try {
+        let res, data;
+        if (currentEditingId) {
+          res = await fetch(`/api/user/dashboards/${currentEditingId}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({name}) });
+          data = await res.json();
+        } else {
+          const canvas_preset = document.getElementById('dbPresetSelect').value;
+          res = await fetch('/api/user/dashboards', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({name, canvas_preset}) });
+          data = await res.json();
+        }
+
+        if (!res.ok) { showToast(data.detail || 'Request failed.', 'error'); return; }
+        showToast(data.message, 'success');
+        closeCreateModal();
+        loadDashboards();
+      } catch (e) { showToast('Operation failed.', 'error'); }
+    }
+
+    async function deleteDashboard(id) {
+      if (!confirm('Delete this dashboard and all its widgets permanently?')) return;
+      try {
+        const res = await fetch(`/api/user/dashboards/${id}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (res.ok) { showToast(data.message, 'success'); loadDashboards(); }
+        else { showToast(data.detail || 'Delete failed.', 'error'); }
+      } catch (e) { showToast('Delete failed.', 'error'); }
+    }
+
+    window.addEventListener('load', loadDashboards);
+  </script>
+</body>
+</html>

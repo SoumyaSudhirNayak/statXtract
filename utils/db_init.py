@@ -502,6 +502,62 @@ async def ensure_core_tables(conn: asyncpg.Connection) -> None:
         """
     )
 
+    # Dashboard Studio tables
+    await conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS dashboards (
+            id SERIAL PRIMARY KEY,
+            user_email VARCHAR(255) NOT NULL,
+            name VARCHAR(255) NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """
+    )
+
+    try:
+        await conn.execute(
+            "ALTER TABLE dashboards ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE"
+        )
+    except Exception:
+        pass
+
+    try:
+        await conn.execute(
+            "ALTER TABLE dashboards ADD COLUMN IF NOT EXISTS canvas_preset VARCHAR(50) DEFAULT 'dashboard_lg'"
+        )
+    except Exception:
+        pass
+
+    try:
+        await conn.execute(
+            "ALTER TABLE dashboards ADD COLUMN IF NOT EXISTS designer_settings JSONB DEFAULT '{}'::jsonb"
+        )
+    except Exception:
+        pass
+
+    await conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS dashboard_widgets (
+            id SERIAL PRIMARY KEY,
+            dashboard_id INTEGER REFERENCES dashboards(id) ON DELETE CASCADE,
+            widget_type VARCHAR(50) NOT NULL,
+            title VARCHAR(255),
+            schema_name TEXT,
+            table_name TEXT,
+            columns TEXT,
+            filters TEXT,
+            sql_query TEXT,
+            chart_config JSONB DEFAULT '{}'::jsonb,
+            layout_config JSONB DEFAULT '{}'::jsonb,
+            cached_data JSONB DEFAULT '[]'::jsonb,
+            cached_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """
+    )
+
     keep_schemas = set()
 
     for display in SURVEY_SCHEMA_DISPLAY_NAMES:

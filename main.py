@@ -64,6 +64,7 @@ from fastapi import HTTPException  # Add this for HTTPException
 # Import AI Query router
 from ai_query.routes import router as ai_query_router
 from datetime import date
+from query.dashboard_studio import router as dashboard_studio_router
 
 # Central Security module imports
 from security import check_user_access
@@ -504,6 +505,7 @@ app.include_router(query_router)
 app.include_router(user_explore_router)
 app.include_router(nada_router)
 app.include_router(ai_query_router)
+app.include_router(dashboard_studio_router)
 
 
 # OAuth2 setup
@@ -2509,7 +2511,7 @@ async def apply_admin_rules(conn: asyncpg.Connection, user, query_context: dict 
     }
 
 
-async def apply_config(schema, table, user, columns, rows):
+async def apply_config(schema, table, user, columns, rows, is_aggregated: bool = False):
     conn = _CFG_CONN.get(None)
     filters = _CFG_FILTERS.get()
     labels = _CFG_LABELS.get() or {}
@@ -2550,7 +2552,8 @@ async def apply_config(schema, table, user, columns, rows):
             user_role=user_role,
             columns=allowed_columns,
             rows=rows,
-            labels=labels
+            labels=labels,
+            is_aggregated=is_aggregated
         )
     except HTTPException as e:
         if isinstance(e.detail, dict) and e.detail.get("error") == "Cell Suppression Applied":
@@ -2558,6 +2561,7 @@ async def apply_config(schema, table, user, columns, rows):
         raise
 
     return allowed_columns, result
+
 
 
 
@@ -2859,6 +2863,9 @@ async def query_survey_table(
     filters: str = "",
     limit: int = 100,
     offset: int = 0,
+    group_by: str | None = None,
+    aggregation: str | None = None,
+    aggregation_column: str | None = None,
     current_user=Depends(get_current_user),
 ):
     pool = request.app.state.db
@@ -2879,8 +2886,12 @@ async def query_survey_table(
         filters=filters,
         limit=limit,
         offset=offset,
+        group_by=group_by,
+        aggregation=aggregation,
+        aggregation_column=aggregation_column,
         current_user=current_user,
     )
+
 
 
 @app.get("/schemas/{schema}/datasets")
@@ -3781,6 +3792,9 @@ async def query_table(
     limit: int = 100,
     offset: int = 0,
     format: str | None = None,
+    group_by: str | None = None,
+    aggregation: str | None = None,
+    aggregation_column: str | None = None,
     current_user=Depends(get_current_user),  # <-- Add user dependency!
 ):
     try:
@@ -3908,16 +3922,10 @@ async def query_table(
             else:
                 selected_columns = allowed_columns
 
-            col_list = []
-            for c in selected_columns:
-                if c in raw_cols_with_labels:
-                    col_list.append(f'"{c}_label" AS "{c}"')
-                else:
-                    col_list.append(f'"{c}"')
-
-            query = f'SELECT {", ".join(col_list)} FROM "{schema}"."{table}"'
+            where_clause = ""
             if fixed_filters:
-                query += f" WHERE {fixed_filters}"
+                where_clause = f" WHERE {fixed_filters}"
+
             max_limit = 1000
             default_row_limit = await _get_system_setting(conn, "default_row_limit", await _get_system_setting(conn, "platform.default_row_limit", "1000"))
             try:
@@ -3930,7 +3938,60 @@ async def query_table(
             else:
                 safe_limit = max(1, min(int(limit), configured_limit))
             safe_offset = max(0, int(offset))
-            query += f" LIMIT {safe_limit} OFFSET {safe_offset}"
+
+            if group_by:
+                group_by_col = column_map.get(group_by.lower(), group_by)
+                if group_by_col not in allowed_set:
+                    raise HTTPException(status_code=400, detail=f"Group by column not allowed or invalid: {group_by_col}")
+
+                agg_func = (aggregation or "COUNT").upper()
+                if agg_func not in ["COUNT", "SUM", "AVG", "MIN", "MAX"]:
+                    raise HTTPException(status_code=400, detail=f"Unsupported aggregation: {agg_func}")
+
+                if aggregation_column:
+                    agg_col = column_map.get(aggregation_column.lower(), aggregation_column)
+                    if agg_col not in allowed_set:
+                        raise HTTPException(status_code=400, detail=f"Aggregation column not allowed or invalid: {agg_col}")
+                else:
+                    agg_col = "*"
+
+                if agg_func in ["SUM", "AVG", "MIN", "MAX"] and agg_col == "*":
+                    agg_func = "COUNT"
+
+                if agg_func in ["SUM", "AVG", "MIN", "MAX"]:
+                    col_type = column_type_map.get(agg_col.lower(), "").lower()
+                    is_numeric = any(t in col_type for t in ["int", "precision", "numeric", "real", "double", "float"])
+                    if not is_numeric:
+                        agg_func = "COUNT"
+                        agg_col = "*"
+
+                agg_alias = agg_col if agg_col != "*" else "count"
+                if group_by_col.lower() == agg_alias.lower():
+                    agg_alias = f"{agg_alias}_value"
+
+                agg_expr = f'{agg_func}("{agg_col}")' if agg_col != "*" else 'COUNT(*)'
+
+                col_list = []
+                if group_by_col in raw_cols_with_labels:
+                    col_list.append(f'"{group_by_col}_label" AS "{group_by_col}"')
+                    group_by_sql = f'"{group_by_col}", "{group_by_col}_label"'
+                else:
+                    col_list.append(f'"{group_by_col}"')
+                    group_by_sql = f'"{group_by_col}"'
+
+                col_list.append(f'{agg_expr} AS "{agg_alias}"')
+                selected_columns = [group_by_col, agg_alias]
+
+                query = f'SELECT {", ".join(col_list)} FROM "{schema}"."{table}" {where_clause} GROUP BY {group_by_sql} LIMIT {safe_limit} OFFSET {safe_offset}'
+            else:
+                col_list = []
+                for c in selected_columns:
+                    if c in raw_cols_with_labels:
+                        col_list.append(f'"{c}_label" AS "{c}"')
+                    else:
+                        col_list.append(f'"{c}"')
+
+                query = f'SELECT {", ".join(col_list)} FROM "{schema}"."{table}" {where_clause} LIMIT {safe_limit} OFFSET {safe_offset}'
 
             print(f"DEBUG: Executing query: {query}")
             rows = await conn.fetch(query)
@@ -3944,7 +4005,7 @@ async def query_table(
             labels = {c: (label_map.get(c) or {}) for c in selected_columns}
             tokens = _set_apply_context(conn=conn, labels=labels)
             try:
-                _, filtered = await apply_config(schema, table, current_user, selected_columns, result)
+                _, filtered = await apply_config(schema, table, current_user, selected_columns, result, is_aggregated=bool(group_by))
             except HTTPException:
                 from security.usage_tracker import log_api_usage
                 await log_api_usage(
@@ -6275,6 +6336,11 @@ async def admin_settings_api(
         "plans.enterprise.api_access": "true",
         "plans.enterprise.advanced_analytics": "true",
         "plans.enterprise.downloads_allowed": "true",
+
+        # Dashboard Studio limits
+        "dashboard_limit_free": "0",
+        "dashboard_limit_pro": "3",
+        "dashboard_limit_enterprise": "-1",
     }
     pool = request.app.state.db
     async with pool.acquire() as conn:
@@ -6311,6 +6377,7 @@ async def admin_settings_api(
                     "max_ai_queries_per_month": settings_map.get("plans.free.max_ai_queries_per_month", "3"),
                     "api_access": settings_map.get("plans.free.api_access", "false"),
                     "advanced_analytics": settings_map.get("plans.free.advanced_analytics", "false"),
+                    "dashboard_limit": settings_map.get("dashboard_limit_free", "0"),
                 },
                 "pro": {
                     "max_queries_per_month": settings_map.get("plans.pro.max_queries_per_month", "1000"),
@@ -6321,6 +6388,7 @@ async def admin_settings_api(
                     "max_ai_queries_per_month": settings_map.get("plans.pro.max_ai_queries_per_month", "50"),
                     "api_access": settings_map.get("plans.pro.api_access", "true"),
                     "advanced_analytics": settings_map.get("plans.pro.advanced_analytics", "true"),
+                    "dashboard_limit": settings_map.get("dashboard_limit_pro", "3"),
                 },
                 "enterprise": {
                     "max_queries_per_month": settings_map.get("plans.enterprise.max_queries_per_month", "999999"),
@@ -6331,6 +6399,7 @@ async def admin_settings_api(
                     "max_ai_queries_per_month": settings_map.get("plans.enterprise.max_ai_queries_per_month", "999999"),
                     "api_access": settings_map.get("plans.enterprise.api_access", "true"),
                     "advanced_analytics": settings_map.get("plans.enterprise.advanced_analytics", "true"),
+                    "dashboard_limit": settings_map.get("dashboard_limit_enterprise", "-1"),
                 },
             },
         },

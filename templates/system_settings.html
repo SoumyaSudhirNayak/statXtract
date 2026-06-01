@@ -139,6 +139,7 @@
                         <div style="margin-bottom:10px;"><label>AI Query Credits / Month</label><input id="plans.free.max_ai_queries_per_month" type="number"></div>
                         <div style="margin-bottom:10px;"><label>API Access Enabled</label><select id="plans.free.api_access"><option value="true">true</option><option value="false">false</option></select></div>
                         <div style="margin-bottom:10px;"><label>Advanced Analytics Enabled</label><select id="plans.free.advanced_analytics"><option value="true">true</option><option value="false">false</option></select></div>
+                        <div style="margin-bottom:10px;"><label>Max Dashboards Allowed</label><input id="dashboard_limit_free" type="number"></div>
                     </div>
                     <!-- PRO -->
                     <div style="background:var(--bg-page);border:1px solid var(--glass-border);border-radius:14px;padding:16px;">
@@ -152,6 +153,7 @@
                         <div style="margin-bottom:10px;"><label>AI Query Credits / Month</label><input id="plans.pro.max_ai_queries_per_month" type="number"></div>
                         <div style="margin-bottom:10px;"><label>API Access Enabled</label><select id="plans.pro.api_access"><option value="true">true</option><option value="false">false</option></select></div>
                         <div style="margin-bottom:10px;"><label>Advanced Analytics Enabled</label><select id="plans.pro.advanced_analytics"><option value="true">true</option><option value="false">false</option></select></div>
+                        <div style="margin-bottom:10px;"><label>Max Dashboards Allowed</label><input id="dashboard_limit_pro" type="number"></div>
                     </div>
                     <!-- ENTERPRISE -->
                     <div style="background:var(--bg-page);border:1px solid var(--glass-border);border-radius:14px;padding:16px;">
@@ -165,6 +167,7 @@
                         <div style="margin-bottom:10px;"><label>AI Query Credits / Month</label><input id="plans.enterprise.max_ai_queries_per_month" type="number"></div>
                         <div style="margin-bottom:10px;"><label>API Access Enabled</label><select id="plans.enterprise.api_access"><option value="true">true</option><option value="false">false</option></select></div>
                         <div style="margin-bottom:10px;"><label>Advanced Analytics Enabled</label><select id="plans.enterprise.advanced_analytics"><option value="true">true</option><option value="false">false</option></select></div>
+                        <div style="margin-bottom:10px;"><label>Max Dashboards Allowed (-1 = Unlim)</label><input id="dashboard_limit_enterprise" type="number"></div>
                     </div>
                 </div>
                 <div class="meta" style="margin-top:12px;"><i class="fas fa-info-circle"></i> Changes take effect immediately — no server restart required. These values override the hardcoded defaults in <code>plan_enforcer.py</code>.</div>
@@ -214,7 +217,10 @@
             "plans.enterprise.max_ai_queries_per_month",
             "plans.enterprise.api_access",
             "plans.enterprise.advanced_analytics",
-            "plans.enterprise.downloads_allowed"
+            "plans.enterprise.downloads_allowed",
+            "dashboard_limit_free",
+            "dashboard_limit_pro",
+            "dashboard_limit_enterprise"
         ];
 
         async function loadSettings() {

@@ -1,0 +1,3343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard Editor — STATXTRACT</title>
+  <script>
+    (function() {
+      const theme = localStorage.getItem('userTheme') || 'light';
+      document.documentElement.setAttribute('data-theme', theme);
+      if (localStorage.getItem('sidebarState') === 'collapsed') {
+        document.documentElement.classList.add('sidebar-collapsed-preload');
+      }
+    })();
+  </script>
+  <meta name="description" content="Edit and customize your dashboard widgets and layouts in Dashboard Studio.">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/user_styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+  <style>
+    :root {
+      --ds-bg: #f8f9fc;
+      --ds-card: rgba(255,255,255,0.92);
+      --ds-border: #e2e8f0;
+      --ds-border-soft: #f1f5f9;
+      --ds-text: #1e293b;
+      --ds-text-muted: #64748b;
+      --ds-royal: #2E5BBA;
+      --ds-green: #2E7D32;
+      --ds-danger: #dc2626;
+      --ds-accent-gradient: linear-gradient(135deg, #2E5BBA, #7c3aed);
+      --ds-viewport-bg: #cbd5e1;
+    }
+    [data-theme="dark"] {
+      --ds-bg: #0f172a;
+      --ds-card: rgba(30,41,59,0.95);
+      --ds-border: #334155;
+      --ds-border-soft: #1e293b;
+      --ds-text: #f1f5f9;
+      --ds-text-muted: #94a3b8;
+      --ds-royal: #60a5fa;
+      --ds-green: #4ade80;
+      --ds-danger: #f87171;
+      --ds-accent-gradient: linear-gradient(135deg, #60a5fa, #a78bfa);
+      --ds-viewport-bg: #090d16;
+    }
+
+    body { background: var(--bg-page); min-height: 100vh; overflow: hidden; }
+    [data-theme="dark"] body { background: var(--ds-bg); }
+    .app-shell { display: flex; flex-direction: column; height: 100vh; }
+    .main-area  { display: flex; flex: 1; overflow: hidden; }
+    .content    { flex: 1; overflow-y: auto; overflow-x: hidden !important; padding: 40px 48px; }
+    .nav-svg    { width: 20px; height: 20px; flex-shrink: 0; }
+    .nav-item.active { background: var(--green); color: #fff; border-color: var(--green); box-shadow: 0 6px 20px rgba(46,125,50,0.4); }
+    .nav-item.active:hover { background: var(--green); color: #fff; }
+
+    /* ── Dark theme overrides ── */
+    [data-theme="dark"] .site-header { background: rgba(15,23,42,0.95); border-color: #334155; }
+    [data-theme="dark"] .sidebar { background: rgba(15,23,42,0.98); border-color: #334155; }
+    [data-theme="dark"] .nav-item { color: #94a3b8; }
+    [data-theme="dark"] .nav-item:hover { background: #1e293b; color: #e2e8f0; }
+    [data-theme="dark"] .content { background: #0f172a; }
+    [data-theme="dark"] .page-title { color: #f1f5f9; }
+    [data-theme="dark"] .form-input, [data-theme="dark"] .form-select { background: #1e293b; color: #f1f5f9; border-color: #334155; }
+    [data-theme="dark"] .form-label { color: #94a3b8; }
+    [data-theme="dark"] .btn-ghost { color: #94a3b8; }
+    [data-theme="dark"] .btn-ghost:hover { background: #1e293b; }
+
+    /* ── Theme Toggle ── */
+    .theme-toggle {
+      background: none; border: 2px solid var(--ds-border); border-radius: 8px;
+      cursor: pointer; padding: 6px 10px; font-size: 15px; color: var(--ds-text-muted);
+      transition: all 0.2s; display: flex; align-items: center; gap: 6px;
+    }
+    .theme-toggle:hover { border-color: var(--ds-royal); color: var(--ds-royal); }
+
+    /* Spacing and layout updates */
+    .page-header {
+      margin-bottom: 32px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 20px;
+    }
+
+    /* ── CANVAS VIEWPORT ── */
+    .canvas-viewport {
+      width: 100%;
+      height: calc(100vh - 200px);
+      overflow: hidden;
+      position: relative;
+      border: 2px solid var(--ds-border);
+      border-radius: 16px;
+      background: var(--ds-viewport-bg);
+      box-shadow: inset 0 2px 8px rgba(0,0,0,0.15);
+      cursor: grab;
+    }
+    .canvas-viewport:active {
+      cursor: grabbing;
+    }
+    .widget-grid {
+      position: relative;
+      transform-origin: 0 0;
+      user-select: none;
+      transition: transform 0.05s ease-out;
+      background-color: #ffffff !important;
+      border: 1px solid rgba(0,0,0,0.15) !important;
+      border-radius: 4px;
+      box-shadow: 0 10px 35px rgba(0,0,0,0.15);
+    }
+    .widget-grid.show-gridlines {
+      background-size: 20px 20px;
+      background-image: 
+        linear-gradient(to right, rgba(46, 91, 186, 0.06) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(46, 91, 186, 0.06) 1px, transparent 1px);
+    }
+    .widget-grid.exporting #horizontalRuler,
+    .widget-grid.exporting #verticalRuler,
+    .widget-grid.exporting .margin-guides,
+    .widget-grid.exporting .resize-handle {
+      display: none !important;
+    }
+    
+    /* ── FLOATING CONTROLS ── */
+    .canvas-controls {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--ds-card);
+      backdrop-filter: blur(8px);
+      padding: 6px 12px;
+      border-radius: 12px;
+      border: 2px solid var(--ds-border);
+      z-index: 10000;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+    }
+    .canvas-controls .w-ctrl-btn {
+      padding: 4px 10px;
+      font-size: 14px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    
+    /* ── WIDGET CARD CANVAS MODIFICATIONS ── */
+    .widget-card {
+      position: absolute !important;
+      box-sizing: border-box;
+      margin: 0 !important;
+      touch-action: none;
+      z-index: 5;
+    }
+    
+    /* ── 8-WAY RESIZE HANDLES ── */
+    .resize-handle {
+      position: absolute;
+      background: transparent;
+      z-index: 1000;
+      transition: background 0.2s;
+    }
+    .resize-handle:hover {
+      background: rgba(46, 91, 186, 0.4);
+    }
+    [data-theme="dark"] .resize-handle:hover {
+      background: rgba(96, 165, 250, 0.4);
+    }
+    
+    /* Edges */
+    .resize-handle-t { top: -4px; left: 4px; right: 4px; height: 8px; cursor: ns-resize; }
+    .resize-handle-b { bottom: -4px; left: 4px; right: 4px; height: 8px; cursor: ns-resize; }
+    .resize-handle-l { left: -4px; top: 4px; bottom: 4px; width: 8px; cursor: ew-resize; }
+    .resize-handle-r { right: -4px; top: 4px; bottom: 4px; width: 8px; cursor: ew-resize; }
+    
+    /* Corners */
+    .resize-handle-tl { top: -6px; left: -6px; width: 12px; height: 12px; cursor: nwse-resize; }
+    .resize-handle-tr { top: -6px; right: -6px; width: 12px; height: 12px; cursor: nesw-resize; }
+    .resize-handle-bl { bottom: -6px; left: -6px; width: 12px; height: 12px; cursor: nesw-resize; }
+    .resize-handle-br { bottom: -6px; right: -6px; width: 12px; height: 12px; cursor: nwse-resize; }
+    @media(max-width: 1024px) {
+      .widget-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media(max-width: 768px) {
+      .widget-grid { grid-template-columns: 1fr; }
+      .content { padding: 20px 16px; }
+      .page-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 16px;
+      }
+      .export-bar {
+        width: 100%;
+        gap: 8px;
+      }
+      .export-bar .btn {
+        flex: 1;
+        justify-content: center;
+      }
+    }
+
+    /* ── WIDGET CARD ── */
+    .widget-card {
+      background: var(--ds-card);
+      backdrop-filter: blur(12px);
+      border: 2px solid var(--ds-border);
+      border-radius: 16px;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      transition: border-color 0.25s, box-shadow 0.25s, transform 0.2s;
+      min-height: 280px;
+      position: relative;
+    }
+    .widget-card:hover {
+      border-color: var(--ds-royal);
+      box-shadow: 0 8px 28px rgba(46,91,186,0.12);
+      transform: translateY(-2px);
+    }
+    [data-theme="dark"] .widget-card { background: rgba(30,41,59,0.9); border-color: #334155; }
+    [data-theme="dark"] .widget-card:hover { border-color: #60a5fa; box-shadow: 0 8px 28px rgba(96,165,250,0.15); }
+
+    .widget-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--ds-border-soft);
+      margin-bottom: 14px;
+      gap: 8px;
+    }
+    .widget-title-text {
+      font-family: var(--font-head);
+      font-size: 14px;
+      font-weight: 800;
+      color: var(--ds-text);
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      overflow: hidden;
+    }
+    .widget-type-badge {
+      font-size: 9px; font-weight: 700; text-transform: uppercase;
+      padding: 2px 8px; border-radius: 10px; letter-spacing: 0.5px;
+      background: linear-gradient(135deg, rgba(46,91,186,0.1), rgba(124,58,237,0.1));
+      color: var(--ds-royal); flex-shrink: 0;
+    }
+    .widget-controls {
+      display: flex;
+      gap: 2px;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    .w-ctrl-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 12px;
+      padding: 5px;
+      color: var(--ds-text-muted);
+      border-radius: 6px;
+      transition: background 0.2s, color 0.2s;
+    }
+    .w-ctrl-btn:hover {
+      background: var(--ds-border-soft);
+      color: var(--ds-text);
+    }
+    [data-theme="dark"] .w-ctrl-btn:hover { background: #334155; }
+    .widget-body {
+      flex: 1;
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    /* Modal Styling */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.55);
+      z-index: 10000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      backdrop-filter: blur(6px);
+    }
+    .modal-overlay.active { display: flex; }
+    .modal-card {
+      background: var(--ds-card);
+      border-radius: 18px;
+      width: 100%;
+      max-width: 680px;
+      padding: 28px;
+      box-shadow: 0 16px 48px rgba(0,0,0,0.2);
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      border: 2px solid var(--ds-border);
+      max-height: 92vh;
+      overflow-y: auto;
+    }
+    [data-theme="dark"] .modal-card { background: #1e293b; border-color: #334155; }
+    .modal-title {
+      font-family: var(--font-head); font-size: 20px; font-weight: 800;
+      color: var(--ds-text);
+      background: var(--ds-accent-gradient);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; border-top: 1px solid var(--ds-border-soft); padding-top: 16px; }
+
+    /* ── Custom Query History Dropdown V3 (Overflow & Viewport Fixed) ── */
+    .qh-custom-select {
+      position: relative;
+      width: 100%;
+      cursor: pointer;
+      border: 2px solid var(--ds-border);
+      border-radius: 8px;
+      background: var(--ds-card);
+      color: var(--ds-text);
+      font-size: 13px;
+      user-select: none;
+    }
+    [data-theme="dark"] .qh-custom-select {
+      background: #1e293b;
+      border-color: #334155;
+      color: #f1f5f9;
+    }
+    .qh-selected-value {
+      padding: 8px 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-weight: 500;
+    }
+    .qh-selected-value::after {
+      content: "▼";
+      font-size: 10px;
+      color: var(--ds-text-muted);
+      margin-left: 8px;
+    }
+    .qh-options-container {
+      display: none;
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      background: var(--ds-card);
+      border: 2px solid var(--ds-border);
+      border-radius: 8px;
+      margin-top: 4px;
+      max-height: 240px;
+      overflow-y: auto;
+      z-index: 10000;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+    }
+    [data-theme="dark"] .qh-options-container {
+      background: #1e293b;
+      border-color: #334155;
+    }
+    .qh-options-container.active {
+      display: block;
+    }
+    .qh-option {
+      padding: 8px 12px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      transition: background 0.15s;
+    }
+    .qh-option:hover {
+      background: var(--ds-border-soft);
+    }
+    [data-theme="dark"] .qh-option:hover {
+      background: #334155;
+    }
+    .qh-option.selected {
+      background: var(--ds-royal);
+      color: #fff;
+    }
+
+    /* ── Smart Autopopulate Chain Dropdowns ── */
+    .smart-chain {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .smart-chain .form-field { position: relative; }
+    .smart-chain .loading-spinner {
+      position: absolute; right: 10px; top: 34px;
+      width: 14px; height: 14px;
+      border: 2px solid var(--ds-border);
+      border-top-color: var(--ds-royal);
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Filter Builder V3 (Fully Responsive) ── */
+    .filter-builder {
+      border: 1px solid var(--ds-border);
+      border-radius: 12px;
+      padding: 14px;
+      background: var(--ds-border-soft);
+    }
+    [data-theme="dark"] .filter-builder { background: #0f172a; border-color: #334155; }
+    .filter-row {
+      display: grid;
+      grid-template-columns: 1fr 100px 1.2fr 36px;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .filter-row > * {
+      min-width: 0;
+    }
+    .filter-row select, .filter-row input {
+      font-size: 12px; padding: 7px 10px;
+      border: 1px solid var(--ds-border);
+      border-radius: 8px;
+      background: var(--ds-card);
+      color: var(--ds-text);
+      max-width: 100%;
+      box-sizing: border-box;
+    }
+    [data-theme="dark"] .filter-row select, [data-theme="dark"] .filter-row input {
+      background: #1e293b; border-color: #334155; color: #f1f5f9;
+    }
+    .filter-remove-btn {
+      background: none; border: none; cursor: pointer; font-size: 16px;
+      color: var(--ds-danger); padding: 4px; border-radius: 6px;
+      transition: background 0.2s;
+    }
+    .filter-remove-btn:hover { background: rgba(220,38,38,0.1); }
+    .add-filter-btn {
+      font-size: 12px; font-weight: 600; color: var(--ds-royal);
+      background: none; border: 1px dashed var(--ds-royal);
+      border-radius: 8px; padding: 6px 14px; cursor: pointer;
+      transition: all 0.2s; margin-top: 4px;
+    }
+    .add-filter-btn:hover { background: rgba(46,91,186,0.06); }
+
+    /* Mobile Filter Rows Override */
+    @media (max-width: 580px) {
+      .filter-row {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        border: 1px solid var(--ds-border);
+        border-radius: 10px;
+        padding: 12px;
+        background: var(--ds-border-soft);
+        margin-bottom: 12px;
+      }
+      .filter-row select, 
+      .filter-row input, 
+      .filter-value-container {
+        width: 100% !important;
+        max-width: 100% !important;
+      }
+      .filter-remove-btn {
+        align-self: flex-end;
+        width: auto !important;
+        padding: 6px 12px !important;
+        font-size: 14px;
+        margin: 0;
+      }
+    }
+
+    /* KPI Rendering */
+    .kpi-container {
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; height: 100%; flex: 1; text-align: center;
+    }
+    .kpi-value {
+      font-family: var(--font-head); font-size: 38px; font-weight: 900;
+      color: var(--ds-green); line-height: 1.1; margin-bottom: 4px;
+    }
+    .kpi-label {
+      font-size: 11px; font-weight: 700; color: var(--ds-text-muted);
+      text-transform: uppercase; letter-spacing: 0.5px;
+    }
+
+    /* Stats summary rendering */
+    .stat-list {
+      display: flex; flex-direction: column; gap: 8px;
+      justify-content: center; height: 100%; flex: 1;
+    }
+    .stat-row {
+      display: flex; justify-content: space-between; font-size: 13px;
+      border-bottom: 1px dashed var(--ds-border-soft); padding-bottom: 4px;
+    }
+    .stat-lbl { font-weight: 600; color: var(--ds-text-muted); }
+    .stat-val { font-weight: 700; color: var(--ds-text); }
+
+    /* Grid layout config */
+    .config-sec {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+    }
+
+    /* Chart Canvas sizing */
+    .chart-wrapper {
+      position: relative; flex: 1; width: 100%; height: 100%; min-height: 180px;
+    }
+
+    .loading-widget {
+      display: flex; align-items: center; justify-content: center;
+      height: 100%; flex: 1; color: var(--ds-text-muted); font-weight: 600; font-size: 13px;
+    }
+
+    /* ── Pagination ── */
+    .table-pagination {
+      display: flex; justify-content: center; align-items: center;
+      gap: 6px; padding: 8px 0; margin-top: auto;
+    }
+    .table-pagination button {
+      background: var(--ds-border-soft); border: 1px solid var(--ds-border);
+      border-radius: 6px; padding: 4px 10px; font-size: 11px; font-weight: 600;
+      cursor: pointer; color: var(--ds-text-muted); transition: all 0.2s;
+    }
+    .table-pagination button:hover { border-color: var(--ds-royal); color: var(--ds-royal); }
+    .table-pagination button.active { background: var(--ds-royal); color: #fff; border-color: var(--ds-royal); }
+    .table-pagination span { font-size: 11px; color: var(--ds-text-muted); font-weight: 600; }
+
+    /* ── Export toolbar ── */
+    .export-bar {
+      display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+    }
+    .export-bar .btn { font-size: 12px; padding: 6px 14px; border-radius: 8px; }
+
+    /* ── Empty state V2 ── */
+    .empty-state-v2 {
+      text-align: center; padding: 60px 40px;
+      background: var(--ds-card); border: 2px dashed var(--ds-border);
+      border-radius: 20px; color: var(--ds-text-muted);
+    }
+    [data-theme="dark"] .empty-state-v2 { background: rgba(30,41,59,0.5); border-color: #334155; }
+    .empty-icon-v2 {
+      width: 80px; height: 80px; margin: 0 auto 20px;
+      background: var(--ds-accent-gradient);
+      border-radius: 20px; display: flex; align-items: center;
+      justify-content: center; font-size: 36px;
+    }
+    .empty-title-v2 {
+      font-family: var(--font-head); font-size: 22px; font-weight: 800;
+      color: var(--ds-text); margin-bottom: 10px;
+    }
+    .empty-desc-v2 {
+      font-size: 14px; max-width: 440px; margin: 0 auto 24px;
+      line-height: 1.6; color: var(--ds-text-muted);
+    }
+
+    /* ── Section Separator ── */
+    .modal-section {
+      border-top: 1px solid var(--ds-border-soft);
+      padding-top: 14px;
+    }
+    .modal-section-label {
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 1px; color: var(--ds-text-muted); margin-bottom: 10px;
+    }
+
+    /* Mobile responsive override */
+    @media (max-width: 768px) {
+      .canvas-viewport {
+        height: auto !important;
+        overflow: visible !important;
+        border: none !important;
+        background: transparent !important;
+        box-shadow: none !important;
+      }
+      .widget-grid {
+        transform: none !important;
+        width: 100% !important;
+        height: auto !important;
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 16px !important;
+        background: none !important;
+        padding: 0 !important;
+      }
+      .widget-card {
+        position: static !important;
+        width: 100% !important;
+        height: auto !important;
+        min-height: 320px !important;
+        margin-bottom: 16px !important;
+      }
+      .canvas-controls {
+        display: none !important;
+      }
+      .resize-handle {
+        display: none !important;
+      }
+    }
+      .sidebar.expanded { display: flex; }
+      .sidebar-nav { margin-top: 10px; max-height: none; }
+    }
+    /* Categorical Grid */
+    .cat-select-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      max-height: 150px;
+      overflow-y: auto;
+      background: var(--ds-card);
+      border: 1px solid var(--ds-border);
+      border-radius: 10px;
+      padding: 8px;
+      margin-top: 6px;
+    }
+    .cat-option {
+      padding: 4px 10px;
+      background: var(--ds-border-soft);
+      border: 1px solid var(--ds-border);
+      border-radius: 20px;
+      font-size: 0.78rem;
+      font-weight: 500;
+      color: var(--ds-text);
+      cursor: pointer;
+      transition: all 0.2s;
+      user-select: none;
+    }
+    .cat-option:hover {
+      border-color: var(--ds-royal);
+      background: rgba(46, 91, 186, 0.05);
+    }
+    .cat-option.selected {
+      background: var(--ds-royal);
+      color: white;
+      border-color: var(--ds-royal);
+      box-shadow: 0 4px 10px rgba(46, 91, 186, 0.2);
+    }
+    .range-input-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 6px;
+    }
+    .range-sep {
+      font-size: 0.8rem;
+      color: var(--ds-text-muted);
+      font-weight: 600;
+    }
+
+    /* ── Drag & Drop Layout Engine ── */
+    .widget-grid {
+      grid-auto-flow: dense;
+    }
+    .widget-card.dragging {
+      opacity: 0.4;
+      transform: scale(0.97) !important;
+      border: 2px dashed var(--ds-royal) !important;
+      box-shadow: none !important;
+      z-index: 1;
+      transition: opacity 0.2s, transform 0.2s;
+    }
+    .widget-card.drag-over {
+      border-color: var(--ds-green) !important;
+      box-shadow: 0 0 0 3px rgba(46,125,50,0.25), 0 8px 28px rgba(46,125,50,0.15) !important;
+      transform: translateY(-3px) scale(1.01) !important;
+      transition: all 0.15s ease;
+    }
+    [data-theme="dark"] .widget-card.drag-over {
+      border-color: #4ade80 !important;
+      box-shadow: 0 0 0 3px rgba(74,222,128,0.2), 0 8px 28px rgba(74,222,128,0.12) !important;
+    }
+    .drag-handle {
+      cursor: grab;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 6px;
+      border-radius: 6px;
+      color: var(--ds-text-muted);
+      font-size: 14px;
+      transition: background 0.2s, color 0.2s;
+      user-select: none;
+      flex-shrink: 0;
+    }
+    .drag-handle:hover {
+      background: var(--ds-border-soft);
+      color: var(--ds-text);
+    }
+    .drag-handle:active {
+      cursor: grabbing;
+    }
+    [data-theme="dark"] .drag-handle:hover {
+      background: #334155;
+    }
+    .drag-handle-dots {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      width: 10px;
+    }
+    .drag-handle-dots span {
+      display: flex;
+      gap: 2px;
+    }
+    .drag-handle-dots span::before,
+    .drag-handle-dots span::after {
+      content: '';
+      width: 3px;
+      height: 3px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+    .drop-placeholder {
+      border: 2px dashed var(--ds-royal);
+      border-radius: 16px;
+      background: linear-gradient(135deg, rgba(46,91,186,0.04), rgba(124,58,237,0.04));
+      min-height: 280px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      animation: dropPulse 1.2s ease-in-out infinite;
+    }
+    [data-theme="dark"] .drop-placeholder {
+      background: linear-gradient(135deg, rgba(96,165,250,0.06), rgba(167,139,250,0.06));
+      border-color: #60a5fa;
+    }
+    @keyframes dropPulse {
+      0%, 100% { opacity: 0.5; }
+      50% { opacity: 1; }
+    }
+    .drop-placeholder-text {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--ds-royal);
+      letter-spacing: 0.3px;
+    }
+    /* Prevent page scrollbars during drag */
+    body.is-dragging {
+      overflow: hidden !important;
+    }
+    body.is-dragging .content {
+      overflow-x: hidden !important;
+    }
+  </style>
+</head>
+<body>
+  <div class="animated-bg"></div>
+  <div class="toast-container" id="toastContainer"></div>
+
+  <div class="app-shell">
+    <!-- ── HEADER ── -->
+    <header class="site-header">
+      <a href="/user/dashboard" class="site-logo">STATXTRACT</a>
+      <div class="header-right">
+        <button class="profile-btn" onclick="window.location.href='/user/profile'" id="profileBtn" style="padding: 6px 14px; text-align: left;">
+          <div class="avatar" id="avatarInitial">U</div>
+          <div style="display: flex; flex-direction: column; line-height: 1.1;">
+            <span id="headerUsername" style="font-weight: 700; font-size: 13px;">{{ username | default('My Profile') }}</span>
+            <span id="headerEmail" style="font-size: 10px; opacity: 0.85; font-weight: 500;">{{ email | default('') }}</span>
+          </div>
+        </button>
+      </div>
+    </header>
+
+    <div class="main-area">
+      <!-- ── SIDEBAR ── -->
+      <aside class="sidebar expanded" id="sidebar">
+        <button class="sidebar-toggle" id="sidebarToggle" title="Toggle Sidebar">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <nav class="sidebar-nav">
+          <a href="/user/dashboard" class="nav-item">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div>
+            <span class="nav-label">Dashboard</span>
+          </a>
+          <a href="/query" class="nav-item">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>
+            <span class="nav-label">Advanced Query</span>
+          </a>
+          <a href="/user/ai-query" class="nav-item">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a4 4 0 0 1 4 4v1a4 4 0 0 1-8 0V6a4 4 0 0 1 4-4z"/><path d="M18 14h-1a7 7 0 0 0-10 0H6a4 4 0 0 0-4 4v2h20v-2a4 4 0 0 0-4-4z"/><circle cx="12" cy="5" r="1"/></svg></div>
+            <span class="nav-label">AI Query</span>
+          </a>
+          <a href="/user/explore-data" class="nav-item">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg></div>
+            <span class="nav-label">Explore Data</span>
+          </a>
+          <a href="/user/dashboards" class="nav-item active" id="navDashboardStudio">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/></svg></div>
+            <span class="nav-label">Dashboard Studio</span>
+          </a>
+          <a href="/user/history" class="nav-item">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+            <span class="nav-label">Query History</span>
+          </a>
+          <a href="/user/downloads" class="nav-item">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div>
+            <span class="nav-label">My Downloads</span>
+          </a>
+          <a href="/user/usage" class="nav-item">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V10M18 20V4M6 20v-4"/></svg></div>
+            <span class="nav-label">Usage &amp; Limits</span>
+          </a>
+          <a href="/user/plans" class="nav-item">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></div>
+            <span class="nav-label">Plans &amp; Pricing</span>
+          </a>
+          <a href="/user/feedback" class="nav-item">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></div>
+            <span class="nav-label">Feedback &amp; Requests</span>
+          </a>
+          <a href="/user/settings" class="nav-item">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div>
+            <span class="nav-label">Settings</span>
+          </a>
+          <a href="/user/profile" class="nav-item" style="margin-top:auto;">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+            <span class="nav-label">My Profile</span>
+          </a>
+        </nav>
+      </aside>
+
+      <!-- ── MAIN CONTENT ── -->
+      <main class="content">
+        <!-- Page Header -->
+        <div class="page-header">
+          <div>
+            <h1 class="page-title">EDITOR: <span style="color:var(--ds-royal); font-weight:900;">{{ dashboard_name }}</span></h1>
+            <p style="font-size: 13px; color: var(--ds-text-muted); font-weight: 500; margin-top: 4px;">Add widgets, link queries, customize charts, and export your dashboard</p>
+          </div>
+          <div class="export-bar" style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+            <button class="btn btn-ghost" onclick="window.location.href='/user/dashboards'">
+              <span>⬅️</span> Back
+            </button>
+            
+            <!-- Page Size Dropdown -->
+            <div style="display: flex; align-items: center; gap: 6px; border: 1.5px solid var(--ds-border); padding: 4px 10px; border-radius: 10px; background: var(--ds-card);">
+              <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--ds-text-muted);">Page Size:</span>
+              <select id="pageSizeSelector" onchange="changePageSize(this.value)" style="background: none; border: none; font-size: 12px; font-weight: 600; color: var(--ds-text); cursor: pointer; outline: none; padding-right: 4px; font-family: inherit;">
+                <option value="a4_portrait">A4 Portrait</option>
+                <option value="a4_landscape">A4 Landscape</option>
+                <option value="a3_portrait">A3 Portrait</option>
+                <option value="a3_landscape">A3 Landscape</option>
+                <option value="presentation_16_9">Presentation 16:9</option>
+                <option value="presentation_4_3">Presentation 4:3</option>
+                <option value="dashboard_sm">Dashboard Small</option>
+                <option value="dashboard_md">Dashboard Medium</option>
+                <option value="dashboard_lg">Dashboard Large</option>
+                <option value="dashboard_xl">Dashboard XL</option>
+              </select>
+            </div>
+
+            <!-- Toggles Group -->
+            <div style="display: flex; align-items: center; gap: 14px; border: 1.5px solid var(--ds-border); padding: 6px 14px; border-radius: 10px; background: var(--ds-card);">
+              <label style="display: flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 600; color: var(--ds-text); cursor: pointer; user-select: none; margin: 0; font-family: inherit;">
+                <input type="checkbox" id="gridlinesToggle" onchange="toggleGridlines(this.checked)" style="accent-color: var(--ds-royal); cursor: pointer; width: 14px; height: 14px;">
+                Show Gridlines
+              </label>
+              <label style="display: flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 600; color: var(--ds-text); cursor: pointer; user-select: none; margin: 0; font-family: inherit;">
+                <input type="checkbox" id="snapToggle" onchange="toggleSnapToGrid(this.checked)" style="accent-color: var(--ds-royal); cursor: pointer; width: 14px; height: 14px;">
+                Snap to Grid
+              </label>
+            </div>
+
+            <button class="btn btn-ghost" onclick="exportDashboardPNG()" title="Export dashboard as image">
+              <span>🖼️</span> PNG
+            </button>
+            <button class="btn btn-ghost" onclick="exportDashboardPDF()" title="Export dashboard as PDF">
+              <span>📑</span> PDF
+            </button>
+            <button class="btn btn-outline-blue" onclick="openWidgetModal()">
+              <span>➕</span> Add Widget
+            </button>
+            <button class="btn btn-primary" onclick="saveGridLayout()">
+              <span>💾</span> Save Layout
+            </button>
+          </div>
+        </div>
+
+        <!-- Canvas Viewport -->
+        <div class="canvas-viewport" id="canvasViewport">
+          <div class="widget-grid" id="widgetGrid">
+            <!-- Visual rulers inside grid for perfect tracking -->
+            <canvas id="horizontalRuler" style="position: absolute; top: -20px; left: 0; height: 20px; width: 100%; pointer-events: none; z-index: 9999; border-top-left-radius: 4px; border-top-right-radius: 4px;"></canvas>
+            <canvas id="verticalRuler" style="position: absolute; top: 0; left: -20px; width: 20px; height: 100%; pointer-events: none; z-index: 9999; border-top-left-radius: 4px; border-bottom-left-radius: 4px;"></canvas>
+            
+            <!-- Margin guides (dashed blue safe margin, e.g. 40px margin) -->
+            <div class="margin-guides" style="position: absolute; top: 40px; left: 40px; right: 40px; bottom: 40px; border: 1px dashed rgba(46, 91, 186, 0.25); pointer-events: none; border-radius: 2px; z-index: 2;"></div>
+
+            <!-- Dynamically loaded widgets -->
+          </div>
+          
+          <!-- Canvas controls floating bar -->
+          <div class="canvas-controls">
+            <button class="w-ctrl-btn" onclick="zoomIn()" title="Zoom In" style="font-weight: bold; font-size: 14px;">➕</button>
+            <span id="zoomLabel" style="font-size: 12px; font-weight: 700; min-width: 48px; text-align: center; color: var(--ds-text);">100%</span>
+            <button class="w-ctrl-btn" onclick="zoomOut()" title="Zoom Out" style="font-weight: bold; font-size: 14px;">➖</button>
+            <button class="w-ctrl-btn" onclick="zoomReset()" title="Reset to 100% & Center" style="font-size: 11px; font-weight: 600;">Reset</button>
+            <button class="w-ctrl-btn" onclick="zoomToFit()" title="Fit Dashboard to screen" style="font-size: 11px; font-weight: 600;">Fit Screen</button>
+          </div>
+        </div>
+
+        <div id="noWidgetsState" class="empty-state-v2" style="display:none; margin-bottom: 40px;">
+          <div class="empty-icon-v2">🧩</div>
+          <div class="empty-title-v2">Your Canvas Is Empty</div>
+          <p class="empty-desc-v2">Start building your analytics dashboard by adding widgets. Choose from KPI cards, data tables, bar charts, pie charts, line graphs, and summary statistics.</p>
+          <button class="btn btn-primary" onclick="openWidgetModal()" style="padding: 10px 28px;">Add Your First Widget</button>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- Widget Configuration Modal (V2) -->
+  <div class="modal-overlay" id="widgetModal">
+    <div class="modal-card">
+      <div class="modal-title" id="widgetModalTitle">Add Widget</div>
+
+      <!-- Basic Details -->
+      <div class="form-field">
+        <label class="form-label">Widget Title</label>
+        <input type="text" class="form-input" id="widgetTitleInput" placeholder="e.g. Total Revenue, User Breakdown">
+      </div>
+
+      <div class="config-sec">
+        <div class="form-field">
+          <label class="form-label">Widget Type</label>
+          <select class="form-select" id="widgetTypeSelect" onchange="toggleWidgetOptions()">
+            <option value="kpi">KPI Card</option>
+            <option value="table">Data Table</option>
+            <option value="bar">Bar Chart</option>
+            <option value="pie">Pie Chart</option>
+            <option value="line">Line Chart</option>
+            <option value="area">Area Chart</option>
+            <option value="stats">Summary Statistics Card</option>
+          </select>
+        </div>
+
+        <div class="form-field">
+          <label class="form-label">Grid Width (Desktop)</label>
+          <select class="form-select" id="widgetWidthSelect">
+            <option value="1">1 Column Span</option>
+            <option value="2" selected>2 Columns Span</option>
+            <option value="3">3 Columns Span</option>
+            <option value="4">4 Columns (Full Width)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Query History Link (V3: Custom Dropdown Layout) -->
+      <div class="modal-section">
+        <div class="modal-section-label">Quick Autofill from History</div>
+        <div class="form-field qh-dropdown-wrapper">
+          <select id="queryHistorySelect" onchange="autofillFromHistory()" style="display: none;">
+            <option value="">-- Or use Smart Builder below --</option>
+          </select>
+          <div class="qh-custom-select" id="qhCustomSelect">
+            <div class="qh-selected-value" id="qhSelectedValue">-- Or use Smart Builder below --</div>
+            <div class="qh-options-container" id="qhOptionsContainer">
+              <!-- Custom option elements will be populated here -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Smart Autopopulate (V3) -->
+      <div class="modal-section">
+        <div class="modal-section-label">Data Source (Smart Builder)</div>
+        <div class="smart-chain" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
+          <div class="form-field">
+            <label class="form-label">Survey Category</label>
+            <select class="form-select" id="surveySelect" onchange="onSurveyChange()">
+              <option value="">Select survey...</option>
+            </select>
+            <div class="loading-spinner" id="surveySpinner" style="display:none;"></div>
+          </div>
+          <div class="form-field">
+            <label class="form-label">Dataset</label>
+            <select class="form-select" id="schemaSelect" onchange="onSchemaChange()">
+              <option value="">Select dataset...</option>
+            </select>
+            <div class="loading-spinner" id="schemaSpinner" style="display:none;"></div>
+          </div>
+          <div class="form-field">
+            <label class="form-label">Table</label>
+            <select class="form-select" id="tableSelect" onchange="onTableChange()">
+              <option value="">Select table...</option>
+            </select>
+            <div class="loading-spinner" id="tableSpinner" style="display:none;"></div>
+          </div>
+        </div>
+
+        <div class="form-field" style="margin-top:10px;">
+          <label class="form-label">Columns (Multi-select from detected columns)</label>
+          <div id="columnSelectorControls" style="display:none; flex-direction:column; gap:8px; margin-bottom: 8px;">
+            <input type="text" id="columnSearchInput" class="form-input" placeholder="🔍 Search columns..." oninput="filterColumnsList()" style="padding: 8px 12px; font-size: 12px; border-radius: 8px;">
+            <div style="display: flex; gap: 8px;">
+              <button type="button" class="btn btn-ghost" style="padding: 4px 10px; font-size: 11px; font-weight: 600;" onclick="selectAllColumns(true)">Select All</button>
+              <button type="button" class="btn btn-ghost" style="padding: 4px 10px; font-size: 11px; font-weight: 600;" onclick="selectAllColumns(false)">Deselect All</button>
+            </div>
+          </div>
+          <div id="columnChips" style="display:flex; flex-wrap:wrap; gap:6px; min-height:36px; padding:8px; border:1px solid var(--ds-border); border-radius:10px; background:var(--ds-border-soft); max-height: 180px; overflow-y: auto;">
+            <span style="color:var(--ds-text-muted); font-size:12px; font-weight:500;">Select survey, dataset & table first...</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Visual Filter Builder (V3) -->
+      <div class="modal-section">
+        <div class="modal-section-label" style="display: flex; justify-content: space-between; align-items: center;">
+          <span>Filters</span>
+          <select class="form-select" id="filterLogic" style="width: auto; padding: 4px 8px; font-size: 11px; border-radius: 6px; height: auto;">
+            <option value="AND">Match ALL (AND)</option>
+            <option value="OR">Match ANY (OR)</option>
+          </select>
+        </div>
+        <div class="filter-builder" id="filterBuilder">
+          <div id="filterRows" style="display: flex; flex-direction: column; gap: 10px;">
+            <!-- Dynamic filter rows -->
+          </div>
+          <button type="button" class="add-filter-btn" onclick="addFilterRow()" style="margin-top: 8px;">+ Add Filter Condition</button>
+        </div>
+      </div>
+
+      <!-- KPI specific config -->
+      <div id="kpiConfigSec" class="config-sec modal-section" style="display:none;">
+        <div class="form-field">
+          <label class="form-label">Value Column</label>
+          <select class="form-select" id="kpiValueCol">
+            <option value="">Select column...</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label class="form-label">KPI Aggregation</label>
+          <select class="form-select" id="kpiAggSelect">
+            <option value="count">Count (Total Rows)</option>
+            <option value="sum">Sum</option>
+            <option value="avg">Average</option>
+            <option value="min">Minimum</option>
+            <option value="max">Maximum</option>
+            <option value="none">Raw Value (First Row)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Chart specific config -->
+      <div id="chartConfigSec" class="config-sec modal-section" style="display:none;">
+        <div class="form-field">
+          <label class="form-label">Label Column (X Axis)</label>
+          <select class="form-select" id="chartLabelCol">
+            <option value="">Select column...</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label class="form-label">Value Column (Y Axis)</label>
+          <select class="form-select" id="chartValueCol">
+            <option value="">Select column...</option>
+          </select>
+        </div>
+        <div class="form-field" style="grid-column: span 2;">
+          <label class="form-label">Chart Aggregation (Group By Label)</label>
+          <select class="form-select" id="chartAggSelect">
+            <option value="none">None (Plot raw data directly)</option>
+            <option value="sum">Sum values</option>
+            <option value="avg">Average values</option>
+            <option value="count">Count elements</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Summary Stats config -->
+      <div id="statsConfigSec" class="form-field modal-section" style="display:none;">
+        <label class="form-label">Numeric Column to Analyze</label>
+        <select class="form-select" id="statsValueCol">
+          <option value="">Select column...</option>
+        </select>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="closeWidgetModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveWidget()">Save Widget</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ── Global Variables ──
+    const dashboardId = {{ dashboard_id }};
+    const designerSettings = {{ designer_settings_json | safe }};
+
+    const CANVAS_PRESETS = {
+      'a4_portrait': { width: 794, height: 1123, name: 'A4 Portrait' },
+      'a4_landscape': { width: 1123, height: 794, name: 'A4 Landscape' },
+      'a3_portrait': { width: 1123, height: 1587, name: 'A3 Portrait' },
+      'a3_landscape': { width: 1587, height: 1123, name: 'A3 Landscape' },
+      'presentation_16_9': { width: 1920, height: 1080, name: 'Presentation 16:9' },
+      'presentation_4_3': { width: 1600, height: 1200, name: 'Presentation 4:3' },
+      'dashboard_sm': { width: 1200, height: 800, name: 'Dashboard Small' },
+      'dashboard_md': { width: 1600, height: 1200, name: 'Dashboard Medium' },
+      'dashboard_lg': { width: 2400, height: 1600, name: 'Dashboard Large' },
+      'dashboard_xl': { width: 3200, height: 2000, name: 'Dashboard XL' }
+    };
+
+    let canvasPreset = designerSettings.page_size || 'dashboard_lg';
+    let showGridlines = designerSettings.show_gridlines !== undefined ? designerSettings.show_gridlines : true;
+    let snapToGrid = designerSettings.snap_to_grid !== undefined ? designerSettings.snap_to_grid : true;
+
+    let widgetsList = [];
+    let queryHistory = [];
+    let currentEditingWidgetId = null;
+    let chartInstances = {};
+    let availableColumns = [];  // V2: populated by smart autopopulate
+    let widgetTablePages = {};  // V2: pagination state per widget
+
+    // ── Page Settings Controls ──
+    function changePageSize(newPreset) {
+      if (!CANVAS_PRESETS[newPreset]) return;
+      canvasPreset = newPreset;
+      
+      const grid = document.getElementById('widgetGrid');
+      const preset = CANVAS_PRESETS[canvasPreset];
+      if (grid) {
+        grid.style.width = `${preset.width}px`;
+        grid.style.height = `${preset.height}px`;
+      }
+      
+      drawRulers();
+      saveDesignerSettings();
+      zoomToFit();
+    }
+
+    function toggleGridlines(visible) {
+      showGridlines = visible;
+      const grid = document.getElementById('widgetGrid');
+      if (grid) {
+        if (showGridlines) {
+          grid.classList.add('show-gridlines');
+        } else {
+          grid.classList.remove('show-gridlines');
+        }
+      }
+      saveDesignerSettings();
+    }
+
+    function toggleSnapToGrid(enabled) {
+      snapToGrid = enabled;
+      saveDesignerSettings();
+    }
+
+    async function saveDesignerSettings() {
+      const payload = {
+        designer_settings: {
+          page_size: canvasPreset,
+          page_width: CANVAS_PRESETS[canvasPreset].width,
+          page_height: CANVAS_PRESETS[canvasPreset].height,
+          show_gridlines: showGridlines,
+          snap_to_grid: snapToGrid
+        }
+      };
+      try {
+        await fetch(`/api/user/dashboards/${dashboardId}/designer-settings`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+      } catch (e) {
+        console.error('Failed to save designer settings:', e);
+      }
+    }
+
+    function drawRulers() {
+      const hr = document.getElementById('horizontalRuler');
+      const vr = document.getElementById('verticalRuler');
+      if (!hr || !vr) return;
+
+      const preset = CANVAS_PRESETS[canvasPreset];
+      const w = preset.width;
+      const h = preset.height;
+
+      // Set display size
+      hr.style.width = `${w}px`;
+      hr.style.height = `20px`;
+      vr.style.width = `20px`;
+      vr.style.height = `${h}px`;
+
+      // Set backing store size
+      const scale = 2; // Fixed high DPI scale for crisp rulers
+      hr.width = w * scale;
+      hr.height = 20 * scale;
+      vr.width = 20 * scale;
+      vr.height = h * scale;
+
+      const ctxH = hr.getContext('2d');
+      const ctxV = vr.getContext('2d');
+
+      ctxH.scale(scale, scale);
+      ctxV.scale(scale, scale);
+
+      const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+      const rulerBg = isDark ? '#1e293b' : '#f8f9fa';
+      const rulerBorder = isDark ? '#475569' : '#cbd5e1';
+      const rulerText = isDark ? '#94a3b8' : '#64748b';
+
+      // Horizontal ruler bg and border
+      ctxH.fillStyle = rulerBg;
+      ctxH.fillRect(0, 0, w, 20);
+      ctxH.strokeStyle = rulerBorder;
+      ctxH.lineWidth = 1;
+      ctxH.beginPath();
+      ctxH.moveTo(0, 20);
+      ctxH.lineTo(w, 20);
+      ctxH.stroke();
+
+      // Vertical ruler bg and border
+      ctxV.fillStyle = rulerBg;
+      ctxV.fillRect(0, 0, 20, h);
+      ctxV.strokeStyle = rulerBorder;
+      ctxV.lineWidth = 1;
+      ctxV.beginPath();
+      ctxV.moveTo(20, 0);
+      ctxV.lineTo(20, h);
+      ctxV.stroke();
+
+      // Setup ticks style
+      ctxH.fillStyle = rulerText;
+      ctxH.font = '8px monospace';
+      ctxH.textAlign = 'center';
+
+      ctxV.fillStyle = rulerText;
+      ctxV.font = '8px monospace';
+      ctxV.textAlign = 'right';
+      ctxV.textBaseline = 'middle';
+
+      const tickStep = 20;
+      const labelStep = 100;
+
+      // Horizontal
+      for (let x = 0; x <= w; x += tickStep) {
+        ctxH.beginPath();
+        ctxH.moveTo(x, 20);
+        if (x % labelStep === 0) {
+          ctxH.lineTo(x, 8);
+          ctxH.fillText(x, x, 6);
+        } else if (x % (labelStep / 2) === 0) {
+          ctxH.lineTo(x, 12);
+        } else {
+          ctxH.lineTo(x, 16);
+        }
+        ctxH.strokeStyle = rulerBorder;
+        ctxH.stroke();
+      }
+
+      // Vertical
+      for (let y = 0; y <= h; y += tickStep) {
+        ctxV.beginPath();
+        ctxV.moveTo(20, y);
+        if (y % labelStep === 0) {
+          ctxV.lineTo(8, y);
+          ctxV.fillText(y, 6, y);
+        } else if (y % (labelStep / 2) === 0) {
+          ctxV.lineTo(12, y);
+        } else {
+          ctxV.lineTo(16, y);
+        }
+        ctxV.strokeStyle = rulerBorder;
+        ctxV.stroke();
+      }
+    }
+
+    // ── Theme Toggle (V2) ──
+    function toggleTheme() {
+      const html = document.documentElement;
+      const isDark = html.getAttribute('data-theme') === 'dark';
+      html.setAttribute('data-theme', isDark ? 'light' : 'dark');
+      localStorage.setItem('ds-theme', isDark ? 'light' : 'dark');
+      document.getElementById('themeLabel').textContent = isDark ? 'Dark' : 'Light';
+      document.getElementById('themeToggle').innerHTML = isDark
+        ? '🌙 <span id="themeLabel" style="font-size:12px;font-weight:600;">Dark</span>'
+        : '☀️ <span id="themeLabel" style="font-size:12px;font-weight:600;">Light</span>';
+      // Redraw charts with correct colors
+      renderWidgets();
+    }
+    // Restore saved theme
+    (function() {
+      const saved = localStorage.getItem('ds-theme');
+      if (saved === 'dark') {
+        document.documentElement.setAttribute('data-theme', 'dark');
+        const btn = document.getElementById('themeToggle');
+        if (btn) btn.innerHTML = '☀️ <span id="themeLabel" style="font-size:12px;font-weight:600;">Light</span>';
+      }
+    })();
+
+    // ── Sidebar Controls ──
+    document.getElementById('sidebarToggle').addEventListener('click', () => {
+      const sb = document.getElementById('sidebar');
+      const isCollapsed = sb.classList.contains('collapsed');
+      if (isCollapsed) {
+        sb.classList.remove('collapsed');
+        sb.classList.add('expanded');
+        localStorage.setItem('sidebarState', 'expanded');
+      } else {
+        sb.classList.remove('expanded');
+        sb.classList.add('collapsed');
+        localStorage.setItem('sidebarState', 'collapsed');
+      }
+    });
+
+    (function() {
+      const savedState = localStorage.getItem('sidebarState') || 'expanded';
+      const sb = document.getElementById('sidebar');
+      if (sb) {
+        if (savedState === 'collapsed') { sb.classList.remove('expanded'); sb.classList.add('collapsed'); }
+        else { sb.classList.remove('collapsed'); sb.classList.add('expanded'); }
+      }
+      document.documentElement.classList.remove('sidebar-collapsed-preload');
+    })();
+
+    // ── Toast Notifications ──
+    function showToast(msg, type='info') {
+      const tc = document.getElementById('toastContainer');
+      const t  = document.createElement('div');
+      t.className = `toast ${type}`;
+      const icons = {success:'✅', info:'ℹ️', warning:'⚠️', error:'❌'};
+      t.innerHTML = `<span>${icons[type]||'ℹ️'}</span><span>${msg}</span>`;
+      tc.appendChild(t);
+      setTimeout(() => { t.style.animation='slideOut 0.3s ease forwards'; setTimeout(()=>t.remove(),300); }, 4000);
+    }
+
+    // ── Switch form layouts in modal ──
+    function toggleWidgetOptions() {
+      const wtype = document.getElementById('widgetTypeSelect').value;
+      document.getElementById('kpiConfigSec').style.display = wtype === 'kpi' ? 'grid' : 'none';
+      document.getElementById('chartConfigSec').style.display = ['bar', 'pie', 'line', 'area'].includes(wtype) ? 'grid' : 'none';
+      document.getElementById('statsConfigSec').style.display = wtype === 'stats' ? 'block' : 'none';
+    }
+
+    // ── Load Page Data ──
+    window.widgetDataCache = {};
+    window.widgetTableState = {};
+
+    async function loadEditorData() {
+      try {
+        const [wRes, hRes] = await Promise.all([
+          fetch(`/api/user/dashboards/${dashboardId}/widgets`),
+          fetch('/api/user/query-history?per_page=100')
+        ]);
+        widgetsList = await wRes.json();
+        const histData = await hRes.json();
+        queryHistory = histData.history || [];
+
+        populateQueryHistoryDropdown();
+        renderWidgets();
+        await loadSmartSurveys();
+      } catch (e) {
+        showToast('Error loading dashboard editor details.', 'error');
+      }
+    }
+
+    // ── V3: Custom Dropdown for Query History with Overflow Fix & Tooltips ──
+    function setQueryHistoryValue(val, text) {
+      const select = document.getElementById('queryHistorySelect');
+      select.value = val;
+      const qhVal = document.getElementById('qhSelectedValue');
+      if (qhVal) {
+        qhVal.textContent = text || '-- Or use Smart Builder below --';
+      }
+      // Highlight selected option visually
+      document.querySelectorAll('.qh-option').forEach(opt => {
+        if (opt.dataset.value === val) opt.classList.add('selected');
+        else opt.classList.remove('selected');
+      });
+    }
+
+    function populateQueryHistoryDropdown() {
+      const select = document.getElementById('queryHistorySelect');
+      const container = document.getElementById('qhOptionsContainer');
+      const successHist = queryHistory.filter(h => ['success', 'completed'].includes((h.status || '').toLowerCase()) && h.dataset && h.table_name);
+
+      // Populate hidden select
+      select.innerHTML = '<option value="">-- Or use Smart Builder below --</option>' +
+        successHist.map((h, i) => `<option value="${i}">DB: ${h.dataset} | T: ${h.table_name}</option>`).join('');
+
+      // Populate custom list
+      let customHtml = '<div class="qh-option" data-value="" title="Clear selection">-- Or use Smart Builder below --</div>';
+      successHist.forEach((h, i) => {
+        const schema = (h.dataset || '').length > 25 ? h.dataset.substring(0, 25) + '…' : h.dataset;
+        const table = (h.table_name || '').length > 20 ? h.table_name.substring(0, 20) + '…' : h.table_name;
+        const filterStr = h.filters ? ` | F: ${h.filters.substring(0, 20)}…` : '';
+        const fullTitle = `DB: ${h.dataset} | Table: ${h.table_name}${h.filters ? ' | Filters: ' + h.filters : ''}`;
+        customHtml += `<div class="qh-option" data-value="${i}" title="${fullTitle}">DB: ${schema} | T: ${table}${filterStr}</div>`;
+      });
+      container.innerHTML = customHtml;
+
+      // Event listener for opening
+      const qhSelect = document.getElementById('qhCustomSelect');
+      const qhVal = document.getElementById('qhSelectedValue');
+      qhVal.onclick = (e) => {
+        e.stopPropagation();
+        container.classList.toggle('active');
+      };
+
+      // Option selection click handlers
+      container.querySelectorAll('.qh-option').forEach(opt => {
+        opt.onclick = (e) => {
+          e.stopPropagation();
+          const val = opt.dataset.value;
+          const text = opt.textContent;
+          setQueryHistoryValue(val, text);
+          container.classList.remove('active');
+          autofillFromHistory();
+        };
+      });
+
+      // Close on clicking outside
+      document.addEventListener('click', (e) => {
+        if (!qhSelect.contains(e.target)) {
+          container.classList.remove('active');
+        }
+      });
+    }
+
+    async function autofillFromHistory() {
+      const idx = document.getElementById('queryHistorySelect').value;
+      if (idx === "") return;
+
+      const successHist = queryHistory.filter(h => ['success', 'completed'].includes((h.status || '').toLowerCase()) && h.dataset && h.table_name);
+      const q = successHist[parseInt(idx)];
+      if (!q) return;
+
+      showToast('Autofilling from query history...', 'info');
+
+      try {
+        let surveyVal = "";
+        let datasetVal = q.dataset || "";
+        let tableVal = q.table_name || "";
+        let columnsVal = "";
+        let filtersVal = q.filters || "";
+
+        if (q.endpoint) {
+          try {
+            const url = new URL(q.endpoint, window.location.origin);
+            const urlParts = url.pathname.split('/');
+            if (urlParts[1] === 'surveys') {
+              surveyVal = decodeURIComponent(urlParts[2]);
+              datasetVal = decodeURIComponent(urlParts[3]);
+              tableVal = decodeURIComponent(urlParts[4]);
+            } else if (urlParts[1] === 'datasets') {
+              datasetVal = decodeURIComponent(urlParts[2]);
+              tableVal = decodeURIComponent(urlParts[3]);
+            }
+            columnsVal = url.searchParams.get('columns') || '';
+            if (!filtersVal) {
+              filtersVal = url.searchParams.get('filters') || '';
+            }
+          } catch(e) {
+            const colMatch = q.endpoint.match(/[?&]columns=([^&]+)/);
+            if (colMatch) columnsVal = decodeURIComponent(colMatch[1]);
+            const filtMatch = q.endpoint.match(/[?&]filters=([^&]+)/);
+            if (filtMatch) filtersVal = decodeURIComponent(filtMatch[1]);
+          }
+        }
+
+        // Locate survey for datasetVal dynamically if not found
+        if (!surveyVal && datasetVal) {
+          try {
+            const surveysRes = await fetch('/surveys');
+            const surveys = await surveysRes.json();
+            for (const s of surveys) {
+              const datasetsRes = await fetch(`/surveys/${s.survey}/datasets`);
+              const datasets = await datasetsRes.json();
+              if (datasets.some(d => d.schema === datasetVal)) {
+                surveyVal = s.survey;
+                break;
+              }
+            }
+          } catch(err) {
+            console.error("Error matching survey:", err);
+          }
+        }
+
+        if (surveyVal) {
+          document.getElementById('surveySelect').value = surveyVal;
+          await onSurveyChange();
+        }
+
+        if (datasetVal) {
+          document.getElementById('schemaSelect').value = datasetVal;
+          await onSchemaChange();
+        }
+
+        if (tableVal) {
+          document.getElementById('tableSelect').value = tableVal;
+          await onTableChange();
+        }
+
+        // Check correct column chips
+        if (columnsVal) {
+          const selCols = columnsVal.split(',').map(c => c.trim()).filter(c => c);
+          const checkboxes = document.querySelectorAll('.col-chip-cb');
+          checkboxes.forEach(cb => {
+            cb.checked = selCols.includes(cb.value);
+          });
+        }
+
+        // Set visual filters
+        if (filtersVal) {
+          document.getElementById('filterRows').innerHTML = '';
+          const logic = filtersVal.toUpperCase().includes(' OR ') ? 'OR' : 'AND';
+          document.getElementById('filterLogic').value = logic;
+
+          const parts = filtersVal.split(/\s+AND\s+|\s+OR\s+/i).map(p => p.trim());
+          parts.forEach(p => {
+            const match = p.match(/^([a-zA-Z0-9_"]+)\s*(=|!=|>=|<=|>|<|LIKE|IN|BETWEEN)\s*(.+)$/i);
+            if (match) {
+              const col = match[1].replace(/"/g, '').trim();
+              const op = match[2].toUpperCase();
+              let val = match[3].trim();
+              if (val.startsWith("'") && val.endsWith("'")) {
+                val = val.substring(1, val.length - 1);
+              }
+              addFilterRow(col, op, val);
+            }
+          });
+        }
+
+        // Automatically populate Chart Config axes and selectors
+        setTimeout(() => {
+          const firstNumCol = availableColumns.find(c => c.data_type === 'numeric')?.column_name;
+          const firstTextCol = availableColumns.find(c => c.data_type !== 'numeric')?.column_name || availableColumns[0]?.column_name;
+          
+          if (firstTextCol) {
+            const lblSel = document.getElementById('chartLabelCol');
+            if (lblSel) lblSel.value = firstTextCol;
+          }
+          if (firstNumCol) {
+            const valSel = document.getElementById('chartValueCol');
+            const kpiSel = document.getElementById('kpiValueCol');
+            const statsSel = document.getElementById('statsValueCol');
+            if (valSel) valSel.value = firstNumCol;
+            if (kpiSel) kpiSel.value = firstNumCol;
+            if (statsSel) statsSel.value = firstNumCol;
+          }
+        }, 300);
+
+        showToast('Autofill complete.', 'success');
+      } catch(e) {
+        console.error(e);
+        showToast('Autofill failed to map all elements.', 'warning');
+      }
+    }
+
+    // ── Smart Builder Catalog retrieval from /surveys APIs ──
+    async function loadSmartSurveys() {
+      const surveySel = document.getElementById('surveySelect');
+      const spinner = document.getElementById('surveySpinner');
+      spinner.style.display = 'block';
+      surveySel.innerHTML = '<option value="">Loading surveys...</option>';
+      try {
+        const res = await fetch('/surveys');
+        const data = await res.json();
+        const items = Array.isArray(data) ? data : [];
+        surveySel.innerHTML = '<option value="">Select survey...</option>' +
+          items.map(s => `<option value="${s.survey}">${s.display_name}</option>`).join('');
+      } catch (e) {
+        surveySel.innerHTML = '<option value="">Error loading surveys</option>';
+      }
+      spinner.style.display = 'none';
+    }
+
+    async function onSurveyChange() {
+      const survey = document.getElementById('surveySelect').value;
+      const schemaSel = document.getElementById('schemaSelect');
+      const tableSel = document.getElementById('tableSelect');
+      const spinner = document.getElementById('schemaSpinner');
+
+      schemaSel.innerHTML = '<option value="">Select dataset...</option>';
+      tableSel.innerHTML = '<option value="">Select table...</option>';
+      availableColumns = [];
+      filterMetadata = [];
+      updateColumnChips();
+      resetTypeSpecificDropdowns();
+      document.getElementById('columnSelectorControls').style.display = 'none';
+      document.getElementById('filterRows').innerHTML = '';
+
+      if (!survey) return;
+      spinner.style.display = 'block';
+      try {
+        const res = await fetch(`/surveys/${survey}/datasets`);
+        const data = await res.json();
+        const items = Array.isArray(data) ? data : [];
+        schemaSel.innerHTML = '<option value="">Select dataset...</option>' +
+          items.map(d => `<option value="${d.schema}">${d.display_name}</option>`).join('');
+      } catch (e) {
+        schemaSel.innerHTML = '<option value="">Error loading datasets</option>';
+      }
+      spinner.style.display = 'none';
+    }
+
+    async function onSchemaChange() {
+      const survey = document.getElementById('surveySelect').value;
+      const schema = document.getElementById('schemaSelect').value;
+      const tableSel = document.getElementById('tableSelect');
+      const spinner = document.getElementById('tableSpinner');
+
+      tableSel.innerHTML = '<option value="">Select table...</option>';
+      availableColumns = [];
+      filterMetadata = [];
+      updateColumnChips();
+      resetTypeSpecificDropdowns();
+      document.getElementById('columnSelectorControls').style.display = 'none';
+      document.getElementById('filterRows').innerHTML = '';
+
+      if (!survey || !schema) return;
+      spinner.style.display = 'block';
+      try {
+        const res = await fetch(`/surveys/${survey}/${encodeURIComponent(schema)}/tables`);
+        const data = await res.json();
+        const items = Array.isArray(data) ? data : [];
+        tableSel.innerHTML = '<option value="">Select table...</option>' +
+          items.map(t => `<option value="${t.table_name}">${t.table_name} (${t.row_count ?? '?'} rows)</option>`).join('');
+      } catch (e) {
+        tableSel.innerHTML = '<option value="">Error loading tables</option>';
+      }
+      spinner.style.display = 'none';
+    }
+
+    async function onTableChange() {
+      const survey = document.getElementById('surveySelect').value;
+      const schema = document.getElementById('schemaSelect').value;
+      const table = document.getElementById('tableSelect').value;
+
+      availableColumns = [];
+      filterMetadata = [];
+      updateColumnChips();
+      resetTypeSpecificDropdowns();
+      document.getElementById('columnSelectorControls').style.display = 'none';
+      document.getElementById('filterRows').innerHTML = '';
+
+      if (!survey || !schema || !table) return;
+
+      try {
+        const [colRes, metaRes] = await Promise.all([
+          fetch(`/surveys/${survey}/${encodeURIComponent(schema)}/${table}/columns`),
+          fetch(`/surveys/${survey}/${encodeURIComponent(schema)}/${table}/filter-metadata`)
+        ]);
+        const cols = await colRes.json();
+        filterMetadata = await metaRes.json();
+
+        const isNumericDataType = (pgType, filterType) => {
+          if (filterType === 'numeric') return true;
+          if (!pgType) return false;
+          const lower = pgType.toLowerCase();
+          return ['numeric', 'integer', 'float', 'decimal', 'double precision', 'real', 'bigint', 'smallint', 'double', 'int'].some(t => lower.includes(t));
+        };
+
+        availableColumns = cols.map(cName => {
+          const meta = filterMetadata.find(m => m.column_name === cName);
+          const isNum = meta ? isNumericDataType(meta.pg_type, meta.filter_type) : false;
+          return {
+            column_name: cName,
+            data_type: isNum ? 'numeric' : 'text'
+          };
+        });
+
+        document.getElementById('columnSelectorControls').style.display = 'flex';
+        updateColumnChips();
+        populateTypeSpecificDropdowns();
+      } catch (e) {
+        console.error('Failed to load table schema info', e);
+      }
+    }
+
+    function updateColumnChips() {
+      const container = document.getElementById('columnChips');
+      if (availableColumns.length === 0) {
+        container.innerHTML = '<span style="color:var(--ds-text-muted); font-size:12px; font-weight:500;">Select survey, dataset & table first...</span>';
+        return;
+      }
+
+      container.innerHTML = availableColumns.map(c => {
+        const isNum = c.data_type === 'numeric';
+        return `<label style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--ds-border);background:var(--ds-card);color:var(--ds-text);transition:all 0.2s;">
+          <input type="checkbox" value="${c.column_name}" class="col-chip-cb" checked style="width:13px;height:13px;accent-color:var(--ds-royal);">
+          ${c.column_name}
+          <span style="font-size:9px;color:var(--ds-text-muted);">${isNum ? '123' : 'Abc'}</span>
+        </label>`;
+      }).join('');
+    }
+
+    function filterColumnsList() {
+      const query = document.getElementById('columnSearchInput').value.toLowerCase().trim();
+      const chips = document.getElementById('columnChips').querySelectorAll('label');
+      chips.forEach(label => {
+        const colName = label.textContent.toLowerCase();
+        if (colName.includes(query)) {
+          label.style.display = 'inline-flex';
+        } else {
+          label.style.display = 'none';
+        }
+      });
+    }
+
+    function selectAllColumns(select) {
+      const chips = document.getElementById('columnChips').querySelectorAll('label');
+      chips.forEach(label => {
+        if (label.style.display !== 'none') {
+          const cb = label.querySelector('input');
+          if (cb) cb.checked = select;
+        }
+      });
+    }
+
+    function populateTypeSpecificDropdowns() {
+      const cols = availableColumns;
+      const numCols = cols.filter(c => c.data_type === 'numeric');
+      const allNames = cols.map(c => c.column_name);
+      const numNames = numCols.map(c => c.column_name);
+
+      // KPI value column
+      const kpiSel = document.getElementById('kpiValueCol');
+      kpiSel.innerHTML = '<option value="">Select column...</option>' +
+        allNames.map(n => `<option value="${n}">${n}</option>`).join('');
+
+      // Chart label (X)
+      const chartLabel = document.getElementById('chartLabelCol');
+      chartLabel.innerHTML = '<option value="">Select column...</option>' +
+        allNames.map(n => `<option value="${n}">${n}</option>`).join('');
+
+      // Chart value (Y)
+      const chartValue = document.getElementById('chartValueCol');
+      chartValue.innerHTML = '<option value="">Select column...</option>' +
+        (numNames.length > 0 ? numNames : allNames).map(n => `<option value="${n}">${n}</option>`).join('');
+
+      // Stats column
+      const statsSel = document.getElementById('statsValueCol');
+      statsSel.innerHTML = '<option value="">Select column...</option>' +
+        (numNames.length > 0 ? numNames : allNames).map(n => `<option value="${n}">${n}</option>`).join('');
+    }
+
+    function resetTypeSpecificDropdowns() {
+      ['kpiValueCol', 'chartLabelCol', 'chartValueCol', 'statsValueCol'].forEach(id => {
+        document.getElementById(id).innerHTML = '<option value="">Select column...</option>';
+      });
+    }
+
+    function getSelectedColumns() {
+      const checkboxes = document.querySelectorAll('.col-chip-cb');
+      if (checkboxes.length === 0) return '';
+      const selected = Array.from(checkboxes).filter(cb => cb.checked).map(cb => cb.value);
+      if (selected.length === checkboxes.length) return '';
+      return selected.join(',');
+    }
+
+    // ── V3: Visual Filter Builder (Replicating Query Page) ──
+    let filterRowId = 0;
+    let filterMetadata = [];
+
+    function getColumnMeta(colName) {
+      return filterMetadata.find(m => m.column_name === colName) || null;
+    }
+
+    function getOperators(filterType) {
+      switch (filterType) {
+        case 'numeric':  return ['=', '!=', '>', '<', '>=', '<=', 'BETWEEN'];
+        case 'categorical': return ['=', 'IN'];
+        case 'text':     return ['=', '!=', 'LIKE'];
+        default:         return ['=', '!=', '>', '<', 'LIKE'];
+      }
+    }
+
+    function addFilterRow(col='', op='=', val='') {
+      if (filterMetadata.length === 0) {
+        showToast('Select a table first to enable filters', 'warning');
+        return;
+      }
+
+      const rowId = filterRowId++;
+      const container = document.getElementById('filterRows');
+      const row = document.createElement('div');
+      row.className = 'filter-row';
+      row.id = `filter-row-${rowId}`;
+      row.dataset.rowId = rowId;
+
+      let colOptions = '<option value="" disabled selected>Column...</option>';
+      filterMetadata.forEach(m => {
+        const lbl = m.label !== m.column_name ? `${m.label} (${m.column_name})` : m.column_name;
+        colOptions += `<option value="${m.column_name}" ${m.column_name === col ? 'selected' : ''}>${lbl}</option>`;
+      });
+
+      row.innerHTML = `
+        <select class="filter-col-select" onchange="onFilterColumnChange(${rowId})" style="font-size: 12px; height: 36px; padding: 6px 10px;">
+          ${colOptions}
+        </select>
+        <select class="filter-op-select" onchange="onFilterOperatorChange(${rowId})" style="font-size: 12px; height: 36px; padding: 6px 10px;">
+          <option value="" disabled selected>Op</option>
+        </select>
+        <div class="filter-value-container" style="flex:1;">
+          <input class="filter-val-input" placeholder="Choose column..." disabled style="width: 100%; font-size: 12px; height: 36px; padding: 6px 10px;">
+        </div>
+        <button type="button" class="filter-remove-btn" onclick="this.parentElement.remove()" style="padding: 4px 8px;">✕</button>
+      `;
+
+      container.appendChild(row);
+
+      if (col) {
+        onFilterColumnChange(rowId);
+        setTimeout(() => {
+          const opSelect = row.querySelector('.filter-op-select');
+          if (opSelect) {
+            opSelect.value = op;
+            onFilterOperatorChange(rowId);
+            setTimeout(() => {
+              const valContainer = row.querySelector('.filter-value-container');
+              if (op === 'BETWEEN') {
+                const parts = Array.isArray(val) ? val : String(val).split(/to/i).map(x => x.trim());
+                const minIn = valContainer.querySelector('.filter-val-min');
+                const maxIn = valContainer.querySelector('.filter-val-max');
+                if (minIn) minIn.value = parts[0] || '';
+                if (maxIn) maxIn.value = parts[1] || '';
+              } else if (op === 'IN') {
+                const parts = Array.isArray(val) ? val : String(val).replace(/[()'[\]]/g, '').split(',').map(x => x.trim());
+                valContainer.querySelectorAll('.cat-option').forEach(opt => {
+                  if (parts.includes(opt.dataset.value)) opt.classList.add('selected');
+                });
+              } else {
+                const inEl = valContainer.querySelector('.filter-val');
+                if (inEl) inEl.value = val;
+              }
+            }, 100);
+          }
+        }, 100);
+      }
+    }
+
+    function onFilterColumnChange(rowId) {
+      const row = document.getElementById(`filter-row-${rowId}`);
+      if (!row) return;
+      const colSelect = row.querySelector('.filter-col-select');
+      const opSelect = row.querySelector('.filter-op-select');
+      const colName = colSelect.value;
+      const meta = getColumnMeta(colName);
+      if (!meta) return;
+
+      const ops = getOperators(meta.filter_type || 'text');
+      opSelect.innerHTML = ops.map((op, i) => `<option value="${op}" ${i === 0 ? 'selected' : ''}>${op}</option>`).join('');
+
+      buildValueInput(rowId, meta, ops[0]);
+    }
+
+    function onFilterOperatorChange(rowId) {
+      const row = document.getElementById(`filter-row-${rowId}`);
+      if (!row) return;
+      const colName = row.querySelector('.filter-col-select').value;
+      const op = row.querySelector('.filter-op-select').value;
+      const meta = getColumnMeta(colName);
+      if (!meta) return;
+      buildValueInput(rowId, meta, op);
+    }
+
+    function buildValueInput(rowId, meta, operator) {
+      const row = document.getElementById(`filter-row-${rowId}`);
+      if (!row) return;
+      const valContainer = row.querySelector('.filter-value-container');
+      const colType = meta.filter_type || 'text';
+
+      if (operator === 'BETWEEN' && colType === 'numeric') {
+        const minVal = meta.statistics?.min ?? '';
+        const maxVal = meta.statistics?.max ?? '';
+        valContainer.innerHTML = `
+          <div class="range-input-group">
+            <input class="filter-val-min" type="number" placeholder="Min (${minVal})" step="any" style="width: 48%; padding: 6px 10px; font-size:12px;">
+            <span class="range-sep">to</span>
+            <input class="filter-val-max" type="number" placeholder="Max (${maxVal})" step="any" style="width: 48%; padding: 6px 10px; font-size:12px;">
+          </div>
+        `;
+      } else if (colType === 'categorical' && meta.categories && (operator === '=' || operator === 'IN')) {
+        const isMulti = operator === 'IN';
+        let html = `<div class="cat-select-grid" data-multi="${isMulti}">`;
+        meta.categories.forEach(cat => {
+          const displayLabel = cat.label && cat.label !== cat.value ? `${cat.label} (${cat.value})` : cat.value;
+          html += `<div class="cat-option" data-value="${cat.value}" onclick="toggleCatOption(this, ${rowId})">${displayLabel}</div>`;
+        });
+        html += '</div>';
+        valContainer.innerHTML = html;
+      } else if (colType === 'numeric') {
+        const ph = meta.statistics?.min != null ? `Range: ${meta.statistics.min} - ${meta.statistics.max}` : 'Enter value...';
+        valContainer.innerHTML = `<input class="filter-val" type="number" placeholder="${ph}" step="any" style="width:100%; padding: 6px 10px; font-size:12px;">`;
+      } else {
+        valContainer.innerHTML = `<input class="filter-val" type="text" placeholder="Enter value..." style="width:100%; padding: 6px 10px; font-size:12px;">`;
+      }
+    }
+
+    function toggleCatOption(el, rowId) {
+      const grid = el.parentElement;
+      const isMulti = grid.dataset.multi === 'true';
+      if (!isMulti) {
+        grid.querySelectorAll('.cat-option').forEach(o => o.classList.remove('selected'));
+      }
+      el.classList.toggle('selected');
+    }
+
+    function readFilterRowValue(rowId) {
+      const row = document.getElementById(`filter-row-${rowId}`);
+      if (!row) return null;
+      const col = row.querySelector('.filter-col-select').value;
+      const op = row.querySelector('.filter-op-select').value;
+      if (!col || !op) return null;
+      const valContainer = row.querySelector('.filter-value-container');
+
+      // BETWEEN
+      const minInput = valContainer.querySelector('.filter-val-min');
+      const maxInput = valContainer.querySelector('.filter-val-max');
+      if (minInput && maxInput) {
+        const minV = minInput.value.trim();
+        const maxV = maxInput.value.trim();
+        if (!minV && !maxV) return null;
+        return { column: col, operator: 'BETWEEN', value: [minV || '0', maxV || '999999'] };
+      }
+
+      // Categorical
+      const catGrid = valContainer.querySelector('.cat-select-grid');
+      if (catGrid) {
+        const selected = Array.from(catGrid.querySelectorAll('.cat-option.selected')).map(o => o.dataset.value);
+        if (selected.length === 0) return null;
+        return { column: col, operator: op, value: selected };
+      }
+
+      // Simple input
+      const simpleInput = valContainer.querySelector('.filter-val');
+      if (simpleInput) {
+        const v = simpleInput.value.trim();
+        if (!v) return null;
+        return { column: col, operator: op, value: v };
+      }
+      return null;
+    }
+
+    function getFiltersString() {
+      const rows = document.querySelectorAll('.filter-row');
+      const active = [];
+      rows.forEach(row => {
+        const rid = parseInt(row.dataset.rowId);
+        const val = readFilterRowValue(rid);
+        if (val) active.push(val);
+      });
+
+      if (active.length === 0) return '';
+      const logic = document.getElementById('filterLogic').value;
+
+      const parts = active.map(f => {
+        const col = f.column;
+        const meta = getColumnMeta(col);
+        const isNum = meta && meta.filter_type === 'numeric';
+        const isCat = meta && meta.filter_type === 'categorical';
+
+        if (f.operator === 'BETWEEN' && Array.isArray(f.value)) {
+          return `${col} >= ${f.value[0]} AND ${col} <= ${f.value[1]}`;
+        }
+        if (f.operator === 'IN' && Array.isArray(f.value)) {
+          const vals = f.value.map(v => isNum ? v : `'${v}'`).join(',');
+          return `${col} IN (${vals})`;
+        }
+        if (f.operator === 'LIKE') {
+          return `LOWER(CAST(${col} AS TEXT)) LIKE LOWER('%${f.value}%')`;
+        }
+        if (!isCat && !isNum && (f.operator === '=' || f.operator === '!=')) {
+          return `LOWER(CAST(${col} AS TEXT)) ${f.operator} LOWER('${f.value}')`;
+        }
+        const quotedVal = isNum ? f.value : `'${f.value}'`;
+        return `${col} ${f.operator} ${quotedVal}`;
+      });
+
+      return parts.join(` ${logic} `);
+    }
+
+    // ── Zoom & Pan State ──
+    let zoom = 1.0;
+    let panX = 0;
+    let panY = 0;
+    let isPanning = false;
+    let startPanX = 0;
+    let startPanY = 0;
+
+    // Initialize Canvas Viewport Panning and Zooming
+    document.addEventListener('DOMContentLoaded', () => {
+      const viewport = document.getElementById('canvasViewport');
+      if (!viewport) return;
+
+      // Mouse Wheel Zoom (Ctrl + Wheel) and Scroll Pan
+      viewport.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        if (e.ctrlKey) {
+          // Zoom focused on mouse pointer
+          const rect = viewport.getBoundingClientRect();
+          const mouseX = e.clientX - rect.left;
+          const mouseY = e.clientY - rect.top;
+          
+          const canvasX = (mouseX - panX) / zoom;
+          const canvasY = (mouseY - panY) / zoom;
+          
+          const zoomFactor = 1.1;
+          const nextZoom = e.deltaY < 0 ? zoom * zoomFactor : zoom / zoomFactor;
+          zoom = Math.max(0.15, Math.min(3.0, nextZoom));
+          
+          panX = mouseX - canvasX * zoom;
+          panY = mouseY - canvasY * zoom;
+        } else {
+          // Pan
+          panX -= e.deltaX;
+          panY -= e.deltaY;
+        }
+        updateCanvasTransform();
+      }, { passive: false });
+
+      // Drag to Pan Canvas
+      viewport.addEventListener('mousedown', (e) => {
+        const grid = document.getElementById('widgetGrid');
+        if (e.target === viewport || e.target === grid) {
+          isPanning = true;
+          startPanX = e.clientX - panX;
+          startPanY = e.clientY - panY;
+          viewport.style.cursor = 'grabbing';
+        }
+      });
+
+      window.addEventListener('mousemove', (e) => {
+        if (isPanning) {
+          panX = e.clientX - startPanX;
+          panY = e.clientY - startPanY;
+          updateCanvasTransform();
+        }
+      });
+
+      window.addEventListener('mouseup', () => {
+        if (isPanning) {
+          isPanning = false;
+          viewport.style.cursor = 'grab';
+        }
+      });
+    });
+
+    function zoomIn() {
+      zoom = Math.min(3.0, zoom + 0.1);
+      updateCanvasTransform();
+    }
+
+    function zoomOut() {
+      zoom = Math.max(0.15, zoom - 0.1);
+      updateCanvasTransform();
+    }
+
+    function zoomReset() {
+      zoom = 1.0;
+      const viewport = document.getElementById('canvasViewport');
+      const preset = CANVAS_PRESETS[canvasPreset] || CANVAS_PRESETS['dashboard_lg'];
+      if (viewport) {
+        const vRect = viewport.getBoundingClientRect();
+        panX = (vRect.width - preset.width) / 2;
+        panY = (vRect.height - preset.height) / 2;
+      } else {
+        panX = 0;
+        panY = 0;
+      }
+      updateCanvasTransform();
+    }
+
+    function zoomToFit() {
+      const viewport = document.getElementById('canvasViewport');
+      const grid = document.getElementById('widgetGrid');
+      if (!viewport || !grid) return;
+      
+      const vRect = viewport.getBoundingClientRect();
+      const preset = CANVAS_PRESETS[canvasPreset] || CANVAS_PRESETS['dashboard_lg'];
+      
+      const padding = 40;
+      const zoomX = (vRect.width - padding) / preset.width;
+      const zoomY = (vRect.height - padding) / preset.height;
+      zoom = Math.min(1.5, Math.min(zoomX, zoomY));
+      zoom = Math.max(0.15, Math.round(zoom * 20) / 20);
+      
+      panX = (vRect.width - preset.width * zoom) / 2;
+      panY = (vRect.height - preset.height * zoom) / 2;
+      
+      updateCanvasTransform();
+    }
+
+    function initCentering() {
+      const viewport = document.getElementById('canvasViewport');
+      const grid = document.getElementById('widgetGrid');
+      if (!viewport || !grid) return;
+      
+      const vRect = viewport.getBoundingClientRect();
+      const preset = CANVAS_PRESETS[canvasPreset] || CANVAS_PRESETS['dashboard_lg'];
+      
+      const padding = 60;
+      const zoomX = (vRect.width - padding) / preset.width;
+      const zoomY = (vRect.height - padding) / preset.height;
+      zoom = Math.min(1.0, Math.min(zoomX, zoomY));
+      zoom = Math.max(0.25, Math.round(zoom * 20) / 20);
+      
+      panX = (vRect.width - preset.width * zoom) / 2;
+      panY = (vRect.height - preset.height * zoom) / 2;
+      
+      updateCanvasTransform();
+    }
+
+    function updateCanvasTransform() {
+      const grid = document.getElementById('widgetGrid');
+      if (grid) {
+        grid.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+      }
+      const label = document.getElementById('zoomLabel');
+      if (label) {
+        label.textContent = `${Math.round(zoom * 100)}%`;
+      }
+    }
+
+    // ── Pointer Drag & Resize Handling ──
+    let activeWidgetId = null;
+    let actionType = null; // 'move', 't', 'b', 'l', 'r', 'tl', 'tr', 'bl', 'br'
+    let startMouseX = 0;
+    let startMouseY = 0;
+    let startWidgetX = 0;
+    let startWidgetY = 0;
+    let startWidgetW = 0;
+    let startWidgetH = 0;
+
+    function handleWidgetPointerDown(e, wid, action) {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      activeWidgetId = wid;
+      actionType = action;
+      
+      const w = widgetsList.find(item => item.id === wid);
+      if (!w) return;
+      if (!w.layout_config) w.layout_config = {};
+      
+      startMouseX = e.clientX;
+      startMouseY = e.clientY;
+      
+      startWidgetX = w.layout_config.x !== undefined ? w.layout_config.x : 24;
+      startWidgetY = w.layout_config.y !== undefined ? w.layout_config.y : 24;
+      startWidgetW = w.layout_config.width || 400;
+      startWidgetH = w.layout_config.height || 300;
+      
+      document.body.classList.add('is-dragging');
+      
+      window.addEventListener('pointermove', handleWidgetPointerMove);
+      window.addEventListener('pointerup', handleWidgetPointerUp);
+    }
+
+    function handleWidgetPointerMove(e) {
+      if (!activeWidgetId || !actionType) return;
+      
+      const w = widgetsList.find(item => item.id === activeWidgetId);
+      if (!w) return;
+      
+      const dx = (e.clientX - startMouseX) / zoom;
+      const dy = (e.clientY - startMouseY) / zoom;
+      
+      const card = document.querySelector(`[data-widget-id="${activeWidgetId}"]`);
+      if (!card) return;
+      
+      const preset = CANVAS_PRESETS[canvasPreset] || CANVAS_PRESETS['dashboard_lg'];
+
+      if (actionType === 'move') {
+        let newX = startWidgetX + dx;
+        let newY = startWidgetY + dy;
+        
+        if (snapToGrid) {
+          newX = Math.round(newX / 20) * 20;
+          newY = Math.round(newY / 20) * 20;
+        }
+        
+        newX = Math.max(0, Math.min(preset.width - startWidgetW, newX));
+        newY = Math.max(0, Math.min(preset.height - startWidgetH, newY));
+        w.layout_config.x = newX;
+        w.layout_config.y = newY;
+        
+        card.style.left = `${newX}px`;
+        card.style.top = `${newY}px`;
+      } else {
+        // Resizing
+        let newWidth = startWidgetW;
+        let newHeight = startWidgetH;
+        let newX = startWidgetX;
+        let newY = startWidgetY;
+        
+        // Width Sizing
+        if (actionType.includes('r')) {
+          let targetW = startWidgetW + dx;
+          if (snapToGrid) targetW = Math.round(targetW / 20) * 20;
+          newWidth = Math.max(200, Math.min(preset.width - startWidgetX, targetW));
+        } else if (actionType.includes('l')) {
+          let targetX = startWidgetX + dx;
+          if (snapToGrid) targetX = Math.round(targetX / 20) * 20;
+          const maxShift = startWidgetX + startWidgetW - 200;
+          const shiftX = Math.max(-startWidgetX, Math.min(maxShift, targetX - startWidgetX));
+          newX = startWidgetX + shiftX;
+          newWidth = startWidgetW - shiftX;
+        }
+        
+        // Height Sizing
+        if (actionType.includes('b')) {
+          let targetH = startWidgetH + dy;
+          if (snapToGrid) targetH = Math.round(targetH / 20) * 20;
+          newHeight = Math.max(180, Math.min(preset.height - startWidgetY, targetH));
+        } else if (actionType.includes('t')) {
+          let targetY = startWidgetY + dy;
+          if (snapToGrid) targetY = Math.round(targetY / 20) * 20;
+          const maxShift = startWidgetY + startWidgetH - 180;
+          const shiftY = Math.max(-startWidgetY, Math.min(maxShift, targetY - startWidgetY));
+          newY = startWidgetY + shiftY;
+          newHeight = startWidgetH - shiftY;
+        }
+        
+        w.layout_config.width = newWidth;
+        w.layout_config.height = newHeight;
+        w.layout_config.x = newX;
+        w.layout_config.y = newY;
+        
+        card.style.width = `${newWidth}px`;
+        card.style.height = `${newHeight}px`;
+        card.style.left = `${newX}px`;
+        card.style.top = `${newY}px`;
+        
+        // Resize Chart Instance
+        if (chartInstances[activeWidgetId]) {
+          chartInstances[activeWidgetId].resize();
+        }
+      }
+    }
+
+    function handleWidgetPointerUp(e) {
+      window.removeEventListener('pointermove', handleWidgetPointerMove);
+      window.removeEventListener('pointerup', handleWidgetPointerUp);
+      
+      document.body.classList.remove('is-dragging');
+      
+      activeWidgetId = null;
+      actionType = null;
+      
+      // Schedule layout save
+      debouncedSaveLayout();
+    }
+
+    // ── Debounced Auto-Save ──
+    let saveLayoutTimeout = null;
+    function debouncedSaveLayout() {
+      const btn = document.querySelector('[onclick="saveGridLayout()"]');
+      if (btn) {
+        btn.innerHTML = '<span>⏳</span> Changes Pending...';
+      }
+      clearTimeout(saveLayoutTimeout);
+      saveLayoutTimeout = setTimeout(saveGridLayout, 2000);
+    }
+
+    // ── Packing Algorithm to convert grid to canvas coordinates ──
+    function convertGridLayoutToCanvas(widgets) {
+      const sorted = [...widgets].sort((a, b) => {
+        const orderA = a.layout_config?.order !== undefined ? a.layout_config.order : 999;
+        const orderB = b.layout_config?.order !== undefined ? b.layout_config.order : 999;
+        return orderA - orderB;
+      });
+
+      const preset = CANVAS_PRESETS[canvasPreset] || CANVAS_PRESETS['dashboard_lg'];
+      
+      const GAP = 20;
+      let numCols = 4;
+      if (preset.width < 600) numCols = 2;
+      else if (preset.width < 1000) numCols = 3;
+      else if (preset.width < 1500) numCols = 4;
+      else numCols = 5;
+
+      const COL_WIDTH = Math.floor((preset.width - (numCols + 1) * GAP) / numCols);
+      const ROW_HEIGHT = Math.min(280, Math.floor(COL_WIDTH * 0.8));
+      
+      let gridMatrix = [];
+      for (let r = 0; r < 200; r++) {
+        const rowArr = [];
+        for (let c = 0; c < numCols; c++) rowArr.push(false);
+        gridMatrix.push(rowArr);
+      }
+
+      sorted.forEach(w => {
+        let layout = w.layout_config || {};
+        if (layout.x !== undefined && layout.y !== undefined) {
+          if (layout.width === undefined) layout.width = COL_WIDTH * 2;
+          if (layout.height === undefined) layout.height = ROW_HEIGHT;
+          return;
+        }
+
+        const spanX = Math.max(1, Math.min(numCols, parseInt(layout.width) || 2));
+        const spanY = Math.max(1, Math.min(4, parseInt(layout.height) || 1));
+
+        let found = false;
+        let targetRow = 0;
+        let targetCol = 0;
+
+        for (let r = 0; r < 200 && !found; r++) {
+          for (let c = 0; c <= numCols - spanX && !found; c++) {
+            let fits = true;
+            for (let dr = 0; dr < spanY; dr++) {
+              for (let dc = 0; dc < spanX; dc++) {
+                if (gridMatrix[r + dr] && gridMatrix[r + dr][c + dc]) {
+                  fits = false;
+                  break;
+                }
+              }
+              if (!fits) break;
+            }
+
+            if (fits) {
+              targetRow = r;
+              targetCol = c;
+              found = true;
+              for (let dr = 0; dr < spanY; dr++) {
+                for (let dc = 0; dc < spanX; dc++) {
+                  gridMatrix[r + dr][c + dc] = true;
+                }
+              }
+            }
+          }
+        }
+
+        const pixelX = GAP + targetCol * (COL_WIDTH + GAP);
+        const pixelY = GAP + targetRow * (ROW_HEIGHT + GAP);
+        const pixelW = spanX * COL_WIDTH + (spanX - 1) * GAP;
+        const pixelH = spanY * ROW_HEIGHT + (spanY - 1) * GAP;
+
+        if (!w.layout_config) w.layout_config = {};
+        w.layout_config.x = Math.round(pixelX);
+        w.layout_config.y = Math.round(pixelY);
+        w.layout_config.width = Math.round(pixelW);
+        w.layout_config.height = Math.round(pixelH);
+      });
+    }
+
+    // ── Helper functions for color generation ──
+    function hexToRgb(hex) {
+      const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+      return result ? {
+        r: parseInt(result[1], 16),
+        g: parseInt(result[2], 16),
+        b: parseInt(result[3], 16)
+      } : { r: 46, g: 91, b: 186 };
+    }
+
+    function rgbToHex(r, g, b) {
+      return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+    }
+
+    function generateColorRange(color1, color2, steps) {
+      const rgb1 = hexToRgb(color1);
+      const rgb2 = hexToRgb(color2);
+      const result = [];
+      if (steps <= 1) return [color1];
+      for (let i = 0; i < steps; i++) {
+        const ratio = i / (steps - 1);
+        const r = Math.round(rgb1.r + ratio * (rgb2.r - rgb1.r));
+        const g = Math.round(rgb1.g + ratio * (rgb2.g - rgb1.g));
+        const b = Math.round(rgb1.b + ratio * (rgb2.b - rgb1.b));
+        result.push(rgbToHex(r, g, b));
+      }
+      return result;
+    }
+
+    function generateColorShades(color, steps) {
+      const rgb = hexToRgb(color);
+      const result = [];
+      for (let i = 0; i < steps; i++) {
+        const factor = 1 - (i * 0.4 / Math.max(1, steps - 1));
+        const r = Math.max(0, Math.min(255, Math.round(rgb.r * factor)));
+        const g = Math.max(0, Math.min(255, Math.round(rgb.g * factor)));
+        const b = Math.max(0, Math.min(255, Math.round(rgb.b * factor)));
+        result.push(rgbToHex(r, g, b));
+      }
+      return result;
+    }
+
+    function hexToRgba(hex, alpha) {
+      const rgb = hexToRgb(hex);
+      return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
+    }
+
+    // ── Helper functions for Zoom and Color persistence ──
+    async function updateWidgetConfig(wid, configUpdates) {
+      const w = widgetsList.find(item => item.id === wid);
+      if (!w) return;
+      if (!w.chart_config) w.chart_config = {};
+      w.chart_config = { ...w.chart_config, ...configUpdates };
+
+      const payload = {
+        title: w.title,
+        widget_type: w.widget_type,
+        schema_name: w.schema_name,
+        table_name: w.table_name,
+        columns: w.columns || '',
+        filters: w.filters || '',
+        chart_config: w.chart_config,
+        layout_config: w.layout_config
+      };
+
+      try {
+        const res = await fetch(`/api/user/dashboards/${dashboardId}/widgets/${wid}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+          showToast('Widget updated.', 'success');
+          if (window.widgetDataCache[wid]) {
+            renderWidgetContent(wid, w.widget_type, window.widgetDataCache[wid], w.chart_config);
+          } else {
+            fetchWidgetData(wid, w.widget_type, w.chart_config);
+          }
+        } else {
+          showToast('Failed to update config.', 'error');
+        }
+      } catch (e) {
+        console.error(e);
+        showToast('Error updating widget config.', 'error');
+      }
+    }
+
+    function toggleColorPopover(wid, event) {
+      if (event) {
+        event.stopPropagation();
+        event.preventDefault();
+      }
+      document.querySelectorAll('.color-picker-popover').forEach(pop => {
+        if (pop.id !== `color-popover-${wid}`) {
+          pop.style.display = 'none';
+        }
+      });
+      const pop = document.getElementById(`color-popover-${wid}`);
+      if (pop) {
+        pop.style.display = pop.style.display === 'none' ? 'block' : 'none';
+      }
+    }
+
+    function applyWidgetColors(wid) {
+      const primary = document.getElementById(`primary-color-${wid}`).value;
+      const useSecondary = document.getElementById(`use-secondary-${wid}`).checked;
+      const secondary = useSecondary ? document.getElementById(`secondary-color-${wid}`).value : null;
+
+      updateWidgetConfig(wid, {
+        primary_color: primary,
+        secondary_color: secondary
+      });
+
+      const pop = document.getElementById(`color-popover-${wid}`);
+      if (pop) pop.style.display = 'none';
+    }
+
+    function zoomWidget(wid, direction) {
+      const w = widgetsList.find(item => item.id === wid);
+      if (!w) return;
+      if (!w.chart_config) w.chart_config = {};
+
+      let currentZoom = w.chart_config.zoom || 100;
+      let nextZoom = currentZoom;
+
+      if (direction === 'in') {
+        nextZoom = Math.min(200, currentZoom + 25);
+      } else if (direction === 'out') {
+        nextZoom = Math.max(100, currentZoom - 25);
+      } else if (direction === 'reset') {
+        nextZoom = 100;
+      }
+
+      updateWidgetConfig(wid, { zoom: nextZoom });
+    }
+
+    // ── Widget Rendering ──
+    function renderWidgets(fetchData = false) {
+      const grid = document.getElementById('widgetGrid');
+      const empty = document.getElementById('noWidgetsState');
+
+      Object.values(chartInstances).forEach(chart => chart.destroy());
+      chartInstances = {};
+
+      if (widgetsList.length === 0) {
+        grid.style.display = 'none';
+        empty.style.display = 'block';
+        return;
+      }
+
+      grid.style.display = 'block'; // Canvas mode is absolute position block
+      empty.style.display = 'none';
+      grid.innerHTML = '';
+
+      // Convert grid-based layout to pixel coordinates if missing
+      convertGridLayoutToCanvas(widgetsList);
+
+      widgetsList.forEach((w, index) => {
+        const layout = w.layout_config || {};
+        const card = document.createElement('div');
+        card.className = 'widget-card';
+        card.style.left = `${layout.x !== undefined ? layout.x : 24}px`;
+        card.style.top = `${layout.y !== undefined ? layout.y : 24}px`;
+        card.style.width = `${layout.width || 400}px`;
+        card.style.height = `${layout.height || 300}px`;
+        
+        card.setAttribute('data-widget-id', w.id);
+        card.setAttribute('data-widget-index', index);
+
+        const isChart = ['bar', 'pie', 'line', 'area'].includes(w.widget_type);
+        const colorPickerHtml = isChart ? `<button class="w-ctrl-btn" onclick="toggleColorPopover(${w.id}, event)" title="Chart Colors">🎨</button>` : '';
+        const zoomHtml = isChart ? `
+          <button class="w-ctrl-btn" onclick="zoomWidget(${w.id}, 'out')" title="Zoom Out">➖</button>
+          <button class="w-ctrl-btn" onclick="zoomWidget(${w.id}, 'in')" title="Zoom In">➕</button>
+          <button class="w-ctrl-btn" onclick="zoomWidget(${w.id}, 'reset')" title="Reset Zoom">⟲</button>
+        ` : '';
+
+        card.innerHTML = `
+          <div class="widget-header">
+            <div style="display:flex;align-items:center;gap:8px;overflow:hidden;flex:1;">
+              <div class="drag-handle" onpointerdown="handleWidgetPointerDown(event, ${w.id}, 'move')" title="Drag to move">
+                <div class="drag-handle-dots"><span></span><span></span><span></span></div>
+              </div>
+              <div class="widget-title-text" title="${w.title}">${w.title || 'Widget'}</div>
+              <div class="widget-type-badge">${w.widget_type}</div>
+            </div>
+            <div class="widget-controls" style="position: relative; display: flex; align-items: center; gap: 2px;">
+              ${colorPickerHtml}
+              ${zoomHtml}
+              <button class="w-ctrl-btn" onclick="openWidgetModal(${w.id})" title="Edit">✏</button>
+              <button class="w-ctrl-btn" onclick="deleteWidget(${w.id})" style="color:var(--ds-danger);" title="Delete">✕</button>
+
+              <!-- Color Popover -->
+              ${isChart ? `
+              <div id="color-popover-${w.id}" class="color-picker-popover" style="display:none; position:absolute; right:10px; top:36px; background:var(--ds-card); border:2px solid var(--ds-border); border-radius:12px; padding:12px; z-index:10000; box-shadow:0 8px 24px rgba(0,0,0,0.15); width:180px; text-align:left;">
+                <div style="font-size:11px; font-weight:700; text-transform:uppercase; margin-bottom:8px; color:var(--ds-text-muted);">Chart Colors</div>
+                <div style="display:flex; flex-direction:column; gap:8px;">
+                  <div style="display:flex; align-items:center; justify-content:space-between;">
+                    <span style="font-size:11.5px; font-weight:600; color:var(--ds-text);">Primary:</span>
+                    <input type="color" id="primary-color-${w.id}" value="${w.chart_config?.primary_color || '#2E5BBA'}" style="border:none; width:36px; height:24px; cursor:pointer; background:none; padding:0;">
+                  </div>
+                  <div style="display:flex; align-items:center; justify-content:space-between;">
+                    <span style="font-size:11.5px; font-weight:600; color:var(--ds-text);">Secondary:</span>
+                    <div style="display:flex; align-items:center; gap:4px;">
+                      <input type="checkbox" id="use-secondary-${w.id}" ${w.chart_config?.secondary_color ? 'checked' : ''} onchange="document.getElementById('secondary-color-${w.id}').disabled = !this.checked" style="width:12px; height:12px; cursor:pointer;">
+                      <input type="color" id="secondary-color-${w.id}" value="${w.chart_config?.secondary_color || '#2E7D32'}" ${w.chart_config?.secondary_color ? '' : 'disabled'} style="border:none; width:36px; height:24px; cursor:pointer; background:none; padding:0;">
+                    </div>
+                  </div>
+                  <div style="display:flex; gap:6px; margin-top:4px;">
+                    <button class="btn btn-ghost" style="flex:1; font-size:10px; padding:4px;" onclick="toggleColorPopover(${w.id}, event)">Cancel</button>
+                    <button class="btn btn-primary" style="flex:1; font-size:10px; padding:4px;" onclick="applyWidgetColors(${w.id})">Apply</button>
+                  </div>
+                </div>
+              </div>
+              ` : ''}
+            </div>
+          </div>
+          <div class="widget-body" id="wbody-${w.id}">
+            <div class="loading-widget">Loading widget data...</div>
+          </div>
+          <!-- 8-way resize handles -->
+          <div class="resize-handle resize-handle-t" onpointerdown="handleWidgetPointerDown(event, ${w.id}, 't')"></div>
+          <div class="resize-handle resize-handle-b" onpointerdown="handleWidgetPointerDown(event, ${w.id}, 'b')"></div>
+          <div class="resize-handle resize-handle-l" onpointerdown="handleWidgetPointerDown(event, ${w.id}, 'l')"></div>
+          <div class="resize-handle resize-handle-r" onpointerdown="handleWidgetPointerDown(event, ${w.id}, 'r')"></div>
+          <div class="resize-handle resize-handle-tl" onpointerdown="handleWidgetPointerDown(event, ${w.id}, 'tl')"></div>
+          <div class="resize-handle resize-handle-tr" onpointerdown="handleWidgetPointerDown(event, ${w.id}, 'tr')"></div>
+          <div class="resize-handle resize-handle-bl" onpointerdown="handleWidgetPointerDown(event, ${w.id}, 'bl')"></div>
+          <div class="resize-handle resize-handle-br" onpointerdown="handleWidgetPointerDown(event, ${w.id}, 'br')"></div>
+        `;
+
+        grid.appendChild(card);
+
+        // Stop Request Loops: Render using cache if available and fetchData is false
+        if (!fetchData && window.widgetDataCache[w.id]) {
+          renderWidgetContent(w.id, w.widget_type, window.widgetDataCache[w.id], w.chart_config);
+        } else {
+          fetchWidgetData(w.id, w.widget_type, w.chart_config);
+        }
+      });
+    }
+
+    async function fetchWidgetData(wid, wtype, chartConfig) {
+      try {
+        const res = await fetch(`/api/user/dashboards/${dashboardId}/widgets/${wid}/data`);
+        const data = await res.json();
+        window.widgetDataCache[wid] = data; // Cache results
+        renderWidgetContent(wid, wtype, data, chartConfig);
+      } catch (e) {
+        document.getElementById(`wbody-${wid}`).innerHTML = '<div class="loading-widget" style="color:var(--ds-danger)">Failed to load data.</div>';
+      }
+    }
+
+    function renderWidgetContent(wid, wtype, data, chartConfig) {
+      const container = document.getElementById(`wbody-${wid}`);
+      if (!data || !data.rows || data.rows.length === 0) {
+        container.innerHTML = `<div class="loading-widget" style="flex-direction:column;gap:8px;">
+          <span style="font-size:24px;">📭</span>
+          <span>No data returned. Check query parameters.</span>
+        </div>`;
+        return;
+      }
+
+      const rows = data.rows;
+      const columns = data.columns;
+
+      if (wtype === 'kpi') {
+        const kpiValCol = chartConfig.value_column || columns[0];
+        const agg = chartConfig.aggregation || 'count';
+
+        let value = 0;
+        if (agg === 'count') {
+          value = rows.length;
+        } else {
+          const vals = rows.map(r => parseFloat(r[kpiValCol])).filter(v => !isNaN(v));
+          if (vals.length === 0) {
+            value = '—';
+          } else if (agg === 'sum') {
+            value = vals.reduce((a, b) => a + b, 0).toLocaleString(undefined, {maximumFractionDigits:1});
+          } else if (agg === 'avg') {
+            value = (vals.reduce((a, b) => a + b, 0) / vals.length).toLocaleString(undefined, {maximumFractionDigits:1});
+          } else if (agg === 'min') {
+            value = Math.min(...vals).toLocaleString(undefined, {maximumFractionDigits:1});
+          } else if (agg === 'max') {
+            value = Math.max(...vals).toLocaleString(undefined, {maximumFractionDigits:1});
+          } else {
+            value = rows[0][kpiValCol] !== undefined ? rows[0][kpiValCol] : '—';
+          }
+        }
+
+        container.innerHTML = `
+          <div class="kpi-container">
+            <div class="kpi-value">${value}</div>
+            <div class="kpi-label">${chartConfig.value_column || 'Rows'} (${agg.toUpperCase()})</div>
+          </div>
+        `;
+      }
+      else if (wtype === 'stats') {
+        const numCol = chartConfig.value_column || columns.find(c => typeof rows[0][c] === 'number') || columns[0];
+        const vals = rows.map(r => parseFloat(r[numCol])).filter(v => !isNaN(v));
+
+        if (vals.length === 0) {
+          container.innerHTML = '<div class="loading-widget">No numeric column data.</div>';
+          return;
+        }
+
+        const count = vals.length;
+        const sum = vals.reduce((a,b) => a+b, 0);
+        const mean = sum / count;
+        const min = Math.min(...vals);
+        const max = Math.max(...vals);
+        const sorted = [...vals].sort((a,b) => a-b);
+        const median = sorted.length % 2 === 0
+          ? (sorted[sorted.length/2 - 1] + sorted[sorted.length/2]) / 2
+          : sorted[Math.floor(sorted.length/2)];
+
+        container.innerHTML = `
+          <div class="stat-list">
+            <div style="font-size:12px; font-weight:700; color:var(--ds-royal); margin-bottom:8px;">Column: ${numCol}</div>
+            <div class="stat-row"><span class="stat-lbl">Count</span><span class="stat-val">${count.toLocaleString()}</span></div>
+            <div class="stat-row"><span class="stat-lbl">Sum</span><span class="stat-val">${sum.toLocaleString(undefined,{maximumFractionDigits:1})}</span></div>
+            <div class="stat-row"><span class="stat-lbl">Mean</span><span class="stat-val">${mean.toLocaleString(undefined,{maximumFractionDigits:2})}</span></div>
+            <div class="stat-row"><span class="stat-lbl">Median</span><span class="stat-val">${median.toLocaleString(undefined,{maximumFractionDigits:2})}</span></div>
+            <div class="stat-row"><span class="stat-lbl">Min</span><span class="stat-val">${min.toLocaleString(undefined,{maximumFractionDigits:1})}</span></div>
+            <div class="stat-row"><span class="stat-lbl">Max</span><span class="stat-val">${max.toLocaleString(undefined,{maximumFractionDigits:1})}</span></div>
+          </div>
+        `;
+      }
+      else if (wtype === 'table') {
+        window.widgetDataCache[wid] = data;
+        const pageSize = window.widgetTableState[wid]?.pageSize || 10;
+        window.renderWidgetTablePage(wid, 0, pageSize);
+      }
+      else if (['bar', 'pie', 'line', 'area'].includes(wtype)) {
+        const xCol = chartConfig.label_column || columns[0];
+        const yCol = chartConfig.value_column || columns[1] || columns[0];
+
+        const chartTypeParam = (wtype === 'area' || wtype === 'line') ? 'line' : (wtype === 'pie' ? 'pie' : 'bar');
+        const chartRes = prepareChartData(rows, xCol, yCol, chartTypeParam, chartConfig.aggregation || 'none');
+        let chartLabels = chartRes.labels || [];
+        let chartData = chartRes.datasets && chartRes.datasets[0] ? chartRes.datasets[0].data : [];
+
+        const zoomLevel = chartConfig.zoom || 100;
+
+        container.innerHTML = `
+          <div class="chart-zoom-outer-wrapper" style="width: 100%; height: 100%; overflow: hidden; display: flex; align-items: center; justify-content: center; min-height: 180px;">
+            <div id="chart-wrapper-${wid}" class="chart-wrapper" style="position: relative; width: 100%; height: 100%; transform: scale(${zoomLevel / 100}); transform-origin: center; transition: transform 0.2s;">
+              <canvas id="chart-canvas-${wid}"></canvas>
+            </div>
+          </div>
+        `;
+
+        const ctx = document.getElementById(`chart-canvas-${wid}`).getContext('2d');
+        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+
+        const palette = ['#2E7D32','#2E5BBA','#F4A300','#7B1FA2','#F57C00','#1976D2','#D32F2F','#00796B','#C2185B','#455A64','#0288D1','#827717','#AD1457','#00838F','#E65100'];
+
+        // Custom chart colors
+        let customBg = null;
+        let customBorder = null;
+
+        if (chartConfig && chartConfig.primary_color) {
+          const prim = chartConfig.primary_color;
+          const sec = chartConfig.secondary_color;
+
+          if (wtype === 'pie') {
+            customBg = sec ? generateColorRange(prim, sec, chartData.length) : generateColorShades(prim, chartData.length);
+            customBorder = '#fff';
+          } else if (wtype === 'bar') {
+            if (sec) {
+              const gradient = ctx.createLinearGradient(0, 0, 0, 200);
+              gradient.addColorStop(0, prim);
+              gradient.addColorStop(1, sec);
+              customBg = gradient;
+            } else {
+              customBg = prim;
+            }
+            customBorder = prim;
+          } else if (wtype === 'area') {
+            if (sec) {
+              const gradient = ctx.createLinearGradient(0, 0, 0, 200);
+              gradient.addColorStop(0, hexToRgba(prim, 0.4));
+              gradient.addColorStop(1, hexToRgba(sec, 0.05));
+              customBg = gradient;
+            } else {
+              customBg = hexToRgba(prim, 0.25);
+            }
+            customBorder = prim;
+          } else if (wtype === 'line') {
+            customBg = prim;
+            customBorder = prim;
+          }
+        }
+
+        let type = wtype === 'area' ? 'line' : wtype;
+        let datasetConfig = {
+          label: chartRes.datasets && chartRes.datasets[0] ? (chartRes.datasets[0].label || yCol) : yCol,
+          data: chartData,
+          backgroundColor: customBg || (wtype === 'pie' ? palette : (isDark ? 'rgba(96,165,250,0.7)' : '#2E5BBA')),
+          borderColor: customBorder || (wtype === 'pie' ? '#fff' : (isDark ? '#60a5fa' : '#2E5BBA')),
+          borderWidth: 2,
+          borderRadius: wtype === 'bar' ? 6 : 0,
+        };
+
+        if (wtype === 'area') {
+          type = 'line';
+          datasetConfig.fill = true;
+          if (!customBg) {
+            datasetConfig.backgroundColor = isDark ? 'rgba(96,165,250,0.15)' : 'rgba(46, 91, 186, 0.15)';
+          }
+          datasetConfig.tension = 0.4;
+        }
+        if (wtype === 'line') {
+          datasetConfig.tension = 0.3;
+        }
+
+        chartInstances[wid] = new Chart(ctx, {
+          type: type,
+          data: {
+            labels: chartLabels,
+            datasets: [datasetConfig]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: wtype === 'pie', labels: { color: isDark ? '#94a3b8' : '#64748b', font: { size: 11 } } }
+            },
+            scales: wtype === 'pie' ? {} : {
+              y: {
+                beginAtZero: true,
+                grid: { color: isDark ? '#1e293b' : '#E5E7EB' },
+                ticks: { color: isDark ? '#94a3b8' : '#64748b', font: { size: 10 } }
+              },
+              x: {
+                grid: { display: false },
+                ticks: { color: isDark ? '#94a3b8' : '#64748b', font: { size: 10 }, maxRotation: 45 }
+              }
+            }
+          }
+        });
+      }
+    }
+
+    // ── Table Pagination Implementation ──
+    window.renderWidgetTablePage = function(wid, page, pageSize) {
+      window.widgetTableState[wid] = { page, pageSize };
+      const data = window.widgetDataCache[wid];
+      if (!data || !data.rows) return;
+      const container = document.getElementById(`wbody-${wid}`);
+      if (!container) return;
+
+      const rows = data.rows;
+      const columns = data.columns;
+      const totalPages = Math.ceil(rows.length / pageSize);
+      const start = page * pageSize;
+      const pageRows = rows.slice(start, start + pageSize);
+      const visibleCols = columns.slice(0, 6);
+      const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+
+      const headerHtml = visibleCols.map(c => `<th style="padding:6px 10px; font-size:10px; text-transform:uppercase; color:var(--ds-text-muted); font-weight:700; white-space:nowrap;">${c}</th>`).join('');
+      const rowsHtml = pageRows.map((r, ri) => {
+        const bg = ri % 2 === 0 ? 'transparent' : (isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)');
+        return `<tr style="background:${bg}">${visibleCols.map(c => `<td style="padding:6px 10px; font-size:11.5px; border-bottom:1px solid var(--ds-border-soft); white-space:nowrap;">${r[c] !== undefined && r[c] !== null ? r[c] : ''}</td>`).join('')}</tr>`;
+      }).join('');
+
+      const paginationHtml = `
+        <div class="table-pagination" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+          <div style="display:flex; align-items:center; gap:6px;">
+            <span style="font-size:11px; color:var(--ds-text-muted);">Show:</span>
+            <select class="form-select" onchange="window.renderWidgetTablePage(${wid}, 0, parseInt(this.value))" style="width:auto; padding:2px 6px; font-size:11px; height:auto; border-radius:4px; background:var(--ds-card); color:var(--ds-text); border:1px solid var(--ds-border);">
+              <option value="10" ${pageSize === 10 ? 'selected' : ''}>10</option>
+              <option value="25" ${pageSize === 25 ? 'selected' : ''}>25</option>
+              <option value="50" ${pageSize === 50 ? 'selected' : ''}>50</option>
+              <option value="100" ${pageSize === 100 ? 'selected' : ''}>100</option>
+            </select>
+          </div>
+          <div style="display:flex; align-items:center; gap:6px;">
+            <button class="btn btn-ghost btn-sm" ${page <= 0 ? 'disabled style="opacity:0.4; cursor:not-allowed;"' : ''} onclick="window.renderWidgetTablePage(${wid}, ${page - 1}, ${pageSize})" style="padding:2px 6px; font-size:11px;">‹ Prev</button>
+            <span style="font-size:11px; color:var(--ds-text-muted); font-weight:600;">Page ${page + 1} of ${totalPages}</span>
+            <button class="btn btn-ghost btn-sm" ${page >= totalPages - 1 ? 'disabled style="opacity:0.4; cursor:not-allowed;"' : ''} onclick="window.renderWidgetTablePage(${wid}, ${page + 1}, ${pageSize})" style="padding:2px 6px; font-size:11px;">Next ›</button>
+          </div>
+        </div>
+      `;
+
+      container.innerHTML = `
+        <div style="overflow:auto; width:100%; flex:1;">
+          <table style="width:100%; border-collapse:collapse; text-align:left;">
+            <thead><tr style="background:${isDark ? '#1e293b' : '#f1f5f9'};">${headerHtml}</tr></thead>
+            <tbody>${rowsHtml}</tbody>
+          </table>
+        </div>
+        <div style="font-size:10px; text-align:center; color:var(--ds-text-muted); padding:4px;">
+          ${rows.length} total rows • ${visibleCols.length}/${columns.length} columns
+        </div>
+        ${paginationHtml}
+      `;
+    };
+
+    async function saveGridLayout() {
+      const btn = document.querySelector('[onclick="saveGridLayout()"]');
+      if (btn) btn.innerHTML = '<span>💾</span> Saving...';
+
+      const payload = widgetsList.map((w, i) => ({
+        id: w.id,
+        layout_config: {
+          x: Math.round(w.layout_config.x !== undefined ? w.layout_config.x : 24),
+          y: Math.round(w.layout_config.y !== undefined ? w.layout_config.y : 24),
+          width: Math.round(w.layout_config.width || 400),
+          height: Math.round(w.layout_config.height || 300),
+          order: i
+        }
+      }));
+
+      try {
+        const res = await fetch(`/api/user/dashboards/${dashboardId}/layout`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (res.ok) {
+          showToast(data.message, 'success');
+        } else {
+          showToast(data.detail || 'Failed to save layouts.', 'error');
+        }
+      } catch (e) {
+        showToast('Error saving layout configurations.', 'error');
+      } finally {
+        if (btn) btn.innerHTML = '<span>💾</span> Save Layout';
+      }
+    }
+
+    // ── Add / Edit Widget Modal CRUD ──
+    function openWidgetModal(wid = null) {
+      currentEditingWidgetId = wid;
+      setQueryHistoryValue('', '');
+      document.getElementById('filterRows').innerHTML = '';
+
+      if (wid) {
+        document.getElementById('widgetModalTitle').textContent = 'Edit Widget';
+        const w = widgetsList.find(w => w.id === wid);
+        if (!w) return;
+
+        document.getElementById('widgetTitleInput').value = w.title || '';
+        document.getElementById('widgetTypeSelect').value = w.widget_type;
+        document.getElementById('widgetWidthSelect').value = w.layout_config.width || '2';
+
+        const surveySelect = document.getElementById('surveySelect');
+        const schemaSelect = document.getElementById('schemaSelect');
+
+        if (w.schema_name) {
+          // Find survey category from catalog by scanning dataset registry (approx or match prefix)
+          // To be simple, we scan all survey categories' values to see if the dataset matches, or try database query name
+          // Since schema name is unique, let's load schemas, select the first match, then schema, then table
+          fetch('/surveys').then(r => r.json()).then(surveys => {
+            let matchedSurvey = "";
+            let promises = (surveys || []).map(s => {
+              return fetch(`/surveys/${s.survey}/datasets`).then(r => r.json()).then(datasets => {
+                if (datasets.some(d => d.schema === w.schema_name)) {
+                  matchedSurvey = s.survey;
+                }
+              });
+            });
+
+            Promise.all(promises).then(async () => {
+              if (matchedSurvey) {
+                surveySelect.value = matchedSurvey;
+                await onSurveyChange();
+
+                schemaSelect.value = w.schema_name;
+                await onSchemaChange();
+
+                document.getElementById('tableSelect').value = w.table_name || '';
+                await onTableChange();
+
+                // Restore columns
+                if (w.columns) {
+                  const selCols = w.columns.split(',').map(c => c.trim()).filter(c => c);
+                  const checkboxes = document.querySelectorAll('.col-chip-cb');
+                  checkboxes.forEach(cb => {
+                    cb.checked = selCols.length === 0 || selCols.includes(cb.value);
+                  });
+                }
+
+                // Restore chart config
+                const cc = w.chart_config || {};
+                if (w.widget_type === 'kpi') {
+                  document.getElementById('kpiValueCol').value = cc.value_column || '';
+                  document.getElementById('kpiAggSelect').value = cc.aggregation || 'count';
+                } else if (['bar', 'pie', 'line', 'area'].includes(w.widget_type)) {
+                  document.getElementById('chartLabelCol').value = cc.label_column || '';
+                  document.getElementById('chartValueCol').value = cc.value_column || '';
+                  document.getElementById('chartAggSelect').value = cc.aggregation || 'none';
+                } else if (w.widget_type === 'stats') {
+                  document.getElementById('statsValueCol').value = cc.value_column || '';
+                }
+
+                // Restore filters
+                if (w.filters) {
+                  document.getElementById('filterRows').innerHTML = '';
+                  const logic = w.filters.toUpperCase().includes(' OR ') ? 'OR' : 'AND';
+                  document.getElementById('filterLogic').value = logic;
+
+                  const parts = w.filters.split(/\s+AND\s+|\s+OR\s+/i).map(p => p.trim());
+                  parts.forEach(p => {
+                    const match = p.match(/^([a-zA-Z0-9_"]+)\s*(=|!=|>=|<=|>|<|LIKE|IN|BETWEEN)\s*(.+)$/i);
+                    if (match) {
+                      const col = match[1].replace(/"/g, '').trim();
+                      const op = match[2].toUpperCase();
+                      let val = match[3].trim();
+                      if (val.startsWith("'") && val.endsWith("'")) {
+                        val = val.substring(1, val.length - 1);
+                      }
+                      addFilterRow(col, op, val);
+                    }
+                  });
+                }
+              }
+            });
+          });
+        }
+        toggleWidgetOptions();
+      } else {
+        document.getElementById('widgetModalTitle').textContent = 'Add Widget';
+        document.getElementById('widgetTitleInput').value = '';
+        document.getElementById('widgetTypeSelect').value = 'kpi';
+        document.getElementById('widgetWidthSelect').value = '2';
+        document.getElementById('surveySelect').value = '';
+        document.getElementById('schemaSelect').innerHTML = '<option value="">Select dataset...</option>';
+        document.getElementById('tableSelect').innerHTML = '<option value="">Select table...</option>';
+        availableColumns = [];
+        updateColumnChips();
+        resetTypeSpecificDropdowns();
+        toggleWidgetOptions();
+      }
+
+      document.getElementById('widgetModal').classList.add('active');
+    }
+
+    function closeWidgetModal() {
+      document.getElementById('widgetModal').classList.remove('active');
+    }
+
+    async function saveWidget() {
+      const title = document.getElementById('widgetTitleInput').value.trim();
+      const wtype = document.getElementById('widgetTypeSelect').value;
+      const width = parseInt(document.getElementById('widgetWidthSelect').value);
+      const schema = document.getElementById('schemaSelect').value;
+      const table = document.getElementById('tableSelect').value;
+      
+      let baseCols = getSelectedColumns();
+      let colSet = new Set(baseCols ? baseCols.split(',').map(c => c.trim()) : []);
+      if (wtype === 'kpi') {
+        const c = document.getElementById('kpiValueCol').value;
+        if (c) colSet.add(c);
+      } else if (['bar', 'pie', 'line', 'area'].includes(wtype)) {
+        const x = document.getElementById('chartLabelCol').value;
+        const y = document.getElementById('chartValueCol').value;
+        if (x) colSet.add(x);
+        if (y) colSet.add(y);
+      } else if (wtype === 'stats') {
+        const c = document.getElementById('statsValueCol').value;
+        if (c) colSet.add(c);
+      }
+      const columns = colSet.size > 0 ? Array.from(colSet).join(',') : '';
+      const filters = getFiltersString();
+
+      if (!title) {
+        showToast('Widget title is required.', 'warning');
+        return;
+      }
+      if (!schema || !table) {
+        showToast('Schema and Table are required.', 'warning');
+        return;
+      }
+
+      let chart_config = {};
+      if (wtype === 'kpi') {
+        chart_config = {
+          value_column: document.getElementById('kpiValueCol').value,
+          aggregation: document.getElementById('kpiAggSelect').value
+        };
+      } else if (['bar', 'pie', 'line', 'area'].includes(wtype)) {
+        chart_config = {
+          label_column: document.getElementById('chartLabelCol').value,
+          value_column: document.getElementById('chartValueCol').value,
+          aggregation: document.getElementById('chartAggSelect').value
+        };
+      } else if (wtype === 'stats') {
+        chart_config = {
+          value_column: document.getElementById('statsValueCol').value
+        };
+      }
+
+      const payload = {
+        title,
+        widget_type: wtype,
+        schema_name: schema,
+        table_name: table,
+        columns,
+        filters,
+        chart_config,
+        layout_config: {
+          width,
+          height: wtype === 'table' ? 2 : 1,
+          order: widgetsList.length
+        }
+      };
+
+      try {
+        let res;
+        if (currentEditingWidgetId) {
+          res = await fetch(`/api/user/dashboards/${dashboardId}/widgets/${currentEditingWidgetId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+        } else {
+          res = await fetch(`/api/user/dashboards/${dashboardId}/widgets`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+        }
+
+        const data = await res.json();
+        if (res.ok) {
+          showToast(data.message || 'Widget saved.', 'success');
+          closeWidgetModal();
+          await loadEditorData();
+        } else {
+          showToast(data.detail || 'Save failed.', 'error');
+        }
+      } catch (e) {
+        showToast('Error saving widget details.', 'error');
+      }
+    }
+
+    async function deleteWidget(wid) {
+      if (!confirm('Are you sure you want to delete this widget?')) return;
+
+      try {
+        const res = await fetch(`/api/user/dashboards/${dashboardId}/widgets/${wid}`, {
+          method: 'DELETE'
+        });
+        const data = await res.json();
+        if (res.ok) {
+          showToast(data.message, 'success');
+          // Reload data; renderWidgets auto-compacts by sorting and reassigning order
+          await loadEditorData();
+          // Normalize order indices after deletion and persist
+          widgetsList.forEach((w, i) => {
+            if (!w.layout_config) w.layout_config = {};
+            w.layout_config.order = i;
+          });
+          await saveGridLayout();
+        } else {
+          showToast(data.detail || 'Delete failed.', 'error');
+        }
+      } catch (e) {
+        showToast('Error deleting widget.', 'error');
+      }
+    }
+
+    // ── Export Functions ──
+    async function exportDashboardCSV() {
+      showToast('Preparing CSV export...', 'info');
+      try {
+        const res = await fetch(`/api/user/dashboard-studio/export/${dashboardId}`);
+        const data = await res.json();
+
+        data.widgets.forEach(w => {
+          if (!w.data || !w.data.rows || w.data.rows.length === 0) return;
+
+          const cols = w.data.columns || Object.keys(w.data.rows[0]);
+          let csv = cols.join(',') + '\n';
+          w.data.rows.forEach(row => {
+            csv += cols.map(c => {
+              const val = String(row[c] !== undefined && row[c] !== null ? row[c] : '');
+              return val.includes(',') ? `"${val}"` : val;
+            }).join(',') + '\n';
+          });
+
+          const blob = new Blob([csv], { type: 'text/csv' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `${w.title || 'widget'}_data.csv`;
+          a.click();
+          URL.revokeObjectURL(url);
+        });
+
+        showToast('CSV files downloaded.', 'success');
+      } catch (e) {
+        showToast('CSV export failed.', 'error');
+      }
+    }
+
+    async function exportDashboardPNG() {
+      showToast('Generating dashboard image...', 'info');
+      const grid = document.getElementById('widgetGrid');
+      
+      const prevTransform = grid.style.transform;
+      const prevWidth = grid.style.width;
+      const prevHeight = grid.style.height;
+      
+      const preset = CANVAS_PRESETS[canvasPreset] || CANVAS_PRESETS['dashboard_lg'];
+      const exportW = preset.width;
+      const exportH = preset.height;
+      
+      grid.style.transform = 'none';
+      grid.style.width = `${exportW}px`;
+      grid.style.height = `${exportH}px`;
+      grid.classList.add('exporting');
+      
+      try {
+        const canvas = await html2canvas(grid, {
+          backgroundColor: '#ffffff',
+          scale: 2,
+          useCORS: true,
+          width: exportW,
+          height: exportH
+        });
+        const link = document.createElement('a');
+        link.download = `dashboard_${dashboardId}.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+        showToast('Dashboard PNG downloaded.', 'success');
+      } catch (e) {
+        showToast('PNG export failed.', 'error');
+      } finally {
+        grid.classList.remove('exporting');
+        grid.style.transform = prevTransform;
+        grid.style.width = prevWidth;
+        grid.style.height = prevHeight;
+      }
+    }
+
+    async function exportDashboardPDF() {
+      showToast('Generating PDF...', 'info');
+      const grid = document.getElementById('widgetGrid');
+      
+      const prevTransform = grid.style.transform;
+      const prevWidth = grid.style.width;
+      const prevHeight = grid.style.height;
+      
+      const preset = CANVAS_PRESETS[canvasPreset] || CANVAS_PRESETS['dashboard_lg'];
+      const exportW = preset.width;
+      const exportH = preset.height;
+      
+      grid.style.transform = 'none';
+      grid.style.width = `${exportW}px`;
+      grid.style.height = `${exportH}px`;
+      grid.classList.add('exporting');
+      
+      try {
+        const canvas = await html2canvas(grid, {
+          backgroundColor: '#ffffff',
+          scale: 2,
+          useCORS: true,
+          width: exportW,
+          height: exportH
+        });
+        const imgData = canvas.toDataURL('image/png');
+        const { jsPDF } = window.jspdf;
+        const orientation = exportW > exportH ? 'l' : 'p';
+        const pdf = new jsPDF(orientation, 'mm', [exportW * 0.264583, exportH * 0.264583]);
+        const pdfW = pdf.internal.pageSize.getWidth();
+        const pdfH = pdf.internal.pageSize.getHeight();
+        
+        pdf.addImage(imgData, 'PNG', 0, 0, pdfW, pdfH);
+        pdf.save(`dashboard_${dashboardId}.pdf`);
+        showToast('Dashboard PDF downloaded.', 'success');
+      } catch (e) {
+        console.error(e);
+        showToast('PDF export failed.', 'error');
+      } finally {
+        grid.classList.remove('exporting');
+        grid.style.transform = prevTransform;
+        grid.style.width = prevWidth;
+        grid.style.height = prevHeight;
+      }
+    }
+
+    function isNumericValue(value) {
+      if (value === null || value === "") return false;
+      const num = Number(value);
+      return !isNaN(num) && isFinite(num);
+    }
+
+    function generatePurpleColors(count) {
+      const baseColors = [
+        'rgba(102, 126, 234, 0.8)',
+        'rgba(118, 75, 162, 0.8)',
+        'rgba(240, 147, 251, 0.8)',
+        'rgba(245, 87, 108, 0.8)',
+        'rgba(79, 172, 254, 0.8)',
+        'rgba(255, 217, 61, 0.8)',
+        'rgba(255, 107, 107, 0.8)',
+        'rgba(67, 233, 123, 0.8)'
+      ];
+      const result = [];
+      for (let i = 0; i < count; i++) {
+        result.push(baseColors[i % baseColors.length]);
+      }
+      return result;
+    }
+
+    function prepareChartData(data, xCol, yCol, chartType, aggregation = 'none') {
+      const aggregated = {};
+      const counts = {};
+      
+      const uniqueX = new Set(data.map(r => r[xCol]));
+      const hasDuplicates = uniqueX.size < data.length;
+      const doGrouping = (aggregation !== 'none' || hasDuplicates) && hasDuplicates;
+
+      if (doGrouping) {
+        const aggType = aggregation !== 'none' ? aggregation : 'sum';
+        data.forEach(row => {
+          const key = row[xCol] !== undefined && row[xCol] !== null ? String(row[xCol]) : 'Unknown';
+          const val = Number(row[yCol]);
+          const isNum = !isNaN(val);
+
+          if (aggregated[key] === undefined) {
+            aggregated[key] = 0;
+            counts[key] = 0;
+          }
+
+          if (aggType === 'count') {
+            aggregated[key] += 1;
+          } else if (aggType === 'sum') {
+            aggregated[key] += (isNum ? val : 0);
+          } else if (aggType === 'avg') {
+            aggregated[key] += (isNum ? val : 0);
+            counts[key] += 1;
+          }
+        });
+
+        if (aggType === 'avg') {
+          Object.keys(aggregated).forEach(key => {
+            if (counts[key] > 0) {
+              aggregated[key] = aggregated[key] / counts[key];
+            }
+          });
+        }
+
+        return {
+          labels: Object.keys(aggregated),
+          datasets: [{
+            label: aggregation !== 'none' ? `${yCol} (${aggregation.toUpperCase()})` : yCol,
+            data: Object.values(aggregated),
+            borderWidth: 2,
+            borderColor: 'rgba(255, 255, 255, 0.3)'
+          }]
+        };
+      } else {
+        return {
+          labels: data.map(r => String(r[xCol])),
+          datasets: [{
+            label: yCol,
+            data: data.map(r => Number(r[yCol]) || 0),
+            borderWidth: 2,
+            borderColor: 'rgba(255, 255, 255, 0.3)'
+          }]
+        };
+      }
+    }
+
+    // Startup
+    window.addEventListener('load', () => {
+      // Set grid dimensions based on preset
+      const grid = document.getElementById('widgetGrid');
+      
+      // Initialize controls state from settings
+      document.getElementById('pageSizeSelector').value = canvasPreset;
+      document.getElementById('gridlinesToggle').checked = showGridlines;
+      document.getElementById('snapToggle').checked = snapToGrid;
+
+      if (grid) {
+        const preset = CANVAS_PRESETS[canvasPreset] || CANVAS_PRESETS['dashboard_lg'];
+        grid.style.width = `${preset.width}px`;
+        grid.style.height = `${preset.height}px`;
+        
+        if (showGridlines) {
+          grid.classList.add('show-gridlines');
+        } else {
+          grid.classList.remove('show-gridlines');
+        }
+      }
+      
+      loadEditorData().then(() => {
+        drawRulers();
+        setTimeout(initCentering, 100);
+      });
+
+      // Redraw rulers when window is resized
+      window.addEventListener('resize', drawRulers);
+    });
+  </script>
+  <script src="/static/user_mobile.js"></script>
+</body>
+</html>

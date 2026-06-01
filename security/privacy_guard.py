@@ -128,7 +128,7 @@ async def check_columns_and_filters(conn, schema: str, table: str, user_role: st
 
     return allowed_columns
 
-async def apply_privacy_and_labeling(conn, schema: str, table: str, user_role: str, columns: list[str], rows: list, labels: dict = None) -> list:
+async def apply_privacy_and_labeling(conn, schema: str, table: str, user_role: str, columns: list[str], rows: list, labels: dict = None, is_aggregated: bool = False) -> list:
     """
     Enforces cell suppression thresholds and maps raw codes to readable descriptive labels.
     """
@@ -183,17 +183,19 @@ async def apply_privacy_and_labeling(conn, schema: str, table: str, user_role: s
         formatted.append(item)
 
     # 3. Check Cell Suppression (fewer rows than threshold)
-    row_count = len(formatted)
-    if min_rows_required > 0 and row_count < min_rows_required:
-        raise HTTPException(
-            status_code=403,
-            detail={
-                "error": "Cell Suppression Applied",
-                "detail": f"Privacy Rule Violation: Result contains {row_count} rows, which is below the minimum threshold of {min_rows_required} rows required for privacy protection.",
-                "code": "CELL_SUPPRESSION_APPLIED",
-                "minimum_rows_required": min_rows_required,
-                "actual_rows": row_count
-            }
-        )
+    if not is_aggregated:
+        row_count = len(formatted)
+        if min_rows_required > 0 and row_count < min_rows_required:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "error": "Cell Suppression Applied",
+                    "detail": f"Privacy Rule Violation: Result contains {row_count} rows, which is below the minimum threshold of {min_rows_required} rows required for privacy protection.",
+                    "code": "CELL_SUPPRESSION_APPLIED",
+                    "minimum_rows_required": min_rows_required,
+                    "actual_rows": row_count
+                }
+            )
 
     return formatted
+

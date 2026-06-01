@@ -2135,7 +2135,22 @@
                 if (!chartNeedsRefresh && chartRequestCache.key === context.cacheKey && Array.isArray(chartRequestCache.rows)) {
                     rows = chartRequestCache.rows;
                 } else {
-                    const response = await fetch(context.endpoint);
+                    // Build chart-specific query with backend grouping/aggregation
+                    const params = new URLSearchParams(context.queryString);
+                    params.set("group_by", xAxisCol);
+                    params.set("limit", "1000"); // Increase limit for aggregated categories to ensure we get all of them
+                    if (xAxisCol === yAxisCol) {
+                        params.set("aggregation", "count");
+                        params.set("aggregation_column", xAxisCol);
+                    } else {
+                        // Check if yAxisCol is numeric
+                        const isNum = latestResults.some(r => isNumericValue(r[yAxisCol]));
+                        params.set("aggregation", isNum ? "sum" : "count");
+                        params.set("aggregation_column", yAxisCol);
+                    }
+                    const chartEndpoint = `/surveys/${context.survey}/${encodeURIComponent(context.dataset)}/${context.table}/query?${params.toString()}`;
+
+                    const response = await fetch(chartEndpoint);
                     let data;
                     try {
                         data = await response.json();

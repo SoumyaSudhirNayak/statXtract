@@ -106,6 +106,9 @@ async def query_data(
     limit: int = Query(100, ge=1),
     offset: int = Query(0, ge=0),
     format: Optional[str] = None,
+    group_by: Optional[str] = None,
+    aggregation: Optional[str] = None,
+    aggregation_column: Optional[str] = None,
     current_user=Depends(get_current_user),
 ):
     pool: asyncpg.Pool = request.app.state.db
@@ -164,10 +167,12 @@ async def query_data(
 
             # Discover label columns for substitution
             actual_columns = await conn.fetch(
-                "SELECT column_name FROM information_schema.columns WHERE table_schema = $1 AND table_name = $2",
+                "SELECT column_name, data_type FROM information_schema.columns WHERE table_schema = $1 AND table_name = $2",
                 schema_name,
                 table_name
             )
+            column_map = {c["column_name"].lower(): c["column_name"] for c in actual_columns}
+            column_type_map = {c["column_name"].lower(): c["data_type"] for c in actual_columns}
             all_cols = [c["column_name"] for c in actual_columns]
             label_cols = set(c for c in all_cols if c.endswith("_label"))
             raw_cols_with_labels = set(c[:-6] for c in label_cols)
@@ -183,14 +188,19 @@ async def query_data(
                 filters=filters
             )
 
-            col_list = []
-            for c in allowed_cols:
-                if c in raw_cols_with_labels:
-                    col_list.append(f'"{c}_label" AS "{c}"')
-                else:
-                    col_list.append(f'"{c}"')
-
-            col_sql = ", ".join(col_list) if col_list else "*"
+            allowed_set = set(allowed_cols)
+            selected_columns = []
+            if columns and columns.strip() and columns.strip() != "*":
+                for col in columns.split(","):
+                    col = col.strip()
+                    if not col:
+                        continue
+                    col_case_matched = column_map.get(col.lower(), col)
+                    if col_case_matched not in allowed_set:
+                        raise HTTPException(status_code=400, detail=f"Column not allowed or invalid: {col_case_matched}")
+                    selected_columns.append(col_case_matched)
+            else:
+                selected_columns = allowed_cols
 
             where_clause = ""
             if filters:
@@ -199,7 +209,60 @@ async def query_data(
                 except ValueError as e:
                     raise HTTPException(status_code=400, detail=str(e))
 
-            sql = f'SELECT {col_sql} FROM "{schema_name}"."{table_name}" {where_clause} LIMIT {limit} OFFSET {offset}'
+            if group_by:
+                group_by_col = column_map.get(group_by.lower(), group_by)
+                if group_by_col not in allowed_set:
+                    raise HTTPException(status_code=400, detail=f"Group by column not allowed or invalid: {group_by_col}")
+
+                agg_func = (aggregation or "COUNT").upper()
+                if agg_func not in ["COUNT", "SUM", "AVG", "MIN", "MAX"]:
+                    raise HTTPException(status_code=400, detail=f"Unsupported aggregation: {agg_func}")
+
+                if aggregation_column:
+                    agg_col = column_map.get(aggregation_column.lower(), aggregation_column)
+                    if agg_col not in allowed_set:
+                        raise HTTPException(status_code=400, detail=f"Aggregation column not allowed or invalid: {agg_col}")
+                else:
+                    agg_col = "*"
+
+                if agg_func in ["SUM", "AVG", "MIN", "MAX"] and agg_col == "*":
+                    agg_func = "COUNT"
+
+                if agg_func in ["SUM", "AVG", "MIN", "MAX"]:
+                    col_type = column_type_map.get(agg_col.lower(), "").lower()
+                    is_numeric = any(t in col_type for t in ["int", "precision", "numeric", "real", "double", "float"])
+                    if not is_numeric:
+                        agg_func = "COUNT"
+                        agg_col = "*"
+
+                agg_alias = agg_col if agg_col != "*" else "count"
+                if group_by_col.lower() == agg_alias.lower():
+                    agg_alias = f"{agg_alias}_value"
+
+                agg_expr = f'{agg_func}("{agg_col}")' if agg_col != "*" else 'COUNT(*)'
+
+                col_list = []
+                if group_by_col in raw_cols_with_labels:
+                    col_list.append(f'"{group_by_col}_label" AS "{group_by_col}"')
+                    group_by_sql = f'"{group_by_col}", "{group_by_col}_label"'
+                else:
+                    col_list.append(f'"{group_by_col}"')
+                    group_by_sql = f'"{group_by_col}"'
+
+                col_list.append(f'{agg_expr} AS "{agg_alias}"')
+                selected_columns = [group_by_col, agg_alias]
+
+                sql = f'SELECT {", ".join(col_list)} FROM "{schema_name}"."{table_name}" {where_clause} GROUP BY {group_by_sql} LIMIT {limit} OFFSET {offset}'
+            else:
+                col_list = []
+                for c in selected_columns:
+                    if c in raw_cols_with_labels:
+                        col_list.append(f'"{c}_label" AS "{c}"')
+                    else:
+                        col_list.append(f'"{c}"')
+
+                col_sql = ", ".join(col_list) if col_list else "*"
+                sql = f'SELECT {col_sql} FROM "{schema_name}"."{table_name}" {where_clause} LIMIT {limit} OFFSET {offset}'
 
             try:
                 rows = await conn.fetch(sql)
@@ -214,7 +277,7 @@ async def query_data(
             # Enforce cell suppression and value mapping via privacy guard
             try:
                 label_map = await get_column_labels(conn, table_name, schema=schema_name)
-                labels = {c: (label_map.get(c) or {}) for c in allowed_cols}
+                labels = {c: (label_map.get(c) or {}) for c in selected_columns}
             except Exception:
                 labels = {}
 
@@ -223,9 +286,10 @@ async def query_data(
                 schema=schema_name,
                 table=table_name,
                 user_role=user_role,
-                columns=allowed_cols,
+                columns=selected_columns,
                 rows=data,
-                labels=labels
+                labels=labels,
+                is_aggregated=bool(group_by)
             )
 
             # Log as completed
@@ -236,6 +300,7 @@ async def query_data(
                 status="completed",
                 filters=filters
             )
+
 
             if is_export:
                 # Log file download details to database

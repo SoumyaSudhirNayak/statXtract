@@ -1,0 +1,1307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard Viewer — STATXTRACT</title>
+  <script>
+    (function() {
+      const theme = localStorage.getItem('userTheme') || 'light';
+      document.documentElement.setAttribute('data-theme', theme);
+      if (localStorage.getItem('sidebarState') === 'collapsed') {
+        document.documentElement.classList.add('sidebar-collapsed-preload');
+      }
+    })();
+  </script>
+  <meta name="description" content="View your customized analytics dashboard inside StatXtract Dashboard Studio.">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/user_styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+  <style>
+    :root {
+      --ds-bg: #f8f9fc;
+      --ds-card: rgba(255,255,255,0.92);
+      --ds-border: #e2e8f0;
+      --ds-border-soft: #f1f5f9;
+      --ds-text: #1e293b;
+      --ds-text-muted: #64748b;
+      --ds-royal: #2E5BBA;
+      --ds-green: #2E7D32;
+      --ds-danger: #dc2626;
+      --ds-viewport-bg: #cbd5e1;
+    }
+    [data-theme="dark"] {
+      --ds-bg: #0f172a;
+      --ds-card: rgba(30,41,59,0.95);
+      --ds-border: #334155;
+      --ds-border-soft: #1e293b;
+      --ds-text: #f1f5f9;
+      --ds-text-muted: #94a3b8;
+      --ds-royal: #60a5fa;
+      --ds-green: #4ade80;
+      --ds-danger: #f87171;
+      --ds-viewport-bg: #090d16;
+    }
+
+    body { background: var(--bg-page); min-height: 100vh; overflow: hidden; }
+    [data-theme="dark"] body { background: var(--ds-bg); }
+    .app-shell { display: flex; flex-direction: column; height: 100vh; }
+    .main-area  { display: flex; flex: 1; overflow: hidden; }
+    .content    { flex: 1; overflow-y: auto; overflow-x: hidden !important; padding: 40px 48px; }
+    .nav-svg    { width: 20px; height: 20px; flex-shrink: 0; }
+    .nav-item.active { background: var(--green); color: #fff; border-color: var(--green); box-shadow: 0 6px 20px rgba(46,125,50,0.4); }
+    .nav-item.active:hover { background: var(--green); color: #fff; }
+
+    [data-theme="dark"] .site-header { background: rgba(15,23,42,0.95); border-color: #334155; }
+    [data-theme="dark"] .sidebar { background: rgba(15,23,42,0.98); border-color: #334155; }
+    [data-theme="dark"] .nav-item { color: #94a3b8; }
+    [data-theme="dark"] .nav-item:hover { background: #1e293b; color: #e2e8f0; }
+    [data-theme="dark"] .content { background: #0f172a; }
+    [data-theme="dark"] .page-title { color: #f1f5f9; }
+
+    .theme-toggle {
+      background: none; border: 2px solid var(--ds-border); border-radius: 8px;
+      cursor: pointer; padding: 6px 10px; font-size: 15px; color: var(--ds-text-muted);
+      transition: all 0.2s; display: flex; align-items: center; gap: 6px;
+    }
+    .theme-toggle:hover { border-color: var(--ds-royal); color: var(--ds-royal); }
+
+    /* Spacing and layout updates */
+    .page-header {
+      margin-bottom: 32px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 20px;
+    }
+
+    /* ── CANVAS VIEWPORT ── */
+    .canvas-viewport {
+      width: 100%;
+      height: calc(100vh - 200px);
+      overflow: hidden;
+      position: relative;
+      border: 2px solid var(--ds-border);
+      border-radius: 16px;
+      background: var(--ds-viewport-bg);
+      box-shadow: inset 0 2px 8px rgba(0,0,0,0.15);
+      cursor: grab;
+    }
+    .canvas-viewport:active {
+      cursor: grabbing;
+    }
+    .widget-grid {
+      position: relative;
+      transform-origin: 0 0;
+      user-select: none;
+      transition: transform 0.05s ease-out;
+      background-color: #ffffff !important;
+      border: 1px solid rgba(0,0,0,0.15) !important;
+      border-radius: 4px;
+      box-shadow: 0 10px 35px rgba(0,0,0,0.15);
+    }
+    .widget-grid.show-gridlines {
+      background-size: 20px 20px;
+      background-image: 
+        linear-gradient(to right, rgba(46, 91, 186, 0.06) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(46, 91, 186, 0.06) 1px, transparent 1px);
+    }
+    .widget-grid.exporting .resize-handle {
+      display: none !important;
+    }
+    
+    /* ── FLOATING CONTROLS ── */
+    .canvas-controls {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--ds-card);
+      backdrop-filter: blur(8px);
+      padding: 6px 12px;
+      border-radius: 12px;
+      border: 2px solid var(--ds-border);
+      z-index: 10000;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+    }
+    .canvas-controls .w-ctrl-btn {
+      padding: 4px 10px;
+      font-size: 14px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    
+    /* ── WIDGET CARD CANVAS MODIFICATIONS ── */
+    .widget-card {
+      position: absolute !important;
+      box-sizing: border-box;
+      margin: 0 !important;
+      touch-action: none;
+      z-index: 5;
+      background: var(--ds-card); backdrop-filter: blur(12px);
+      border: 2px solid var(--ds-border); border-radius: 16px;
+      padding: 18px; display: flex; flex-direction: column;
+      transition: border-color 0.25s, box-shadow 0.25s, transform 0.2s;
+    }
+    .widget-card:hover {
+      border-color: var(--ds-green); box-shadow: 0 8px 28px rgba(46,125,50,0.1);
+      transform: translateY(-2px);
+    }
+    [data-theme="dark"] .widget-card { background: rgba(30,41,59,0.9); border-color: #334155; }
+    [data-theme="dark"] .widget-card:hover { border-color: #4ade80; box-shadow: 0 8px 28px rgba(74,222,128,0.1); }
+
+    .widget-header {
+      display: flex; justify-content: space-between; align-items: center;
+      padding-bottom: 10px; border-bottom: 1px solid var(--ds-border-soft); margin-bottom: 14px; gap: 8px;
+    }
+    .widget-title-text {
+      font-family: var(--font-head); font-size: 14px; font-weight: 800;
+      color: var(--ds-text); white-space: nowrap; text-overflow: ellipsis; overflow: hidden;
+    }
+    .widget-type-badge {
+      font-size: 9px; font-weight: 700; text-transform: uppercase;
+      padding: 2px 8px; border-radius: 10px; letter-spacing: 0.5px;
+      background: linear-gradient(135deg, rgba(46,125,50,0.1), rgba(46,91,186,0.1));
+      color: var(--ds-green); flex-shrink: 0;
+    }
+    .widget-controls { display: flex; gap: 4px; align-items: center; flex-shrink: 0; }
+    .w-ctrl-btn {
+      background: none; border: none; cursor: pointer; font-size: 12px;
+      padding: 5px; color: var(--ds-text-muted); border-radius: 6px;
+      transition: background 0.2s, color 0.2s;
+    }
+    .w-ctrl-btn:hover { background: var(--ds-border-soft); color: var(--ds-text); }
+    [data-theme="dark"] .w-ctrl-btn:hover { background: #334155; }
+    .widget-body { flex: 1; overflow: auto; display: flex; flex-direction: column; min-height: 0; }
+
+    .kpi-container { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; flex: 1; text-align: center; }
+    .kpi-value { font-family: var(--font-head); font-size: 38px; font-weight: 900; color: var(--ds-green); line-height: 1.1; margin-bottom: 4px; }
+    .kpi-label { font-size: 11px; font-weight: 700; color: var(--ds-text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+
+    .stat-list { display: flex; flex-direction: column; gap: 8px; justify-content: center; height: 100%; flex: 1; }
+    .stat-row { display: flex; justify-content: space-between; font-size: 13px; border-bottom: 1px dashed var(--ds-border-soft); padding-bottom: 4px; }
+    .stat-lbl { font-weight: 600; color: var(--ds-text-muted); }
+    .stat-val { font-weight: 700; color: var(--ds-text); }
+
+    .chart-wrapper { position: relative; flex: 1; width: 100%; height: 100%; min-height: 180px; }
+    .loading-widget { display: flex; align-items: center; justify-content: center; height: 100%; flex: 1; color: var(--ds-text-muted); font-weight: 600; font-size: 13px; }
+
+    .table-pagination {
+      display: flex; justify-content: center; align-items: center; gap: 6px; padding: 8px 0; margin-top: auto;
+    }
+    .table-pagination button {
+      background: var(--ds-border-soft); border: 1px solid var(--ds-border);
+      border-radius: 6px; padding: 4px 10px; font-size: 11px; font-weight: 600;
+      cursor: pointer; color: var(--ds-text-muted); transition: all 0.2s;
+    }
+    .table-pagination button:hover { border-color: var(--ds-royal); color: var(--ds-royal); }
+    .table-pagination span { font-size: 11px; color: var(--ds-text-muted); font-weight: 600; }
+
+    .export-bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .export-bar .btn { font-size: 12px; padding: 6px 14px; border-radius: 8px; }
+
+    .empty-state-v2 {
+      text-align: center; padding: 60px 40px;
+      background: var(--ds-card); border: 2px dashed var(--ds-border);
+      border-radius: 20px; color: var(--ds-text-muted);
+    }
+    [data-theme="dark"] .empty-state-v2 { background: rgba(30,41,59,0.5); border-color: #334155; }
+    .empty-icon-v2 {
+      width: 80px; height: 80px; margin: 0 auto 20px;
+      background: linear-gradient(135deg, #2E7D32, #2E5BBA);
+      border-radius: 20px; display: flex; align-items: center;
+      justify-content: center; font-size: 36px;
+    }
+    .empty-title-v2 { font-family: var(--font-head); font-size: 22px; font-weight: 800; color: var(--ds-text); margin-bottom: 10px; }
+    .empty-desc-v2 { font-size: 14px; max-width: 440px; margin: 0 auto 24px; line-height: 1.6; color: var(--ds-text-muted); }
+
+    /* Mobile responsive override */
+    @media (max-width: 768px) {
+      .page-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 16px;
+      }
+      .export-bar {
+        width: 100%;
+        gap: 8px;
+      }
+      .export-bar .btn {
+        flex: 1;
+        justify-content: center;
+      }
+      .canvas-viewport {
+        height: auto !important;
+        overflow: visible !important;
+        border: none !important;
+        background: transparent !important;
+        box-shadow: none !important;
+      }
+      .widget-grid {
+        transform: none !important;
+        width: 100% !important;
+        height: auto !important;
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 16px !important;
+        background: none !important;
+        padding: 0 !important;
+      }
+      .widget-card {
+        position: static !important;
+        width: 100% !important;
+        height: auto !important;
+        min-height: 320px !important;
+        margin-bottom: 16px !important;
+      }
+      .canvas-controls {
+        display: none !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="animated-bg"></div>
+  <div class="toast-container" id="toastContainer"></div>
+
+  <div class="app-shell">
+    <header class="site-header">
+      <a href="/user/dashboard" class="site-logo">STATXTRACT</a>
+      <div class="header-right">
+        <button class="profile-btn" onclick="window.location.href='/user/profile'" id="profileBtn" style="padding: 6px 14px; text-align: left;">
+          <div class="avatar" id="avatarInitial">U</div>
+          <div style="display: flex; flex-direction: column; line-height: 1.1;">
+            <span id="headerUsername" style="font-weight: 700; font-size: 13px;">{{ username | default('My Profile') }}</span>
+            <span id="headerEmail" style="font-size: 10px; opacity: 0.85; font-weight: 500;">{{ email | default('') }}</span>
+          </div>
+        </button>
+      </div>
+    </header>
+
+    <div class="main-area">
+      <aside class="sidebar expanded" id="sidebar">
+        <button class="sidebar-toggle" id="sidebarToggle" title="Toggle Sidebar">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <nav class="sidebar-nav">
+          <a href="/user/dashboard" class="nav-item">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div>
+            <span class="nav-label">Dashboard</span>
+          </a>
+          <a href="/query" class="nav-item">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>
+            <span class="nav-label">Advanced Query</span>
+          </a>
+          <a href="/user/ai-query" class="nav-item">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a4 4 0 0 1 4 4v1a4 4 0 0 1-8 0V6a4 4 0 0 1 4-4z"/><path d="M18 14h-1a7 7 0 0 0-10 0H6a4 4 0 0 0-4 4v2h20v-2a4 4 0 0 0-4-4z"/><circle cx="12" cy="5" r="1"/></svg></div>
+            <span class="nav-label">AI Query</span>
+          </a>
+          <a href="/user/explore-data" class="nav-item">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg></div>
+            <span class="nav-label">Explore Data</span>
+          </a>
+          <a href="/user/dashboards" class="nav-item active" id="navDashboardStudio">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/></svg></div>
+            <span class="nav-label">Dashboard Studio</span>
+          </a>
+          <a href="/user/history" class="nav-item">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+            <span class="nav-label">Query History</span>
+          </a>
+          <a href="/user/downloads" class="nav-item">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div>
+            <span class="nav-label">My Downloads</span>
+          </a>
+          <a href="/user/usage" class="nav-item">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V10M18 20V4M6 20v-4"/></svg></div>
+            <span class="nav-label">Usage &amp; Limits</span>
+          </a>
+          <a href="/user/plans" class="nav-item">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></div>
+            <span class="nav-label">Plans &amp; Pricing</span>
+          </a>
+          <a href="/user/feedback" class="nav-item">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></div>
+            <span class="nav-label">Feedback &amp; Requests</span>
+          </a>
+          <a href="/user/settings" class="nav-item">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div>
+            <span class="nav-label">Settings</span>
+          </a>
+          <a href="/user/profile" class="nav-item" style="margin-top:auto;">
+            <div class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+            <span class="nav-label">My Profile</span>
+          </a>
+        </nav>
+      </aside>
+
+      <main class="content">
+        <div class="page-header">
+          <div>
+            <h1 class="page-title">VIEW: <span style="color:var(--ds-green); font-weight:900;">{{ dashboard_name }}</span></h1>
+            <p style="font-size: 13px; color: var(--ds-text-muted); font-weight: 500; margin-top: 4px;">Live analytics view — monitor your active visualizations at a glance</p>
+          </div>
+          <div class="export-bar">
+            <button class="btn btn-ghost" onclick="window.location.href='/user/dashboards'">
+              <span>⬅️</span> Back
+            </button>
+            <button class="btn btn-ghost" onclick="exportPNG()" title="Export PNG"><span>🖼️</span> PNG</button>
+            <button class="btn btn-ghost" onclick="exportPDF()" title="Export PDF"><span>📑</span> PDF</button>
+            <button class="btn btn-outline-blue" onclick="refreshAllWidgets()">
+              <span>🔄</span> Refresh All
+            </button>
+            <button class="btn btn-primary" onclick="window.location.href='/user/dashboard-editor/{{ dashboard_id }}'">
+              <span>✏️</span> Edit
+            </button>
+          </div>
+        </div>
+
+        <!-- Canvas Viewport -->
+        <div class="canvas-viewport" id="canvasViewport">
+          <div class="widget-grid" id="widgetGrid"></div>
+          
+          <!-- Canvas controls floating bar -->
+          <div class="canvas-controls">
+            <button class="w-ctrl-btn" onclick="zoomIn()" title="Zoom In" style="font-weight: bold; font-size: 14px;">➕</button>
+            <span id="zoomLabel" style="font-size: 12px; font-weight: 700; min-width: 48px; text-align: center; color: var(--ds-text);">100%</span>
+            <button class="w-ctrl-btn" onclick="zoomOut()" title="Zoom Out" style="font-weight: bold; font-size: 14px;">➖</button>
+            <button class="w-ctrl-btn" onclick="zoomReset()" title="Reset to 100% & Center" style="font-size: 11px; font-weight: 600;">Reset</button>
+            <button class="w-ctrl-btn" onclick="zoomToFit()" title="Fit Dashboard to screen" style="font-size: 11px; font-weight: 600;">Fit Screen</button>
+          </div>
+        </div>
+
+        <div id="noWidgetsState" class="empty-state-v2" style="display:none; margin-bottom: 40px;">
+          <div class="empty-icon-v2">📊</div>
+          <div class="empty-title-v2">No Widgets Yet</div>
+          <p class="empty-desc-v2">This dashboard is empty. Click Edit to add KPI cards, data tables, statistical summaries, or interactive charts.</p>
+          <button class="btn btn-primary" onclick="window.location.href='/user/dashboard-editor/{{ dashboard_id }}'">Edit Dashboard</button>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    const dashboardId = {{ dashboard_id }};
+    const designerSettings = {{ designer_settings_json | safe }};
+
+    const CANVAS_PRESETS = {
+      'a4_portrait': { width: 794, height: 1123, name: 'A4 Portrait' },
+      'a4_landscape': { width: 1123, height: 794, name: 'A4 Landscape' },
+      'a3_portrait': { width: 1123, height: 1587, name: 'A3 Portrait' },
+      'a3_landscape': { width: 1587, height: 1123, name: 'A3 Landscape' },
+      'presentation_16_9': { width: 1920, height: 1080, name: 'Presentation 16:9' },
+      'presentation_4_3': { width: 1600, height: 1200, name: 'Presentation 4:3' },
+      'dashboard_sm': { width: 1200, height: 800, name: 'Dashboard Small' },
+      'dashboard_md': { width: 1600, height: 1200, name: 'Dashboard Medium' },
+      'dashboard_lg': { width: 2400, height: 1600, name: 'Dashboard Large' },
+      'dashboard_xl': { width: 3200, height: 2000, name: 'Dashboard XL' }
+    };
+
+    let canvasPreset = designerSettings.page_size || 'dashboard_lg';
+    let showGridlines = designerSettings.show_gridlines !== undefined ? designerSettings.show_gridlines : true;
+
+    let widgetsList = [];
+    let chartInstances = {};
+    window.widgetDataCache = {};
+    window.widgetTableState = {};
+
+    // Sidebar
+    document.getElementById('sidebarToggle').addEventListener('click', () => {
+      const sb = document.getElementById('sidebar');
+      const isCollapsed = sb.classList.contains('collapsed');
+      if (isCollapsed) { sb.classList.remove('collapsed'); sb.classList.add('expanded'); localStorage.setItem('sidebarState', 'expanded'); }
+      else { sb.classList.remove('expanded'); sb.classList.add('collapsed'); localStorage.setItem('sidebarState', 'collapsed'); }
+    });
+
+    // Theme (Observer/initial)
+    (function() {
+      const savedState = localStorage.getItem('sidebarState') || 'expanded';
+      const sb = document.getElementById('sidebar');
+      if (sb) {
+        if (savedState === 'collapsed') { sb.classList.remove('expanded'); sb.classList.add('collapsed'); }
+        else { sb.classList.remove('collapsed'); sb.classList.add('expanded'); }
+      }
+      document.documentElement.classList.remove('sidebar-collapsed-preload');
+    })();
+
+    function showToast(msg, type='info') {
+      const tc = document.getElementById('toastContainer');
+      const t = document.createElement('div');
+      t.className = `toast ${type}`;
+      const icons = {success:'✅', info:'ℹ️', warning:'⚠️', error:'❌'};
+      t.innerHTML = `<span>${icons[type]||'ℹ️'}</span><span>${msg}</span>`;
+      tc.appendChild(t);
+      setTimeout(() => { t.style.animation='slideOut 0.3s ease forwards'; setTimeout(()=>t.remove(),300); }, 4000);
+    }
+
+    // ── Zoom & Pan State ──
+    let zoom = 1.0;
+    let panX = 0;
+    let panY = 0;
+    let isPanning = false;
+    let startPanX = 0;
+    let startPanY = 0;
+
+    // Initialize Canvas Viewport Panning and Zooming in Viewer
+    document.addEventListener('DOMContentLoaded', () => {
+      const viewport = document.getElementById('canvasViewport');
+      if (!viewport) return;
+
+      viewport.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        if (e.ctrlKey) {
+          const rect = viewport.getBoundingClientRect();
+          const mouseX = e.clientX - rect.left;
+          const mouseY = e.clientY - rect.top;
+          const canvasX = (mouseX - panX) / zoom;
+          const canvasY = (mouseY - panY) / zoom;
+          const zoomFactor = 1.1;
+          const nextZoom = e.deltaY < 0 ? zoom * zoomFactor : zoom / zoomFactor;
+          zoom = Math.max(0.15, Math.min(3.0, nextZoom));
+          panX = mouseX - canvasX * zoom;
+          panY = mouseY - canvasY * zoom;
+        } else {
+          panX -= e.deltaX;
+          panY -= e.deltaY;
+        }
+        updateCanvasTransform();
+      }, { passive: false });
+
+      viewport.addEventListener('mousedown', (e) => {
+        const grid = document.getElementById('widgetGrid');
+        if (e.target === viewport || e.target === grid) {
+          isPanning = true;
+          startPanX = e.clientX - panX;
+          startPanY = e.clientY - panY;
+          viewport.style.cursor = 'grabbing';
+        }
+      });
+
+      window.addEventListener('mousemove', (e) => {
+        if (isPanning) {
+          panX = e.clientX - startPanX;
+          panY = e.clientY - startPanY;
+          updateCanvasTransform();
+        }
+      });
+
+      window.addEventListener('mouseup', () => {
+        if (isPanning) {
+          isPanning = false;
+          viewport.style.cursor = 'grab';
+        }
+      });
+    });
+
+    function zoomIn() {
+      zoom = Math.min(3.0, zoom + 0.1);
+      updateCanvasTransform();
+    }
+
+    function zoomOut() {
+      zoom = Math.max(0.15, zoom - 0.1);
+      updateCanvasTransform();
+    }
+
+    function zoomReset() {
+      zoom = 1.0;
+      const viewport = document.getElementById('canvasViewport');
+      const preset = CANVAS_PRESETS[canvasPreset] || CANVAS_PRESETS['dashboard_lg'];
+      if (viewport) {
+        const vRect = viewport.getBoundingClientRect();
+        panX = (vRect.width - preset.width) / 2;
+        panY = (vRect.height - preset.height) / 2;
+      } else {
+        panX = 0;
+        panY = 0;
+      }
+      updateCanvasTransform();
+    }
+
+    function zoomToFit() {
+      const viewport = document.getElementById('canvasViewport');
+      const grid = document.getElementById('widgetGrid');
+      if (!viewport || !grid) return;
+      
+      const vRect = viewport.getBoundingClientRect();
+      const preset = CANVAS_PRESETS[canvasPreset] || CANVAS_PRESETS['dashboard_lg'];
+      
+      const padding = 40;
+      const zoomX = (vRect.width - padding) / preset.width;
+      const zoomY = (vRect.height - padding) / preset.height;
+      zoom = Math.min(1.5, Math.min(zoomX, zoomY));
+      zoom = Math.max(0.15, Math.round(zoom * 20) / 20);
+      
+      panX = (vRect.width - preset.width * zoom) / 2;
+      panY = (vRect.height - preset.height * zoom) / 2;
+      
+      updateCanvasTransform();
+    }
+
+    function initCentering() {
+      const viewport = document.getElementById('canvasViewport');
+      const grid = document.getElementById('widgetGrid');
+      if (!viewport || !grid) return;
+      
+      const vRect = viewport.getBoundingClientRect();
+      const preset = CANVAS_PRESETS[canvasPreset] || CANVAS_PRESETS['dashboard_lg'];
+      
+      const padding = 60;
+      const zoomX = (vRect.width - padding) / preset.width;
+      const zoomY = (vRect.height - padding) / preset.height;
+      zoom = Math.min(1.0, Math.min(zoomX, zoomY));
+      zoom = Math.max(0.25, Math.round(zoom * 20) / 20);
+      
+      panX = (vRect.width - preset.width * zoom) / 2;
+      panY = (vRect.height - preset.height * zoom) / 2;
+      
+      updateCanvasTransform();
+    }
+
+    function updateCanvasTransform() {
+      const grid = document.getElementById('widgetGrid');
+      if (grid) {
+        grid.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+      }
+      const label = document.getElementById('zoomLabel');
+      if (label) {
+        label.textContent = `${Math.round(zoom * 100)}%`;
+      }
+    }
+
+    // ── Packing Algorithm to convert grid to canvas coordinates ──
+    function convertGridLayoutToCanvas(widgets) {
+      const sorted = [...widgets].sort((a, b) => {
+        const orderA = a.layout_config?.order !== undefined ? a.layout_config.order : 999;
+        const orderB = b.layout_config?.order !== undefined ? b.layout_config.order : 999;
+        return orderA - orderB;
+      });
+
+      const preset = CANVAS_PRESETS[canvasPreset] || CANVAS_PRESETS['dashboard_lg'];
+      
+      const GAP = 20;
+      let numCols = 4;
+      if (preset.width < 600) numCols = 2;
+      else if (preset.width < 1000) numCols = 3;
+      else if (preset.width < 1500) numCols = 4;
+      else numCols = 5;
+
+      const COL_WIDTH = Math.floor((preset.width - (numCols + 1) * GAP) / numCols);
+      const ROW_HEIGHT = Math.min(280, Math.floor(COL_WIDTH * 0.8));
+      
+      let gridMatrix = [];
+      for (let r = 0; r < 200; r++) {
+        const rowArr = [];
+        for (let c = 0; c < numCols; c++) rowArr.push(false);
+        gridMatrix.push(rowArr);
+      }
+
+      sorted.forEach(w => {
+        let layout = w.layout_config || {};
+        if (layout.x !== undefined && layout.y !== undefined) {
+          if (layout.width === undefined) layout.width = COL_WIDTH * 2;
+          if (layout.height === undefined) layout.height = ROW_HEIGHT;
+          return;
+        }
+
+        const spanX = Math.max(1, Math.min(numCols, parseInt(layout.width) || 2));
+        const spanY = Math.max(1, Math.min(4, parseInt(layout.height) || 1));
+
+        let found = false;
+        let targetRow = 0;
+        let targetCol = 0;
+
+        for (let r = 0; r < 200 && !found; r++) {
+          for (let c = 0; c <= numCols - spanX && !found; c++) {
+            let fits = true;
+            for (let dr = 0; dr < spanY; dr++) {
+              for (let dc = 0; dc < spanX; dc++) {
+                if (gridMatrix[r + dr] && gridMatrix[r + dr][c + dc]) {
+                  fits = false;
+                  break;
+                }
+              }
+              if (!fits) break;
+            }
+
+            if (fits) {
+              targetRow = r;
+              targetCol = c;
+              found = true;
+              for (let dr = 0; dr < spanY; dr++) {
+                for (let dc = 0; dc < spanX; dc++) {
+                  gridMatrix[r + dr][c + dc] = true;
+                }
+              }
+            }
+          }
+        }
+
+        const pixelX = GAP + targetCol * (COL_WIDTH + GAP);
+        const pixelY = GAP + targetRow * (ROW_HEIGHT + GAP);
+        const pixelW = spanX * COL_WIDTH + (spanX - 1) * GAP;
+        const pixelH = spanY * ROW_HEIGHT + (spanY - 1) * GAP;
+
+        if (!w.layout_config) w.layout_config = {};
+        w.layout_config.x = Math.round(pixelX);
+        w.layout_config.y = Math.round(pixelY);
+        w.layout_config.width = Math.round(pixelW);
+        w.layout_config.height = Math.round(pixelH);
+      });
+    }
+
+    // ── Helper functions for color generation ──
+    function hexToRgb(hex) {
+      const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+      return result ? {
+        r: parseInt(result[1], 16),
+        g: parseInt(result[2], 16),
+        b: parseInt(result[3], 16)
+      } : { r: 46, g: 91, b: 186 };
+    }
+
+    function rgbToHex(r, g, b) {
+      return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+    }
+
+    function generateColorRange(color1, color2, steps) {
+      const rgb1 = hexToRgb(color1);
+      const rgb2 = hexToRgb(color2);
+      const result = [];
+      if (steps <= 1) return [color1];
+      for (let i = 0; i < steps; i++) {
+        const ratio = i / (steps - 1);
+        const r = Math.round(rgb1.r + ratio * (rgb2.r - rgb1.r));
+        const g = Math.round(rgb1.g + ratio * (rgb2.g - rgb1.g));
+        const b = Math.round(rgb1.b + ratio * (rgb2.b - rgb1.b));
+        result.push(rgbToHex(r, g, b));
+      }
+      return result;
+    }
+
+    function generateColorShades(color, steps) {
+      const rgb = hexToRgb(color);
+      const result = [];
+      for (let i = 0; i < steps; i++) {
+        const factor = 1 - (i * 0.4 / Math.max(1, steps - 1));
+        const r = Math.max(0, Math.min(255, Math.round(rgb.r * factor)));
+        const g = Math.max(0, Math.min(255, Math.round(rgb.g * factor)));
+        const b = Math.max(0, Math.min(255, Math.round(rgb.b * factor)));
+        result.push(rgbToHex(r, g, b));
+      }
+      return result;
+    }
+
+    function hexToRgba(hex, alpha) {
+      const rgb = hexToRgb(hex);
+      return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
+    }
+
+    // ── Helper functions for Zoom and Color persistence ──
+    async function updateWidgetConfig(wid, configUpdates) {
+      const w = widgetsList.find(item => item.id === wid);
+      if (!w) return;
+      if (!w.chart_config) w.chart_config = {};
+      w.chart_config = { ...w.chart_config, ...configUpdates };
+
+      const payload = {
+        title: w.title,
+        widget_type: w.widget_type,
+        schema_name: w.schema_name,
+        table_name: w.table_name,
+        columns: w.columns || '',
+        filters: w.filters || '',
+        chart_config: w.chart_config,
+        layout_config: w.layout_config
+      };
+
+      try {
+        const res = await fetch(`/api/user/dashboards/${dashboardId}/widgets/${wid}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+          showToast('Widget updated.', 'success');
+          if (window.widgetDataCache[wid]) {
+            renderWidgetContent(wid, w.widget_type, window.widgetDataCache[wid], w.chart_config);
+          } else {
+            fetchWidgetData(wid, w.widget_type, w.chart_config);
+          }
+        } else {
+          showToast('Failed to update config.', 'error');
+        }
+      } catch (e) {
+        console.error(e);
+        showToast('Error updating widget config.', 'error');
+      }
+    }
+
+    function toggleColorPopover(wid, event) {
+      if (event) {
+        event.stopPropagation();
+        event.preventDefault();
+      }
+      document.querySelectorAll('.color-picker-popover').forEach(pop => {
+        if (pop.id !== `color-popover-${wid}`) {
+          pop.style.display = 'none';
+        }
+      });
+      const pop = document.getElementById(`color-popover-${wid}`);
+      if (pop) {
+        pop.style.display = pop.style.display === 'none' ? 'block' : 'none';
+      }
+    }
+
+    function applyWidgetColors(wid) {
+      const primary = document.getElementById(`primary-color-${wid}`).value;
+      const useSecondary = document.getElementById(`use-secondary-${wid}`).checked;
+      const secondary = useSecondary ? document.getElementById(`secondary-color-${wid}`).value : null;
+
+      updateWidgetConfig(wid, {
+        primary_color: primary,
+        secondary_color: secondary
+      });
+
+      const pop = document.getElementById(`color-popover-${wid}`);
+      if (pop) pop.style.display = 'none';
+    }
+
+    function zoomWidget(wid, direction) {
+      const w = widgetsList.find(item => item.id === wid);
+      if (!w) return;
+      if (!w.chart_config) w.chart_config = {};
+
+      let currentZoom = w.chart_config.zoom || 100;
+      let nextZoom = currentZoom;
+
+      if (direction === 'in') {
+        nextZoom = Math.min(200, currentZoom + 25);
+      } else if (direction === 'out') {
+        nextZoom = Math.max(100, currentZoom - 25);
+      } else if (direction === 'reset') {
+        nextZoom = 100;
+      }
+
+      updateWidgetConfig(wid, { zoom: nextZoom });
+    }
+
+    async function loadViewerData() {
+      try {
+        const res = await fetch(`/api/user/dashboards/${dashboardId}/widgets`);
+        widgetsList = await res.json();
+        renderWidgets(true); // Fetch data on initial load
+      } catch (e) { showToast('Error loading dashboard widgets.', 'error'); }
+    }
+
+    function renderWidgets(fetchData = false) {
+      const grid = document.getElementById('widgetGrid');
+      const empty = document.getElementById('noWidgetsState');
+      Object.values(chartInstances).forEach(chart => chart.destroy());
+      chartInstances = {};
+
+      if (widgetsList.length === 0) { grid.style.display = 'none'; empty.style.display = 'block'; return; }
+      grid.style.display = 'block'; empty.style.display = 'none';
+      grid.innerHTML = '';
+
+      convertGridLayoutToCanvas(widgetsList);
+
+      widgetsList.forEach((w) => {
+        const layout = w.layout_config || {};
+        const card = document.createElement('div');
+        card.className = 'widget-card';
+        card.style.left = `${layout.x !== undefined ? layout.x : 24}px`;
+        card.style.top = `${layout.y !== undefined ? layout.y : 24}px`;
+        card.style.width = `${layout.width || 400}px`;
+        card.style.height = `${layout.height || 300}px`;
+        card.setAttribute('data-widget-id', w.id);
+
+        const isChart = ['bar', 'pie', 'line', 'area'].includes(w.widget_type);
+        const colorPickerHtml = isChart ? `<button class="w-ctrl-btn" onclick="toggleColorPopover(${w.id}, event)" title="Chart Colors">🎨</button>` : '';
+        const zoomHtml = isChart ? `
+          <button class="w-ctrl-btn" onclick="zoomWidget(${w.id}, 'out')" title="Zoom Out">➖</button>
+          <button class="w-ctrl-btn" onclick="zoomWidget(${w.id}, 'in')" title="Zoom In">➕</button>
+          <button class="w-ctrl-btn" onclick="zoomWidget(${w.id}, 'reset')" title="Reset Zoom">⟲</button>
+        ` : '';
+
+        card.innerHTML = `
+          <div class="widget-header">
+            <div style="display:flex;align-items:center;gap:8px;overflow:hidden;">
+              <div class="widget-title-text" title="${w.title}">${w.title || 'Widget'}</div>
+              <div class="widget-type-badge">${w.widget_type}</div>
+            </div>
+            <div class="widget-controls" style="position: relative; display: flex; align-items: center; gap: 2px;">
+              ${colorPickerHtml}
+              ${zoomHtml}
+              <button class="w-ctrl-btn" onclick="refreshWidget(${w.id})" title="Refresh">🔄</button>
+
+              <!-- Color Popover -->
+              ${isChart ? `
+              <div id="color-popover-${w.id}" class="color-picker-popover" style="display:none; position:absolute; right:10px; top:36px; background:var(--ds-card); border:2px solid var(--ds-border); border-radius:12px; padding:12px; z-index:10000; box-shadow:0 8px 24px rgba(0,0,0,0.15); width:180px; text-align:left;">
+                <div style="font-size:11px; font-weight:700; text-transform:uppercase; margin-bottom:8px; color:var(--ds-text-muted);">Chart Colors</div>
+                <div style="display:flex; flex-direction:column; gap:8px;">
+                  <div style="display:flex; align-items:center; justify-content:space-between;">
+                    <span style="font-size:11.5px; font-weight:600; color:var(--ds-text);">Primary:</span>
+                    <input type="color" id="primary-color-${w.id}" value="${w.chart_config?.primary_color || '#2E5BBA'}" style="border:none; width:36px; height:24px; cursor:pointer; background:none; padding:0;">
+                  </div>
+                  <div style="display:flex; align-items:center; justify-content:space-between;">
+                    <span style="font-size:11.5px; font-weight:600; color:var(--ds-text);">Secondary:</span>
+                    <div style="display:flex; align-items:center; gap:4px;">
+                      <input type="checkbox" id="use-secondary-${w.id}" ${w.chart_config?.secondary_color ? 'checked' : ''} onchange="document.getElementById('secondary-color-${w.id}').disabled = !this.checked" style="width:12px; height:12px; cursor:pointer;">
+                      <input type="color" id="secondary-color-${w.id}" value="${w.chart_config?.secondary_color || '#2E7D32'}" ${w.chart_config?.secondary_color ? '' : 'disabled'} style="border:none; width:36px; height:24px; cursor:pointer; background:none; padding:0;">
+                    </div>
+                  </div>
+                  <div style="display:flex; gap:6px; margin-top:4px;">
+                    <button class="btn btn-ghost" style="flex:1; font-size:10px; padding:4px;" onclick="toggleColorPopover(${w.id}, event)">Cancel</button>
+                    <button class="btn btn-primary" style="flex:1; font-size:10px; padding:4px;" onclick="applyWidgetColors(${w.id})">Apply</button>
+                  </div>
+                </div>
+              </div>
+              ` : ''}
+            </div>
+          </div>
+          <div class="widget-body" id="wbody-${w.id}">
+            <div class="loading-widget">Loading data...</div>
+          </div>
+        `;
+        grid.appendChild(card);
+
+        if (!fetchData && window.widgetDataCache[w.id]) {
+          renderWidgetContent(w.id, w.widget_type, window.widgetDataCache[w.id], w.chart_config);
+        } else {
+          fetchWidgetData(w.id, w.widget_type, w.chart_config);
+        }
+      });
+    }
+
+    async function fetchWidgetData(wid, wtype, chartConfig) {
+      try {
+        const res = await fetch(`/api/user/dashboards/${dashboardId}/widgets/${wid}/data`);
+        const data = await res.json();
+        window.widgetDataCache[wid] = data; // Cache data
+        renderWidgetContent(wid, wtype, data, chartConfig);
+      } catch (e) {
+        document.getElementById(`wbody-${wid}`).innerHTML = '<div class="loading-widget" style="color:var(--ds-danger)">Failed to load data.</div>';
+      }
+    }
+
+    async function refreshWidget(wid) {
+      const w = widgetsList.find(item => item.id === wid);
+      if (!w) return;
+      const container = document.getElementById(`wbody-${wid}`);
+      container.innerHTML = '<div class="loading-widget">Refreshing...</div>';
+      try {
+        const res = await fetch(`/api/user/dashboards/${dashboardId}/widgets/${wid}/refresh`, { method: 'POST' });
+        const data = await res.json();
+        if (res.ok) { 
+          window.widgetDataCache[wid] = data; // Update cache
+          renderWidgetContent(wid, w.widget_type, data, w.chart_config); 
+          showToast(`Refreshed "${w.title}".`, 'success'); 
+        }
+        else { showToast('Refresh failed.', 'error'); fetchWidgetData(wid, w.widget_type, w.chart_config); }
+      } catch(e) { showToast('Error refreshing.', 'error'); fetchWidgetData(wid, w.widget_type, w.chart_config); }
+    }
+
+    async function refreshAllWidgets() {
+      showToast('Refreshing all widgets...', 'info');
+      await Promise.all(widgetsList.map(w => refreshWidget(w.id)));
+    }
+
+    function renderWidgetContent(wid, wtype, data, chartConfig) {
+      const container = document.getElementById(`wbody-${wid}`);
+      if (!data || !data.rows || data.rows.length === 0) {
+        container.innerHTML = `<div class="loading-widget" style="flex-direction:column;gap:8px;"><span style="font-size:24px;">📭</span><span>No data returned.</span></div>`;
+        return;
+      }
+
+      const rows = data.rows;
+      const columns = data.columns;
+
+      if (wtype === 'kpi') {
+        const kpiValCol = chartConfig.value_column || columns[0];
+        const agg = chartConfig.aggregation || 'count';
+        let value = 0;
+        if (agg === 'count') { value = rows.length; }
+        else {
+          const vals = rows.map(r => parseFloat(r[kpiValCol])).filter(v => !isNaN(v));
+          if (vals.length === 0) { value = '—'; }
+          else if (agg === 'sum') { value = vals.reduce((a,b) => a+b, 0).toLocaleString(undefined,{maximumFractionDigits:1}); }
+          else if (agg === 'avg') { value = (vals.reduce((a,b) => a+b, 0) / vals.length).toLocaleString(undefined,{maximumFractionDigits:1}); }
+          else if (agg === 'min') { value = Math.min(...vals).toLocaleString(undefined,{maximumFractionDigits:1}); }
+          else if (agg === 'max') { value = Math.max(...vals).toLocaleString(undefined,{maximumFractionDigits:1}); }
+          else { value = rows[0][kpiValCol] !== undefined ? rows[0][kpiValCol] : '—'; }
+        }
+        container.innerHTML = `<div class="kpi-container"><div class="kpi-value">${value}</div><div class="kpi-label">${chartConfig.value_column || 'Rows'} (${agg.toUpperCase()})</div></div>`;
+      }
+      else if (wtype === 'stats') {
+        const numCol = chartConfig.value_column || columns.find(c => typeof rows[0][c] === 'number') || columns[0];
+        const vals = rows.map(r => parseFloat(r[numCol])).filter(v => !isNaN(v));
+        if (vals.length === 0) { container.innerHTML = '<div class="loading-widget">No numeric data.</div>'; return; }
+        const count = vals.length;
+        const sum = vals.reduce((a,b) => a+b, 0);
+        const mean = sum / count;
+        const sorted = [...vals].sort((a,b) => a-b);
+        const median = sorted.length % 2 === 0 ? (sorted[sorted.length/2-1]+sorted[sorted.length/2])/2 : sorted[Math.floor(sorted.length/2)];
+        container.innerHTML = `
+          <div class="stat-list">
+            <div style="font-size:12px;font-weight:700;color:var(--ds-royal);margin-bottom:8px;">Column: ${numCol}</div>
+            <div class="stat-row"><span class="stat-lbl">Count</span><span class="stat-val">${count.toLocaleString()}</span></div>
+            <div class="stat-row"><span class="stat-lbl">Sum</span><span class="stat-val">${sum.toLocaleString(undefined,{maximumFractionDigits:1})}</span></div>
+            <div class="stat-row"><span class="stat-lbl">Mean</span><span class="stat-val">${mean.toLocaleString(undefined,{maximumFractionDigits:2})}</span></div>
+            <div class="stat-row"><span class="stat-lbl">Median</span><span class="stat-val">${median.toLocaleString(undefined,{maximumFractionDigits:2})}</span></div>
+            <div class="stat-row"><span class="stat-lbl">Min</span><span class="stat-val">${Math.min(...vals).toLocaleString(undefined,{maximumFractionDigits:1})}</span></div>
+            <div class="stat-row"><span class="stat-lbl">Max</span><span class="stat-val">${Math.max(...vals).toLocaleString(undefined,{maximumFractionDigits:1})}</span></div>
+          </div>`;
+      }
+      else if (wtype === 'table') {
+        window.widgetDataCache[wid] = data;
+        const pageSize = window.widgetTableState[wid]?.pageSize || 10;
+        window.renderWidgetTablePage(wid, 0, pageSize);
+      }
+      else if (['bar', 'pie', 'line', 'area'].includes(wtype)) {
+        const xCol = chartConfig.label_column || columns[0];
+        const yCol = chartConfig.value_column || columns[1] || columns[0];
+
+        const chartTypeParam = (wtype === 'area' || wtype === 'line') ? 'line' : (wtype === 'pie' ? 'pie' : 'bar');
+        const chartRes = prepareChartData(rows, xCol, yCol, chartTypeParam, chartConfig.aggregation || 'none');
+        let chartLabels = chartRes.labels || [];
+        let chartData = chartRes.datasets && chartRes.datasets[0] ? chartRes.datasets[0].data : [];
+
+        if (chartLabels.length > 15) { chartLabels = chartLabels.slice(0, 15); chartData = chartData.slice(0, 15); }
+
+        const zoomLevel = chartConfig.zoom || 100;
+
+        container.innerHTML = `
+          <div class="chart-zoom-outer-wrapper" style="width: 100%; height: 100%; overflow: hidden; display: flex; align-items: center; justify-content: center; min-height: 180px;">
+            <div id="chart-wrapper-${wid}" class="chart-wrapper" style="position: relative; width: 100%; height: 100%; transform: scale(${zoomLevel / 100}); transform-origin: center; transition: transform 0.2s;">
+              <canvas id="chart-canvas-${wid}"></canvas>
+            </div>
+          </div>
+        `;
+
+        const ctx = document.getElementById(`chart-canvas-${wid}`).getContext('2d');
+        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        const palette = ['#2E7D32','#2E5BBA','#F4A300','#7B1FA2','#F57C00','#1976D2','#D32F2F','#00796B','#C2185B','#455A64','#0288D1','#827717','#AD1457','#00838F','#E65100'];
+
+        // Custom chart colors
+        let customBg = null;
+        let customBorder = null;
+
+        if (chartConfig && chartConfig.primary_color) {
+          const prim = chartConfig.primary_color;
+          const sec = chartConfig.secondary_color;
+
+          if (wtype === 'pie') {
+            customBg = sec ? generateColorRange(prim, sec, chartData.length) : generateColorShades(prim, chartData.length);
+            customBorder = '#fff';
+          } else if (wtype === 'bar') {
+            if (sec) {
+              const gradient = ctx.createLinearGradient(0, 0, 0, 200);
+              gradient.addColorStop(0, prim);
+              gradient.addColorStop(1, sec);
+              customBg = gradient;
+            } else {
+              customBg = prim;
+            }
+            customBorder = prim;
+          } else if (wtype === 'area') {
+            if (sec) {
+              const gradient = ctx.createLinearGradient(0, 0, 0, 200);
+              gradient.addColorStop(0, hexToRgba(prim, 0.4));
+              gradient.addColorStop(1, hexToRgba(sec, 0.05));
+              customBg = gradient;
+            } else {
+              customBg = hexToRgba(prim, 0.25);
+            }
+            customBorder = prim;
+          } else if (wtype === 'line') {
+            customBg = prim;
+            customBorder = prim;
+          }
+        }
+
+        let type = wtype === 'area' ? 'line' : wtype;
+        let ds = {
+          label: chartRes.datasets && chartRes.datasets[0] ? (chartRes.datasets[0].label || yCol) : yCol,
+          data: chartData,
+          backgroundColor: customBg || (wtype === 'pie' ? palette : (isDark ? 'rgba(96,165,250,0.7)' : '#2E5BBA')),
+          borderColor: customBorder || (wtype === 'pie' ? '#fff' : (isDark ? '#60a5fa' : '#2E5BBA')),
+          borderWidth: 2,
+          borderRadius: wtype === 'bar' ? 6 : 0
+        };
+        if (wtype === 'area') {
+          ds.fill = true;
+          if (!customBg) {
+            ds.backgroundColor = isDark ? 'rgba(96,165,250,0.15)' : 'rgba(46,91,186,0.15)';
+          }
+          ds.tension = 0.4;
+        }
+        if (wtype === 'line') {
+          ds.tension = 0.3;
+        }
+
+        chartInstances[wid] = new Chart(ctx, {
+          type,
+          data: { labels: chartLabels, datasets: [ds] },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: wtype === 'pie', labels: { color: isDark ? '#94a3b8' : '#64748b', font: { size: 11 } } } },
+            scales: wtype === 'pie' ? {} : {
+              y: { beginAtZero: true, grid: { color: isDark ? '#1e293b' : '#E5E7EB' }, ticks: { color: isDark ? '#94a3b8' : '#64748b', font: { size: 10 } } },
+              x: { grid: { display: false }, ticks: { color: isDark ? '#94a3b8' : '#64748b', font: { size: 10 }, maxRotation: 45 } }
+            }
+          }
+        });
+      }
+    }
+
+    // ── Table Pagination Implementation ──
+    window.renderWidgetTablePage = function(wid, page, pageSize) {
+      window.widgetTableState[wid] = { page, pageSize };
+      const data = window.widgetDataCache[wid];
+      if (!data || !data.rows) return;
+      const container = document.getElementById(`wbody-${wid}`);
+      if (!container) return;
+
+      const rows = data.rows;
+      const columns = data.columns;
+      const totalPages = Math.ceil(rows.length / pageSize);
+      const start = page * pageSize;
+      const pageRows = rows.slice(start, start + pageSize);
+      const visibleCols = columns.slice(0, 6);
+      const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+
+      const headerHtml = visibleCols.map(c => `<th style="padding:6px 10px; font-size:10px; text-transform:uppercase; color:var(--ds-text-muted); font-weight:700; white-space:nowrap;">${c}</th>`).join('');
+      const rowsHtml = pageRows.map((r, ri) => {
+        const bg = ri % 2 === 0 ? 'transparent' : (isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)');
+        return `<tr style="background:${bg}">${visibleCols.map(c => `<td style="padding:6px 10px; font-size:11.5px; border-bottom:1px solid var(--ds-border-soft); white-space:nowrap;">${r[c] !== undefined && r[c] !== null ? r[c] : ''}</td>`).join('')}</tr>`;
+      }).join('');
+
+      const paginationHtml = `
+        <div class="table-pagination" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+          <div style="display:flex; align-items:center; gap:6px;">
+            <span style="font-size:11px; color:var(--ds-text-muted);">Show:</span>
+            <select class="form-select" onchange="window.renderWidgetTablePage(${wid}, 0, parseInt(this.value))" style="width:auto; padding:2px 6px; font-size:11px; height:auto; border-radius:4px; background:var(--ds-card); color:var(--ds-text); border:1px solid var(--ds-border);">
+              <option value="10" ${pageSize === 10 ? 'selected' : ''}>10</option>
+              <option value="25" ${pageSize === 25 ? 'selected' : ''}>25</option>
+              <option value="50" ${pageSize === 50 ? 'selected' : ''}>50</option>
+              <option value="100" ${pageSize === 100 ? 'selected' : ''}>100</option>
+            </select>
+          </div>
+          <div style="display:flex; align-items:center; gap:6px;">
+            <button class="btn btn-ghost btn-sm" ${page <= 0 ? 'disabled style="opacity:0.4; cursor:not-allowed;"' : ''} onclick="window.renderWidgetTablePage(${wid}, ${page - 1}, ${pageSize})" style="padding:2px 6px; font-size:11px;">‹ Prev</button>
+            <span style="font-size:11px; color:var(--ds-text-muted); font-weight:600;">Page ${page + 1} of ${totalPages}</span>
+            <button class="btn btn-ghost btn-sm" ${page >= totalPages - 1 ? 'disabled style="opacity:0.4; cursor:not-allowed;"' : ''} onclick="window.renderWidgetTablePage(${wid}, ${page + 1}, ${pageSize})" style="padding:2px 6px; font-size:11px;">Next ›</button>
+          </div>
+        </div>
+      `;
+
+      container.innerHTML = `
+        <div style="overflow:auto; width:100%; flex:1;">
+          <table style="width:100%; border-collapse:collapse; text-align:left;">
+            <thead><tr style="background:${isDark ? '#1e293b' : '#f1f5f9'};">${headerHtml}</tr></thead>
+            <tbody>${rowsHtml}</tbody>
+          </table>
+        </div>
+        <div style="font-size:10px; text-align:center; color:var(--ds-text-muted); padding:4px;">
+          ${rows.length} total rows • ${visibleCols.length}/${columns.length} columns
+        </div>
+        ${paginationHtml}
+      `;
+    };
+
+    async function exportPNG() {
+      showToast('Generating dashboard image...', 'info');
+      const grid = document.getElementById('widgetGrid');
+      
+      const prevTransform = grid.style.transform;
+      const prevWidth = grid.style.width;
+      const prevHeight = grid.style.height;
+      
+      const preset = CANVAS_PRESETS[canvasPreset] || CANVAS_PRESETS['dashboard_lg'];
+      const exportW = preset.width;
+      const exportH = preset.height;
+      
+      grid.style.transform = 'none';
+      grid.style.width = `${exportW}px`;
+      grid.style.height = `${exportH}px`;
+      grid.classList.add('exporting');
+      
+      try {
+        const canvas = await html2canvas(grid, {
+          backgroundColor: '#ffffff',
+          scale: 2,
+          useCORS: true,
+          width: exportW,
+          height: exportH
+        });
+        const link = document.createElement('a');
+        link.download = `dashboard_${dashboardId}.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+        showToast('Dashboard PNG downloaded.', 'success');
+      } catch (e) {
+        showToast('PNG export failed.', 'error');
+      } finally {
+        grid.classList.remove('exporting');
+        grid.style.transform = prevTransform;
+        grid.style.width = prevWidth;
+        grid.style.height = prevHeight;
+      }
+    }
+
+    async function exportPDF() {
+      showToast('Generating PDF...', 'info');
+      const grid = document.getElementById('widgetGrid');
+      
+      const prevTransform = grid.style.transform;
+      const prevWidth = grid.style.width;
+      const prevHeight = grid.style.height;
+      
+      const preset = CANVAS_PRESETS[canvasPreset] || CANVAS_PRESETS['dashboard_lg'];
+      const exportW = preset.width;
+      const exportH = preset.height;
+      
+      grid.style.transform = 'none';
+      grid.style.width = `${exportW}px`;
+      grid.style.height = `${exportH}px`;
+      grid.classList.add('exporting');
+      
+      try {
+        const canvas = await html2canvas(grid, {
+          backgroundColor: '#ffffff',
+          scale: 2,
+          useCORS: true,
+          width: exportW,
+          height: exportH
+        });
+        const imgData = canvas.toDataURL('image/png');
+        const { jsPDF } = window.jspdf;
+        const orientation = exportW > exportH ? 'l' : 'p';
+        const pdf = new jsPDF(orientation, 'mm', [exportW * 0.264583, exportH * 0.264583]);
+        const pdfW = pdf.internal.pageSize.getWidth();
+        const pdfH = pdf.internal.pageSize.getHeight();
+        
+        pdf.addImage(imgData, 'PNG', 0, 0, pdfW, pdfH);
+        pdf.save(`dashboard_${dashboardId}.pdf`);
+        showToast('Dashboard PDF downloaded.', 'success');
+      } catch (e) {
+        console.error(e);
+        showToast('PDF export failed.', 'error');
+      } finally {
+        grid.classList.remove('exporting');
+        grid.style.transform = prevTransform;
+        grid.style.width = prevWidth;
+        grid.style.height = prevHeight;
+      }
+    }
+
+    function isNumericValue(value) {
+      if (value === null || value === "") return false;
+      const num = Number(value);
+      return !isNaN(num) && isFinite(num);
+    }
+
+    function generatePurpleColors(count) {
+      const baseColors = [
+        'rgba(102, 126, 234, 0.8)',
+        'rgba(118, 75, 162, 0.8)',
+        'rgba(240, 147, 251, 0.8)',
+        'rgba(245, 87, 108, 0.8)',
+        'rgba(79, 172, 254, 0.8)',
+        'rgba(255, 217, 61, 0.8)',
+        'rgba(255, 107, 107, 0.8)',
+        'rgba(67, 233, 123, 0.8)'
+      ];
+      const result = [];
+      for (let i = 0; i < count; i++) {
+        result.push(baseColors[i % baseColors.length]);
+      }
+      return result;
+    }
+
+    function prepareChartData(data, xCol, yCol, chartType, aggregation = 'none') {
+      const aggregated = {};
+      const counts = {};
+      
+      const uniqueX = new Set(data.map(r => r[xCol]));
+      const hasDuplicates = uniqueX.size < data.length;
+      const doGrouping = (aggregation !== 'none' || hasDuplicates) && hasDuplicates;
+
+      if (doGrouping) {
+        const aggType = aggregation !== 'none' ? aggregation : 'sum';
+        data.forEach(row => {
+          const key = row[xCol] !== undefined && row[xCol] !== null ? String(row[xCol]) : 'Unknown';
+          const val = Number(row[yCol]);
+          const isNum = !isNaN(val);
+
+          if (aggregated[key] === undefined) {
+            aggregated[key] = 0;
+            counts[key] = 0;
+          }
+
+          if (aggType === 'count') {
+            aggregated[key] += 1;
+          } else if (aggType === 'sum') {
+            aggregated[key] += (isNum ? val : 0);
+          } else if (aggType === 'avg') {
+            aggregated[key] += (isNum ? val : 0);
+            counts[key] += 1;
+          }
+        });
+
+        if (aggType === 'avg') {
+          Object.keys(aggregated).forEach(key => {
+            if (counts[key] > 0) {
+              aggregated[key] = aggregated[key] / counts[key];
+            }
+          });
+        }
+
+        return {
+          labels: Object.keys(aggregated),
+          datasets: [{
+            label: aggregation !== 'none' ? `${yCol} (${aggregation.toUpperCase()})` : yCol,
+            data: Object.values(aggregated),
+            borderWidth: 2,
+            borderColor: 'rgba(255, 255, 255, 0.3)'
+          }]
+        };
+      } else {
+        return {
+          labels: data.map(r => String(r[xCol])),
+          datasets: [{
+            label: yCol,
+            data: data.map(r => Number(r[yCol]) || 0),
+            borderWidth: 2,
+            borderColor: 'rgba(255, 255, 255, 0.3)'
+          }]
+        };
+      }
+    }
+
+    window.addEventListener('load', () => {
+      const grid = document.getElementById('widgetGrid');
+      if (grid) {
+        const preset = CANVAS_PRESETS[canvasPreset] || CANVAS_PRESETS['dashboard_lg'];
+        grid.style.width = `${preset.width}px`;
+        grid.style.height = `${preset.height}px`;
+        if (showGridlines) {
+          grid.classList.add('show-gridlines');
+        } else {
+          grid.classList.remove('show-gridlines');
+        }
+      }
+      loadViewerData().then(() => {
+        setTimeout(initCentering, 100);
+      });
+    });
+  </script>
+  <script src="/static/user_mobile.js"></script>
+</body>
+</html>
