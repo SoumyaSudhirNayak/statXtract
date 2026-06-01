@@ -804,8 +804,10 @@
     </div>
   </div>
 
-  <!-- Hidden PDF Report Template -->
-  <div id="pdfReportTemplate" style="position: absolute; left: -9999px; top: -9999px; width: 800px; padding: 40px; background: #ffffff; color: #1e293b; font-family: 'Inter', sans-serif; box-sizing: border-box;">
+  <!-- Hidden PDF Report Sandbox to prevent horizontal scroll overflow on mobile viewports -->
+  <div style="position: absolute; left: -9999px; top: -9999px; width: 1px; height: 1px; overflow: hidden;">
+    <!-- Hidden PDF Report Template -->
+    <div id="pdfReportTemplate" style="width: 800px; min-width: 800px; max-width: 800px; padding: 40px; background: #ffffff; color: #1e293b; font-family: 'Inter', sans-serif; box-sizing: border-box;">
     <!-- Brand Header -->
     <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #2E7D32; padding-bottom: 20px; margin-bottom: 30px;">
       <div>
@@ -913,6 +915,7 @@
     <!-- Footer Disclaimer -->
     <div style="text-align: center; font-size: 10px; color: #94a3b8; margin-top: 40px; border-top: 1px solid #e2e8f0; padding-top: 16px;">
       This profile activity report is generated securely for the registered user by STATXTRACT. • All rights reserved © 2026.
+    </div>
     </div>
   </div>
   <script src="/static/user_mobile.js"></script>
