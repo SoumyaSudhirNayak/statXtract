@@ -14,7 +14,7 @@ from utils.job_manager import create_job, get_job, update_job
 from utils.batch_validation import scan_batch_archive
 from utils.batch_ingestion_service import run_batch_import_job
 
-router = APIRouter(tags=["Batch Import"])
+router = APIRouter(tags=["Batch Import"], include_in_schema=False)
 
 UPLOAD_DIR = "uploads"
 BATCH_TEMP_DIR = os.path.join(UPLOAD_DIR, "batch_temp")

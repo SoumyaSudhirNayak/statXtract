@@ -727,7 +727,7 @@ async def register_user(
     return RedirectResponse("/", status_code=302)
 
 
-@app.post("/auth/logout")
+@app.post("/auth/logout", include_in_schema=False)
 async def logout(response: Response):
     """Logout endpoint - clears authentication cookies"""
     try:
@@ -964,7 +964,7 @@ async def user_profile_page(
     )
 
 
-@app.get("/api/user/export-data")
+@app.get("/api/user/export-data", include_in_schema=False)
 async def api_export_user_data(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
@@ -1217,7 +1217,7 @@ async def user_feedback_page(
 
 
 
-@app.post("/user/feedback/submit")
+@app.post("/user/feedback/submit", include_in_schema=False)
 async def user_feedback_submit(
     request: Request,
     category: str = Form(...),
@@ -1240,7 +1240,7 @@ async def user_feedback_submit(
     return RedirectResponse(url="/user/feedback?success=Feedback+submitted+successfully!", status_code=302)
 
 
-@app.post("/user/dataset-request/submit")
+@app.post("/user/dataset-request/submit", include_in_schema=False)
 async def user_dataset_request_submit(
     request: Request,
     dataset_name: str = Form(...),
@@ -1265,7 +1265,7 @@ async def user_dataset_request_submit(
     return RedirectResponse(url="/user/feedback?success=Dataset+request+submitted+successfully!", status_code=302)
 
 
-@app.post("/user/revoke-all-sessions")
+@app.post("/user/revoke-all-sessions", include_in_schema=False)
 async def user_revoke_all_sessions(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
@@ -1292,7 +1292,7 @@ async def user_revoke_all_sessions(
     return response
 
 
-@app.post("/user/delete-account")
+@app.post("/user/delete-account", include_in_schema=False)
 async def user_delete_account(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
@@ -1333,7 +1333,7 @@ async def user_delete_account(
     return response
 
 
-@app.get("/api/user/token")
+@app.get("/api/user/token", include_in_schema=False)
 async def get_user_token_endpoint(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
@@ -1374,7 +1374,7 @@ async def get_user_token_endpoint(
         return {"token": token_row["token"], "active": token_row["active"]}
 
 
-@app.post("/api/user/token/regenerate")
+@app.post("/api/user/token/regenerate", include_in_schema=False)
 async def regenerate_user_token_endpoint(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
@@ -1412,7 +1412,7 @@ async def regenerate_user_token_endpoint(
         return {"token": new_token, "active": True}
 
 
-@app.get("/api/user/token/usage")
+@app.get("/api/user/token/usage", include_in_schema=False)
 async def get_user_token_usage_endpoint(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
@@ -1457,7 +1457,7 @@ async def get_user_token_usage_endpoint(
         }
 
 
-@app.post("/api/user/update-profile")
+@app.post("/api/user/update-profile", include_in_schema=False)
 async def api_update_profile(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
@@ -1511,7 +1511,7 @@ async def api_update_profile(
     return {"message": "Profile updated successfully", "status": "success"}
 
 
-@app.post("/api/user/change-password")
+@app.post("/api/user/change-password", include_in_schema=False)
 async def user_change_password(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
@@ -1560,7 +1560,7 @@ from security.warning_manager import get_user_warnings, get_user_governance_noti
 from security.suspicious_detector import check_behavioral_patterns
 
 
-@app.get("/api/user/governance")
+@app.get("/api/user/governance", include_in_schema=False)
 async def api_user_governance(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
@@ -1689,7 +1689,7 @@ async def api_user_governance(
         }
 
 
-@app.get("/api/user/query-history")
+@app.get("/api/user/query-history", include_in_schema=False)
 async def api_user_query_history(
     request: Request,
     page: int = 1,
@@ -1774,7 +1774,7 @@ async def api_user_query_history(
         }
 
 
-@app.get("/api/user/download-history")
+@app.get("/api/user/download-history", include_in_schema=False)
 async def api_user_download_history(
     request: Request,
     page: int = 1,
@@ -1848,7 +1848,7 @@ async def api_user_download_history(
         }
 
 
-@app.post("/api/user/clear-query-history")
+@app.post("/api/user/clear-query-history", include_in_schema=False)
 async def clear_user_query_history(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
@@ -1859,7 +1859,7 @@ async def clear_user_query_history(
     return {"message": "Query history cleared successfully"}
 
 
-@app.post("/api/user/clear-download-history")
+@app.post("/api/user/clear-download-history", include_in_schema=False)
 async def clear_user_download_history(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
@@ -1870,7 +1870,7 @@ async def clear_user_download_history(
     return {"message": "Download history cleared successfully"}
 
 
-@app.post("/api/admin/clear-query-logs")
+@app.post("/api/admin/clear-query-logs", include_in_schema=False)
 async def clear_admin_query_logs(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
@@ -1882,7 +1882,7 @@ async def clear_admin_query_logs(
     return {"message": "Admin query logs view cleared successfully"}
 
 
-@app.post("/api/admin/clear-download-logs")
+@app.post("/api/admin/clear-download-logs", include_in_schema=False)
 async def clear_admin_download_logs(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
@@ -1894,7 +1894,7 @@ async def clear_admin_download_logs(
     return {"message": "Admin download logs view cleared successfully"}
 
 
-@app.post("/api/admin/clear-suspicious-logs")
+@app.post("/api/admin/clear-suspicious-logs", include_in_schema=False)
 async def clear_admin_suspicious_logs(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
@@ -1906,7 +1906,7 @@ async def clear_admin_suspicious_logs(
     return {"message": "Admin suspicious activity logs view cleared successfully"}
 
 
-@app.post("/api/admin/clear-ai-query-logs")
+@app.post("/api/admin/clear-ai-query-logs", include_in_schema=False)
 async def clear_admin_ai_query_logs(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
@@ -1918,7 +1918,7 @@ async def clear_admin_ai_query_logs(
     return {"message": "Admin AI query logs view cleared successfully"}
 
 
-@app.post("/api/admin/clear-payment-logs")
+@app.post("/api/admin/clear-payment-logs", include_in_schema=False)
 async def clear_admin_payment_logs(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
@@ -1930,7 +1930,7 @@ async def clear_admin_payment_logs(
     return {"message": "Payment logs cleared successfully"}
 
 
-@app.get("/api/user/credits")
+@app.get("/api/user/credits", include_in_schema=False)
 async def api_user_credits(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
@@ -1945,7 +1945,7 @@ async def api_user_credits(
         return credits
 
 
-@app.get("/admin/users/governance/{email}")
+@app.get("/admin/users/governance/{email}", include_in_schema=False)
 async def admin_user_governance_detail(
     request: Request,
     email: str,
@@ -2093,7 +2093,7 @@ async def admin_user_governance_detail(
         }
 
 
-@app.get("/admin/governance/suspicious")
+@app.get("/admin/governance/suspicious", include_in_schema=False)
 async def admin_suspicious_activity_feed(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
@@ -2256,7 +2256,7 @@ async def query_page(
 
 
 
-@app.get("/api/user/status")
+@app.get("/api/user/status", include_in_schema=False)
 async def get_user_status_api(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
@@ -2728,7 +2728,7 @@ async def apply_config(schema, table, user, columns, rows, is_aggregated: bool =
 
 
 
-@app.get("/surveys")
+@app.get("/surveys", include_in_schema=False)
 async def list_surveys(request: Request, current_user=Depends(get_current_user)):
     pool = request.app.state.db
     async with pool.acquire() as conn:
@@ -2772,7 +2772,7 @@ async def list_surveys(request: Request, current_user=Depends(get_current_user))
         return out
 
 
-@app.get("/surveys/{survey}/datasets")
+@app.get("/surveys/{survey}/datasets", include_in_schema=False)
 async def list_survey_datasets(request: Request, survey: str, current_user=Depends(get_current_user)):
     pool = request.app.state.db
     async with pool.acquire() as conn:
@@ -2817,7 +2817,7 @@ async def list_survey_datasets(request: Request, survey: str, current_user=Depen
         return allowed
 
 
-@app.get("/surveys/{survey}/{dataset}/tables")
+@app.get("/surveys/{survey}/{dataset}/tables", include_in_schema=False)
 async def list_survey_tables(request: Request, survey: str, dataset: str, current_user=Depends(get_current_user)):
     pool = request.app.state.db
     async with pool.acquire() as conn:
@@ -2869,7 +2869,7 @@ async def list_survey_tables(request: Request, survey: str, dataset: str, curren
             _reset_apply_context(tokens)
 
 
-@app.get("/surveys/{survey}/{dataset}/{table}/columns")
+@app.get("/surveys/{survey}/{dataset}/{table}/columns", include_in_schema=False)
 async def list_survey_columns(request: Request, survey: str, dataset: str, table: str, current_user=Depends(get_current_user)):
     pool = request.app.state.db
     async with pool.acquire() as conn:
@@ -2903,7 +2903,7 @@ async def list_survey_columns(request: Request, survey: str, dataset: str, table
             _reset_apply_context(tokens)
 
 
-@app.get("/surveys/{survey}/{dataset}/{table}/filter-metadata")
+@app.get("/surveys/{survey}/{dataset}/{table}/filter-metadata", include_in_schema=False)
 async def get_filter_metadata(request: Request, survey: str, dataset: str, table: str, current_user=Depends(get_current_user)):
     """Returns per-column metadata for the interactive filter builder (types, categories, statistics)."""
     pool = request.app.state.db
@@ -3016,7 +3016,7 @@ async def get_filter_metadata(request: Request, survey: str, dataset: str, table
 
     return result
 
-@app.get("/surveys/{survey}/{dataset}/{table}/query")
+@app.get("/surveys/{survey}/{dataset}/{table}/query", include_in_schema=False)
 async def query_survey_table(
     request: Request,
     survey: str,
@@ -3057,7 +3057,7 @@ async def query_survey_table(
 
 
 
-@app.get("/schemas/{schema}/datasets")
+@app.get("/schemas/{schema}/datasets", include_in_schema=False)
 async def list_datasets_v2(
     request: Request,
     schema: str,
@@ -3114,7 +3114,7 @@ async def list_datasets_v2(
         return out
 
 
-@app.get("/schemas/{schema}/{dataset}/tables")
+@app.get("/schemas/{schema}/{dataset}/tables", include_in_schema=False)
 async def list_tables_v2(
     request: Request,
     schema: str,
@@ -3185,7 +3185,7 @@ async def list_tables_v2(
             _reset_apply_context(tokens)
 
 
-@app.get("/metadata/{schema}/{dataset}")
+@app.get("/metadata/{schema}/{dataset}", include_in_schema=False)
 async def get_metadata_v2(
     request: Request,
     schema: str,
@@ -3683,7 +3683,7 @@ async def get_dataset_metadata(
     }
 
 
-@app.get("/datasets")
+@app.get("/datasets", include_in_schema=False)
 async def list_schemas_and_tables(request: Request, current_user=Depends(get_current_user)):
     try:
         pool = request.app.state.db
@@ -3736,7 +3736,7 @@ async def list_schemas_and_tables(request: Request, current_user=Depends(get_cur
         return {"error": str(e)}
 
 
-@app.get("/datasets/{schema}/{table}/columns")
+@app.get("/datasets/{schema}/{table}/columns", include_in_schema=False)
 async def get_columns(
     request: Request,
     schema: str,
@@ -3945,7 +3945,7 @@ def smart_quote_filters(filters: str, col_type_map: dict = None) -> str:
     return re.sub(pattern, replace_func, filters, flags=re.IGNORECASE)
 
 
-@app.get("/datasets/{schema}/{table}/query")
+@app.get("/datasets/{schema}/{table}/query", include_in_schema=False)
 async def query_table(
     request: Request,
     schema: str,
@@ -4623,14 +4623,14 @@ async def _schema_exists(conn, schema: str) -> bool:
     )
     return bool(row)
 
-@app.get("/admin/upload/status/{job_id}")
+@app.get("/admin/upload/status/{job_id}", include_in_schema=False)
 async def get_upload_status(job_id: str, current_user=Depends(get_current_active_user_with_role(["1", "2"]))):
     job = get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     return job
 
-@app.get("/admin/upload/events/{job_id}")
+@app.get("/admin/upload/events/{job_id}", include_in_schema=False)
 async def upload_events(
     request: Request,
     job_id: str,
@@ -4664,14 +4664,14 @@ async def upload_events(
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
 
-@app.get("/admin/nesstar/jobs/{job_id}")
+@app.get("/admin/nesstar/jobs/{job_id}", include_in_schema=False)
 async def get_nesstar_job_status(job_id: str, current_user=Depends(get_current_active_user_with_role(["1"]))):
     job = get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     return job
 
-@app.get("/upload/status/{job_id}")
+@app.get("/upload/status/{job_id}", include_in_schema=False)
 async def get_upload_status(
     job_id: str,
     current_user=Depends(get_current_active_user_with_role(["1", "2"])),
@@ -4712,7 +4712,7 @@ async def upload_progress_page(
         
     )
 
-@app.post("/upload/", response_class=HTMLResponse)
+@app.post("/upload/", response_class=HTMLResponse, include_in_schema=False)
 async def upload_dataset(
     request: Request,
     background_tasks: BackgroundTasks,
@@ -4834,7 +4834,7 @@ async def upload_dataset(
 # =================== ADMIN ROUTES ===================
 
 
-@app.get("/admin/survey-config", response_class=HTMLResponse)
+@app.get("/admin/survey-config", response_class=HTMLResponse, include_in_schema=False)
 async def admin_survey_config_page(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
@@ -4945,7 +4945,7 @@ async def admin_change_password(
     return response
 
 
-@app.get("/admin/schemas/{schema}/variables")
+@app.get("/admin/schemas/{schema}/variables", include_in_schema=False)
 async def get_schema_variables(
     request: Request,
     schema: str,
@@ -5043,7 +5043,7 @@ async def get_schema_variables(
         return {"error": str(e)}
 
 
-@app.post("/admin/update-variable-config")
+@app.post("/admin/update-variable-config", include_in_schema=False)
 async def update_variable_config(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
@@ -5269,7 +5269,7 @@ async def system_settings_page(
     )
 
 
-@app.get("/admin/usage/logs")
+@app.get("/admin/usage/logs", include_in_schema=False)
 async def admin_usage_logs_api(
     request: Request,
     q: str = "",
@@ -5669,7 +5669,7 @@ async def admin_usage_logs_api(
     }
 
 
-@app.get("/admin/users")
+@app.get("/admin/users", include_in_schema=False)
 async def admin_users_api(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
@@ -5802,7 +5802,7 @@ async def admin_users_api(
     return {"users": enriched}
 
 
-@app.post("/admin/users/update-role")
+@app.post("/admin/users/update-role", include_in_schema=False)
 async def admin_update_role_api(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
@@ -5829,7 +5829,7 @@ async def admin_update_role_api(
     return {"ok": True}
 
 
-@app.post("/admin/users/block")
+@app.post("/admin/users/block", include_in_schema=False)
 async def admin_block_user_api(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
@@ -5878,7 +5878,7 @@ async def admin_block_user_api(
     return {"ok": True}
 
 
-@app.post("/admin/users/verify")
+@app.post("/admin/users/verify", include_in_schema=False)
 async def admin_verify_user_api(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
@@ -5906,7 +5906,7 @@ async def admin_verify_user_api(
     return {"ok": True}
 
 
-@app.post("/admin/users/set-limits")
+@app.post("/admin/users/set-limits", include_in_schema=False)
 async def admin_set_limits_api(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
@@ -5935,7 +5935,7 @@ async def admin_set_limits_api(
     return {"ok": True}
 
 
-@app.post("/admin/users/assign-plan")
+@app.post("/admin/users/assign-plan", include_in_schema=False)
 async def admin_assign_plan_api(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
@@ -5966,7 +5966,7 @@ async def admin_assign_plan_api(
     return {"ok": True}
 
 
-@app.post("/admin/users/reset-usage")
+@app.post("/admin/users/reset-usage", include_in_schema=False)
 async def admin_reset_usage_api(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
@@ -6013,7 +6013,7 @@ async def admin_reset_usage_api(
     return {"ok": True}
 
 
-@app.post("/admin/users/unfreeze")
+@app.post("/admin/users/unfreeze", include_in_schema=False)
 async def admin_unfreeze_user_api(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
@@ -6046,7 +6046,7 @@ async def admin_unfreeze_user_api(
     return {"ok": True}
 
 
-@app.post("/admin/users/delete")
+@app.post("/admin/users/delete", include_in_schema=False)
 async def admin_delete_user_api(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
@@ -6094,7 +6094,7 @@ async def admin_delete_user_api(
     return {"ok": True}
 
 
-@app.get("/admin/requests")
+@app.get("/admin/requests", include_in_schema=False)
 async def admin_requests_api(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
@@ -6242,7 +6242,7 @@ async def admin_requests_api(
     }
 
 
-@app.post("/admin/requests/action")
+@app.post("/admin/requests/action", include_in_schema=False)
 async def admin_requests_action_api(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
@@ -6270,7 +6270,7 @@ async def admin_requests_action_api(
     return {"ok": True}
 
 
-@app.get("/admin/payments")
+@app.get("/admin/payments", include_in_schema=False)
 async def admin_payments_api(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
@@ -6344,7 +6344,7 @@ async def admin_payments_api(
     return {"user_plans": formatted_plans, "transactions": formatted_txns}
 
 
-@app.post("/admin/users/warn")
+@app.post("/admin/users/warn", include_in_schema=False)
 async def admin_warn_user_api(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
@@ -6362,7 +6362,7 @@ async def admin_warn_user_api(
     return {"ok": True}
 
 
-@app.post("/admin/users/freeze")
+@app.post("/admin/users/freeze", include_in_schema=False)
 async def admin_freeze_user_api(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
@@ -6395,7 +6395,7 @@ async def admin_freeze_user_api(
     return {"ok": True}
 
 
-@app.post("/admin/payments/cancel-subscription")
+@app.post("/admin/payments/cancel-subscription", include_in_schema=False)
 async def admin_cancel_subscription_api(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
@@ -6422,7 +6422,7 @@ async def admin_cancel_subscription_api(
     return {"ok": True}
 
 
-@app.post("/admin/payments/refund")
+@app.post("/admin/payments/refund", include_in_schema=False)
 async def admin_refund_payment_api(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
@@ -6444,7 +6444,7 @@ async def admin_refund_payment_api(
     return {"ok": True}
 
 
-@app.get("/admin/settings")
+@app.get("/admin/settings", include_in_schema=False)
 async def admin_settings_api(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
@@ -6569,7 +6569,7 @@ async def admin_settings_api(
     }
 
 
-@app.post("/admin/settings/update")
+@app.post("/admin/settings/update", include_in_schema=False)
 async def admin_settings_update_api(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
@@ -6660,7 +6660,7 @@ def _load_razorpay_keys_directly():
 
 RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET = _load_razorpay_keys_directly()
 
-@app.post("/api/payments/create-order")
+@app.post("/api/payments/create-order", include_in_schema=False)
 async def api_payments_create_order(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
@@ -6751,7 +6751,7 @@ async def api_payments_create_order(
         "key": RAZORPAY_KEY_ID
     }
 
-@app.post("/api/payments/verify-payment")
+@app.post("/api/payments/verify-payment", include_in_schema=False)
 async def api_payments_verify_payment(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
@@ -6853,7 +6853,7 @@ async def api_payments_verify_payment(
 
     return {"ok": True, "message": "Payment verified and plan upgraded successfully"}
 
-@app.post("/api/payments/payment-failed")
+@app.post("/api/payments/payment-failed", include_in_schema=False)
 async def api_payments_failed_notification(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
@@ -6880,7 +6880,7 @@ async def api_payments_failed_notification(
         )
     return {"ok": True}
 
-@app.post("/api/payments/cancel-subscription")
+@app.post("/api/payments/cancel-subscription", include_in_schema=False)
 async def api_payments_cancel_subscription(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
@@ -6910,7 +6910,7 @@ async def api_payments_cancel_subscription(
         
     return {"ok": True, "message": "Subscription cancelled successfully. You can use your remaining quota until the end of the billing period."}
 
-@app.post("/api/payments/reactivate-subscription")
+@app.post("/api/payments/reactivate-subscription", include_in_schema=False)
 async def api_payments_reactivate_subscription(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
@@ -6978,7 +6978,7 @@ app.openapi = custom_openapi
 # ADMIN — DELETE DATASET (schema + tables + metadata + config)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-@app.post("/admin/datasets/delete")
+@app.post("/admin/datasets/delete", include_in_schema=False)
 async def admin_delete_dataset(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),

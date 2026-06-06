@@ -12,7 +12,7 @@ from security.privacy_guard import check_columns_and_filters, apply_privacy_and_
 from security.usage_tracker import log_api_usage, get_qualified_table
 from query.query_data import parse_filters
 
-router = APIRouter()
+router = APIRouter(include_in_schema=False)
 
 @router.get("/user/explore-data", response_class=HTMLResponse, include_in_schema=False)
 async def user_explore_page(

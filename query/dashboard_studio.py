@@ -12,7 +12,7 @@ from security.plan_enforcer import get_and_enforce_plan_limits
 from security.privacy_guard import check_columns_and_filters, apply_privacy_and_labeling
 from security.usage_tracker import log_api_usage, get_qualified_table
 
-router = APIRouter()
+router = APIRouter(include_in_schema=False)
 
 # Helper to execute query with privacy controls
 async def execute_widget_query(

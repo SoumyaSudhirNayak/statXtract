@@ -19,7 +19,7 @@ from utils.nada_client import (
 )
 
 
-router = APIRouter(prefix="/admin/nada", tags=["NADA"])
+router = APIRouter(prefix="/admin/nada", tags=["NADA"], include_in_schema=False)
 
 _jobs: dict[str, dict[str, Any]] = {}
 

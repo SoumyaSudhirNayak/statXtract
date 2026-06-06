@@ -53,7 +53,7 @@ async def login_for_access_token(
 
 
 # ✅ HTML form-based login (with redirect and cookie)
-@router.post("/login", response_class=HTMLResponse)
+@router.post("/login", response_class=HTMLResponse, include_in_schema=False)
 async def login_form(
     request: Request,
     form_data: OAuth2PasswordRequestForm = Depends()

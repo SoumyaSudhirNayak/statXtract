@@ -1,0 +1,114 @@
+ 529: GET    /                                                            | Hidden: True
+ 537: GET    /module-selection                                            | Hidden: True
+ 545: GET    /user/module-selection                                       | Hidden: True
+ 554: GET    /login                                                       | Hidden: True
+ 563: POST   /login                                                       | Hidden: True
+ 590: GET    /register                                                    | Hidden: True
+ 599: POST   /register                                                    | Hidden: True
+ 730: POST   /auth/logout                                                 | Hidden: False
+ 759: GET    /forgot-password                                             | Hidden: True
+ 767: POST   /forgot-password                                             | Hidden: True
+ 792: GET    /user/login                                                  | Hidden: True
+ 805: GET    /user/register                                               | Hidden: True
+ 934: GET    /user/dashboard                                              | Hidden: True
+ 951: GET    /user/profile                                                | Hidden: True
+ 967: GET    /api/user/export-data                                        | Hidden: False
+1088: GET    /user/history                                                | Hidden: True
+1104: GET    /user/downloads                                              | Hidden: True
+1120: GET    /user/plans                                                  | Hidden: True
+1136: GET    /user/settings                                               | Hidden: True
+1171: GET    /user/usage                                                  | Hidden: True
+1187: GET    /user/ai-query                                               | Hidden: True
+1203: GET    /user/feedback                                               | Hidden: True
+1220: POST   /user/feedback/submit                                        | Hidden: False
+1243: POST   /user/dataset-request/submit                                 | Hidden: False
+1268: POST   /user/revoke-all-sessions                                    | Hidden: False
+1295: POST   /user/delete-account                                         | Hidden: False
+1336: GET    /api/user/token                                              | Hidden: False
+1377: POST   /api/user/token/regenerate                                   | Hidden: False
+1415: GET    /api/user/token/usage                                        | Hidden: False
+1460: POST   /api/user/update-profile                                     | Hidden: False
+1514: POST   /api/user/change-password                                    | Hidden: False
+1563: GET    /api/user/governance                                         | Hidden: False
+1692: GET    /api/user/query-history                                      | Hidden: False
+1777: GET    /api/user/download-history                                   | Hidden: False
+1851: POST   /api/user/clear-query-history                                | Hidden: False
+1862: POST   /api/user/clear-download-history                             | Hidden: False
+1873: POST   /api/admin/clear-query-logs                                  | Hidden: False
+1885: POST   /api/admin/clear-download-logs                               | Hidden: False
+1897: POST   /api/admin/clear-suspicious-logs                             | Hidden: False
+1909: POST   /api/admin/clear-ai-query-logs                               | Hidden: False
+1921: POST   /api/admin/clear-payment-logs                                | Hidden: False
+1933: GET    /api/user/credits                                            | Hidden: False
+1948: GET    /admin/users/governance/{email}                              | Hidden: False
+2096: GET    /admin/governance/suspicious                                 | Hidden: False
+2156: GET    /admin/dashboard                                             | Hidden: True
+2220: GET    /admin/survey-config                                         | Hidden: True
+2239: GET    /query                                                       | Hidden: True
+2259: GET    /api/user/status                                             | Hidden: False
+2288: GET    /upload                                                      | Hidden: True
+2303: GET    /schemas-page                                                | Hidden: True
+2315: GET    /datasets-page                                               | Hidden: True
+2327: GET    /explorer                                                    | Hidden: True
+2345: GET    /metadata-detail/{schema}/{dataset}                          | Hidden: True
+2359: GET    /admin/metadata-browser                                      | Hidden: True
+2371: GET    /admin/nada-import                                           | Hidden: True
+2386: GET    /schemas                                                     | Hidden: False
+2731: GET    /surveys                                                     | Hidden: False
+2775: GET    /surveys/{survey}/datasets                                   | Hidden: False
+2820: GET    /surveys/{survey}/{dataset}/tables                           | Hidden: False
+2872: GET    /surveys/{survey}/{dataset}/{table}/columns                  | Hidden: False
+2906: GET    /surveys/{survey}/{dataset}/{table}/filter-metadata          | Hidden: False
+3019: GET    /surveys/{survey}/{dataset}/{table}/query                    | Hidden: False
+3060: GET    /schemas/{schema}/datasets                                   | Hidden: False
+3117: GET    /schemas/{schema}/{dataset}/tables                           | Hidden: False
+3188: GET    /metadata/{schema}/{dataset}                                 | Hidden: False
+3247: GET    /downloads/{schema}/{dataset}/ddi                            | Hidden: False
+3277: GET    /downloads/{schema}/{dataset}/microdata.zip                  | Hidden: False
+3315: GET    /schemas/{schema}/years                                      | Hidden: False
+3331: GET    /schemas/{schema}/{year}/datasets                            | Hidden: False
+3386: GET    /schemas/{schema}/{year}/{dataset}/tables                    | Hidden: False
+3450: GET    /schemas/{schema}/{year}/{dataset}/{table}/query             | Hidden: False
+3622: GET    /metadata/{schema}/{year}/{dataset}                          | Hidden: False
+3686: GET    /datasets                                                    | Hidden: False
+3739: GET    /datasets/{schema}/{table}/columns                           | Hidden: False
+3948: GET    /datasets/{schema}/{table}/query                             | Hidden: False
+4626: GET    /admin/upload/status/{job_id}                                | Hidden: False
+4633: GET    /admin/upload/events/{job_id}                                | Hidden: False
+4667: GET    /admin/nesstar/jobs/{job_id}                                 | Hidden: False
+4674: GET    /upload/status/{job_id}                                      | Hidden: False
+4695: GET    /upload/progress/{job_id}                                    | Hidden: True
+4715: POST   /upload/                                                     | Hidden: False
+4837: GET    /admin/survey-config                                         | Hidden: False
+4852: GET    /admin/change-password                                       | Hidden: True
+4869: POST   /admin/change-password                                       | Hidden: True
+4948: GET    /admin/schemas/{schema}/variables                            | Hidden: False
+5046: POST   /admin/update-variable-config                                | Hidden: False
+5218: GET    /admin/usage-logs                                            | Hidden: True
+5236: GET    /admin/user-management                                       | Hidden: True
+5254: GET    /admin/system-settings                                       | Hidden: True
+5272: GET    /admin/usage/logs                                            | Hidden: False
+5672: GET    /admin/users                                                 | Hidden: False
+5805: POST   /admin/users/update-role                                     | Hidden: False
+5832: POST   /admin/users/block                                           | Hidden: False
+5881: POST   /admin/users/verify                                          | Hidden: False
+5909: POST   /admin/users/set-limits                                      | Hidden: False
+5938: POST   /admin/users/assign-plan                                     | Hidden: False
+5969: POST   /admin/users/reset-usage                                     | Hidden: False
+6016: POST   /admin/users/unfreeze                                        | Hidden: False
+6049: POST   /admin/users/delete                                          | Hidden: False
+6097: GET    /admin/requests                                              | Hidden: False
+6245: POST   /admin/requests/action                                       | Hidden: False
+6273: GET    /admin/payments                                              | Hidden: False
+6347: POST   /admin/users/warn                                            | Hidden: False
+6365: POST   /admin/users/freeze                                          | Hidden: False
+6398: POST   /admin/payments/cancel-subscription                          | Hidden: False
+6425: POST   /admin/payments/refund                                       | Hidden: False
+6447: GET    /admin/settings                                              | Hidden: False
+6572: POST   /admin/settings/update                                       | Hidden: False
+6663: POST   /api/payments/create-order                                   | Hidden: False
+6754: POST   /api/payments/verify-payment                                 | Hidden: False
+6856: POST   /api/payments/payment-failed                                 | Hidden: False
+6883: POST   /api/payments/cancel-subscription                            | Hidden: False
+6913: POST   /api/payments/reactivate-subscription                        | Hidden: False
+6981: POST   /admin/datasets/delete                                       | Hidden: False

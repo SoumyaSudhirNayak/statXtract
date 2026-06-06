@@ -486,7 +486,7 @@ async def get_ai_credits(
         return credits
 
 
-@router.get("/history")
+@router.get("/history", include_in_schema=False)
 async def get_ai_query_history(
     request: Request,
     page: int = 1,
@@ -524,7 +524,7 @@ async def get_ai_query_history(
         }
 
 
-@router.get("/admin/analytics")
+@router.get("/admin/analytics", include_in_schema=False)
 async def get_ai_analytics(
     request: Request,
     current_user: TokenData = Depends(get_current_user),

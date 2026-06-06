@@ -97,7 +97,7 @@ async def run_query(request: Request, query: dict, current_user=Depends(get_curr
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Query failed: {e}")
 
-@router.get("/datasets/{table_name}/query")
+@router.get("/datasets/{table_name}/query", include_in_schema=False)
 async def query_data(
     request: Request,
     table_name: str,

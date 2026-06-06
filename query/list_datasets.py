@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Request
 import asyncpg
 
-router = APIRouter()
+router = APIRouter(include_in_schema=False)
 
 @router.get("/datasets")
 async def list_datasets(request: Request):
