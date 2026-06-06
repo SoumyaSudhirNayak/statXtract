@@ -476,7 +476,7 @@
 
         <!-- Forgot Password -->
         <div class="forgot-row">
-          <a href="#" class="forgot-link">Forgot password?</a>
+          <a href="/forgot-password" class="forgot-link">Forgot password?</a>
         </div>
 
         <!-- Submit -->
@@ -630,6 +630,10 @@
       showError('Account blocked. Please contact support.');
     } else if (err === 'unverified') {
       showError('Account under verification.');
+    }
+    const success = params.get('success');
+    if (success) {
+      showToast(decodeURIComponent(success), 'success');
     }
   </script>
 </body>

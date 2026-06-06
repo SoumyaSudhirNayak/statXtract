@@ -750,6 +750,42 @@ async def logout(response: Response):
         }  # Always return success
 
 
+from pydantic import BaseModel
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+    password: str
+
+@app.get("/forgot-password", response_class=HTMLResponse, include_in_schema=False)
+async def forgot_password_page(request: Request):
+    return templates.TemplateResponse(
+        request=request,
+        name="forgot_password.html",
+        context={"request": request}
+    )
+
+@app.post("/forgot-password", include_in_schema=False)
+async def forgot_password_post(request: Request, data: ForgotPasswordRequest):
+    email = data.email.strip()
+    password = data.password
+    
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        user = await get_user_by_email(conn, email)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found.")
+            
+        hashed_pw = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+        
+        await conn.execute(
+            "UPDATE users SET hashed_password = $1 WHERE email = $2",
+            hashed_pw,
+            user["email"]
+        )
+        
+    return {"message": "Password reset successfully."}
+
+
 # =================== USER DASHBOARD ROUTES ===================
 
 
