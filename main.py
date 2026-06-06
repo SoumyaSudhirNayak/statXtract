@@ -1333,7 +1333,7 @@ async def user_delete_account(
     return response
 
 
-@app.get("/api/user/token", include_in_schema=False)
+@app.get("/api/user/token")
 async def get_user_token_endpoint(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
@@ -1374,7 +1374,7 @@ async def get_user_token_endpoint(
         return {"token": token_row["token"], "active": token_row["active"]}
 
 
-@app.post("/api/user/token/regenerate", include_in_schema=False)
+@app.post("/api/user/token/regenerate")
 async def regenerate_user_token_endpoint(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
@@ -1412,7 +1412,7 @@ async def regenerate_user_token_endpoint(
         return {"token": new_token, "active": True}
 
 
-@app.get("/api/user/token/usage", include_in_schema=False)
+@app.get("/api/user/token/usage")
 async def get_user_token_usage_endpoint(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
@@ -2256,7 +2256,7 @@ async def query_page(
 
 
 
-@app.get("/api/user/status", include_in_schema=False)
+@app.get("/api/user/status")
 async def get_user_status_api(
     request: Request,
     current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
