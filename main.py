@@ -794,7 +794,11 @@ async def user_login_page(request: Request):
     return templates.TemplateResponse(
         request=request,
         name="USER_PAGES/user_login.html",
-        context={"request": request}
+        context={
+            "request": request,
+            "turnstile_enabled": os.getenv("TURNSTILE_ENABLED", "false").lower() == "true",
+            "turnstile_site_key": os.getenv("TURNSTILE_SITE_KEY", "")
+        }
     )
 
 
