@@ -15,6 +15,7 @@ from typing import Optional, Dict, List, Any
 from sqlalchemy import create_engine, text
 from datetime import datetime
 import hashlib
+import re
 
 from utils.ddi_parser import parse_ddi_xml, DDIVariable
 from utils.table_naming import get_safe_table_name
@@ -35,6 +36,466 @@ from utils.db_utils import (
     schema_exists,
     ensure_metadata_tables,
 )
+
+def is_layout_file(p: Path) -> bool:
+    name_lower = p.name.lower()
+    if p.suffix.lower() in {".xls", ".xlsx"}:
+        if any(pat in name_lower for pat in ["layout", "lyt", "lay_out"]):
+            return True
+    return False
+
+def find_layout_file(extract_dir: Path) -> Optional[Path]:
+    layout_patterns = [
+        "*layout*.xls",
+        "*layout*.xlsx",
+        "*.xlsx",
+        "*.xls"
+    ]
+    for pattern in layout_patterns:
+        for p in extract_dir.rglob(pattern):
+            if p.is_file():
+                if "layout" in p.name.lower():
+                    return p
+    for p in extract_dir.rglob("*.xlsx"):
+        if p.is_file():
+            if is_layout_file(p):
+                return p
+    for p in extract_dir.rglob("*.xls"):
+        if p.is_file():
+            if is_layout_file(p):
+                return p
+    return None
+
+def find_layout_file_in_dataset(data_file_path: Path) -> Optional[Path]:
+    curr = data_file_path.parent
+    for _ in range(5):
+        if not curr or curr == curr.parent:
+            break
+        for pattern in ("*layout*.xls", "*layout*.xlsx", "*.xlsx", "*.xls"):
+            for p in curr.glob(pattern):
+                if p.is_file():
+                    if is_layout_file(p):
+                        return p
+        for p in curr.glob("*.xlsx"):
+            if p.is_file() and is_layout_file(p):
+                return p
+        for p in curr.glob("*.xls"):
+            if p.is_file() and is_layout_file(p):
+                return p
+        curr = curr.parent
+    return None
+
+def find_matching_sheet(sheet_names: List[str], data_file_name: str) -> Optional[str]:
+    file_stem = Path(data_file_name).stem.lower()
+    
+    def clean(s):
+        return "".join(c for c in s.lower() if c.isalnum())
+        
+    f_clean = clean(file_stem)
+    
+    for sheet in sheet_names:
+        if clean(sheet) == f_clean:
+            return sheet
+            
+    for sheet in sheet_names:
+        s_clean = clean(sheet)
+        if s_clean and (s_clean in f_clean or f_clean in s_clean):
+            return sheet
+            
+    file_digits = re.findall(r'\d+', file_stem)
+    if file_digits:
+        file_num = int(file_digits[0])
+        for sheet in sheet_names:
+            sheet_digits = re.findall(r'\d+', sheet)
+            if sheet_digits and int(sheet_digits[0]) == file_num:
+                return sheet
+                
+    if len(sheet_names) == 1:
+        return sheet_names[0]
+        
+    return None
+
+def normalize_text(t) -> str:
+    if pd.isna(t):
+        return ""
+    s = str(t).lower().strip()
+    s = s.replace("_", " ")
+    s = re.sub(r'[^a-z0-9 ]', '', s)
+    s = re.sub(r'\s+', ' ', s).strip()
+    return s
+
+def match_target_level_marker(cell_text: str, target_id: str) -> bool:
+    norm = normalize_text(cell_text)
+    if not norm:
+        return False
+        
+    keywords = ['level', 'block', 'section', 'sec', 'lvl', 'record type', 'block section']
+    has_keyword = any(k in norm for k in keywords)
+    if not has_keyword:
+        return False
+        
+    tid = normalize_text(target_id)
+    if not tid:
+        return False
+        
+    pattern = rf'\b{re.escape(tid)}\b'
+    if re.search(pattern, norm):
+        return True
+        
+    if norm == tid:
+        return True
+        
+    for kw in keywords:
+        if norm == kw + tid or norm == kw + "0" + tid or norm == kw + tid.lstrip("0"):
+            return True
+            
+    return False
+
+def is_different_level_marker(cell_text: str, target_id: str) -> bool:
+    norm = normalize_text(cell_text)
+    if not norm:
+        return False
+        
+    keywords = ['level', 'block', 'section', 'sec', 'lvl', 'record type', 'block section']
+    has_keyword = any(k in norm for k in keywords)
+    if not has_keyword:
+        return False
+        
+    words = norm.split()
+    for w in words:
+        if w not in keywords:
+            w_clean = w.lstrip("0")
+            tid_clean = target_id.lstrip("0")
+            if w_clean != tid_clean and re.match(r'^\d+$|^[a-z]$|^\d+[a-z]$', w):
+                return True
+    return False
+
+def extract_level_id_from_filename(data_file_name: str) -> str:
+    name = Path(data_file_name).stem.lower()
+    
+    m = re.search(r'(?:level|block|section|sec|lvl|l|b)_?([a-z0-9]+)', name)
+    if m:
+        return m.group(1).strip()
+        
+    clean_name = name
+    for word in ['level', 'block', 'section', 'sec', 'lvl']:
+        clean_name = clean_name.replace(word, '')
+    clean_name = clean_name.replace('_', '').replace('-', '').strip()
+    if clean_name:
+        return clean_name
+        
+    return ""
+
+def find_block_boundaries(df: pd.DataFrame, target_id: str) -> tuple[int, int]:
+    start_row = -1
+    end_row = len(df)
+    
+    tid = target_id.lower().strip()
+    tids = {tid, tid.lstrip("0"), "0" + tid if not tid.startswith("0") else tid}
+    tids = {t for t in tids if t}
+    
+    # 1. Find the start row of our target block
+    for i in range(len(df)):
+        row_values = df.iloc[i].values
+        found_start = False
+        for val in row_values:
+            if pd.notna(val):
+                for t in tids:
+                    if match_target_level_marker(str(val), t):
+                        start_row = i
+                        found_start = True
+                        break
+            if found_start:
+                break
+        if found_start:
+            break
+            
+    # 2. Find the start row of the next block (which marks the end of our target block)
+    if start_row != -1:
+        for i in range(start_row + 1, len(df)):
+            row_values = df.iloc[i].values
+            found_next = False
+            for val in row_values:
+                if pd.notna(val):
+                    if is_different_level_marker(str(val), tid):
+                        end_row = i
+                        found_next = True
+                        break
+            if found_next:
+                break
+                
+    return start_row, end_row
+
+def locate_and_parse_header_universal(df: pd.DataFrame) -> tuple[Optional[pd.DataFrame], dict]:
+    best_row_idx = -1
+    best_score = 0
+    best_mapping = {}
+
+    var_syns = {normalize_text(s) for s in [
+        "field_name", "field name", "variable", "variable name", "var name", "var_name",
+        "column", "column name", "field", "name", "item", "item name", "short name", "code"
+    ] if normalize_text(s)}
+
+    start_syns = {normalize_text(s) for s in [
+        "start", "start position", "start byte", "byte start", "byte position start",
+        "from", "begin", "begin position", "position start", "byte_position_start", "starting byte",
+        "position", "byte position", "byte pos", "pos"
+    ] if normalize_text(s)}
+
+    end_syns = {normalize_text(s) for s in [
+        "end", "end position", "end byte", "byte end", "byte position end",
+        "to", "position end", "ending byte", "byte_position_end"
+    ] if normalize_text(s)}
+
+    len_syns = {normalize_text(s) for s in [
+        "length", "field length", "width", "size", "field width", "column width", "record length",
+        "len", "wdt"
+    ] if normalize_text(s)}
+
+    for idx, row in df.head(100).iterrows():
+        has_var = False
+        has_start = False
+        has_end = False
+        has_len = False
+        
+        row_map = {}
+        for col_name, val in row.items():
+            norm = normalize_text(val)
+            if not norm:
+                continue
+            if norm in var_syns and not has_var:
+                has_var = True
+                row_map['variable'] = col_name
+            elif norm in start_syns and not has_start:
+                if col_name not in row_map.values():
+                    has_start = True
+                    row_map['start'] = col_name
+            elif norm in end_syns and not has_end:
+                if col_name not in row_map.values():
+                    has_end = True
+                    row_map['end'] = col_name
+            elif norm in len_syns and not has_len:
+                if col_name not in row_map.values():
+                    has_len = True
+                    row_map['length'] = col_name
+                    
+        score = 0
+        if has_var: score += 40
+        if has_start: score += 30
+        if has_end: score += 30
+        if has_len: score += 20
+        
+        if score > best_score:
+            best_score = score
+            best_row_idx = idx
+            best_mapping = row_map
+
+    if best_row_idx == -1 or best_score < 40:
+        return None, {}
+
+    sliced_df = df.iloc[best_row_idx + 1:].copy()
+    return sliced_df, {
+        "best_row_idx": best_row_idx,
+        "best_score": best_score,
+        "mapping": best_mapping
+    }
+
+def parse_position_value(val: Any) -> tuple[Optional[int], Optional[int]]:
+    if pd.isna(val):
+        return None, None
+    s = str(val).strip()
+    if not s:
+        return None, None
+        
+    for sep in ('-', '–', 'to', ':'):
+        if sep in s:
+            parts = s.split(sep)
+            if len(parts) == 2:
+                try:
+                    start = int(float(parts[0].strip()))
+                    end = int(float(parts[1].strip()))
+                    width = end - start + 1
+                    return start, width
+                except ValueError:
+                    pass
+    try:
+        start = int(float(s))
+        return start, None
+    except ValueError:
+        return None, None
+
+def _normalize_match_str(s: str) -> str:
+    return "".join(c for c in str(s).lower() if c.isalnum())
+
+def find_matching_ddi_var(layout_var_name: str, ddi_variables: List[DDIVariable]) -> Optional[DDIVariable]:
+    l_norm = _normalize_match_str(layout_var_name)
+    if not l_norm:
+        return None
+    
+    for dv in ddi_variables:
+        if _normalize_match_str(dv.name) == l_norm:
+            return dv
+            
+    for dv in ddi_variables:
+        if _normalize_match_str(dv.label) == l_norm:
+            return dv
+            
+    for dv in ddi_variables:
+        dv_name_norm = _normalize_match_str(dv.name)
+        if dv_name_norm and (dv_name_norm in l_norm or l_norm in dv_name_norm):
+            return dv
+            
+    for dv in ddi_variables:
+        dv_label_norm = _normalize_match_str(dv.label)
+        if dv_label_norm and (dv_label_norm in l_norm or l_norm in dv_label_norm):
+            return dv
+            
+    return None
+
+def deduplicate_variable_names(variables: List[DDIVariable]) -> List[DDIVariable]:
+    seen = {}
+    for var in variables:
+        name = var.name.lower().strip()
+        if name in seen:
+            seen[name] += 1
+            orig_name = var.name
+            var.name = f"{var.name}_{seen[name]}"
+            logger.info(f"Duplicate names resolved: {orig_name} renamed to {var.name}")
+        else:
+            seen[name] = 1
+    return variables
+
+def extract_positions_from_layout(layout_path: Path, data_file_name: str, ddi_variables: List[DDIVariable]) -> List[DDIVariable]:
+    try:
+        with pd.ExcelFile(layout_path) as xls:
+            sheet_names = xls.sheet_names
+            matched_sheet = find_matching_sheet(sheet_names, data_file_name)
+            if not matched_sheet:
+                # Fall back to a generic sheet name, or the first sheet
+                generic_names = ["layout", "stacked", "sheet", "data"]
+                for sheet in sheet_names:
+                    if any(gn in sheet.lower() for gn in generic_names):
+                        matched_sheet = sheet
+                        break
+                if not matched_sheet and sheet_names:
+                    matched_sheet = sheet_names[0]
+                    
+            if not matched_sheet:
+                logger.warning(f"No matching sheet found in layout for data file: {data_file_name}")
+                return []
+            logger.info(f"Worksheet detected: {matched_sheet}")
+            df = xls.parse(matched_sheet, header=None)
+    except Exception as e:
+        logger.error(f"Failed to open layout file {layout_path}: {e}")
+        return []
+        
+    # Extract level ID from data_file_name
+    level_id = extract_level_id_from_filename(data_file_name)
+    
+    # Slice the dataframe based on boundaries if level_id is found
+    sliced_df_level = df
+    if level_id:
+        start_row, end_row = find_block_boundaries(df, level_id)
+        if start_row != -1:
+            sliced_df_level = df.iloc[start_row:end_row].copy().reset_index(drop=True)
+            logger.info(f"Sliced worksheet for Level {level_id} to rows {start_row} to {end_row}")
+
+    sliced_df, info = locate_and_parse_header_universal(sliced_df_level)
+    if sliced_df is None or sliced_df.empty:
+        logger.warning(f"Could not locate header row in sheet {matched_sheet}")
+        return []
+        
+    best_row_idx = info["best_row_idx"]
+    best_score = info["best_score"]
+    best_mapping = info["mapping"]
+    
+    logger.info(f"Header row detected at index {best_row_idx} with confidence score {best_score}")
+    
+    name_col = best_mapping.get('variable')
+    start_col = best_mapping.get('start')
+    end_col = best_mapping.get('end')
+    length_col = best_mapping.get('length')
+    
+    logger.info(f"Variable column identified: {name_col}")
+    logger.info(f"Start column identified: {start_col}")
+    logger.info(f"End column identified: {end_col}")
+    logger.info(f"Length column identified: {length_col}")
+    
+    layout_vars = []
+    col_counter = 1
+    
+    for idx, row in sliced_df.iterrows():
+        if row.isna().all():
+            continue
+        var_name_val = row[name_col] if name_col is not None else None
+        var_name_str = str(var_name_val).strip() if pd.notna(var_name_val) else ""
+        
+        if not var_name_str:
+            var_name_str = f"col_{col_counter}"
+            col_counter += 1
+            
+        start_pos = None
+        width = None
+        end_pos = None
+        
+        if start_col is not None and pd.notna(row[start_col]):
+            start_pos, width_from_start = parse_position_value(row[start_col])
+            if width_from_start is not None:
+                width = width_from_start
+                end_pos = start_pos + width - 1
+                
+        if end_col is not None and pd.notna(row[end_col]):
+            parsed_end, _ = parse_position_value(row[end_col])
+            if parsed_end is not None:
+                end_pos = parsed_end
+                
+        if length_col is not None and pd.notna(row[length_col]):
+            try:
+                width = int(float(str(row[length_col]).strip()))
+            except ValueError:
+                pass
+                
+        if start_pos is None:
+            continue
+            
+        if end_pos is None and width is not None:
+            end_pos = start_pos + width - 1
+            
+        if width is None and end_pos is not None:
+            width = end_pos - start_pos + 1
+            
+        if width is None:
+            width = 1
+            end_pos = start_pos
+            
+        matched_ddi = find_matching_ddi_var(var_name_str, ddi_variables)
+        
+        new_var = DDIVariable()
+        if matched_ddi:
+            new_var.name = matched_ddi.name
+            new_var.label = matched_ddi.label
+            new_var.data_type = matched_ddi.data_type
+            new_var.categories = matched_ddi.categories
+            new_var.missing_values = matched_ddi.missing_values
+            new_var.universe = matched_ddi.universe
+            new_var.concept = matched_ddi.concept
+            new_var.question = matched_ddi.question
+            new_var.decimals = matched_ddi.decimals
+            if hasattr(matched_ddi, "interval"):
+                setattr(new_var, "interval", getattr(matched_ddi, "interval"))
+        else:
+            new_var.name = to_snake_case_identifier(var_name_str) or f"col_{start_pos}"
+            new_var.label = var_name_str
+            
+        new_var.start_pos = start_pos
+        new_var.width = width
+        layout_vars.append(new_var)
+        
+    layout_vars = deduplicate_variable_names(layout_vars)
+    logger.info(f"Variables extracted count: {len(layout_vars)}")
+    return layout_vars
+
+
  
 # Configure logging with custom format for terminal visibility
 log_format = "%(asctime)s [statXtract] %(levelname)s: %(message)s"
@@ -328,8 +789,16 @@ async def ingest_upload_file(
             shutil.copy2(ddi_candidates[0], fixed_ddi)
             ddi_path = fixed_ddi
 
+        # Find layout file first and copy it to processed_dir
+        layout_file_path = find_layout_file(extract_dir)
+        if layout_file_path:
+            shutil.copy2(layout_file_path, processed_dir / layout_file_path.name)
+            log_terminal(f"Copied layout file to processed dir: {layout_file_path.name}")
+
         for p in extract_dir.rglob("*"):
             if not p.is_file():
+                continue
+            if is_layout_file(p):
                 continue
             if p.suffix.lower() in {".csv", ".xlsx", ".txt", ".sav", ".por"}:
                 # Duplicate detection
@@ -494,6 +963,7 @@ async def ingest_upload_file(
             with engine.begin() as conn:
                 df.to_sql(table_name, conn, schema=dataset_schema, if_exists="replace", index=False)
                 log_terminal(f"File upload successful: {data_file.name} -> {dataset_schema}.{table_name} ({len(df)} rows)", "success")
+                logger.info(f"Rows loaded into PostgreSQL: {len(df)} for table {table_name}")
                 update_job(job_id, processed_file={"name": data_file.name, "status": "success", "message": f"Ingested {len(df)} rows"})
 
                 conn.execute(text(f'DELETE FROM "{dataset_schema}".variables WHERE table_name = :t'), {"t": table_name})
@@ -1470,7 +1940,11 @@ async def process_directory(
     ddi_candidates = [f for f in files if f.suffix.lower() in [".nsdstat", ".xml"]]
     ddi_candidates.sort(key=lambda p: 0 if p.suffix.lower() == ".nsdstat" else 1)
     has_nesstar_metadata = any(f.suffix.lower() == ".nsdstat" for f in ddi_candidates)
-    data_files = [f for f in files if f.suffix.lower() in [".txt", ".csv", ".sav", ".por", ".xlsx"]]
+    data_files = [
+        f for f in files 
+        if f.suffix.lower() in [".txt", ".csv", ".sav", ".por", ".xlsx"]
+        and not is_layout_file(f)
+    ]
 
     if nesstar_studies and (not ddi_candidates) and (not data_files):
         if len(nesstar_studies) > 1:
@@ -1738,6 +2212,7 @@ async def process_directory(
 
                 with engine.begin() as conn:
                     df.to_sql(table_name, conn, schema=schema, if_exists="replace", index=False)
+                    logger.info(f"Rows loaded into PostgreSQL: {len(df)} for table {table_name}")
 
                     existing_file = conn.execute(
                         text(
@@ -1901,7 +2376,25 @@ def _load_data_file(file_path: Path, ddi_metadata: Optional[Dict]) -> Optional[p
     if ext == '.txt':
         if not ddi_metadata:
             raise ValueError(f"Cannot parse fixed-width file {file_path.name} without DDI metadata")
-        return _parse_fixed_width(file_path, ddi_metadata['variables'])
+        
+        variables = ddi_metadata.get('variables', [])
+        # Check if DDI has positions
+        ddi_has_positions = any(v.start_pos is not None and v.width is not None for v in variables)
+        
+        if ddi_has_positions:
+            return _parse_fixed_width(file_path, variables)
+        else:
+            # Fallback to layout file
+            layout_file = find_layout_file_in_dataset(file_path)
+            if not layout_file:
+                raise ValueError(f"Cannot parse fixed-width file {file_path.name}: DDI contains no positions, and no layout XLS/XLSX file was found.")
+                
+            logger.info(f"Using Layout File Parser: {layout_file.name} for {file_path.name}")
+            layout_vars = extract_positions_from_layout(layout_file, file_path.name, variables)
+            if not layout_vars:
+                raise ValueError(f"Failed to extract variable positions from layout file {layout_file.name} for {file_path.name}")
+                
+            return _parse_fixed_width(file_path, layout_vars)
     
     elif ext == '.sav':
         df, meta = pyreadstat.read_sav(str(file_path))
@@ -1951,6 +2444,7 @@ def _parse_fixed_width(file_path: Path, variables: List[DDIVariable]) -> pd.Data
     # Read file
     # Use 'dtype=str' initially to avoid pandas inferring wrong types, we will cast later
     df = pd.read_fwf(file_path, colspecs=colspecs, names=names, dtype=str)
+    logger.info(f"TXT rows parsed: {len(df)}")
     return df
 
 def _enforce_ddi_types(df: pd.DataFrame, variables: List[DDIVariable]) -> pd.DataFrame:

@@ -189,3 +189,76 @@ async def test_schema_exists_empty_returns_false():
     ok = await _schema_exists(conn, "")
     assert ok is False
     assert not conn.fetchval.called
+
+
+def test_extract_positions_from_layout():
+    """Test that variable positions and widths are correctly extracted from a layout Excel file."""
+    from utils.ingestion_pipeline import extract_positions_from_layout, DDIVariable
+    import pandas as pd
+    
+    # 1. Create a dummy layout Excel structure with separate sheets and a stacked sheet
+    layout_data = {
+        "Level 1": [
+            ["Title row - MOSPI layout info", "", ""],
+            ["Variable Name", "Byte Position", "Length"],
+            ["FSU Serial No.", "1-5", 5],
+            ["Schedule", "6-8", 3],
+            ["Sector", "9-9", 1],
+        ],
+        "Stacked": [
+            ["Level/Section A", "", ""],
+            ["Variable Name", "Byte Position", "Length"],
+            ["age", "1-5", 5],
+            ["Level/Section B", "", ""],
+            ["Item", "Position", "Length"],
+            ["status", "6 to 8", 3],
+        ]
+    }
+    
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_path = Path(temp_dir)
+        layout_file = temp_path / "Data_Layout.xlsx"
+        
+        # Write layout spreadsheet
+        with pd.ExcelWriter(layout_file, engine='openpyxl') as writer:
+            for sheet, data in layout_data.items():
+                pd.DataFrame(data).to_excel(writer, sheet_name=sheet, index=False, header=False)
+                
+        # DDI variables mock
+        ddi_vars = []
+        v1 = DDIVariable()
+        v1.name = "fsu"
+        v1.label = "FSU Serial No."
+        ddi_vars.append(v1)
+        
+        v2 = DDIVariable()
+        v2.name = "sch"
+        v2.label = "Schedule"
+        ddi_vars.append(v2)
+        
+        v3 = DDIVariable()
+        v3.name = "sec"
+        v3.label = "Sector"
+        ddi_vars.append(v3)
+        
+        # Test Case 1: Separate sheet
+        vars_parsed = extract_positions_from_layout(layout_file, "Level01.txt", ddi_vars)
+        assert len(vars_parsed) == 3
+        assert vars_parsed[0].name == "fsu"
+        assert vars_parsed[0].start_pos == 1
+        assert vars_parsed[0].width == 5
+        
+        # Test Case 2: Stacked letter sections
+        vars_parsed_a = extract_positions_from_layout(layout_file, "Level_A.txt", ddi_vars)
+        assert len(vars_parsed_a) == 1
+        assert vars_parsed_a[0].name == "age"
+        assert vars_parsed_a[0].start_pos == 1
+        assert vars_parsed_a[0].width == 5
+        
+        vars_parsed_b = extract_positions_from_layout(layout_file, "Level_B.txt", ddi_vars)
+        assert len(vars_parsed_b) == 1
+        assert vars_parsed_b[0].name == "status"
+        assert vars_parsed_b[0].start_pos == 6
+        assert vars_parsed_b[0].width == 3
+
+
