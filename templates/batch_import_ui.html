@@ -1,0 +1,1234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Batch Import surveys | StatXtract</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --primary-color: #2E5BBA;
+            --primary-hover: #16324F;
+            --secondary-color: #F4A300;
+            --success-color: #10b981;
+            --danger-color: #ef4444;
+            --warning-color: #f59e0b;
+            --bg-light: #F5F7FA;
+            --text-main: #1C1C1C;
+            --text-muted: #64748b;
+            --glass-bg: rgba(255, 255, 255, 0.88);
+            --glass-border: rgba(209, 213, 223, 0.8);
+            --card-shadow: 0 15px 40px rgba(0, 0, 0, 0.08);
+            --font-main: 'Inter', sans-serif;
+            --font-head: 'Outfit', sans-serif;
+        }
+
+        [data-theme="dark"] {
+            --bg-light: #0f172a;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --glass-bg: rgba(15, 23, 42, 0.88);
+            --glass-border: rgba(51, 65, 85, 0.8);
+            --card-shadow: 0 15px 40px rgba(0, 0, 0, 0.35);
+            --primary-hover: #1e293b;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: var(--font-main);
+        }
+
+        body {
+            background: var(--bg-light);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            transition: background 0.3s ease;
+        }
+
+        .animated-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            background: linear-gradient(135deg, rgba(46, 91, 186, 0.05) 0%, rgba(244, 163, 0, 0.05) 100%);
+        }
+
+        .main-wrapper {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            max-width: 1200px;
+            margin: 0 auto;
+            width: 100%;
+            padding: 2rem;
+        }
+
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+        }
+
+        .page-title {
+            font-family: var(--font-head);
+            font-size: 2.2rem;
+            font-weight: 800;
+            color: var(--text-main);
+        }
+
+        .back-btn, .theme-toggle {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 20px;
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 50px;
+            color: var(--text-main);
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+
+        .back-btn:hover, .theme-toggle:hover {
+            border-color: var(--primary-color);
+            transform: translateY(-2px);
+        }
+
+        .card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            padding: 2.5rem;
+            box-shadow: var(--card-shadow);
+            margin-bottom: 2rem;
+        }
+
+        .step-title {
+            font-family: var(--font-head);
+            font-size: 1.6rem;
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: var(--primary-color);
+        }
+
+        /* Upload Area */
+        .upload-zone {
+            border: 2px dashed var(--glass-border);
+            border-radius: 16px;
+            padding: 3rem 2rem;
+            text-align: center;
+            background: rgba(46, 91, 186, 0.02);
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .upload-zone:hover {
+            border-color: var(--primary-color);
+            background: rgba(46, 91, 186, 0.05);
+        }
+
+        .upload-icon {
+            font-size: 3.5rem;
+            color: var(--primary-color);
+            margin-bottom: 1rem;
+        }
+
+        .upload-zone p {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-main);
+            margin-bottom: 0.5rem;
+        }
+
+        .upload-zone span {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+        }
+
+        /* Form elements */
+        .btn {
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            border: 1px solid transparent;
+            font-size: 1rem;
+        }
+
+        .btn-primary {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-hover);
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: var(--glass-bg);
+            border-color: var(--glass-border);
+            color: var(--text-main);
+        }
+
+        .btn-secondary:hover {
+            border-color: var(--primary-color);
+        }
+
+        .btn-danger {
+            background: var(--danger-color);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #b91c1c;
+        }
+
+        /* Toast Container */
+        .toast-container {
+            position: fixed;
+            top: 2rem;
+            right: 2rem;
+            z-index: 2000;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .toast {
+            padding: 1rem 1.5rem;
+            border-radius: 12px;
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            box-shadow: var(--card-shadow);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 300px;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        .toast.success { border-left: 4px solid var(--success-color); }
+        .toast.error { border-left: 4px solid var(--danger-color); }
+        .toast.info { border-left: 4px solid var(--primary-color); }
+
+        /* Expandable Survey cards */
+        .survey-card {
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            background: var(--glass-bg);
+            margin-bottom: 1.5rem;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.02);
+            transition: all 0.3s ease;
+        }
+
+        .survey-card:hover {
+            border-color: var(--primary-color);
+        }
+
+        .survey-header {
+            padding: 1.25rem 1.5rem;
+            background: rgba(0,0,0,0.02);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .survey-header-left {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .survey-name {
+            font-weight: 700;
+            font-size: 1.2rem;
+            color: var(--text-main);
+        }
+
+        .survey-badge {
+            padding: 4px 10px;
+            border-radius: 50px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .badge-success { background: rgba(16, 185, 129, 0.15); color: var(--success-color); }
+        .badge-warning { background: rgba(245, 158, 11, 0.15); color: var(--warning-color); }
+        .badge-danger { background: rgba(239, 68, 68, 0.15); color: var(--danger-color); }
+
+        .survey-header-right {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .survey-meta {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            display: flex;
+            gap: 15px;
+        }
+
+        .survey-body {
+            padding: 1.5rem;
+            border-top: 1px solid var(--glass-border);
+            display: none;
+        }
+
+        /* Mapping Config table */
+        .mapping-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+
+        .mapping-table th {
+            text-align: left;
+            padding: 12px 16px;
+            color: var(--text-muted);
+            font-weight: 600;
+            border-bottom: 2px solid var(--glass-border);
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            word-break: break-all;
+            white-space: normal;
+        }
+
+        .mapping-table td {
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--glass-border);
+            vertical-align: middle;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            word-break: break-all;
+            white-space: normal;
+        }
+
+        .form-select, .form-input {
+            padding: 8px 12px;
+            border: 1px solid var(--glass-border);
+            border-radius: 8px;
+            background: var(--bg-light);
+            color: var(--text-main);
+            font-size: 0.95rem;
+            font-weight: 600;
+            width: 100%;
+        }
+
+        .form-select:focus, .form-input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+
+        /* Tree view style */
+        .tree-node {
+            font-family: monospace;
+            padding: 4px 0;
+            color: var(--text-main);
+        }
+
+        /* Progress bars */
+        .progress-container {
+            margin: 1.5rem 0;
+        }
+
+        .progress-label-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+
+        .progress-bar-bg {
+            height: 12px;
+            background: rgba(0,0,0,0.05);
+            border-radius: 50px;
+            overflow: hidden;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background: var(--primary-color);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        /* Summary Stats card */
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 20px;
+            margin-bottom: 2rem;
+        }
+
+        .summary-stat-card {
+            background: rgba(0,0,0,0.02);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .summary-stat-number {
+            font-size: 2rem;
+            font-weight: 800;
+            color: var(--primary-color);
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .summary-stat-label {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        /* Log Panel Style supporting light/dark theme */
+        .log-panel-style {
+            background: rgba(0, 0, 0, 0.04);
+            color: #0f172a;
+            font-family: 'Courier New', Courier, monospace;
+            padding: 1.25rem;
+            border-radius: 12px;
+            height: 250px;
+            overflow-y: auto;
+            font-size: 0.95rem;
+            line-height: 1.6;
+            border: 1px solid var(--glass-border);
+            white-space: pre-wrap;
+            transition: all 0.3s ease;
+        }
+
+        [data-theme="dark"] .log-panel-style {
+            background: #0f172a;
+            color: #38bdf8;
+            border-color: rgba(255, 255, 255, 0.08);
+        }
+    </style>
+</head>
+<body data-theme="light">
+    <div class="animated-bg"></div>
+    <div class="toast-container" id="toastContainer"></div>
+
+    <div class="main-wrapper">
+        <header class="page-header">
+            <div class="header-left">
+                <a href="/admin/dashboard" class="back-btn">
+                    <i class="fas fa-arrow-left"></i>
+                    <span>Dashboard</span>
+                </a>
+                <h1 class="page-title">Batch Import surveys</h1>
+            </div>
+        </header>
+
+        <!-- Step 1: Upload ZIP -->
+        <section class="card" id="uploadStep">
+            <div class="step-title">
+                <i class="fas fa-file-archive"></i>
+                <span>Upload Archive</span>
+            </div>
+            
+            <div class="upload-zone" onclick="document.getElementById('zipFileInput').click()">
+                <i class="fas fa-cloud-upload-alt upload-icon"></i>
+                <p>Click to select or drag & drop ZIP file</p>
+                <span>Supported structure: Nested directories containing datasets, DDI files, and layouts.</span>
+                <input type="file" id="zipFileInput" accept=".zip" style="display: none;" onchange="handleZipSelected(event)">
+            </div>
+        </section>
+
+        <!-- Step 2 & 3: Preview and Validation -->
+        <section class="card" id="previewStep" style="display: none;">
+            <div class="step-title">
+                <i class="fas fa-search-plus"></i>
+                <span>Validation Results</span>
+            </div>
+
+            <div id="surveyGroupContainer"></div>
+            
+            <div style="display: flex; justify-content: flex-end; margin-top: 1.5rem;">
+                <button class="btn btn-primary" onclick="proceedToMapping()">
+                    Proceed to Mapping overrides <i class="fas fa-arrow-right"></i>
+                </button>
+            </div>
+        </section>
+
+        <!-- Step 4: Admin Mapping overrides -->
+        <section class="card" id="mappingStep" style="display: none;">
+            <div class="step-title">
+                <i class="fas fa-map-signs"></i>
+                <span>Folder Mapping Configuration</span>
+            </div>
+
+            <div id="mappingFormContainer"></div>
+
+            <div style="display: flex; justify-content: space-between; margin-top: 2rem;">
+                <button class="btn btn-secondary" onclick="backToPreview()">
+                    <i class="fas fa-arrow-left"></i> Back
+                </button>
+                <button class="btn btn-primary" onclick="executeBatchImport()">
+                    <i class="fas fa-play"></i> Start Batch Import
+                </button>
+            </div>
+        </section>
+
+        <!-- Step 5: Import Execution Progress -->
+        <section class="card" id="progressStep" style="display: none;">
+            <div class="step-title">
+                <i class="fas fa-spinner fa-spin"></i>
+                <span>Import Progress</span>
+            </div>
+
+            <div class="progress-container">
+                <div class="progress-label-row">
+                    <span>Overall Ingestion Progress</span>
+                    <span id="overallProgressText">0%</span>
+                </div>
+                <div class="progress-bar-bg">
+                    <div class="progress-bar-fill" id="overallProgressBarFill"></div>
+                </div>
+            </div>
+
+            <!-- Current folder progress -->
+            <div id="currentFolderInfo" style="margin-top: 1.5rem; font-weight: 700; font-size: 1rem;"></div>
+            <div id="batchStatsInfo" style="margin-top: 0.5rem; font-size: 0.95rem; color: var(--text-muted); font-weight: 600; margin-bottom: 1rem;"></div>
+            
+            <div class="progress-container" id="folderProgressContainer" style="display: none; margin-top: 0.5rem; margin-bottom: 1.5rem;">
+                <div class="progress-label-row">
+                    <span>Folder Progress</span>
+                    <span id="folderProgressText">0%</span>
+                </div>
+                <div class="progress-bar-bg" style="height: 8px;">
+                    <div class="progress-bar-fill" id="folderProgressBarFill" style="background: var(--secondary-color)"></div>
+                </div>
+            </div>
+
+            <div id="activeIngestionStatus" style="margin-bottom: 2rem; font-weight: 600; color: var(--primary-color);"></div>
+
+            <div id="surveyProgressContainer"></div>
+
+        </section>
+
+        <!-- Step 6: Summary Report -->
+        <section class="card" id="summaryStep" style="display: none;">
+            <div class="step-title">
+                <i class="fas fa-check-double"></i>
+                <span>Import Summary</span>
+            </div>
+
+            <div class="summary-grid">
+                <div class="summary-stat-card">
+                    <span class="summary-stat-number" id="sumSurveys">0</span>
+                    <span class="summary-stat-label">Surveys Imported</span>
+                </div>
+                <div class="summary-stat-card">
+                    <span class="summary-stat-number" id="sumTables">0</span>
+                    <span class="summary-stat-label">Tables Created</span>
+                </div>
+                <div class="summary-stat-card">
+                    <span class="summary-stat-number" id="sumSuccess">0</span>
+                    <span class="summary-stat-label">Success Groups</span>
+                </div>
+                <div class="summary-stat-card">
+                    <span class="summary-stat-number" id="sumFailed" style="color: var(--danger-color);">0</span>
+                    <span class="summary-stat-label">Failed Groups</span>
+                </div>
+            </div>
+
+            <!-- Summary Results Table -->
+            <div style="margin-top: 2rem; margin-bottom: 2rem;">
+                <h4 style="font-weight: 700; margin-bottom: 12px; font-size: 1.1rem; color: var(--text-main);"><i class="fas fa-list-alt" style="color: var(--primary-color)"></i> Import Details</h4>
+                <div style="overflow-x: auto; background: var(--glass-bg); border-radius: 12px; border: 1px solid var(--glass-border);">
+                    <table class="mapping-table" style="margin-top: 0;">
+                        <thead>
+                            <tr style="background: rgba(0,0,0,0.02)">
+                                <th>Folder</th>
+                                <th>Schema</th>
+                                <th>Status</th>
+                                <th>Tables Created</th>
+                                <th>Dataset Name</th>
+                                <th>Processing Time</th>
+                            </tr>
+                        </thead>
+                        <tbody id="summaryResultsBody">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="summaryWarnings" style="display: none; padding: 1.25rem; background: rgba(239, 68, 68, 0.05); border: 1px solid var(--danger-color); border-radius: 12px; margin-bottom: 2rem; color: var(--danger-color);">
+                <h4 style="margin-bottom: 10px; font-weight: 700;"><i class="fas fa-exclamation-triangle"></i> Warnings / Failure Details:</h4>
+                <ul id="summaryWarningsList" style="padding-left: 20px;"></ul>
+            </div>
+
+            <div style="display: flex; gap: 15px; justify-content: flex-end;">
+                <button class="btn btn-secondary" onclick="location.reload()">
+                    <i class="fas fa-redo"></i> Import Another Archive
+                </button>
+                <button class="btn btn-primary" id="downloadReportBtn">
+                    <i class="fas fa-download"></i> Download Import Report
+                </button>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        let batchData = null;
+        let dbSchemas = [];
+        let pollingInterval = null;
+        let activeJobId = null;
+        let finalToastSent = false;
+        let importStartTime = null;
+
+        // Global Theme Inheritance
+        function syncTheme() {
+            const theme = localStorage.getItem('theme') || 'light';
+            document.documentElement.setAttribute('data-theme', theme);
+            document.body.setAttribute('data-theme', theme);
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', async () => {
+            syncTheme();
+            window.addEventListener('storage', (e) => {
+                if (e.key === 'theme') {
+                    syncTheme();
+                }
+            });
+            await loadSchemas();
+        });
+
+        // Toast Messages
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            const icons = {
+                success: 'fa-check-circle',
+                error: 'fa-exclamation-circle',
+                info: 'fa-info-circle'
+            };
+            toast.innerHTML = `
+                <i class="fas ${icons[type] || 'fa-info-circle'}"></i>
+                <span>${message}</span>
+            `;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.style.animation = 'slideIn 0.3s ease-out reverse';
+                setTimeout(() => toast.remove(), 300);
+            }, 4000);
+        }
+
+        // Fetch DB schemas from target config registry
+        async function loadSchemas() {
+            try {
+                const res = await fetch('/api/admin/batch-import/schemas');
+                dbSchemas = await res.json();
+            } catch (e) {
+                showToast('Failed to load database schemas', 'error');
+            }
+        }
+
+        // ZIP Upload
+        async function handleZipSelected(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            showToast('Uploading and scanning package archive...', 'info');
+
+            try {
+                const res = await fetch('/api/admin/batch-import/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+
+                if (!res.ok) throw new Error(data.error || 'Upload failed');
+                batchData = data;
+                renderPreviewStep();
+            } catch (err) {
+                showToast(err.message, 'error');
+            }
+        }
+
+        // Expand/Collapse preview cards
+        toggleCardExpansion = (id) => {
+            const el = document.getElementById(`body-${id}`);
+            const chevron = document.getElementById(`chevron-${id}`);
+            if (el.style.display === 'block') {
+                el.style.display = 'none';
+                chevron.className = 'fas fa-chevron-down';
+            } else {
+                el.style.display = 'block';
+                chevron.className = 'fas fa-chevron-up';
+            }
+        };
+
+        // Render step 2 & 3 Archive contents preview & validation
+        function renderPreviewStep() {
+            document.getElementById('uploadStep').style.display = 'none';
+            const container = document.getElementById('surveyGroupContainer');
+            container.innerHTML = '';
+
+            batchData.surveys.forEach((s, idx) => {
+                const bytesToSize = (bytes) => {
+                    if (bytes === 0) return '0 Bytes';
+                    const k = 1024;
+                    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+                    const i = Math.floor(Math.log(bytes) / Math.log(k));
+                    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+                };
+
+                const val = s.validation;
+                let validationBadges = '';
+
+                // Datasets
+                if (val.datasets_found) {
+                    validationBadges += `<span class="survey-badge badge-success"><i class="fas fa-check"></i> Datasets: Found</span> `;
+                } else {
+                    validationBadges += `<span class="survey-badge badge-danger"><i class="fas fa-times"></i> Datasets: Missing</span> `;
+                }
+
+                // DDI
+                if (val.ddi_found) {
+                    validationBadges += `<span class="survey-badge badge-success"><i class="fas fa-check"></i> DDI: Found</span> `;
+                } else {
+                    validationBadges += `<span class="survey-badge badge-warning"><i class="fas fa-exclamation-triangle"></i> DDI: Missing</span> `;
+                }
+
+                // Layout
+                if (val.layout_found) {
+                    validationBadges += `<span class="survey-badge badge-success"><i class="fas fa-check"></i> Layout: Found</span> `;
+                } else {
+                    if (s.dataset_files.some(f => f.toLowerCase().endsWith('.txt'))) {
+                        validationBadges += `<span class="survey-badge badge-warning"><i class="fas fa-exclamation-triangle"></i> Layout: Missing (Required for FWF)</span> `;
+                    } else {
+                        validationBadges += `<span class="survey-badge badge-success"><i class="fas fa-check"></i> Layout: N/A</span> `;
+                    }
+                }
+
+                const fileTreeHtml = s.files.map(f => `<div class="tree-node">├─ ${f}</div>`).join('');
+                
+                const card = document.createElement('div');
+                card.className = 'survey-card';
+                card.innerHTML = `
+                    <div class="survey-header" onclick="toggleCardExpansion(${idx})">
+                        <div class="survey-header-left">
+                            <i class="fas fa-folder-open" style="color: var(--primary-color); font-size: 1.4rem;"></i>
+                            <span class="survey-name">${s.folder_name}</span>
+                            <div style="margin-left: 10px;">${validationBadges}</div>
+                        </div>
+                        <div class="survey-header-right">
+                            <div class="survey-meta">
+                                <span><i class="fas fa-file"></i> ${s.files.length} Files</span>
+                                <span><i class="fas fa-weight-hanging"></i> ${bytesToSize(s.total_size_bytes)}</span>
+                            </div>
+                            <i class="fas fa-chevron-down" id="chevron-${idx}"></i>
+                        </div>
+                    </div>
+                    <div class="survey-body" id="body-${idx}">
+                        <h4 style="margin-bottom: 8px; font-weight: 700;"><i class="fas fa-network-wired"></i> Folder Structure tree:</h4>
+                        <div style="background: rgba(0,0,0,0.03); padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                            ${fileTreeHtml}
+                        </div>
+                        ${val.unsupported_files.length > 0 ? `
+                            <div style="color: var(--warning-color); font-weight: 600; font-size: 0.9rem;">
+                                <i class="fas fa-exclamation-triangle"></i> Unsupported / Extra files detected (these will be ignored):
+                                <ul style="padding-left: 20px; font-weight: normal; margin-top: 5px;">
+                                    ${val.unsupported_files.map(f => `<li>${f}</li>`).join('')}
+                                </ul>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+
+            document.getElementById('previewStep').style.display = 'block';
+        }
+
+        // Proceed to Step 4 admin mapping overrides screen
+        function proceedToMapping() {
+            document.getElementById('previewStep').style.display = 'none';
+            const container = document.getElementById('mappingFormContainer');
+            container.innerHTML = '';
+
+            batchData.surveys.forEach((s, sIdx) => {
+                const schemaOptions = dbSchemas.map(sc => `<option value="${sc.schema}">${sc.name} (${sc.schema})</option>`).join('');
+                
+                const card = document.createElement('div');
+                card.className = 'survey-card';
+                card.style.padding = '1.5rem';
+                
+                let fileRows = s.dataset_files.map(df => {
+                    const defaultName = s.table_naming_previews.find(p => p.file === df)?.table_name || 'table';
+                    return `
+                        <tr>
+                            <td style="font-weight: 600; font-size: 0.95rem;">${df}</td>
+                            <td>
+                                <input type="text" class="form-input" id="tbl-${sIdx}-${df}" value="${defaultName}">
+                            </td>
+                            <td style="text-align: center;">
+                                <input type="checkbox" id="skip-${sIdx}-${df}" style="width: 20px; height: 20px; accent-color: var(--primary-color); cursor: pointer;">
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+
+                card.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; border-bottom: 1px solid var(--glass-border); padding-bottom: 10px;">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <i class="fas fa-folder" style="color: var(--primary-color); font-size: 1.4rem;"></i>
+                            <span class="survey-name" style="font-family: var(--font-head); font-size: 1.3rem; font-weight: 700;">${s.folder_name}</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 15px;">
+                            <label style="font-weight: 600; font-size: 0.95rem; display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                <input type="checkbox" id="skip-folder-${sIdx}" style="width: 18px; height: 18px; accent-color: var(--danger-color); cursor: pointer;" onchange="toggleFolderGreyOut(${sIdx})">
+                                <span>Exclude Folder</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div id="survey-mapping-content-${sIdx}" style="transition: all 0.3s ease;">
+                        <div class="schema-selector" style="margin-bottom: 1.5rem; display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                            <div>
+                                <label style="font-weight: 700; margin-bottom: 8px; display: block; font-size: 0.95rem;">Dataset Display Name:</label>
+                                <input type="text" class="form-input" id="display-name-${sIdx}" placeholder="${s.folder_name} (Fallback)">
+                            </div>
+                            <div>
+                                <label style="font-weight: 700; margin-bottom: 8px; display: block; font-size: 0.95rem;">Destination Schema:</label>
+                                <select class="form-select" id="schema-${sIdx}">
+                                    <option value="public">Default Public Schema (public)</option>
+                                    ${schemaOptions}
+                                </select>
+                            </div>
+                        </div>
+
+                        <h4 style="font-weight: 700; margin-bottom: 12px; font-size: 1rem;"><i class="fas fa-table" style="color: var(--secondary-color);"></i> Target Tables & Renames:</h4>
+                        <table class="mapping-table">
+                            <thead>
+                                <tr>
+                                    <th>Dataset File</th>
+                                    <th>Target Table Name</th>
+                                    <th style="text-align: center;">Exclude File</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${fileRows}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+
+            document.getElementById('mappingStep').style.display = 'block';
+        }
+
+        function toggleFolderGreyOut(sIdx) {
+            const checked = document.getElementById(`skip-folder-${sIdx}`).checked;
+            const content = document.getElementById(`survey-mapping-content-${sIdx}`);
+            if (content) {
+                if (checked) {
+                    content.style.opacity = '0.35';
+                    content.style.pointerEvents = 'none';
+                } else {
+                    content.style.opacity = '1';
+                    content.style.pointerEvents = 'auto';
+                }
+            }
+        }
+
+        function backToPreview() {
+            document.getElementById('mappingStep').style.display = 'none';
+            document.getElementById('previewStep').style.display = 'block';
+        }
+
+        // Execute batch import
+        async function executeBatchImport() {
+            const mappings = {};
+
+            batchData.surveys.forEach((s, sIdx) => {
+                const folderSkip = document.getElementById(`skip-folder-${sIdx}`).checked;
+                const targetSchema = document.getElementById(`schema-${sIdx}`).value;
+                const customDisplayName = document.getElementById(`display-name-${sIdx}`).value.trim();
+                
+                const filesConfig = {};
+                s.dataset_files.forEach(df => {
+                    const tblName = document.getElementById(`tbl-${sIdx}-${df}`).value.trim();
+                    const fileSkip = document.getElementById(`skip-${sIdx}-${df}`).checked;
+                    filesConfig[df] = {
+                        "table_name": tblName,
+                        "skip": fileSkip
+                    };
+                });
+
+                mappings[s.folder_name] = {
+                    "skip": folderSkip,
+                    "schema": targetSchema,
+                    "display_name": customDisplayName,
+                    "files": filesConfig
+                };
+            });
+
+            const payload = {
+                "batch_id": batchData.batch_id,
+                "temp_dir": batchData.temp_dir,
+                "mappings": mappings
+            };
+
+            showToast('Queuing ingestion tasks...', 'info');
+
+            try {
+                const res = await fetch('/api/admin/batch-import/execute', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+
+                if (!res.ok) throw new Error(data.detail || 'Ingestion start failed');
+
+                activeJobId = data.job_id;
+                startProgressPolling();
+            } catch (err) {
+                showToast(err.message, 'error');
+            }
+        }
+
+        // Start progress polling
+        function startProgressPolling() {
+            document.getElementById('mappingStep').style.display = 'none';
+            document.getElementById('progressStep').style.display = 'block';
+
+            finalToastSent = false;
+            importStartTime = Date.now();
+            pollingInterval = setInterval(pollJobStatus, 2000);
+        }
+
+        async function pollJobStatus() {
+            if (!activeJobId) return;
+
+            try {
+                const res = await fetch(`/api/admin/batch-import/status/${activeJobId}`);
+                const job = await res.json();
+
+                // Calculate elapsed time
+                let elapsedTimeStr = '0s';
+                if (importStartTime) {
+                    const elapsedMs = Date.now() - importStartTime;
+                    const elapsedSec = Math.floor(elapsedMs / 1000);
+                    const mins = Math.floor(elapsedSec / 60);
+                    const secs = elapsedSec % 60;
+                    if (mins > 0) {
+                        elapsedTimeStr = `${mins}m ${secs}s`;
+                    } else {
+                        elapsedTimeStr = `${secs}s`;
+                    }
+                }
+
+                // Folder-based Progress calculation
+                const batchInfo = job.batch_info;
+                let progress = 0;
+                let total = 0;
+                let completedCount = 0;
+                
+                if (batchInfo) {
+                    if (batchInfo.surveys) {
+                        total = Object.keys(batchInfo.surveys).length;
+                        Object.values(batchInfo.surveys).forEach(s => {
+                            if (s.status === 'success' || s.status === 'failed' || s.status === 'completed') {
+                                completedCount++;
+                            }
+                        });
+                    } else {
+                        total = batchInfo.total_surveys || 0;
+                        completedCount = (batchInfo.success_count || 0) + (batchInfo.failure_count || 0);
+                    }
+                    
+                    if (total > 0) {
+                        progress = Math.floor((completedCount / total) * 100);
+                    }
+                    
+                    document.getElementById('batchStatsInfo').innerHTML = 
+                        `Folders: <span style="color: var(--primary-color)">${completedCount}/${total} completed</span> | Elapsed Time: <span style="color: var(--text-main)">${elapsedTimeStr}</span>`;
+                }
+
+                if (job.status === 'COMPLETED') {
+                    progress = 100;
+                }
+
+                document.getElementById('overallProgressText').textContent = `${progress}%`;
+                document.getElementById('overallProgressBarFill').style.width = `${progress}%`;
+                document.getElementById('activeIngestionStatus').textContent = job.message || 'Processing...';
+
+                // Display current folder and its progress
+                const currentFolder = job.current_folder;
+                
+                if (currentFolder) {
+                    document.getElementById('currentFolderInfo').innerHTML = 
+                        `<i class="fas fa-folder-open" style="color:var(--primary-color)"></i> Current Folder: <span style="color:var(--primary-color)">${currentFolder}</span>`;
+                    
+                    if (batchInfo && batchInfo.surveys && batchInfo.surveys[currentFolder]) {
+                        const fProgress = batchInfo.surveys[currentFolder].progress || 0;
+                        document.getElementById('folderProgressText').textContent = `${fProgress}%`;
+                        document.getElementById('folderProgressBarFill').style.width = `${fProgress}%`;
+                        document.getElementById('folderProgressContainer').style.display = 'block';
+                    } else {
+                        document.getElementById('folderProgressContainer').style.display = 'none';
+                    }
+                } else {
+                    document.getElementById('currentFolderInfo').textContent = '';
+                    document.getElementById('folderProgressContainer').style.display = 'none';
+                }
+
+                // Render per-survey progress list
+                if (batchInfo && batchInfo.surveys) {
+                    const container = document.getElementById('surveyProgressContainer');
+                    container.innerHTML = '';
+
+                    Object.keys(batchInfo.surveys).forEach(folder => {
+                        const s = batchInfo.surveys[folder];
+                        let statusColor = 'var(--primary-color)';
+                        let statusText = s.status.toUpperCase();
+                        
+                        if (s.status === 'success') statusColor = 'var(--success-color)';
+                        if (s.status === 'failed') statusColor = 'var(--danger-color)';
+
+                        const card = document.createElement('div');
+                        card.className = 'survey-card';
+                        card.style.padding = '1.25rem';
+                        card.innerHTML = `
+                            <div style="display:flex; justify-content:space-between; margin-bottom: 8px; font-weight:700;">
+                                <span><i class="fas fa-folder"></i> ${folder} (Schema: ${s.schema})</span>
+                                <span style="color: ${statusColor}">${statusText}</span>
+                            </div>
+                            <div class="progress-bar-bg" style="height: 8px;">
+                                <div class="progress-bar-fill" style="width: ${s.progress}%; background: ${statusColor}"></div>
+                            </div>
+                            ${s.error ? `
+                                <div style="margin-top: 8px; font-size: 0.85rem; color: var(--danger-color); font-family: monospace;">
+                                    Error: ${s.error}
+                                </div>
+                            ` : ''}
+                        `;
+                        container.appendChild(card);
+                    });
+                }
+
+                // Check terminal states
+                const status = (job.status || '').toUpperCase();
+                if (status === 'COMPLETED' || status === 'FAILED') {
+                    if (pollingInterval) {
+                        clearInterval(pollingInterval);
+                        pollingInterval = null;
+                    }
+                    
+                    if (!finalToastSent) {
+                        finalToastSent = true;
+                        
+                        // Show ONLY ONE final toast notification with summary
+                        if (batchInfo) {
+                            const totalSurveys = batchInfo.total_surveys || total || 0;
+                            const succeeded = batchInfo.success_count || completedCount || 0;
+                            const failed = batchInfo.failure_count || 0;
+                            const tables = batchInfo.tables_created || 0;
+                            
+                            showToast(`Batch Import Completed Successfully\n\nSurveys Imported: ${succeeded}\nTables Created: ${tables}\nFailed Groups: ${failed}`, succeeded > 0 ? 'success' : 'error');
+                        } else {
+                            showToast(job.message || 'Job finished', status === 'COMPLETED' ? 'success' : 'error');
+                        }
+                        
+                        renderSummaryStep(job);
+                    }
+                }
+
+            } catch (e) {
+                console.error('Error polling status:', e);
+            }
+        }
+
+        function toggleSummaryRow(idx) {
+            const el = document.getElementById(`sum-details-${idx}`);
+            const chevron = document.getElementById(`sum-chevron-${idx}`);
+            if (el.style.display === 'table-row') {
+                el.style.display = 'none';
+                chevron.style.transform = 'rotate(0deg)';
+            } else {
+                el.style.display = 'table-row';
+                chevron.style.transform = 'rotate(180deg)';
+            }
+        }
+
+        // Render Summary
+        function renderSummaryStep(job) {
+            document.getElementById('progressStep').style.display = 'none';
+            
+            const batchInfo = job.batch_info || {};
+            document.getElementById('sumSurveys').textContent = batchInfo.surveys_imported || 0;
+            document.getElementById('sumTables').textContent = batchInfo.tables_created || 0;
+            document.getElementById('sumSuccess').textContent = batchInfo.success_count || 0;
+            document.getElementById('sumFailed').textContent = batchInfo.failure_count || 0;
+
+            // Render final summary results table
+            const summaryResultsBody = document.getElementById('summaryResultsBody');
+            summaryResultsBody.innerHTML = '';
+            
+            const surveys = batchInfo.surveys || {};
+            Object.keys(surveys).forEach((folder, idx) => {
+                const s = surveys[folder];
+                const statusColor = s.status === 'success' ? 'var(--success-color)' : 'var(--danger-color)';
+                const statusIcon = s.status === 'success' ? 'fa-check-circle' : 'fa-times-circle';
+                
+                // Chevron icon and folder text
+                const folderHtml = `
+                    <div style="display: flex; align-items: center; gap: 8px; cursor: pointer;" onclick="toggleSummaryRow(${idx})">
+                        <i class="fas fa-chevron-down" id="sum-chevron-${idx}" style="transition: transform 0.2s; font-size: 0.9rem;"></i>
+                        <span style="font-weight: 700;">${folder}</span>
+                    </div>
+                `;
+
+                const trMain = document.createElement('tr');
+                trMain.innerHTML = `
+                    <td>${folderHtml}</td>
+                    <td><code style="font-family: monospace; background: rgba(0,0,0,0.04); padding: 2px 6px; border-radius: 4px; color: var(--text-main); border: 1px solid var(--glass-border);">${s.schema}</code></td>
+                    <td style="color: ${statusColor}; font-weight: 700;"><i class="fas ${statusIcon}"></i> ${s.status.toUpperCase()}</td>
+                    <td>${s.tables_created || 0}</td>
+                    <td>${s.dataset_name || folder}</td>
+                    <td>${s.processing_time_sec !== undefined ? s.processing_time_sec + ' sec' : 'N/A'}</td>
+                `;
+                summaryResultsBody.appendChild(trMain);
+
+                // Build expandable details contents
+                const tablesInfo = s.tables_info || [];
+                let tablesListHtml = '<li>None</li>';
+                let variablesListHtml = '<li>None</li>';
+                let rowsListHtml = '<li>None</li>';
+                
+                if (tablesInfo.length > 0) {
+                    tablesListHtml = tablesInfo.map(t => `<li><code>${t.table_name}</code></li>`).join('');
+                    variablesListHtml = tablesInfo.map(t => `<li><code>${t.table_name}</code> = ${t.variables} variables</li>`).join('');
+                    rowsListHtml = tablesInfo.map(t => `<li><code>${t.table_name}</code> = ${t.rows} rows</li>`).join('');
+                }
+
+                const ddiBadge = s.metadata_status && s.metadata_status.ddi_found ? 
+                    `<span style="color: var(--success-color); font-weight: 600;"><i class="fas fa-check"></i> DDI Found</span>` : 
+                    `<span style="color: var(--text-muted);"><i class="fas fa-times"></i> DDI Not Found</span>`;
+                const layoutBadge = s.metadata_status && s.metadata_status.layout_found ? 
+                    `<span style="color: var(--success-color); font-weight: 600;"><i class="fas fa-check"></i> Layout Found</span>` : 
+                    `<span style="color: var(--text-muted);"><i class="fas fa-times"></i> Layout Not Found</span>`;
+
+                const trDetails = document.createElement('tr');
+                trDetails.id = `sum-details-${idx}`;
+                trDetails.style.display = 'none';
+                trDetails.style.background = 'rgba(0, 0, 0, 0.01)';
+                
+                trDetails.innerHTML = `
+                    <td colspan="6" style="padding: 1.5rem 2rem; border-top: none;">
+                        <div style="display: flex; flex-direction: column; gap: 20px;">
+                            <!-- Block 1: Tables Created -->
+                            <div style="border-bottom: 1px dashed var(--glass-border); padding-bottom: 15px;">
+                                <h4 style="font-weight: 700; margin-bottom: 10px; font-size: 1.1rem; color: var(--primary-color);"><i class="fas fa-table"></i> Tables Created</h4>
+                                <ul style="padding-left: 20px; list-style-type: disc; line-height: 1.8; font-size: 0.95rem; font-family: monospace; word-break: break-all;">
+                                    ${tablesListHtml}
+                                </ul>
+                            </div>
+                            <!-- Block 2: Variables -->
+                            <div style="border-bottom: 1px dashed var(--glass-border); padding-bottom: 15px;">
+                                <h4 style="font-weight: 700; margin-bottom: 10px; font-size: 1.1rem; color: var(--primary-color);"><i class="fas fa-code-branch"></i> Variables</h4>
+                                <ul style="padding-left: 20px; list-style-type: disc; line-height: 1.8; font-size: 0.95rem; font-family: monospace; word-break: break-all;">
+                                    ${variablesListHtml}
+                                </ul>
+                            </div>
+                            <!-- Block 3: Rows Imported -->
+                            <div style="border-bottom: 1px dashed var(--glass-border); padding-bottom: 15px;">
+                                <h4 style="font-weight: 700; margin-bottom: 10px; font-size: 1.1rem; color: var(--primary-color);"><i class="fas fa-database"></i> Rows Imported</h4>
+                                <ul style="padding-left: 20px; list-style-type: disc; line-height: 1.8; font-size: 0.95rem; font-family: monospace; word-break: break-all;">
+                                    ${rowsListHtml}
+                                </ul>
+                            </div>
+                            <!-- Block 4: Metadata -->
+                            <div>
+                                <h4 style="font-weight: 700; margin-bottom: 10px; font-size: 1.1rem; color: var(--primary-color);"><i class="fas fa-file-alt"></i> Metadata</h4>
+                                <div style="display: flex; flex-direction: column; gap: 8px; font-size: 0.95rem; line-height: 1.6;">
+                                    <div>${ddiBadge}</div>
+                                    <div>${layoutBadge}</div>
+                                </div>
+                                <div style="margin-top: 15px; font-size: 0.95rem;">
+                                    <strong>Processing Time:</strong> ${s.processing_time_sec !== undefined ? s.processing_time_sec + ' sec' : 'N/A'}
+                                </div>
+                            </div>
+                        </div>
+                    </td>
+                `;
+                summaryResultsBody.appendChild(trDetails);
+            });
+
+            const warnBox = document.getElementById('summaryWarnings');
+            const warnList = document.getElementById('summaryWarningsList');
+            
+            if (batchInfo.warnings && batchInfo.warnings.length > 0) {
+                warnBox.style.display = 'block';
+                warnList.innerHTML = batchInfo.warnings.map(w => `<li>${w}</li>`).join('');
+            } else {
+                warnBox.style.display = 'none';
+            }
+
+            // Set up download report button
+            const downloadBtn = document.getElementById('downloadReportBtn');
+            downloadBtn.onclick = () => {
+                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(batchInfo, null, 2));
+                const downloadAnchor = document.createElement('a');
+                downloadAnchor.setAttribute("href", dataStr);
+                downloadAnchor.setAttribute("download", `Batch_Import_Report_${activeJobId}.json`);
+                document.body.appendChild(downloadAnchor);
+                downloadAnchor.click();
+                downloadAnchor.remove();
+            };
+
+            document.getElementById('summaryStep').style.display = 'block';
+        }
+    </script>
+</body>
+</html>

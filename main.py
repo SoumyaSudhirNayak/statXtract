@@ -59,6 +59,7 @@ from query.query_data import router as query_router
 from query.user_explore import router as user_explore_router
 from query.query_data import log_usage  # Add this for log_usage
 from nada_routes import router as nada_router
+from batch_import import router as batch_import_router
 from fastapi import HTTPException  # Add this for HTTPException
 
 # Import AI Query router
@@ -504,6 +505,7 @@ app.include_router(local_auth_router)
 app.include_router(query_router)
 app.include_router(user_explore_router)
 app.include_router(nada_router)
+app.include_router(batch_import_router)
 app.include_router(ai_query_router)
 app.include_router(dashboard_studio_router)
 
