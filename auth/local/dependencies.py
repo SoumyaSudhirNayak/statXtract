@@ -59,28 +59,31 @@ async def get_current_user(request: Request) -> TokenData:
                 role_str = str(role_id) if role_id is not None else "3"
                 return TokenData(username=token_row["email"], role=role_str)
 
-    # Detect if this is a developer programmatic/API request (Swagger/Postman/etc)
+    # 2️⃣ Try JWT from Authorization header first, then fallback to access_token cookie
+    jwt_token = token  # token from Authorization header (if it was a JWT, not stx_live_)
+    
     path = request.url.path
+    method = request.method
     is_developer_api = (
-        (path == "/query" and request.method == "POST") or 
-        path.startswith("/datasets/")
+        (path == "/query" and method == "POST") or
+        path.startswith("/datasets") or
+        path.startswith("/schemas") or
+        path.startswith("/surveys") or
+        path.startswith("/metadata") or
+        path.startswith("/downloads")
     )
-    referer = request.headers.get("referer", "")
-    is_swagger = "/docs" in referer or "/redoc" in referer
-    is_programmatic = not referer
 
-    if is_developer_api and (is_swagger or is_programmatic):
-        # Programmatic/developer access strictly requires a developer token (which wasn't supplied above)
-        raise HTTPException(
-            status_code=401,
-            detail="Authentication credentials were not provided. Please authorize with a valid stx_live API token."
-        )
-
-    # 2️⃣ Fallback to access_token cookie
-    cookie_token = request.cookies.get("access_token")
-
-    if not cookie_token:
-        raise HTTPException(status_code=401, detail="Not authenticated")
+    if is_developer_api:
+        # For developer API endpoints, we STRICTLY require the Authorization: Bearer header.
+        if not jwt_token:
+            raise HTTPException(status_code=401, detail="Not authenticated")
+        cookie_token = jwt_token
+    else:
+        # For user portal, UI, and other endpoints, we fall back to the cookie
+        cookie_token = request.cookies.get("access_token")
+        if not jwt_token and not cookie_token:
+            raise HTTPException(status_code=401, detail="Not authenticated")
+        cookie_token = jwt_token or cookie_token
 
     # 3️⃣ Decode JWT token
     try:

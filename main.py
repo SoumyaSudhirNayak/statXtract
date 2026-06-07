@@ -2384,7 +2384,7 @@ async def nada_import_page(
 
 
 @app.get("/schemas")
-async def get_schemas(request: Request):
+async def get_schemas(request: Request, current_user=Depends(get_current_user)):
     """List schemas from schema_registry only."""
     try:
         pool = request.app.state.db
@@ -2728,7 +2728,7 @@ async def apply_config(schema, table, user, columns, rows, is_aggregated: bool =
 
 
 
-@app.get("/surveys", include_in_schema=False)
+@app.get("/surveys")
 async def list_surveys(request: Request, current_user=Depends(get_current_user)):
     pool = request.app.state.db
     async with pool.acquire() as conn:
@@ -2772,7 +2772,7 @@ async def list_surveys(request: Request, current_user=Depends(get_current_user))
         return out
 
 
-@app.get("/surveys/{survey}/datasets", include_in_schema=False)
+@app.get("/surveys/{survey}/datasets")
 async def list_survey_datasets(request: Request, survey: str, current_user=Depends(get_current_user)):
     pool = request.app.state.db
     async with pool.acquire() as conn:
@@ -2817,7 +2817,7 @@ async def list_survey_datasets(request: Request, survey: str, current_user=Depen
         return allowed
 
 
-@app.get("/surveys/{survey}/{dataset}/tables", include_in_schema=False)
+@app.get("/surveys/{survey}/{dataset}/tables")
 async def list_survey_tables(request: Request, survey: str, dataset: str, current_user=Depends(get_current_user)):
     pool = request.app.state.db
     async with pool.acquire() as conn:
@@ -2869,7 +2869,7 @@ async def list_survey_tables(request: Request, survey: str, dataset: str, curren
             _reset_apply_context(tokens)
 
 
-@app.get("/surveys/{survey}/{dataset}/{table}/columns", include_in_schema=False)
+@app.get("/surveys/{survey}/{dataset}/{table}/columns")
 async def list_survey_columns(request: Request, survey: str, dataset: str, table: str, current_user=Depends(get_current_user)):
     pool = request.app.state.db
     async with pool.acquire() as conn:
@@ -3016,7 +3016,7 @@ async def get_filter_metadata(request: Request, survey: str, dataset: str, table
 
     return result
 
-@app.get("/surveys/{survey}/{dataset}/{table}/query", include_in_schema=False)
+@app.get("/surveys/{survey}/{dataset}/{table}/query")
 async def query_survey_table(
     request: Request,
     survey: str,
@@ -3057,7 +3057,7 @@ async def query_survey_table(
 
 
 
-@app.get("/schemas/{schema}/datasets", include_in_schema=False)
+@app.get("/schemas/{schema}/datasets")
 async def list_datasets_v2(
     request: Request,
     schema: str,
@@ -3114,7 +3114,7 @@ async def list_datasets_v2(
         return out
 
 
-@app.get("/schemas/{schema}/{dataset}/tables", include_in_schema=False)
+@app.get("/schemas/{schema}/{dataset}/tables")
 async def list_tables_v2(
     request: Request,
     schema: str,
@@ -3185,7 +3185,7 @@ async def list_tables_v2(
             _reset_apply_context(tokens)
 
 
-@app.get("/metadata/{schema}/{dataset}", include_in_schema=False)
+@app.get("/metadata/{schema}/{dataset}")
 async def get_metadata_v2(
     request: Request,
     schema: str,
@@ -3312,7 +3312,7 @@ async def download_microdata(request: Request, schema: str, dataset: str, curren
     return FileResponse(str(zip_path), filename=zip_path.name)
 
 
-@app.get("/schemas/{schema}/years")
+@app.get("/schemas/{schema}/years", include_in_schema=False)
 async def list_years(
     request: Request,
     schema: str,
@@ -3328,7 +3328,7 @@ async def list_years(
     return []
 
 
-@app.get("/schemas/{schema}/{year}/datasets")
+@app.get("/schemas/{schema}/{year}/datasets", include_in_schema=False)
 async def list_datasets(
     request: Request,
     schema: str,
@@ -3383,7 +3383,7 @@ async def list_datasets(
         return out
 
 
-@app.get("/schemas/{schema}/{year}/{dataset}/tables")
+@app.get("/schemas/{schema}/{year}/{dataset}/tables", include_in_schema=False)
 async def list_tables(
     request: Request,
     schema: str,
@@ -3447,7 +3447,7 @@ def _parse_filters_param(filters: str) -> list[tuple[str, str, str]]:
     return parts
 
 
-@app.get("/schemas/{schema}/{year}/{dataset}/{table}/query")
+@app.get("/schemas/{schema}/{year}/{dataset}/{table}/query", include_in_schema=False)
 async def query_dataset_table(
     request: Request,
     schema: str,
