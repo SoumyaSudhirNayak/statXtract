@@ -11,3 +11,4 @@ uploads/
 temp/
 ADMIN_ACCOUNT/
 .pytest_cache/
+nada_ingestion/
