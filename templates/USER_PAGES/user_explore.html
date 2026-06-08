@@ -538,19 +538,20 @@
       font-weight: 600;
     }
     #readmeContent h1, #readmeContent h2, #readmeContent h3, #readmeContent h4,
-    #objectivesContent h1, #objectivesContent h2, #objectivesContent h3, #objectivesContent h4 {
+    #objectivesContent h1, #objectivesContent h2, #objectivesContent h3, #objectivesContent h4,
+    .rendered-container h1, .rendered-container h2, .rendered-container h3, .rendered-container h4 {
       margin-top: 20px;
       margin-bottom: 10px;
       color: var(--text-main);
       font-family: var(--font-head);
       font-weight: 700;
     }
-    #readmeContent ul, #objectivesContent ul {
+    #readmeContent ul, #objectivesContent ul, .rendered-container ul {
       margin-left: 20px;
       margin-bottom: 15px;
       list-style-type: disc;
     }
-    #readmeContent li, #objectivesContent li {
+    #readmeContent li, #objectivesContent li, .rendered-container li {
       margin-bottom: 5px;
     }
 
@@ -578,6 +579,97 @@
       color: #fff;
       border-color: var(--green);
     }
+
+    /* Modal styling */
+    .modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(15, 23, 42, 0.6);
+        backdrop-filter: blur(8px);
+        z-index: 10000;
+        justify-content: center;
+        align-items: center;
+        padding: 20px;
+    }
+
+    .modal-content {
+        background: var(--bg-page);
+        border: 2px solid var(--border);
+        border-radius: 18px;
+        box-shadow: 0 16px 40px rgba(0,0,0,0.15);
+        width: 100%;
+        max-width: 1200px;
+        height: 90vh;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        animation: modalFadeIn 0.3s ease-out;
+    }
+
+    @keyframes modalFadeIn {
+        from { opacity: 0; transform: scale(0.95); }
+        to { opacity: 1; transform: scale(1); }
+    }
+
+    .modal-header {
+        padding: 16px 24px;
+        border-bottom: 1px solid var(--border-soft);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: rgba(0,0,0,0.02);
+    }
+
+    .modal-title {
+        font-family: var(--font-head);
+        font-size: 1.25rem;
+        font-weight: 800;
+        color: var(--text-main);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .modal-close {
+        background: transparent;
+        border: none;
+        color: var(--text-main);
+        font-size: 1.5rem;
+        cursor: pointer;
+        padding: 5px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        transition: all 0.2s;
+    }
+
+    .modal-close:hover {
+        background: rgba(0,0,0,0.05);
+    }
+
+    .modal-body {
+        padding: 24px;
+        overflow-y: auto;
+        flex-grow: 1;
+        line-height: 1.6;
+        background: var(--bg-white);
+        color: var(--text-main);
+    }
+
+    .modal-footer {
+        padding: 16px 24px;
+        border-top: 1px solid var(--border-soft);
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        background: rgba(0,0,0,0.02);
+    }
+
 
 
     /* Banners & Badges */
@@ -845,9 +937,14 @@
                   <div class="meta-section">
                     <div class="meta-title-sub" style="display: flex; justify-content: space-between; align-items: center;">
                       <span>Dataset README</span>
-                      <div id="readmeModeToggle" class="action-btns" style="display: none;">
-                        <button class="btn-view active" id="btnReadmeRendered" onclick="setReadmeMode('rendered')">Rendered View</button>
-                        <button class="btn-view" id="btnReadmePdf" onclick="setReadmeMode('pdf')">PDF Viewer</button>
+                      <div style="display: flex; gap: 8px; align-items: center;">
+                        <div id="readmeModeToggle" class="action-btns" style="display: none;">
+                          <button class="btn-view active" id="btnReadmeRendered" onclick="setReadmeMode('rendered')">Rendered View</button>
+                          <button class="btn-view" id="btnReadmePdf" onclick="setReadmeMode('pdf')">PDF Viewer</button>
+                        </div>
+                        <button class="btn-view" id="btnExpandReadme" style="display: none;" onclick="expandReadme()">
+                          <i class="fas fa-expand"></i> Expand View
+                        </button>
                       </div>
                     </div>
                     <div id="readmeContent" class="meta-item" style="font-weight: 500; line-height: 1.6; font-size: 14px; white-space: pre-wrap; word-break: break-word; max-height: 500px; overflow-y: auto;">
@@ -864,9 +961,14 @@
                   <div class="meta-section">
                     <div class="meta-title-sub" style="display: flex; justify-content: space-between; align-items: center;">
                       <span>Dataset Objectives</span>
-                      <div id="objectivesModeToggle" class="action-btns" style="display: none;">
-                        <button class="btn-view active" id="btnObjectivesRendered" onclick="setObjectivesMode('rendered')">Rendered View</button>
-                        <button class="btn-view" id="btnObjectivesPdf" onclick="setObjectivesMode('pdf')">PDF Viewer</button>
+                      <div style="display: flex; gap: 8px; align-items: center;">
+                        <div id="objectivesModeToggle" class="action-btns" style="display: none;">
+                          <button class="btn-view active" id="btnObjectivesRendered" onclick="setObjectivesMode('rendered')">Rendered View</button>
+                          <button class="btn-view" id="btnObjectivesPdf" onclick="setObjectivesMode('pdf')">PDF Viewer</button>
+                        </div>
+                        <button class="btn-view" id="btnExpandObjectives" style="display: none;" onclick="expandObjectives()">
+                          <i class="fas fa-expand"></i> Expand View
+                        </button>
                       </div>
                     </div>
                     <div id="objectivesContent" class="meta-item" style="font-weight: 500; line-height: 1.6; font-size: 14px; white-space: pre-wrap; word-break: break-word; max-height: 500px; overflow-y: auto;">
@@ -877,6 +979,7 @@
                     </div>
                   </div>
                 </div>
+
 
 
               </div>
@@ -1431,6 +1534,7 @@
         document.getElementById('readmeContent').innerHTML = 'Loading README...';
         document.getElementById('readmePdfViewer').innerHTML = '';
         document.getElementById('readmeModeToggle').style.display = 'none';
+        document.getElementById('btnExpandReadme').style.display = 'none';
         setReadmeMode('rendered');
         fetch(`/api/user/explore/document?schema=${activeSchema}&doc_type=readme&table=${activeTable}`)
           .then(res => res.json())
@@ -1438,26 +1542,32 @@
             const readmeDiv = document.getElementById('readmeContent');
             if (data && data.rendered_html) {
               readmeDiv.innerHTML = wrapTablesInScrollContainer(data.rendered_html);
+              document.getElementById('btnExpandReadme').style.display = 'inline-block';
             } else if (data && data.content) {
               readmeDiv.innerHTML = wrapTablesInScrollContainer(formatDocumentText(data.content));
+              document.getElementById('btnExpandReadme').style.display = 'inline-block';
             } else {
               readmeDiv.innerHTML = '<span style="color:var(--text-muted);">No README available</span>';
+              document.getElementById('btnExpandReadme').style.display = 'none';
             }
 
             if (data && data.filename && data.filename.toLowerCase().endsWith('.pdf')) {
               readmePdfUrl = `/api/user/explore/document/raw?schema=${activeSchema}&doc_type=readme&table=${activeTable}`;
               document.getElementById('readmeModeToggle').style.display = 'flex';
+              document.getElementById('btnExpandReadme').style.display = 'inline-block';
             }
           })
           .catch(err => {
             console.error(err);
             document.getElementById('readmeContent').innerHTML = '<span style="color:var(--text-muted);">No README available</span>';
+            document.getElementById('btnExpandReadme').style.display = 'none';
           });
 
         // 4. Load Objectives
         document.getElementById('objectivesContent').innerHTML = 'Loading Objectives...';
         document.getElementById('objectivesPdfViewer').innerHTML = '';
         document.getElementById('objectivesModeToggle').style.display = 'none';
+        document.getElementById('btnExpandObjectives').style.display = 'none';
         setObjectivesMode('rendered');
         fetch(`/api/user/explore/document?schema=${activeSchema}&doc_type=objectives&table=${activeTable}`)
           .then(res => res.json())
@@ -1465,21 +1575,27 @@
             const objectivesDiv = document.getElementById('objectivesContent');
             if (data && data.rendered_html) {
               objectivesDiv.innerHTML = wrapTablesInScrollContainer(data.rendered_html);
+              document.getElementById('btnExpandObjectives').style.display = 'inline-block';
             } else if (data && data.content) {
               objectivesDiv.innerHTML = wrapTablesInScrollContainer(formatDocumentText(data.content));
+              document.getElementById('btnExpandObjectives').style.display = 'inline-block';
             } else {
               objectivesDiv.innerHTML = '<span style="color:var(--text-muted);">No Objectives available</span>';
+              document.getElementById('btnExpandObjectives').style.display = 'none';
             }
 
             if (data && data.filename && data.filename.toLowerCase().endsWith('.pdf')) {
               objectivesPdfUrl = `/api/user/explore/document/raw?schema=${activeSchema}&doc_type=objectives&table=${activeTable}`;
               document.getElementById('objectivesModeToggle').style.display = 'flex';
+              document.getElementById('btnExpandObjectives').style.display = 'inline-block';
             }
           })
           .catch(err => {
             console.error(err);
             document.getElementById('objectivesContent').innerHTML = '<span style="color:var(--text-muted);">No Objectives available</span>';
+            document.getElementById('btnExpandObjectives').style.display = 'none';
           });
+
 
 
       } catch (e) {
@@ -1493,7 +1609,162 @@
       loadUserPortalDetails(true);
     }, 9000);
 
+    let currentExpandedDoc = 'readme';
+    let currentModalMode = 'rendered';
+
+    function expandReadme() {
+      currentExpandedDoc = 'readme';
+      const modal = document.getElementById('documentModal');
+      const modalTitle = document.getElementById('modalTitle');
+      const renderedContent = document.getElementById('modalRenderedContent');
+      const pdfViewer = document.getElementById('modalPdfViewer');
+      const modeToggle = document.getElementById('modalModeToggle');
+      
+      modalTitle.innerHTML = `📄 Expanded View: README - ${activeTable || activeSchema}`;
+      renderedContent.innerHTML = document.getElementById('readmeContent').innerHTML;
+      pdfViewer.innerHTML = '';
+      pdfViewer.style.display = 'none';
+      renderedContent.style.display = 'block';
+      
+      const readmeModeToggle = document.getElementById('readmeModeToggle');
+      const isPdf = readmeModeToggle && readmeModeToggle.style.display !== 'none';
+      
+      if (isPdf) {
+        modeToggle.style.display = 'flex';
+        if (currentReadmeMode === 'pdf') {
+          setModalMode('pdf');
+        } else {
+          setModalMode('rendered');
+        }
+      } else {
+        modeToggle.style.display = 'none';
+        setModalMode('rendered');
+      }
+      
+      modal.style.display = 'flex';
+    }
+
+    function expandObjectives() {
+      currentExpandedDoc = 'objectives';
+      const modal = document.getElementById('documentModal');
+      const modalTitle = document.getElementById('modalTitle');
+      const renderedContent = document.getElementById('modalRenderedContent');
+      const pdfViewer = document.getElementById('modalPdfViewer');
+      const modeToggle = document.getElementById('modalModeToggle');
+      
+      modalTitle.innerHTML = `🎯 Expanded View: Objectives - ${activeTable || activeSchema}`;
+      renderedContent.innerHTML = document.getElementById('objectivesContent').innerHTML;
+      pdfViewer.innerHTML = '';
+      pdfViewer.style.display = 'none';
+      renderedContent.style.display = 'block';
+      
+      const objectivesModeToggle = document.getElementById('objectivesModeToggle');
+      const isPdf = objectivesModeToggle && objectivesModeToggle.style.display !== 'none';
+      
+      if (isPdf) {
+        modeToggle.style.display = 'flex';
+        if (currentObjectivesMode === 'pdf') {
+          setModalMode('pdf');
+        } else {
+          setModalMode('rendered');
+        }
+      } else {
+        modeToggle.style.display = 'none';
+        setModalMode('rendered');
+      }
+      
+      modal.style.display = 'flex';
+    }
+
+    function setModalMode(mode) {
+      currentModalMode = mode;
+      const renderedContent = document.getElementById('modalRenderedContent');
+      const pdfViewer = document.getElementById('modalPdfViewer');
+      const btnRendered = document.getElementById('btnModalRendered');
+      const btnPdf = document.getElementById('btnModalPdf');
+
+      if (mode === 'pdf') {
+        renderedContent.style.display = 'none';
+        pdfViewer.style.display = 'block';
+        btnRendered.classList.remove('active');
+        btnPdf.classList.add('active');
+        
+        // Optimize modal body layout for full-height PDF iframe display
+        const modalBody = document.getElementById('modalBody');
+        modalBody.style.display = 'flex';
+        modalBody.style.flexDirection = 'column';
+        modalBody.style.overflow = 'hidden';
+        pdfViewer.style.flexGrow = '1';
+        pdfViewer.style.height = '100%';
+        pdfViewer.style.width = '100%';
+        
+        const pdfUrl = currentExpandedDoc === 'readme' ? readmePdfUrl : objectivesPdfUrl;
+        if (!pdfViewer.querySelector('iframe')) {
+          pdfViewer.innerHTML = `<iframe src="${pdfUrl}" width="100%" height="100%" style="border: none; flex-grow: 1; min-height: 75vh;"></iframe>`;
+        }
+      } else {
+        renderedContent.style.display = 'block';
+        pdfViewer.style.display = 'none';
+        btnRendered.classList.add('active');
+        btnPdf.classList.remove('active');
+        
+        // Revert modal body layout for HTML text display
+        const modalBody = document.getElementById('modalBody');
+        modalBody.style.display = '';
+        modalBody.style.flexDirection = '';
+        modalBody.style.overflow = 'auto';
+      }
+    }
+
+
+    function closeModal() {
+      document.getElementById('documentModal').style.display = 'none';
+      document.getElementById('modalRenderedContent').innerHTML = '';
+      document.getElementById('modalPdfViewer').innerHTML = '';
+      
+      // Reset modal body layout styles
+      const modalBody = document.getElementById('modalBody');
+      modalBody.style.display = '';
+      modalBody.style.flexDirection = '';
+      modalBody.style.overflow = 'auto';
+    }
+
+    // Close modal when clicking outside of modal-content
+    window.onclick = function(event) {
+      const modal = document.getElementById('documentModal');
+      if (event.target === modal) {
+        closeModal();
+      }
+    }
   </script>
+
+  <!-- Expanded Document Viewer Modal -->
+  <div class="modal" id="documentModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div class="modal-title" id="modalTitle">
+          📖 Expanded View
+        </div>
+        <div id="modalModeToggle" class="action-btns" style="display: none; margin-left: 20px;">
+          <button class="btn-view active" id="btnModalRendered" onclick="setModalMode('rendered')">Rendered View</button>
+          <button class="btn-view" id="btnModalPdf" onclick="setModalMode('pdf')">PDF Viewer</button>
+        </div>
+        <button class="modal-close" onclick="closeModal()">&times;</button>
+      </div>
+      <div class="modal-body" id="modalBody">
+        <div id="modalRenderedContent" class="rendered-container">
+          <!-- Document content rendered here -->
+        </div>
+        <div id="modalPdfViewer" style="display: none; width: 100%; height: 100%; overflow: hidden;">
+          <!-- PDF iframe loaded here -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-view" onclick="closeModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
   <script src="/static/user_mobile.js"></script>
 </body>
 </html>
