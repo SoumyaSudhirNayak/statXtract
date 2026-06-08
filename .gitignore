@@ -12,3 +12,5 @@ temp/
 ADMIN_ACCOUNT/
 .pytest_cache/
 nada_ingestion/
+nada_ingestion/**
+*.zip
