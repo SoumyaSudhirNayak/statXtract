@@ -415,3 +415,122 @@ async def get_explore_preview(
             "rows": filtered_data,
             "total_preview_limit": max_preview
         }
+
+
+@router.get("/api/user/explore/document", include_in_schema=False)
+async def get_explore_document(
+    request: Request,
+    schema: str,
+    doc_type: str,
+    table: Optional[str] = None,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
+):
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        await check_user_access(conn, current_user, "query", limit=1)
+        
+        if table:
+            row = await conn.fetchrow(
+                """
+                SELECT filename, content, rendered_html
+                FROM dataset_documents
+                WHERE dataset_schema = $1 AND doc_type = $2 AND table_name = $3
+                """,
+                schema,
+                doc_type,
+                table
+            )
+            if row:
+                rendered_html = row["rendered_html"]
+                if not rendered_html and row["content"]:
+                    import html
+                    escaped_content = html.escape(row["content"] or "")
+                    rendered_html = f'<div style="font-family: monospace; white-space: pre-wrap; padding: 15px; background: rgba(0,0,0,0.02); border-radius: 6px;">{escaped_content}</div>'
+                return {"filename": row["filename"], "content": row["content"], "rendered_html": rendered_html}
+        
+        row = await conn.fetchrow(
+            """
+            SELECT filename, content, rendered_html
+            FROM dataset_documents
+            WHERE dataset_schema = $1 AND doc_type = $2 AND table_name IS NULL
+            """,
+            schema,
+            doc_type
+        )
+        if row:
+            rendered_html = row["rendered_html"]
+            if not rendered_html and row["content"]:
+                import html
+                escaped_content = html.escape(row["content"] or "")
+                rendered_html = f'<div style="font-family: monospace; white-space: pre-wrap; padding: 15px; background: rgba(0,0,0,0.02); border-radius: 6px;">{escaped_content}</div>'
+            return {"filename": row["filename"], "content": row["content"], "rendered_html": rendered_html}
+            
+        return {"filename": None, "content": None, "rendered_html": None}
+
+
+@router.get("/api/user/explore/document/raw", include_in_schema=False)
+async def get_explore_document_raw(
+    request: Request,
+    schema: str,
+    doc_type: str,
+    table: Optional[str] = None,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
+):
+    from fastapi.responses import JSONResponse
+    try:
+        pool = request.app.state.db
+        async with pool.acquire() as conn:
+            await check_user_access(conn, current_user, "query", limit=1)
+            
+            row = None
+            if table:
+                row = await conn.fetchrow(
+                    """
+                    SELECT filename, original_file
+                    FROM dataset_documents
+                    WHERE dataset_schema = $1 AND doc_type = $2 AND table_name = $3
+                    """,
+                    schema,
+                    doc_type,
+                    table
+                )
+            if not row:
+                row = await conn.fetchrow(
+                    """
+                    SELECT filename, original_file
+                    FROM dataset_documents
+                    WHERE dataset_schema = $1 AND doc_type = $2 AND table_name IS NULL
+                    """,
+                    schema,
+                    doc_type
+                )
+                
+            if not row or not row["original_file"]:
+                return JSONResponse(status_code=404, content={"detail": "Document file not found or binary empty."})
+                
+            filename = row["filename"]
+            file_bytes = row["original_file"]
+            
+            media_type = "application/octet-stream"
+            if filename.lower().endswith(".pdf"):
+                media_type = "application/pdf"
+            elif filename.lower().endswith(".docx"):
+                media_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                
+            from io import BytesIO
+            from fastapi.responses import StreamingResponse
+            return StreamingResponse(
+                BytesIO(file_bytes),
+                media_type=media_type,
+                headers={
+                    "Content-Disposition": f"inline; filename={filename}",
+                    "Access-Control-Expose-Headers": "Content-Disposition"
+                }
+            )
+    except HTTPException as he:
+        return JSONResponse(status_code=he.status_code, content={"detail": he.detail})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"detail": str(e)})
+
+
+

@@ -646,6 +646,222 @@ def _infer_and_convert_column(series: pd.Series, ddi_hint: str | None) -> tuple[
     return series.astype(str).where(series.notna(), None), "TEXT"
 
 
+def pdf_to_html(pdf_path) -> str:
+    import re
+    import html
+    from pypdf import PdfReader
+    
+    def escape_html(t: str) -> str:
+        return html.escape(t)
+        
+    reader = PdfReader(pdf_path)
+    html_parts = []
+    
+    in_list = False
+    list_type = None
+    in_table = False
+    table_rows = []
+    
+    def flush_table():
+        nonlocal in_table, table_rows
+        if not in_table or not table_rows:
+            return
+        max_cols = max(len(r) for r in table_rows)
+        table_html = ['<div style="overflow-x: auto; margin: 15px 0;"><table style="width: 100%; border-collapse: collapse; border: 1px solid var(--glass-border); font-size: 13px;">']
+        for r_idx, row in enumerate(table_rows):
+            row_padded = row + [""] * (max_cols - len(row))
+            tr_style = "background: rgba(0,0,0,0.02);" if r_idx == 0 else "border-bottom: 1px solid var(--glass-border);"
+            table_html.append(f'<tr style="{tr_style}">')
+            for cell in row_padded:
+                cell_text = cell.strip()
+                if r_idx == 0:
+                    table_html.append(f'<th style="padding: 10px; font-weight: 700; text-align: left; border-bottom: 2px solid var(--glass-border);">{escape_html(cell_text)}</th>')
+                else:
+                    table_html.append(f'<td style="padding: 10px; text-align: left;">{escape_html(cell_text)}</td>')
+            table_html.append('</tr>')
+        table_html.append('</table></div>')
+        html_parts.append("\n".join(table_html))
+        in_table = False
+        table_rows = []
+        
+    def flush_list():
+        nonlocal in_list, list_type
+        if in_list:
+            html_parts.append(f"</{list_type}>")
+            in_list = False
+            list_type = None
+
+    current_para = []
+
+    def flush_para():
+        if current_para:
+            text = " ".join(current_para).strip()
+            if text:
+                html_parts.append(f'<p style="margin-bottom: 10px; line-height: 1.6;">{escape_html(text)}</p>')
+            current_para.clear()
+
+    for page in reader.pages:
+        text = page.extract_text() or ""
+        lines = text.split("\n")
+        
+        for line in lines:
+            line_str = line.strip()
+            if not line_str:
+                flush_para()
+                flush_table()
+                flush_list()
+                continue
+            
+            cols = [c.strip() for c in re.split(r'\s{2,}', line_str) if c.strip()]
+            
+            if len(cols) >= 2:
+                flush_para()
+                flush_list()
+                in_table = True
+                table_rows.append(cols)
+                continue
+            else:
+                if in_table:
+                    flush_table()
+            
+            is_bullet = line_str.startswith("•") or line_str.startswith("-") or line_str.startswith("*")
+            is_numbered = bool(re.match(r'^\d+[\.\)]\s', line_str))
+            
+            if is_bullet or is_numbered:
+                flush_para()
+                flush_table()
+                
+                ltype = "ul" if is_bullet else "ol"
+                if not in_list or list_type != ltype:
+                    flush_list()
+                    tag = '<ul style="margin-left: 20px; margin-bottom: 12px; list-style-type: disc;">' if is_bullet else '<ol style="margin-left: 20px; margin-bottom: 12px; list-style-type: decimal;">'
+                    html_parts.append(tag)
+                    in_list = True
+                    list_type = ltype
+                
+                li_text = re.sub(r'^[•\-\*]\s*', '', line_str) if is_bullet else re.sub(r'^\d+[\.\)]\s*', '', line_str)
+                html_parts.append(f'<li style="margin-bottom: 4px;">{escape_html(li_text)}</li>')
+                continue
+            else:
+                flush_list()
+            
+            is_heading = len(line_str) < 80 and line_str[0].isupper() and not line_str.endswith((".", ",", ";", ":")) and not re.search(r'\s{2,}', line_str)
+            if is_heading:
+                flush_para()
+                flush_table()
+                flush_list()
+                
+                if line_str.isupper():
+                    html_parts.append(f'<h2 style="font-family: var(--font-head); font-weight: 700; color: var(--primary-color); margin-top: 20px; margin-bottom: 10px;">{escape_html(line_str)}</h2>')
+                else:
+                    html_parts.append(f'<h3 style="font-family: var(--font-head); font-weight: 700; color: var(--royal); margin-top: 16px; margin-bottom: 8px;">{escape_html(line_str)}</h3>')
+            else:
+                current_para.append(line_str)
+                
+        flush_para()
+        flush_table()
+        flush_list()
+        
+    return "\n".join(html_parts)
+
+
+def docx_to_html(doc_path) -> str:
+    import re
+    import html
+    import docx
+    
+    def escape_html(t: str) -> str:
+        return html.escape(t)
+        
+    doc = docx.Document(doc_path)
+    html_parts = []
+    
+    from docx.oxml.text.paragraph import CT_P
+    from docx.oxml.table import CT_Tbl
+    
+    p_map = {p._element: p for p in doc.paragraphs}
+    t_map = {t._element: t for t in doc.tables}
+    
+    in_list = False
+    list_type = None
+    
+    for child in doc.element.body:
+        if isinstance(child, CT_P):
+            p = p_map.get(child)
+            if not p:
+                continue
+            text = p.text.strip()
+            if not text:
+                continue
+            
+            style_name = p.style.name.lower() if p.style else ""
+            is_bullet = "bullet" in style_name or style_name.startswith("list") or text.startswith("•") or text.startswith("-") or text.startswith("*")
+            is_numbered = "num" in style_name or style_name.startswith("list number") or bool(re.match(r'^\d+[\.\)]\s', text))
+            
+            if is_bullet:
+                if not in_list or list_type != "ul":
+                    if in_list:
+                        html_parts.append(f"</{list_type}>")
+                    html_parts.append('<ul style="margin-left: 20px; margin-bottom: 12px; list-style-type: disc;">')
+                    in_list = True
+                    list_type = "ul"
+                li_text = re.sub(r'^[•\-\*]\s*', '', text)
+                html_parts.append(f'<li style="margin-bottom: 4px;">{escape_html(li_text)}</li>')
+            elif is_numbered:
+                if not in_list or list_type != "ol":
+                    if in_list:
+                        html_parts.append(f"</{list_type}>")
+                    html_parts.append('<ol style="margin-left: 20px; margin-bottom: 12px; list-style-type: decimal;">')
+                    in_list = True
+                    list_type = "ol"
+                li_text = re.sub(r'^\d+[\.\)]\s*', '', text)
+                html_parts.append(f'<li style="margin-bottom: 4px;">{escape_html(li_text)}</li>')
+            else:
+                if in_list:
+                    html_parts.append(f"</{list_type}>")
+                    in_list = False
+                    list_type = None
+                
+                if style_name.startswith("heading 1") or style_name.startswith("heading1"):
+                    html_parts.append(f'<h1 style="font-family: var(--font-head); font-weight: 800; color: var(--primary-color); margin-top: 24px; margin-bottom: 12px;">{escape_html(text)}</h1>')
+                elif style_name.startswith("heading 2") or style_name.startswith("heading2"):
+                    html_parts.append(f'<h2 style="font-family: var(--font-head); font-weight: 700; color: var(--royal); margin-top: 20px; margin-bottom: 10px;">{escape_html(text)}</h2>')
+                elif style_name.startswith("heading 3") or style_name.startswith("heading3") or style_name.startswith("heading"):
+                    html_parts.append(f'<h3 style="font-family: var(--font-head); font-weight: 700; color: var(--text-main); margin-top: 16px; margin-bottom: 8px;">{escape_html(text)}</h3>')
+                else:
+                    html_parts.append(f'<p style="margin-bottom: 10px; line-height: 1.6;">{escape_html(text)}</p>')
+                    
+        elif isinstance(child, CT_Tbl):
+            t = t_map.get(child)
+            if not t:
+                continue
+            if in_list:
+                html_parts.append(f"</{list_type}>")
+                in_list = False
+                list_type = None
+                
+            table_html = ['<div style="overflow-x: auto; margin: 15px 0;"><table style="width: 100%; border-collapse: collapse; border: 1px solid var(--glass-border); font-size: 13px;">']
+            
+            for r_idx, row in enumerate(t.rows):
+                tr_style = "background: rgba(0,0,0,0.02);" if r_idx == 0 else "border-bottom: 1px solid var(--glass-border);"
+                table_html.append(f'<tr style="{tr_style}">')
+                for cell in row.cells:
+                    cell_text = cell.text.strip()
+                    if r_idx == 0:
+                        table_html.append(f'<th style="padding: 10px; font-weight: 700; text-align: left; border-bottom: 2px solid var(--glass-border);">{escape_html(cell_text)}</th>')
+                    else:
+                        table_html.append(f'<td style="padding: 10px; text-align: left;">{escape_html(cell_text)}</td>')
+                table_html.append('</tr>')
+            
+            table_html.append('</table></div>')
+            html_parts.append("\n".join(table_html))
+            
+    if in_list:
+        html_parts.append(f"</{list_type}>")
+        
+    return "\n".join(html_parts)
+
+
 
 async def ingest_upload_file(
     input_path: str,
@@ -1058,6 +1274,117 @@ async def ingest_upload_file(
             log_terminal(f"Failed to ingest file {data_file.name}: {e}", "error")
             update_job(job_id, processed_file={"name": data_file.name, "status": "failed", "message": str(e)})
             continue
+
+    # Document Ingestion (FEATURE 1)
+    try:
+        doc_candidates = []
+        if ext == ".zip":
+            extract_dir = raw_dir / "extracted"
+            if extract_dir.exists():
+                doc_candidates = [p for p in extract_dir.rglob("*") if p.is_file() and p.suffix.lower() in {".pdf", ".docx"}]
+        elif ext in {".pdf", ".docx"}:
+            doc_candidates = [raw_dest]
+
+        if doc_candidates:
+            log_terminal(f"Found {len(doc_candidates)} documentation files. Extracting content...")
+            with engine.begin() as conn:
+                for p in doc_candidates:
+                    filename = p.name
+                    fn_lower = filename.lower()
+                    doc_type = "objectives" if "objective" in fn_lower else "readme"
+                    
+                    # Associate with table if available
+                    associated_table = None
+                    for tbl in created_tables:
+                        if tbl.lower() in fn_lower or fn_lower in tbl.lower():
+                            associated_table = tbl
+                            break
+                            
+                    # Extract text content and render HTML
+                    content = ""
+                    rendered_html = None
+                    original_file_bytes = None
+                    try:
+                        original_file_bytes = p.read_bytes()
+                    except Exception as be:
+                        log_terminal(f"Warning: Failed to read binary bytes for {filename}: {be}", "warning")
+
+                    try:
+                        if p.suffix.lower() == ".pdf":
+                            from pypdf import PdfReader
+                            reader = PdfReader(p)
+                            text_content = []
+                            for page in reader.pages:
+                                text_content.append(page.extract_text() or "")
+                            content = "\n".join(text_content)
+                            try:
+                                rendered_html = pdf_to_html(p)
+                            except Exception as rhe:
+                                log_terminal(f"Warning: HTML render failed for PDF {filename}: {rhe}", "warning")
+                        elif p.suffix.lower() == ".docx":
+                            import docx
+                            doc = docx.Document(p)
+                            fullText = []
+                            for para in doc.paragraphs:
+                                fullText.append(para.text)
+                            for table in doc.tables:
+                                for row in table.rows:
+                                    row_text = [cell.text for cell in row.cells]
+                                    fullText.append(" | ".join(row_text))
+                            content = "\n".join(fullText)
+                            try:
+                                rendered_html = docx_to_html(p)
+                            except Exception as rhe:
+                                log_terminal(f"Warning: HTML render failed for DOCX {filename}: {rhe}", "warning")
+                    except Exception as ex:
+                        log_terminal(f"Warning: Failed to extract text from document {filename}: {ex}", "warning")
+                        content = ""
+                    
+                    if content.strip():
+                        # Delete existing to prevent duplicate constraint violation
+                        if associated_table:
+                            conn.execute(
+                                text("""
+                                    DELETE FROM dataset_documents 
+                                    WHERE dataset_schema = :ds_schema 
+                                      AND table_name = :tname 
+                                      AND doc_type = :dtype 
+                                      AND filename = :fname
+                                """),
+                                {"ds_schema": dataset_schema, "tname": associated_table, "dtype": doc_type, "fname": filename}
+                            )
+                        else:
+                            conn.execute(
+                                text("""
+                                    DELETE FROM dataset_documents 
+                                    WHERE dataset_schema = :ds_schema 
+                                      AND table_name IS NULL 
+                                      AND doc_type = :dtype 
+                                      AND filename = :fname
+                                """),
+                                {"ds_schema": dataset_schema, "dtype": doc_type, "fname": filename}
+                            )
+                        
+                        # Insert
+                        conn.execute(
+                            text("""
+                                INSERT INTO dataset_documents (survey_schema, dataset_schema, table_name, filename, doc_type, content, original_file, rendered_html)
+                                VALUES (:survey, :ds_schema, :tname, :fname, :dtype, :content, :original_file, :rendered_html)
+                            """),
+                            {
+                                "survey": schema,
+                                "ds_schema": dataset_schema,
+                                "tname": associated_table,
+                                "fname": filename,
+                                "dtype": doc_type,
+                                "content": content,
+                                "original_file": original_file_bytes,
+                                "rendered_html": rendered_html
+                            }
+                        )
+                        log_terminal(f"Extracted and saved document: {filename} ({doc_type}) associated with table: {associated_table}", "success")
+    except Exception as e:
+        log_terminal(f"Warning: Failed processing documentation files: {e}", "warning")
 
     if not created_tables:
         raise ValueError("No tables were ingested")

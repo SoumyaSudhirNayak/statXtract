@@ -558,6 +558,35 @@ async def ensure_core_tables(conn: asyncpg.Connection) -> None:
         """
     )
 
+    await conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS dataset_documents (
+            id SERIAL PRIMARY KEY,
+            survey_schema TEXT NOT NULL,
+            dataset_schema TEXT NOT NULL,
+            table_name TEXT,
+            filename TEXT NOT NULL,
+            doc_type TEXT NOT NULL,
+            content TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE (dataset_schema, table_name, doc_type, filename)
+        );
+        """
+    )
+
+    # Enhance dataset_documents with binary storage and rendered HTML
+    for col_def in [
+        ("original_file", "BYTEA"),
+        ("rendered_html", "TEXT"),
+    ]:
+        try:
+            await conn.execute(
+                f"ALTER TABLE dataset_documents ADD COLUMN IF NOT EXISTS {col_def[0]} {col_def[1]}"
+            )
+        except Exception:
+            pass
+
+
     keep_schemas = set()
 
     for display in SURVEY_SCHEMA_DISPLAY_NAMES:

@@ -16,6 +16,8 @@ python-dateutil
 # --- File Parsing ---
 lxml
 aiofiles
+python-docx
+pypdf
 
 # --- Asynchronous I/O ---
 asyncpg

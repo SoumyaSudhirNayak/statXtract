@@ -2217,6 +2217,173 @@ async def admin_dashboard(
     )
 
 
+@app.get("/admin/documents", response_class=HTMLResponse, include_in_schema=False)
+async def admin_documents_page(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
+):
+    return templates.TemplateResponse(
+        request=request,
+        name="admin_documents.html",
+        context={
+            "request": request,
+            "username": current_user.username,
+            "role": current_user.role,
+        }
+    )
+
+
+@app.get("/api/admin/documents", include_in_schema=False)
+async def list_admin_documents(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
+):
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT 
+                d.id,
+                d.survey_schema,
+                d.dataset_schema,
+                d.table_name,
+                d.filename,
+                d.doc_type,
+                d.created_at,
+                OCTET_LENGTH(d.original_file) as file_size,
+                r.dataset_display_name,
+                s.display_name as survey_display_name
+            FROM dataset_documents d
+            LEFT JOIN dataset_registry r ON d.dataset_schema = r.dataset_schema
+            LEFT JOIN schema_registry s ON d.survey_schema = s.db_name
+            ORDER BY d.created_at DESC
+        """)
+        
+        documents = []
+        for r in rows:
+            documents.append({
+                "id": r["id"],
+                "survey_schema": r["survey_schema"],
+                "survey_display_name": r["survey_display_name"] or r["survey_schema"],
+                "dataset_schema": r["dataset_schema"],
+                "dataset_display_name": r["dataset_display_name"] or r["dataset_schema"],
+                "table_name": r["table_name"] or "None",
+                "filename": r["filename"],
+                "doc_type": r["doc_type"],
+                "created_at": format_local_timestamp_to_utc_iso(r["created_at"]),
+                "file_size": r["file_size"] or 0
+            })
+        return documents
+
+
+@app.get("/api/admin/documents/{doc_id}/download", include_in_schema=False)
+async def download_admin_document(
+    doc_id: int,
+    request: Request,
+    inline: bool = False,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
+):
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT filename, original_file FROM dataset_documents WHERE id = $1",
+            doc_id
+        )
+        if not row or not row["original_file"]:
+            raise HTTPException(status_code=404, detail="Document file not found or binary empty.")
+        
+        filename = row["filename"]
+        file_bytes = row["original_file"]
+        
+        media_type = "application/octet-stream"
+        if filename.lower().endswith(".pdf"):
+            media_type = "application/pdf"
+        elif filename.lower().endswith(".docx"):
+            media_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            
+        from io import BytesIO
+        disposition = "inline" if inline else "attachment"
+        return StreamingResponse(
+            BytesIO(file_bytes),
+            media_type=media_type,
+            headers={
+                "Content-Disposition": f"{disposition}; filename={filename}",
+                "Access-Control-Expose-Headers": "Content-Disposition"
+            }
+        )
+
+
+@app.delete("/api/admin/documents/{doc_id}", include_in_schema=False)
+async def delete_admin_document(
+    doc_id: int,
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
+):
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT survey_schema, dataset_schema, filename FROM dataset_documents WHERE id = $1",
+            doc_id
+        )
+        if not row:
+            raise HTTPException(status_code=404, detail="Document not found.")
+            
+        survey_schema = row["survey_schema"]
+        dataset_schema = row["dataset_schema"]
+        filename = row["filename"]
+        
+        # Delete from database
+        await conn.execute("DELETE FROM dataset_documents WHERE id = $1", doc_id)
+        
+        # Delete from file system if dataset_schema and filename are specified
+        if dataset_schema and filename:
+            import os
+            from pathlib import Path
+            parts = dataset_schema.split("__", 1)
+            if len(parts) == 2:
+                dataset_db = parts[1]
+                upload_root = Path(os.getenv("UPLOAD_DIR") or "uploads").resolve()
+                dataset_root = upload_root / survey_schema / dataset_db
+                if dataset_root.exists():
+                    for p in dataset_root.rglob("*"):
+                        if p.is_file() and p.name == filename:
+                            try:
+                                p.unlink()
+                            except Exception as e:
+                                print(f"Error deleting file {p}: {e}")
+                                
+        return {"status": "success", "message": "Document deleted successfully."}
+
+
+@app.get("/api/admin/documents/{doc_id}/view", include_in_schema=False)
+async def view_admin_document_html(
+    doc_id: int,
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
+):
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT filename, content, rendered_html FROM dataset_documents WHERE id = $1",
+            doc_id
+        )
+        if not row:
+            raise HTTPException(status_code=404, detail="Document not found.")
+        
+        filename = row["filename"]
+        content = row["content"]
+        rendered_html = row["rendered_html"]
+        
+        if not rendered_html:
+            import html
+            escaped_content = html.escape(content or "")
+            rendered_html = f'<div style="font-family: monospace; white-space: pre-wrap; padding: 15px; background: rgba(0,0,0,0.02); border-radius: 6px;">{escaped_content}</div>'
+            
+        return {
+            "filename": filename,
+            "rendered_html": rendered_html
+        }
+
+
 @app.get("/admin/survey-config", response_class=HTMLResponse, include_in_schema=False)
 async def survey_config_page(
     request: Request,

@@ -14,6 +14,10 @@ def is_ddi_file(p: Path) -> bool:
     """Helper to check if a file is a DDI XML metadata file."""
     return p.suffix.lower() in [".xml", ".nsdstat"]
 
+def is_documentation_file(p: Path) -> bool:
+    """Helper to check if a file is a documentation PDF or DOCX."""
+    return p.suffix.lower() in [".pdf", ".docx"]
+
 def is_dataset_file(p: Path) -> bool:
     """Helper to check if a file is an ingestible dataset."""
     return p.suffix.lower() in [".txt", ".csv", ".sav", ".por", ".xlsx", ".dta", ".xpt"]
@@ -55,6 +59,7 @@ def scan_batch_archive(temp_dir: str) -> List[Dict[str, Any]]:
         ddi_files = []
         layout_files = []
         dataset_files = []
+        documentation_files = []
         unsupported_files = []
         total_size = 0
         file_tree = []
@@ -70,6 +75,8 @@ def scan_batch_archive(temp_dir: str) -> List[Dict[str, Any]]:
                 layout_files.append(rel_path)
             elif is_dataset_file(f):
                 dataset_files.append(rel_path)
+            elif is_documentation_file(f):
+                documentation_files.append(rel_path)
             else:
                 unsupported_files.append(rel_path)
 
@@ -109,6 +116,7 @@ def scan_batch_archive(temp_dir: str) -> List[Dict[str, Any]]:
             "ddi_files": ddi_files,
             "layout_files": layout_files,
             "dataset_files": dataset_files,
+            "documentation_files": documentation_files,
             "validation": validation,
             "table_naming_previews": table_naming_previews
         })

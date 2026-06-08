@@ -507,6 +507,79 @@
       position: relative;
     }
 
+    /* Rendered HTML Styling inside tabs */
+    .table-scroll-container {
+      overflow-x: auto !important;
+      width: 100%;
+      max-width: 100%;
+      margin: 15px 0;
+      border: 1px solid var(--border-soft);
+      border-radius: 8px;
+    }
+    #readmeContent table, #objectivesContent table, .table-scroll-container table {
+      width: auto !important;
+      min-width: 100% !important;
+      table-layout: auto !important;
+      border-collapse: collapse;
+      margin: 0;
+      font-size: 13.5px;
+    }
+    #readmeContent table th, #readmeContent table td,
+    #objectivesContent table th, #objectivesContent table td,
+    .table-scroll-container table th, .table-scroll-container table td {
+      border: 1px solid var(--border);
+      padding: 8px 12px;
+      text-align: left;
+      white-space: nowrap !important;
+    }
+    #readmeContent table th, #objectivesContent table th,
+    .table-scroll-container table th {
+      background: rgba(148, 163, 184, 0.1);
+      font-weight: 600;
+    }
+    #readmeContent h1, #readmeContent h2, #readmeContent h3, #readmeContent h4,
+    #objectivesContent h1, #objectivesContent h2, #objectivesContent h3, #objectivesContent h4 {
+      margin-top: 20px;
+      margin-bottom: 10px;
+      color: var(--text-main);
+      font-family: var(--font-head);
+      font-weight: 700;
+    }
+    #readmeContent ul, #objectivesContent ul {
+      margin-left: 20px;
+      margin-bottom: 15px;
+      list-style-type: disc;
+    }
+    #readmeContent li, #objectivesContent li {
+      margin-bottom: 5px;
+    }
+
+    /* View Mode Toggles */
+    .action-btns {
+      display: flex;
+      gap: 6px;
+    }
+    .btn-view {
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 11.5px;
+      font-weight: 600;
+      border: 1px solid var(--border);
+      background: #fff;
+      color: var(--text-main);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-view:hover {
+      background: rgba(0,0,0,0.05);
+    }
+    .btn-view.active {
+      background: var(--green);
+      color: #fff;
+      border-color: var(--green);
+    }
+
+
     /* Banners & Badges */
     .gov-warning-ws {
       background: linear-gradient(135deg, rgba(211,47,47,0.1), rgba(211,47,47,0.03));
@@ -685,13 +758,20 @@
                   <h2 id="wsHeaderTitle">Dataset Table Name</h2>
                   <p id="wsHeaderSubtitle">Schema: public | Table: users</p>
                 </div>
-                <div id="wsHeaderBadge" class="limit-badge-ws">Governed View</div>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                  <button id="btnQueryDataset" class="btn" style="background: var(--green); color: white; border: none; padding: 8px 16px; border-radius: 8px; font-weight: 600; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                    🔍 Query This Dataset
+                  </button>
+                  <div id="wsHeaderBadge" class="limit-badge-ws">Governed View</div>
+                </div>
               </div>
 
               <!-- Workspace Tabs -->
               <div class="tabs-bar">
                 <button class="tab-btn active" onclick="switchTab('tab-metadata')">📖 Metadata &amp; DDI</button>
                 <button class="tab-btn" onclick="switchTab('tab-dictionary')">📋 Column Dictionary</button>
+                <button class="tab-btn" onclick="switchTab('tab-readme')">📄 README</button>
+                <button class="tab-btn" onclick="switchTab('tab-objectives')">🎯 Objectives</button>
               </div>
 
               <!-- Tab Panels Container -->
@@ -760,6 +840,45 @@
                   </div>
                 </div>
 
+                <!-- Panel 3: README -->
+                <div class="tab-panel" id="tab-readme" style="overflow-y: auto;">
+                  <div class="meta-section">
+                    <div class="meta-title-sub" style="display: flex; justify-content: space-between; align-items: center;">
+                      <span>Dataset README</span>
+                      <div id="readmeModeToggle" class="action-btns" style="display: none;">
+                        <button class="btn-view active" id="btnReadmeRendered" onclick="setReadmeMode('rendered')">Rendered View</button>
+                        <button class="btn-view" id="btnReadmePdf" onclick="setReadmeMode('pdf')">PDF Viewer</button>
+                      </div>
+                    </div>
+                    <div id="readmeContent" class="meta-item" style="font-weight: 500; line-height: 1.6; font-size: 14px; white-space: pre-wrap; word-break: break-word; max-height: 500px; overflow-y: auto;">
+                      No README available
+                    </div>
+                    <div id="readmePdfViewer" class="meta-item" style="display: none; height: 600px; padding: 0; overflow: hidden; border: 1px solid var(--border); border-radius: 12px;">
+                      <!-- iframe will be loaded here -->
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Panel 4: Objectives -->
+                <div class="tab-panel" id="tab-objectives" style="overflow-y: auto;">
+                  <div class="meta-section">
+                    <div class="meta-title-sub" style="display: flex; justify-content: space-between; align-items: center;">
+                      <span>Dataset Objectives</span>
+                      <div id="objectivesModeToggle" class="action-btns" style="display: none;">
+                        <button class="btn-view active" id="btnObjectivesRendered" onclick="setObjectivesMode('rendered')">Rendered View</button>
+                        <button class="btn-view" id="btnObjectivesPdf" onclick="setObjectivesMode('pdf')">PDF Viewer</button>
+                      </div>
+                    </div>
+                    <div id="objectivesContent" class="meta-item" style="font-weight: 500; line-height: 1.6; font-size: 14px; white-space: pre-wrap; word-break: break-word; max-height: 500px; overflow-y: auto;">
+                      No Objectives available
+                    </div>
+                    <div id="objectivesPdfViewer" class="meta-item" style="display: none; height: 600px; padding: 0; overflow: hidden; border: 1px solid var(--border); border-radius: 12px;">
+                      <!-- iframe will be loaded here -->
+                    </div>
+                  </div>
+                </div>
+
+
               </div>
             </div>
           </div>
@@ -804,11 +923,82 @@
     // ── Global State variables ──
     let userPlan = 'free';
     let rawTreeData = [];
+    let activeSurvey = '';
     let activeSchema = '';
     let activeTable = '';
     let tableMetadata = null;
     let filtersList = []; // Array of {column, operator, value}
     let chartInstance = null;
+    let readmePdfUrl = '';
+    let objectivesPdfUrl = '';
+    let currentReadmeMode = 'rendered';
+    let currentObjectivesMode = 'rendered';
+
+    function wrapTablesInScrollContainer(html) {
+      if (!html) return html;
+      try {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+        const tables = doc.querySelectorAll('table');
+        if (tables.length === 0) return html;
+        tables.forEach(table => {
+          if (table.parentElement && table.parentElement.classList.contains('table-scroll-container')) {
+            return;
+          }
+          const wrapper = doc.createElement('div');
+          wrapper.className = 'table-scroll-container';
+          table.parentNode.insertBefore(wrapper, table);
+          wrapper.appendChild(table);
+        });
+        return doc.body.innerHTML;
+      } catch (e) {
+        console.error('Error wrapping tables:', e);
+        return html;
+      }
+    }
+
+    function setReadmeMode(mode) {
+      currentReadmeMode = mode;
+      const contentDiv = document.getElementById('readmeContent');
+      const pdfDiv = document.getElementById('readmePdfViewer');
+      const btnRendered = document.getElementById('btnReadmeRendered');
+      const btnPdf = document.getElementById('btnReadmePdf');
+
+      if (mode === 'pdf') {
+        contentDiv.style.display = 'none';
+        pdfDiv.style.display = 'block';
+        btnRendered.classList.remove('active');
+        btnPdf.classList.add('active');
+        pdfDiv.innerHTML = `<iframe src="${readmePdfUrl}" width="100%" height="100%" style="border: none;"></iframe>`;
+      } else {
+        contentDiv.style.display = 'block';
+        pdfDiv.style.display = 'none';
+        btnRendered.classList.add('active');
+        btnPdf.classList.remove('active');
+      }
+    }
+
+    function setObjectivesMode(mode) {
+      currentObjectivesMode = mode;
+      const contentDiv = document.getElementById('objectivesContent');
+      const pdfDiv = document.getElementById('objectivesPdfViewer');
+      const btnRendered = document.getElementById('btnObjectivesRendered');
+      const btnPdf = document.getElementById('btnObjectivesPdf');
+
+      if (mode === 'pdf') {
+        contentDiv.style.display = 'none';
+        pdfDiv.style.display = 'block';
+        btnRendered.classList.remove('active');
+        btnPdf.classList.add('active');
+        pdfDiv.innerHTML = `<iframe src="${objectivesPdfUrl}" width="100%" height="100%" style="border: none;"></iframe>`;
+      } else {
+        contentDiv.style.display = 'block';
+        pdfDiv.style.display = 'none';
+        btnRendered.classList.add('active');
+        btnPdf.classList.remove('active');
+      }
+    }
+
 
     // Toast alerts helper
     function showToast(msg, type='info') {
@@ -866,7 +1056,19 @@
     }
 
     // Initialize portal view
-    document.addEventListener('DOMContentLoaded', () => loadUserPortalDetails(false));
+    document.addEventListener('DOMContentLoaded', () => {
+      loadUserPortalDetails(false);
+      const queryBtn = document.getElementById('btnQueryDataset');
+      if (queryBtn) {
+        queryBtn.addEventListener('click', () => {
+          if (activeSurvey && activeSchema && activeTable) {
+            window.location.href = `/query?survey=${encodeURIComponent(activeSurvey)}&dataset=${encodeURIComponent(activeSchema)}&table=${encodeURIComponent(activeTable)}`;
+          } else {
+            showToast('Please select a table to query first.', 'warning');
+          }
+        });
+      }
+    });
 
     // ── Retrieve tree data ──
     async function loadExplorerTree(silent = false) {
@@ -878,6 +1080,10 @@
           return;
         }
         
+        // Save tree scroll position
+        const treeScroll = document.getElementById('treeScroll');
+        const savedScrollTop = treeScroll ? treeScroll.scrollTop : 0;
+
         // Save state of expanded nodes
         const expandedNodeIds = Array.from(document.querySelectorAll('.node-children:not(.hidden)')).map(el => el.id);
         
@@ -904,11 +1110,17 @@
           const activeRow = document.getElementById(`table-row-${activeSchema}-${activeTable}`);
           if (activeRow) activeRow.classList.add('active');
         }
+
+        // Restore tree scroll position
+        if (treeScroll) {
+          treeScroll.scrollTop = savedScrollTop;
+        }
       } catch (e) {
         console.error(e);
         if (!silent) showToast('Connection error fetching datasets registry', 'warning');
       }
     }
+
 
     // Render tree view DOM
     function renderTree(data) {
@@ -964,7 +1176,7 @@
             const tRow = document.createElement('div');
             tRow.className = 'tree-row table-node';
             tRow.id = `table-row-${datasetNode.schema}-${tableNode.table_name}`;
-            tRow.onclick = () => selectSurveyTable(datasetNode.schema, tableNode.table_name, tRow);
+            tRow.onclick = () => selectSurveyTable(surveyNode.survey, datasetNode.schema, tableNode.table_name, tRow);
             tRow.innerHTML = `
               <span>📄</span>
               <span style="flex:1; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${tableNode.table_name}</span>
@@ -1042,11 +1254,12 @@
     }
 
     // Select table tree action
-    function selectSurveyTable(schema, table, rowElem) {
+    function selectSurveyTable(survey, schema, table, rowElem) {
       // Remove previous active classes
       document.querySelectorAll('.tree-row.table-node').forEach(elem => elem.classList.remove('active'));
       rowElem.classList.add('active');
 
+      activeSurvey = survey;
       activeSchema = schema;
       activeTable = table;
       
@@ -1071,13 +1284,73 @@
       document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.remove('active'));
 
       // Find tab button by index or name match
-      const buttonText = panelId === 'tab-metadata' ? '📖 Metadata' : '📋 Column';
+      let buttonText = '📖 Metadata';
+      if (panelId === 'tab-dictionary') buttonText = '📋 Column';
+      if (panelId === 'tab-readme') buttonText = '📄 README';
+      if (panelId === 'tab-objectives') buttonText = '🎯 Objectives';
       
       document.querySelectorAll('.tab-btn').forEach(btn => {
         if (btn.textContent.includes(buttonText)) btn.classList.add('active');
       });
 
       document.getElementById(panelId).classList.add('active');
+    }
+
+    function formatDocumentText(text) {
+      if (!text) return "";
+      const lines = text.split('\n');
+      let html = "";
+      let inList = false;
+      
+      lines.forEach(line => {
+        const trimmed = line.trim();
+        if (!trimmed) {
+          if (inList) {
+            html += "</ul>";
+            inList = false;
+          }
+          html += "<br/>";
+          return;
+        }
+        
+        if (trimmed.startsWith('#')) {
+          if (inList) {
+            html += "</ul>";
+            inList = false;
+          }
+          const headingText = trimmed.replace(/^#+\s*/, '');
+          html += `<h4 style="font-family: var(--font-head); font-weight: 800; color: var(--royal); margin-top: 16px; margin-bottom: 8px;">${escapeHTML(headingText)}</h4>`;
+        }
+        else if (trimmed.startsWith('*') || trimmed.startsWith('-') || trimmed.startsWith('•')) {
+          if (!inList) {
+            html += '<ul style="margin-left: 20px; margin-bottom: 12px; list-style-type: disc;">';
+            inList = true;
+          }
+          const itemText = trimmed.substring(1).trim();
+          html += `<li style="margin-bottom: 4px;">${escapeHTML(itemText)}</li>`;
+        }
+        else {
+          if (inList) {
+            html += "</ul>";
+            inList = false;
+          }
+          html += `<p style="margin-bottom: 8px;">${escapeHTML(trimmed)}</p>`;
+        }
+      });
+      
+      if (inList) {
+        html += "</ul>";
+      }
+      return html;
+    }
+
+    function escapeHTML(str) {
+      return str
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
     }
 
     // ── Retrieve Table Metadata (DDI descriptors + Columns Dictionary) ──
@@ -1154,6 +1427,61 @@
           });
         }
 
+        // 3. Load README
+        document.getElementById('readmeContent').innerHTML = 'Loading README...';
+        document.getElementById('readmePdfViewer').innerHTML = '';
+        document.getElementById('readmeModeToggle').style.display = 'none';
+        setReadmeMode('rendered');
+        fetch(`/api/user/explore/document?schema=${activeSchema}&doc_type=readme&table=${activeTable}`)
+          .then(res => res.json())
+          .then(data => {
+            const readmeDiv = document.getElementById('readmeContent');
+            if (data && data.rendered_html) {
+              readmeDiv.innerHTML = wrapTablesInScrollContainer(data.rendered_html);
+            } else if (data && data.content) {
+              readmeDiv.innerHTML = wrapTablesInScrollContainer(formatDocumentText(data.content));
+            } else {
+              readmeDiv.innerHTML = '<span style="color:var(--text-muted);">No README available</span>';
+            }
+
+            if (data && data.filename && data.filename.toLowerCase().endsWith('.pdf')) {
+              readmePdfUrl = `/api/user/explore/document/raw?schema=${activeSchema}&doc_type=readme&table=${activeTable}`;
+              document.getElementById('readmeModeToggle').style.display = 'flex';
+            }
+          })
+          .catch(err => {
+            console.error(err);
+            document.getElementById('readmeContent').innerHTML = '<span style="color:var(--text-muted);">No README available</span>';
+          });
+
+        // 4. Load Objectives
+        document.getElementById('objectivesContent').innerHTML = 'Loading Objectives...';
+        document.getElementById('objectivesPdfViewer').innerHTML = '';
+        document.getElementById('objectivesModeToggle').style.display = 'none';
+        setObjectivesMode('rendered');
+        fetch(`/api/user/explore/document?schema=${activeSchema}&doc_type=objectives&table=${activeTable}`)
+          .then(res => res.json())
+          .then(data => {
+            const objectivesDiv = document.getElementById('objectivesContent');
+            if (data && data.rendered_html) {
+              objectivesDiv.innerHTML = wrapTablesInScrollContainer(data.rendered_html);
+            } else if (data && data.content) {
+              objectivesDiv.innerHTML = wrapTablesInScrollContainer(formatDocumentText(data.content));
+            } else {
+              objectivesDiv.innerHTML = '<span style="color:var(--text-muted);">No Objectives available</span>';
+            }
+
+            if (data && data.filename && data.filename.toLowerCase().endsWith('.pdf')) {
+              objectivesPdfUrl = `/api/user/explore/document/raw?schema=${activeSchema}&doc_type=objectives&table=${activeTable}`;
+              document.getElementById('objectivesModeToggle').style.display = 'flex';
+            }
+          })
+          .catch(err => {
+            console.error(err);
+            document.getElementById('objectivesContent').innerHTML = '<span style="color:var(--text-muted);">No Objectives available</span>';
+          });
+
+
       } catch (e) {
         console.error(e);
         dictTBody.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:30px; color:var(--danger);">Connection failed loading column dictionary.</td></tr>';
@@ -1163,10 +1491,8 @@
     // Safe frontend refresh
     setInterval(() => {
       loadUserPortalDetails(true);
-      if (activeSchema && activeTable) {
-        loadTableMetadata();
-      }
     }, 9000);
+
   </script>
   <script src="/static/user_mobile.js"></script>
 </body>

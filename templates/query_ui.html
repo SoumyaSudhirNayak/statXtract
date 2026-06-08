@@ -3098,7 +3098,6 @@
             }
         }
 
-        // Load preferences
         window.addEventListener('load', function () {
             checkVerificationStatus();
             fetchPlanAndEnforceUI();
@@ -3113,16 +3112,26 @@
                 switchView(savedView);
             }
 
-            // Check for rerun query from session storage
-            const rerunDataset = sessionStorage.getItem('rerun_dataset');
-            const rerunTable = sessionStorage.getItem('rerun_table');
-            const rerunFilters = sessionStorage.getItem('rerun_filters');
+            // Check URL query parameters first (FEATURE 3 / 4)
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlDataset = urlParams.get('dataset');
+            const urlTable = urlParams.get('table');
+            const urlFilters = urlParams.get('filters');
 
-            if (rerunDataset && rerunTable) {
-                sessionStorage.removeItem('rerun_dataset');
-                sessionStorage.removeItem('rerun_table');
-                sessionStorage.removeItem('rerun_filters');
-                restoreRerunQuery(rerunDataset, rerunTable, rerunFilters);
+            if (urlDataset && urlTable) {
+                restoreRerunQuery(urlDataset, urlTable, urlFilters);
+            } else {
+                // Check for rerun query from session storage
+                const rerunDataset = sessionStorage.getItem('rerun_dataset');
+                const rerunTable = sessionStorage.getItem('rerun_table');
+                const rerunFilters = sessionStorage.getItem('rerun_filters');
+
+                if (rerunDataset && rerunTable) {
+                    sessionStorage.removeItem('rerun_dataset');
+                    sessionStorage.removeItem('rerun_table');
+                    sessionStorage.removeItem('rerun_filters');
+                    restoreRerunQuery(rerunDataset, rerunTable, rerunFilters);
+                }
             }
         });
 

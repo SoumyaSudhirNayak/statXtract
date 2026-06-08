@@ -85,7 +85,10 @@ async def run_batch_import_job(job_id: str, temp_dir: str, mappings: Dict[str, A
                 "tables_created": 0,
                 "metadata_status": {"ddi_found": False, "layout_found": False},
                 "tables_info": [],
-                "files": {f["relative_path"]: {"status": "pending", "table": f["target_table"]} for f in s["files"]}
+                "files": {
+                    **{f["relative_path"]: {"status": "pending", "table": f["target_table"]} for f in s["files"]},
+                    **{doc: {"status": "pending", "table": "Documentation"} for doc in s.get("documentation_files", [])}
+                }
             }
 
         update_job(job_id, message="Batch initialized", progress=5)
@@ -162,6 +165,13 @@ async def run_batch_import_job(job_id: str, temp_dir: str, mappings: Dict[str, A
                     dest_file.parent.mkdir(parents=True, exist_ok=True)
                     
                     shutil.copy2(src_file, dest_file)
+
+                # Copy documentation files directly (preserving original filenames)
+                for doc in s.get("documentation_files", []):
+                    src_doc = source_subdir / doc
+                    dest_doc = isolated_survey_dir / Path(doc).name
+                    dest_doc.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(src_doc, dest_doc)
 
                 # Package files inside isolated folder into a temporary zip
                 package_survey_zip(isolated_survey_dir, sub_zip_path)
@@ -313,6 +323,8 @@ async def run_batch_import_job(job_id: str, temp_dir: str, mappings: Dict[str, A
                 for f in s["files"]:
                     rel_path = f["relative_path"]
                     batch_info["surveys"][folder]["files"][rel_path]["status"] = "success"
+                for doc in s.get("documentation_files", []):
+                    batch_info["surveys"][folder]["files"][doc]["status"] = "success"
 
                 batch_info["surveys_imported"] += 1
                 batch_info["success_count"] += 1
@@ -345,6 +357,9 @@ async def run_batch_import_job(job_id: str, temp_dir: str, mappings: Dict[str, A
                     rel_path = f["relative_path"]
                     batch_info["surveys"][folder]["files"][rel_path]["status"] = "failed"
                     batch_info["surveys"][folder]["files"][rel_path]["error"] = str(e)
+                for doc in s.get("documentation_files", []):
+                    batch_info["surveys"][folder]["files"][doc]["status"] = "failed"
+                    batch_info["surveys"][folder]["files"][doc]["error"] = str(e)
 
                 batch_info["failure_count"] += 1
                 batch_info["warnings"].append(f"Survey {folder} failed: {e}")

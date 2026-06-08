@@ -44,7 +44,15 @@ def resolve_target_mappings(surveys: List[Dict[str, Any]], custom_mappings: Dict
                 "target_table": sanitize_table_name(custom_table_name)
             })
             
-        if not resolved_files:
+        resolved_docs = []
+        if "documentation_files" in survey:
+            for doc_file in survey["documentation_files"]:
+                doc_override = override.get("documentation_files", {}).get(doc_file, {})
+                if doc_override.get("skip", False):
+                    continue
+                resolved_docs.append(doc_file)
+                
+        if not resolved_files and not resolved_docs:
             continue
             
         resolved.append({
@@ -53,7 +61,8 @@ def resolve_target_mappings(surveys: List[Dict[str, Any]], custom_mappings: Dict
             "target_schema": target_schema,
             "ddi_files": survey["ddi_files"],
             "layout_files": survey["layout_files"],
-            "files": resolved_files
+            "files": resolved_files,
+            "documentation_files": resolved_docs
         })
         
     return resolved
