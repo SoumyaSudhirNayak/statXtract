@@ -2730,6 +2730,7 @@ async def apply_config(schema, table, user, columns, rows, is_aggregated: bool =
 
 @app.get("/surveys")
 async def list_surveys(request: Request, current_user=Depends(get_current_user)):
+    print("SURVEY ROUTE ENTERED")
     pool = request.app.state.db
     async with pool.acquire() as conn:
         await apply_admin_rules(conn, current_user, {"action": "dataset_access"})

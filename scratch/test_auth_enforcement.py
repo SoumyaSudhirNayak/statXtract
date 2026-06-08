@@ -139,7 +139,7 @@ async def run_tests():
         print(f"[FAIL] Test 6 Failed: Got exception {e}.")
 
     # 7. Fallback cookie blocked on API routes
-    req7 = MockRequest(path="/schemas", headers={}, cookies={"access_token": valid_jwt})
+    req7 = MockRequest(path="/datasets/some_table/query", headers={}, cookies={"access_token": valid_jwt})
     try:
         await get_current_user(req7)
         print("[FAIL] Test 7 Failed: Allowed cookie fallback on API route.")

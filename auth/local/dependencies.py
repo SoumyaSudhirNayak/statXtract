@@ -65,12 +65,8 @@ async def get_current_user(request: Request) -> TokenData:
     path = request.url.path
     method = request.method
     is_developer_api = (
-        (path == "/query" and method == "POST") or
-        path.startswith("/datasets") or
-        path.startswith("/schemas") or
-        path.startswith("/surveys") or
-        path.startswith("/metadata") or
-        path.startswith("/downloads")
+        (path == "/query" and method == "POST")
+        or path.startswith("/datasets/")
     )
 
     if is_developer_api:
