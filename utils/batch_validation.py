@@ -16,7 +16,7 @@ def is_ddi_file(p: Path) -> bool:
 
 def is_dataset_file(p: Path) -> bool:
     """Helper to check if a file is an ingestible dataset."""
-    return p.suffix.lower() in [".txt", ".csv", ".sav", ".por", ".xlsx"]
+    return p.suffix.lower() in [".txt", ".csv", ".sav", ".por", ".xlsx", ".dta", ".xpt"]
 
 def scan_batch_archive(temp_dir: str) -> List[Dict[str, Any]]:
     """

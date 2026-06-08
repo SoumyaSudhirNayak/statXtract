@@ -626,7 +626,10 @@ def _infer_and_convert_column(series: pd.Series, ddi_hint: str | None) -> tuple[
         if ratio >= 0.9:
             as_int = numeric.dropna()
             if not as_int.empty and (as_int % 1 == 0).all():
-                return numeric.astype("Int64"), "INTEGER"
+                try:
+                    return numeric.astype("Int64"), "INTEGER"
+                except (ValueError, TypeError):
+                    return numeric.astype(float), "FLOAT"
             return numeric.astype(float), "FLOAT"
 
     numeric = pd.to_numeric(series, errors="coerce")
@@ -634,10 +637,14 @@ def _infer_and_convert_column(series: pd.Series, ddi_hint: str | None) -> tuple[
     if ratio >= 0.9:
         as_int = numeric.dropna()
         if not as_int.empty and (as_int % 1 == 0).all():
-            return numeric.astype("Int64"), "INTEGER"
+            try:
+                return numeric.astype("Int64"), "INTEGER"
+            except (ValueError, TypeError):
+                return numeric.astype(float), "FLOAT"
         return numeric.astype(float), "FLOAT"
 
     return series.astype(str).where(series.notna(), None), "TEXT"
+
 
 
 async def ingest_upload_file(
@@ -731,7 +738,7 @@ async def ingest_upload_file(
         for p in export_nesstar_dir.rglob("*"):
             if not p.is_file():
                 continue
-            if p.suffix.lower() in {".csv", ".xlsx", ".txt", ".sav", ".por"}:
+            if p.suffix.lower() in {".csv", ".xlsx", ".txt", ".sav", ".por", ".dta", ".xpt"}:
                 checksum = get_file_checksum(str(p))
                 if p.name in manifest and manifest[p.name]["checksum"] == checksum:
                     log_terminal(f"Skipping duplicate file: {p.name} (already uploaded)", "warning")
@@ -800,7 +807,7 @@ async def ingest_upload_file(
                 continue
             if is_layout_file(p):
                 continue
-            if p.suffix.lower() in {".csv", ".xlsx", ".txt", ".sav", ".por"}:
+            if p.suffix.lower() in {".csv", ".xlsx", ".txt", ".sav", ".por", ".dta", ".xpt"}:
                 # Duplicate detection
                 checksum = get_file_checksum(str(p))
                 if p.name in manifest and manifest[p.name]["checksum"] == checksum:
@@ -1807,7 +1814,7 @@ async def process_dataset_zip(zip_path: str, db_url: str, schema: str = None, cu
     logger.info(f"Processing package: {zip_path}")
 
     # FIX: Handle standalone files directly to bypass Nesstar/Zip logic
-    if package_ext in [".sav", ".por", ".csv", ".xlsx", ".txt"]:
+    if package_ext in [".sav", ".por", ".csv", ".xlsx", ".txt", ".dta", ".xpt"]:
         if job_id:
             update_job(job_id, status="processing", progress=5, message=f"Processing standalone file: {os.path.basename(zip_path)}")
         file_sha1 = _hash_file_sha1(zip_path)
@@ -1852,7 +1859,7 @@ async def process_dataset_zip(zip_path: str, db_url: str, schema: str = None, cu
             visible = [
                 Path(n).name
                 for n in names
-                if Path(n).suffix.lower() in [".xml", ".nsdstat", ".nesstar", ".txt", ".csv", ".sav", ".por", ".xlsx"]
+                if Path(n).suffix.lower() in [".xml", ".nsdstat", ".nesstar", ".txt", ".csv", ".sav", ".por", ".xlsx", ".dta", ".xpt"]
             ]
             file_status_list = [{"name": n, "status": "pending", "rows": 0} for n in sorted(set(visible))]
             update_job(job_id, progress=5, message="Package opened. Preparing extraction...", files=file_status_list)
@@ -1942,7 +1949,7 @@ async def process_directory(
     has_nesstar_metadata = any(f.suffix.lower() == ".nsdstat" for f in ddi_candidates)
     data_files = [
         f for f in files 
-        if f.suffix.lower() in [".txt", ".csv", ".sav", ".por", ".xlsx"]
+        if f.suffix.lower() in [".txt", ".csv", ".sav", ".por", ".xlsx", ".dta", ".xpt"]
         and not is_layout_file(f)
     ]
 
@@ -2172,7 +2179,7 @@ async def process_directory(
                     if rename_map:
                         df = df.rename(columns=rename_map)
 
-                    if data_file.suffix.lower() in [".csv", ".xlsx", ".sav"]:
+                    if data_file.suffix.lower() in [".csv", ".xlsx", ".sav", ".dta", ".xpt"]:
                         ddi_var_names = set(v.name for v in ddi_metadata["variables"])
                         df_columns = set(df.columns)
 
@@ -2416,6 +2423,31 @@ def _load_data_file(file_path: Path, ddi_metadata: Optional[Dict]) -> Optional[p
         skip = _count_leading_blank_excel_rows(file_path)
         df = pd.read_excel(file_path, dtype=str, skiprows=skip)
         df = _maybe_format_month_year_columns(df)
+        return df
+
+    elif ext == '.dta':
+        try:
+            df = pd.read_stata(str(file_path))
+        except Exception as e:
+            logger.error(f"Error reading Stata file {file_path.name} with pandas: {e}")
+            df, _ = pyreadstat.read_dta(str(file_path))
+        return df
+
+    elif ext == '.xpt':
+        try:
+            df = pd.read_sas(str(file_path), format='xport', encoding='utf-8')
+            # Decode columns if they are bytes
+            df.columns = [c.decode('utf-8') if isinstance(c, bytes) else str(c) for c in df.columns]
+            for col in df.columns:
+                if df[col].dtype == object:
+                    df[col] = df[col].apply(lambda x: x.decode('utf-8') if isinstance(x, bytes) else x)
+        except Exception as e:
+            logger.error(f"Error reading SAS XPT file {file_path.name} with pandas: {e}")
+            df, _ = pyreadstat.read_xport(str(file_path))
+            df.columns = [str(c) for c in df.columns]
+            for col in df.columns:
+                if df[col].dtype == object:
+                    df[col] = df[col].apply(lambda x: x.decode('utf-8') if isinstance(x, bytes) else x)
         return df
         
     return None

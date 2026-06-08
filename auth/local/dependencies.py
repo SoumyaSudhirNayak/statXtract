@@ -64,10 +64,14 @@ async def get_current_user(request: Request) -> TokenData:
     
     path = request.url.path
     method = request.method
+    query_params = getattr(request, "query_params", {})
+    format_param = query_params.get("format") if hasattr(query_params, "get") else None
+    is_export_request = format_param in {"csv", "excel", "xlsx", "pdf", "json"}
     is_developer_api = (
         (path == "/query" and method == "POST")
-        or path.startswith("/datasets/")
+        or (path.startswith("/datasets/") and not is_export_request)
     )
+
 
     if is_developer_api:
         # For developer API endpoints, we STRICTLY require the Authorization: Bearer header.

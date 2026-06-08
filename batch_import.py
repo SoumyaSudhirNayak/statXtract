@@ -176,4 +176,5 @@ async def api_batch_import_schemas(
             ORDER BY display_name;
             """
         )
-        return [{"schema": r["db_name"], "name": r["display_name"]} for r in rows]
+        exclude_schemas = {"public", "nss", "mss"}
+        return [{"schema": r["db_name"], "name": r["display_name"]} for r in rows if r["db_name"].lower() not in exclude_schemas]

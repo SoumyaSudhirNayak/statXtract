@@ -11,7 +11,8 @@ async def list_datasets(request: Request):
         async with pool.acquire() as conn:
             # Fetch registered schemas
             reg_rows = await conn.fetch("SELECT db_name FROM schema_registry")
-            registered_schemas = [r["db_name"] for r in reg_rows]
+            exclude_schemas = {"public", "nss", "mss"}
+            registered_schemas = [r["db_name"] for r in reg_rows if r["db_name"].lower() not in exclude_schemas]
             
             # Fetch default schema
             def_schema = await conn.fetchval("SELECT current_schema()")

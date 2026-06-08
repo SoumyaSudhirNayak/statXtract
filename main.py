@@ -2397,6 +2397,7 @@ async def get_schemas(request: Request, current_user=Depends(get_current_user)):
                 """
             )
 
+            exclude_schemas = {"public", "nss", "mss"}
             schemas_with_info = [
                 {
                     "schema": r["db_name"],
@@ -2406,6 +2407,7 @@ async def get_schemas(request: Request, current_user=Depends(get_current_user)):
                     "category": "Data Schema",
                 }
                 for r in rows
+                if r["db_name"].lower() not in exclude_schemas
             ]
 
             return schemas_with_info
@@ -2465,8 +2467,11 @@ async def _group_schemas_by_survey(conn: asyncpg.Connection) -> dict[str, dict[s
         ORDER BY display_name
         """
     )
+    exclude_schemas = {"public", "nss", "mss"}
+    reg_rows = [r for r in reg_rows if r["db_name"].lower() not in exclude_schemas]
     display_by_db = {r["db_name"]: r["display_name"] for r in reg_rows}
     db_by_display_lower = {str(r["display_name"]).strip().lower(): r["db_name"] for r in reg_rows}
+
 
     schema_names = await _list_non_system_schemas(conn)
 
