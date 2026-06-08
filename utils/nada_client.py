@@ -231,7 +231,7 @@ def extract_files_list(payload: Any) -> list[dict[str, Any]]:
 
 
 def guess_file_no(file_item: dict[str, Any]) -> str | None:
-    for k in ("FileNo", "file_no", "fileNo", "fileno", "file_number", "id"):
+    for k in ("FileNo", "file_no", "fileNo", "fileno", "file_number", "id", "base64", "file_id"):
         v = file_item.get(k)
         if v is not None and str(v).strip() != "":
             return str(v).strip()

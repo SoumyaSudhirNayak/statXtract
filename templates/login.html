@@ -360,6 +360,7 @@
                 transform: translateY(-100px);
                 opacity: 0;
             }
+
             to {
                 transform: translateY(0);
                 opacity: 1;
@@ -430,9 +431,6 @@
             justify-content: center;
             gap: 10px;
         }
-        
-    
-        
     </style>
 </head>
 
@@ -480,7 +478,8 @@
                     <label class="form-label">
                         <i class="fas fa-lock"></i> Password
                     </label>
-                    <input type="password" name="password" class="form-input" placeholder="Enter your password" required>
+                    <input type="password" name="password" class="form-input" placeholder="Enter your password"
+                        required>
                 </div>
 
                 <button type="submit" class="btn">
@@ -488,7 +487,8 @@
                 </button>
 
                 <div class="forgot-password">
-                    <a href="#" onclick="showToast('Password reset feature coming soon!', 'info')">Forgot your password?</a>
+                    <a href="#" onclick="showToast('Password reset feature coming soon!', 'info')">Forgot your
+                        password?</a>
                 </div>
             </form>
         </div>
@@ -513,8 +513,8 @@
         function updateThemeUI(theme) {
             const toggle = document.querySelector('#themeToggleText');
             const icon = document.querySelector('.theme-toggle i');
-            if(!toggle) return;
-            if(theme === 'dark') {
+            if (!toggle) return;
+            if (theme === 'dark') {
                 toggle.textContent = 'Light Mode';
                 icon.className = 'fas fa-sun';
             } else {
@@ -531,7 +531,7 @@
         })();
 
         // Form validation and enhancement
-        document.getElementById('loginForm').addEventListener('submit', function(e) {
+        document.getElementById('loginForm').addEventListener('submit', function (e) {
             const username = document.querySelector('input[name="username"]').value;
             const password = document.querySelector('input[name="password"]').value;
 
@@ -564,8 +564,8 @@
 
             const icon = type === 'success' ? 'fa-check-circle' :
                 type === 'error' ? 'fa-exclamation-circle' :
-                type === 'info' ? 'fa-info-circle' :
-                    'fa-exclamation-triangle';
+                    type === 'info' ? 'fa-info-circle' :
+                        'fa-exclamation-triangle';
 
             toast.innerHTML = `
                 <i class="fas ${icon}"></i>
@@ -587,17 +587,17 @@
 
         // Add input focus effects
         document.querySelectorAll('.form-input').forEach(input => {
-            input.addEventListener('focus', function() {
+            input.addEventListener('focus', function () {
                 this.parentElement.style.transform = 'translateY(-2px)';
             });
 
-            input.addEventListener('blur', function() {
+            input.addEventListener('blur', function () {
                 this.parentElement.style.transform = 'translateY(0)';
             });
         });
 
         // Add welcome animation and query params checks
-        window.addEventListener('load', function() {
+        window.addEventListener('load', function () {
             const welcomeMessage = document.querySelector('.welcome-message');
             setTimeout(() => {
                 if (welcomeMessage) welcomeMessage.style.animation = 'slideDown 0.5s ease-out';

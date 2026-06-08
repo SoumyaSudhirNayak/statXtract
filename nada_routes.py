@@ -1,14 +1,18 @@
 import os
 import uuid
+import shutil
+import zipfile
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, List
+from pydantic import BaseModel
 
 import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Query, Request
 
 from auth.local.dependencies import get_current_active_user_with_role
-from utils.ingestion_pipeline import ingest_directory
+from utils.ingestion_pipeline import ingest_directory, ingest_upload_file
+from utils.db_utils import to_snake_case_identifier
 from utils.nada_client import (
     extract_files_list,
     guess_file_name,
@@ -137,7 +141,7 @@ async def download_dataset_files(
     if file_nos:
         requested = {x.strip() for x in file_nos.split(",") if x.strip()}
 
-    ingest_dir = _get_ingest_root() / dataset_id
+    ingest_dir = _get_ingest_root() / _sanitize_filename(dataset_id)
     ingest_dir.mkdir(parents=True, exist_ok=True)
 
     downloaded: list[dict[str, Any]] = []
@@ -229,14 +233,24 @@ async def _run_ingest_dir_job(
         return
 
     try:
-        pool = request.app.state.db
-        async with pool.acquire() as conn:
-            ingest_report = await ingest_directory(
-                conn=conn,
-                root_dir=ingest_dir,
+        ingest_report = []
+        for file_info in downloaded:
+            filepath = file_info["path"]
+            import re
+            year_match = re.search(r'\b(19\d\d|20\d\d)(?:-\d\d)?\b', dataset_id)
+            year = year_match.group(0) if year_match else str(datetime.utcnow().year)
+
+            tables = await ingest_upload_file(
+                input_path=filepath,
                 db_url=db_url,
                 schema=schema,
+                year=year,
+                dataset_display_name=dataset_id,
+                dataset_db_name=to_snake_case_identifier(dataset_id),
+                job_id=job_id,
             )
+            if tables:
+                ingest_report.extend(tables)
 
         _jobs[job_id]["status"] = "completed"
         _jobs[job_id]["ended_at"] = datetime.utcnow().isoformat()
@@ -252,6 +266,10 @@ async def _run_ingest_dir_job(
         _jobs[job_id]["status"] = "failed"
         _jobs[job_id]["ended_at"] = datetime.utcnow().isoformat()
         _jobs[job_id]["error"] = str(e)
+    finally:
+        import shutil
+        if 'ingest_dir' in locals() and ingest_dir and ingest_dir.exists():
+            shutil.rmtree(ingest_dir, ignore_errors=True)
 
 
 async def _run_ingest_job(
@@ -272,6 +290,7 @@ async def _run_ingest_job(
         _jobs[job_id]["ended_at"] = datetime.utcnow().isoformat()
         return
 
+    ingest_dir = _get_ingest_root() / _sanitize_filename(dataset_id)
     try:
         files_payload = await nada_fileslist(dataset_id, api_key=api_key)
         items = extract_files_list(files_payload)
@@ -279,7 +298,6 @@ async def _run_ingest_job(
         if file_nos:
             requested = {x.strip() for x in file_nos.split(",") if x.strip()}
 
-        ingest_dir = _get_ingest_root() / dataset_id
         ingest_dir.mkdir(parents=True, exist_ok=True)
 
         downloaded: list[dict[str, Any]] = []
@@ -296,7 +314,7 @@ async def _run_ingest_job(
             raw_name = guess_file_name(item, fallback=f"{dataset_id}_{file_no}")
             filename = _sanitize_filename(raw_name)
             ext = Path(filename).suffix.lower()
-            if ext and ext not in {".zip", ".xml", ".csv", ".txt", ".sav", ".xlsx"}:
+            if ext and ext not in {".zip", ".xml", ".csv", ".txt", ".sav", ".por", ".xlsx"}:
                 continue
 
             dest_path = ingest_dir / filename
@@ -311,14 +329,24 @@ async def _run_ingest_job(
             except Exception as e:
                 download_errors.append({"file_no": file_no, "filename": filename, "error": str(e)})
 
-        pool = request.app.state.db
-        async with pool.acquire() as conn:
-            ingest_report = await ingest_directory(
-                conn=conn,
-                root_dir=ingest_dir,
+        ingest_report = []
+        for file_info in downloaded:
+            filepath = file_info["path"]
+            import re
+            year_match = re.search(r'\b(19\d\d|20\d\d)(?:-\d\d)?\b', dataset_id)
+            year = year_match.group(0) if year_match else str(datetime.utcnow().year)
+
+            tables = await ingest_upload_file(
+                input_path=filepath,
                 db_url=db_url,
                 schema=schema,
+                year=year,
+                dataset_display_name=dataset_id,
+                dataset_db_name=to_snake_case_identifier(dataset_id),
+                job_id=job_id,
             )
+            if tables:
+                ingest_report.extend(tables)
 
         _jobs[job_id]["status"] = "completed"
         _jobs[job_id]["ended_at"] = datetime.utcnow().isoformat()
@@ -334,6 +362,10 @@ async def _run_ingest_job(
         _jobs[job_id]["status"] = "failed"
         _jobs[job_id]["ended_at"] = datetime.utcnow().isoformat()
         _jobs[job_id]["error"] = str(e)
+    finally:
+        import shutil
+        if 'ingest_dir' in locals() and ingest_dir and ingest_dir.exists():
+            shutil.rmtree(ingest_dir, ignore_errors=True)
 
 
 @router.post("/datasets/{dataset_id}/ingest")
@@ -376,3 +408,242 @@ async def get_job_status(
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     return job
+
+
+class IngestPreparedRequest(BaseModel):
+    target_schema: str
+    year: str
+    dataset_display_name: str
+    selected_files: List[str]
+
+
+def _format_size(size_bytes: int) -> str:
+    if size_bytes < 1024:
+        return f"{size_bytes} B"
+    elif size_bytes < 1024 * 1024:
+        return f"{size_bytes / 1024:.1f} KB"
+    else:
+        return f"{size_bytes / (1024 * 1024):.1f} MB"
+
+
+@router.post("/datasets/{dataset_id}/prepare")
+async def prepare_dataset(
+    dataset_id: str,
+    x_api_key: str | None = Header(None, alias="X-API-KEY"),
+    file_nos: Optional[str] = Query(None),
+    current_user=Depends(get_current_active_user_with_role(["1"])),
+):
+    api_key = _resolve_api_key(x_api_key)
+    try:
+        files_payload = await nada_fileslist(dataset_id, api_key=api_key)
+    except httpx.HTTPStatusError as e:
+        _raise_for_upstream_http_error("NADA fileslist failed", e)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"NADA fileslist failed: {e}")
+
+    items = extract_files_list(files_payload)
+    if not items:
+        return {
+            "prepare_id": "",
+            "files": [],
+            "note": "No files found in NADA dataset fileslist."
+        }
+
+    requested: set[str] | None = None
+    if file_nos:
+        requested = {x.strip() for x in file_nos.split(",") if x.strip()}
+
+    prepare_id = str(uuid.uuid4())
+    prepare_dir = _get_ingest_root() / "prepare" / prepare_id
+    download_dir = prepare_dir / "download"
+    extracted_dir = prepare_dir / "extracted"
+    
+    download_dir.mkdir(parents=True, exist_ok=True)
+    extracted_dir.mkdir(parents=True, exist_ok=True)
+
+    downloaded_count = 0
+    for idx, item in enumerate(items, start=1):
+        file_no = guess_file_no(item)
+        if not file_no:
+            continue
+        if requested is not None and file_no not in requested:
+            continue
+
+        raw_name = guess_file_name(item, fallback=f"{dataset_id}_{file_no}")
+        filename = _sanitize_filename(raw_name)
+        dest_path = download_dir / filename
+
+        try:
+            saved = await nada_download_file(
+                dataset_id,
+                file_no,
+                api_key=api_key,
+                dest_path=dest_path,
+            )
+            downloaded_count += 1
+            
+            # Extract ZIP or copy file
+            if saved.suffix.lower() == ".zip":
+                with zipfile.ZipFile(saved, "r") as zf:
+                    zf.extractall(extracted_dir)
+            else:
+                shutil.copy2(saved, extracted_dir / filename)
+        except Exception as e:
+            shutil.rmtree(prepare_dir, ignore_errors=True)
+            raise HTTPException(status_code=500, detail=f"Failed downloading/extracting file {filename}: {e}")
+
+    if downloaded_count == 0:
+        shutil.rmtree(prepare_dir, ignore_errors=True)
+        raise HTTPException(status_code=400, detail="No matching files downloaded from NADA dataset.")
+
+    # Build inventory
+    inventory = []
+    for p in extracted_dir.rglob("*"):
+        if p.is_file():
+            rel_path = p.relative_to(extracted_dir).as_posix()
+            ext = p.suffix.upper().replace(".", "") or "FILE"
+            size_bytes = p.stat().st_size
+            size_formatted = _format_size(size_bytes)
+            inventory.append({
+                "relative_path": rel_path,
+                "filename": p.name,
+                "type": ext,
+                "size_bytes": size_bytes,
+                "size_formatted": size_formatted
+            })
+
+    # Clean up download directory (we extracted its contents to extracted_dir)
+    shutil.rmtree(download_dir, ignore_errors=True)
+
+    return {
+        "prepare_id": prepare_id,
+        "files": inventory
+    }
+
+
+@router.post("/prepare/{prepare_id}/ingest")
+async def ingest_prepared_dataset(
+    prepare_id: str,
+    payload: IngestPreparedRequest,
+    background_tasks: BackgroundTasks,
+    current_user=Depends(get_current_active_user_with_role(["1"])),
+):
+    prepare_dir = _get_ingest_root() / "prepare" / prepare_id
+    if not prepare_dir.exists():
+        raise HTTPException(status_code=404, detail="Prepared session not found or expired.")
+    
+    if not payload.selected_files:
+        raise HTTPException(status_code=400, detail="No files selected for ingestion.")
+
+    job_id = str(uuid.uuid4())
+    _jobs[job_id] = {
+        "job_id": job_id,
+        "dataset_id": payload.dataset_display_name,
+        "schema": payload.target_schema,
+        "status": "queued",
+        "created_at": datetime.utcnow().isoformat(),
+    }
+    background_tasks.add_task(
+        _run_prepared_ingest_job,
+        job_id=job_id,
+        prepare_id=prepare_id,
+        schema=payload.target_schema,
+        year=payload.year,
+        dataset_display_name=payload.dataset_display_name,
+        selected_files=payload.selected_files,
+    )
+    return _jobs[job_id]
+
+
+async def _run_prepared_ingest_job(
+    job_id: str,
+    prepare_id: str,
+    schema: str,
+    year: str,
+    dataset_display_name: str,
+    selected_files: list[str],
+) -> None:
+    _jobs[job_id]["status"] = "running"
+    _jobs[job_id]["started_at"] = datetime.utcnow().isoformat()
+    db_url = os.getenv("DATABASE_URL")
+    if not db_url:
+        _jobs[job_id]["status"] = "failed"
+        _jobs[job_id]["error"] = "DATABASE_URL not set"
+        _jobs[job_id]["ended_at"] = datetime.utcnow().isoformat()
+        return
+
+    prepare_dir = _get_ingest_root() / "prepare" / prepare_id
+    extracted_dir = prepare_dir / "extracted"
+    ingest_temp_dir = _get_ingest_root() / "ingest" / job_id
+    ingest_files_dir = ingest_temp_dir / "files"
+    
+    raw_zip_dest = None
+    dataset_raw_extracted_dir = None
+
+    try:
+        ingest_files_dir.mkdir(parents=True, exist_ok=True)
+
+        # 1. Copy selected files preserving relative paths
+        for rel_path in selected_files:
+            src_file = extracted_dir / rel_path
+            if not src_file.exists():
+                raise ValueError(f"Selected file not found in extracted dataset: {rel_path}")
+            
+            dest_file = ingest_files_dir / rel_path
+            dest_file.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src_file, dest_file)
+
+        # 2. Package selected files into a temporary ZIP file
+        temp_zip_path = ingest_temp_dir / f"{job_id}_ingest.zip"
+        with zipfile.ZipFile(temp_zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+            for root, _, files in os.walk(ingest_files_dir):
+                for file in files:
+                    file_path = Path(root) / file
+                    rel_zip_path = file_path.relative_to(ingest_files_dir)
+                    zf.write(file_path, rel_zip_path)
+
+        # 3. Call the existing ingestion workflow
+        dataset_db_name = to_snake_case_identifier(dataset_display_name)
+        tables = await ingest_upload_file(
+            input_path=str(temp_zip_path),
+            db_url=db_url,
+            schema=schema,
+            year=year,
+            dataset_display_name=dataset_display_name,
+            dataset_db_name=dataset_db_name,
+            job_id=job_id,
+        )
+
+        _jobs[job_id]["status"] = "completed"
+        _jobs[job_id]["ended_at"] = datetime.utcnow().isoformat()
+        _jobs[job_id]["result"] = {
+            "dataset_id": dataset_display_name,
+            "schema": schema,
+            "ingest": tables or [],
+        }
+
+        # Resolve paths to clean up inside raw_files
+        upload_root = Path(os.getenv("UPLOAD_DIR") or "uploads").resolve()
+        dataset_db = dataset_db_name or "dataset"
+        dataset_root = upload_root / schema / dataset_db
+        raw_dir = dataset_root / "raw_files"
+        raw_zip_dest = raw_dir / temp_zip_path.name
+        dataset_raw_extracted_dir = raw_dir / "extracted"
+
+    except Exception as e:
+        _jobs[job_id]["status"] = "failed"
+        _jobs[job_id]["ended_at"] = datetime.utcnow().isoformat()
+        _jobs[job_id]["error"] = str(e)
+    finally:
+        # Clean up temporary folders
+        shutil.rmtree(prepare_dir, ignore_errors=True)
+        shutil.rmtree(ingest_temp_dir, ignore_errors=True)
+        
+        # Clean up copied zip in raw_dir and extracted files inside raw_dir
+        if raw_zip_dest and raw_zip_dest.exists():
+            try:
+                os.remove(raw_zip_dest)
+            except Exception:
+                pass
+        if dataset_raw_extracted_dir and dataset_raw_extracted_dir.exists():
+            shutil.rmtree(dataset_raw_extracted_dir, ignore_errors=True)

@@ -6638,8 +6638,8 @@ import httpx
 from datetime import datetime, timedelta
 
 def _load_razorpay_keys_directly():
-    key_id = os.getenv("Test Key ID") or os.getenv("RAZORPAY_KEY_ID") or ""
-    key_secret = os.getenv("Test Key Secret") or os.getenv("RAZORPAY_KEY_SECRET") or ""
+    key_id = os.getenv("Test_Key_ID") or os.getenv("RAZORPAY_KEY_ID") or ""
+    key_secret = os.getenv("Test_Key_Secret") or os.getenv("RAZORPAY_KEY_SECRET") or ""
     if not key_id or not key_secret:
         try:
             with open(".env", "r", encoding="utf-8") as f:
@@ -6651,9 +6651,9 @@ def _load_razorpay_keys_directly():
                         k, v = line.split("=", 1)
                         k = k.strip()
                         v = v.strip().strip("'").strip('"')
-                        if k == "Test Key ID":
+                        if k == "Test_Key_ID":
                             key_id = v
-                        elif k == "Test Key Secret":
+                        elif k == "Test_Key_Secret":
                             key_secret = v
         except Exception:
             pass

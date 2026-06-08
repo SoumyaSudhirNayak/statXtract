@@ -423,14 +423,14 @@
                 </div>
 
                 <div class="form-group">
-                    <label class="form-label">File Numbers (optional)</label>
-                    <input type="text" id="nadaFileNos" class="form-input" placeholder="e.g. 1,2,3">
+                    <label class="form-label">Selected File IDs (Base64/Number)</label>
+                    <input type="text" id="nadaFileNos" class="form-input" readonly placeholder="No files selected (Use 'View Files' and checkboxes below)">
                     <div style="display: flex; gap: 10px; margin-top: 0.5rem;">
                         <button type="button" class="btn btn-secondary btn-sm" onclick="loadNadaFilesList()">
                             <i class="fas fa-list"></i> Load Files
                         </button>
                         <button type="button" class="btn btn-secondary btn-sm" onclick="clearNadaFilesSelection()">
-                            <i class="fas fa-eraser"></i> Clear
+                            <i class="fas fa-eraser"></i> Clear Selection
                         </button>
                     </div>
                 </div>
@@ -438,8 +438,8 @@
                 <div id="nadaFilesList" style="margin-top: 0.5rem; max-height: 200px; overflow-y: auto;"></div>
 
                 <div class="form-actions" style="margin-top: auto; display: flex; flex-direction: column; gap: 1rem;">
-                    <button type="button" class="btn btn-primary" onclick="startNadaImport()">
-                        <i class="fas fa-play"></i> Download & Ingest
+                    <button type="button" class="btn btn-primary" onclick="prepareNadaDataset()">
+                        <i class="fas fa-cogs"></i> Prepare Ingestion
                     </button>
                     <input type="hidden" id="nadaJobId">
                     <button type="button" class="btn btn-secondary" onclick="refreshNadaJob()">
@@ -447,51 +447,115 @@
                     </button>
                 </div>
 
-                <div id="nadaJobStatus" class="status-box" style="display: none;">
-                    <pre id="nadaJobStatusText" class="status-message"></pre>
+                <div id="nadaJobStatus" class="status-box" style="display: none; margin-top: 1rem; padding: 1rem; border-radius: 12px; background: var(--bg-light); border: 1px solid var(--glass-border);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                        <span id="jobStatusLabel" style="font-weight: 700; font-size: 0.95rem;">Ingestion Status</span>
+                        <span id="jobStatusPercent" style="font-weight: 800; color: var(--primary-color);">0%</span>
+                    </div>
+                    <div style="width: 100%; height: 8px; background: rgba(0,0,0,0.05); border-radius: 4px; overflow: hidden; margin-bottom: 1rem;">
+                        <div id="jobProgressBar" style="width: 0%; height: 100%; background: var(--primary-color); transition: width 0.3s ease;"></div>
+                    </div>
+                    <div id="jobStatusDetails" style="font-size: 0.85rem; color: var(--text-muted); max-height: 150px; overflow-y: auto; margin-bottom: 0.5rem;"></div>
+                    <details>
+                        <summary style="font-size: 0.8rem; cursor: pointer; color: var(--primary-color); font-weight: 600;">Show raw debug log</summary>
+                        <pre id="nadaJobStatusText" class="status-message" style="margin-top: 0.5rem; max-height: 150px; overflow-y: auto; font-size: 0.75rem; background: rgba(0,0,0,0.02); padding: 0.5rem; border-radius: 6px;"></pre>
+                    </details>
                 </div>
             </div>
 
-            <!-- Right Column: Browse -->
+            <!-- Right Column: Browse & Selection -->
             <div class="import-browse-column">
-                <div class="form-group">
-                    <label class="form-label">Browse NADA Datasets</label>
-                    <div style="display: flex; gap: 10px;">
-                        <input type="text" id="nadaSearch" class="form-input" placeholder="Filter datasets..." oninput="renderNadaDatasets()">
-                        <select id="nadaLimit" class="form-select" style="max-width: 100px;" onchange="setNadaLimit()">
-                            <option value="15">15</option>
-                            <option value="50" selected>50</option>
-                            <option value="100">100</option>
-                        </select>
+                <!-- Tab 1: Dataset Browsing -->
+                <div id="browseDatasetsPanel">
+                    <div class="form-group">
+                        <label class="form-label">Browse NADA Datasets</label>
+                        <div style="display: flex; gap: 10px;">
+                            <input type="text" id="nadaSearch" class="form-input" placeholder="Filter datasets..." oninput="renderNadaDatasets()">
+                            <select id="nadaLimit" class="form-select" style="max-width: 100px;" onchange="setNadaLimit()">
+                                <option value="15">15</option>
+                                <option value="50" selected>50</option>
+                                <option value="100">100</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="loadNadaDatasets(true)">
+                            <i class="fas fa-download"></i> Load Initial
+                        </button>
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="loadNadaDatasets(false, 1, true)">
+                            <i class="fas fa-plus"></i> Load More
+                        </button>
+                        <div style="display: flex; gap: 5px; margin-left: auto;">
+                            <button type="button" class="btn btn-secondary btn-sm" onclick="loadNadaDatasets(false, -1)">
+                                <i class="fas fa-chevron-left"></i>
+                            </button>
+                            <button type="button" class="btn btn-secondary btn-sm" onclick="loadNadaDatasets(false, 1)">
+                                <i class="fas fa-chevron-right"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <p id="nadaDatasetsMeta" style="font-size: 0.9rem; color: var(--text-muted);"></p>
+
+                    <div id="nadaDatasetsList" class="dataset-list">
+                        <div style="color: var(--text-muted); text-align: center; margin-top: 2rem;">
+                            <i class="fas fa-cloud-download-alt fa-3x" style="margin-bottom: 1rem; opacity: 0.3;"></i>
+                            <p>No datasets loaded. Click 'Load Initial' to browse NADA.</p>
+                        </div>
                     </div>
                 </div>
 
-                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                    <button type="button" class="btn btn-secondary btn-sm" onclick="loadNadaDatasets(true)">
-                        <i class="fas fa-download"></i> Load Initial
-                    </button>
-                    <button type="button" class="btn btn-secondary btn-sm" onclick="loadNadaDatasets(false, 1, true)">
-                        <i class="fas fa-plus"></i> Load More
-                    </button>
-                    <div style="display: flex; gap: 5px; margin-left: auto;">
-                        <button type="button" class="btn btn-secondary btn-sm" onclick="loadNadaDatasets(false, -1)">
-                            <i class="fas fa-chevron-left"></i>
-                        </button>
-                        <button type="button" class="btn btn-secondary btn-sm" onclick="loadNadaDatasets(false, 1)">
-                            <i class="fas fa-chevron-right"></i>
-                        </button>
-                    </div>
+                <!-- Tab 2: Loading Extraction -->
+                <div id="preparationLoader" style="display: none; flex-direction: column; align-items: center; justify-content: center; height: 100%; min-height: 400px; gap: 1.5rem; text-align: center; background: rgba(46, 91, 186, 0.02); border: 2px dashed var(--glass-border); border-radius: 24px; padding: 3rem;">
+                    <i class="fas fa-cog fa-spin fa-4x" style="color: var(--primary-color);"></i>
+                    <h3 style="font-family: var(--font-head); font-weight: 700; font-size: 1.5rem;">Downloading & Extracting Files...</h3>
+                    <p style="color: var(--text-muted); font-size: 1rem;">Retrieving files from NADA and scanning contents. This may take a few moments.</p>
                 </div>
 
-                <p id="nadaDatasetsMeta" style="font-size: 0.9rem; color: var(--text-muted);"></p>
+                <!-- Tab 3: Extracted Files Selection -->
+                <div id="extractedFilesPanel" style="display: none; flex-direction: column; gap: 1.5rem; height: 100%;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--glass-border); padding-bottom: 1rem;">
+                        <div>
+                            <h3 style="font-family: var(--font-head); font-weight: 800; font-size: 1.6rem;">Select Extracted Files</h3>
+                            <span style="font-size: 0.95rem; color: var(--text-muted);">Choose files to ingest into database</span>
+                        </div>
+                        <button class="btn btn-secondary btn-sm" onclick="showBrowsePanel()">
+                            <i class="fas fa-arrow-left"></i> Back to Browse
+                        </button>
+                    </div>
 
-                <div id="nadaDatasetsList" class="dataset-list">
-                    <div style="color: var(--text-muted); text-align: center; margin-top: 2rem;">
-                        <i class="fas fa-cloud-download-alt fa-3x" style="margin-bottom: 1rem; opacity: 0.3;"></i>
-                        <p>No datasets loaded. Click 'Load Initial' to browse NADA.</p>
+                    <!-- Year Input & Action Controls -->
+                    <div style="display: flex; gap: 1.5rem; align-items: center; background: rgba(46, 91, 186, 0.05); padding: 1.25rem; border-radius: 16px; border: 1px solid var(--glass-border);">
+                        <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+                            <label class="form-label" style="font-size: 0.95rem; margin-bottom: 0;">Ingestion Year</label>
+                            <input type="number" id="ingestYear" class="form-input" style="padding: 0.5rem 1rem; font-size: 1rem;" value="2026">
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 0.5rem; justify-content: flex-end;">
+                            <button id="startIngestionBtn" class="btn btn-primary" onclick="startPreparedIngestion()" disabled style="padding: 0.75rem 1.5rem; font-size: 1.1rem; width: 100%;">
+                                <i class="fas fa-upload"></i> Start Ingestion
+                            </button>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="selectAllExtractedFiles()">
+                            <i class="fas fa-check-square"></i> Select All
+                        </button>
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="deselectAllExtractedFiles()">
+                            <i class="fas fa-square"></i> Deselect All
+                        </button>
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="prepareNadaDataset()">
+                            <i class="fas fa-sync"></i> Refresh File List
+                        </button>
+                    </div>
+
+                    <div id="extractedFilesList" class="dataset-list" style="flex: 1; max-height: 50vh;">
+                        <!-- Files will be dynamically populated here -->
                     </div>
                 </div>
             </div>
+
         </main>
     </div>
 
@@ -502,6 +566,40 @@
         let nadaDatasetsCache = [];
         let nadaFilesCache = [];
         let nadaSelectedFileNos = new Set();
+        let currentPrepareId = null;
+        let preparedFilesList = [];
+
+        function showBrowsePanel() {
+            const browse = document.getElementById('browseDatasetsPanel');
+            const loader = document.getElementById('preparationLoader');
+            const panel = document.getElementById('extractedFilesPanel');
+            if (browse) browse.style.display = 'block';
+            if (loader) loader.style.display = 'none';
+            if (panel) panel.style.display = 'none';
+        }
+
+        function showPreparationLoader() {
+            const browse = document.getElementById('browseDatasetsPanel');
+            const loader = document.getElementById('preparationLoader');
+            const panel = document.getElementById('extractedFilesPanel');
+            if (browse) browse.style.display = 'none';
+            if (loader) loader.style.display = 'flex';
+            if (panel) panel.style.display = 'none';
+        }
+
+        function showExtractedFilesPanel() {
+            const browse = document.getElementById('browseDatasetsPanel');
+            const loader = document.getElementById('preparationLoader');
+            const panel = document.getElementById('extractedFilesPanel');
+            if (browse) browse.style.display = 'none';
+            if (loader) loader.style.display = 'none';
+            if (panel) panel.style.display = 'flex';
+        }
+
+        function extractYear(datasetId) {
+            const match = (datasetId || '').match(/\b(19\d\d|20\d\d)(?:-\d\d)?\b/);
+            return match ? match[1] : new Date().getFullYear();
+        }
 
         // Theme Management
         function applyTheme(theme) {
@@ -589,7 +687,7 @@
             loadNadaDatasets(true);
         }
 
-        async function startNadaImport() {
+        async function prepareNadaDataset() {
             const datasetId = document.getElementById('nadaDatasetId').value.trim();
             const schema = document.getElementById('nadaSchema').value.trim();
             const fileNos = document.getElementById('nadaFileNos').value.trim();
@@ -600,10 +698,10 @@
             }
 
             try {
-                showToast('Starting NADA import...', 'info');
-                const url = new URL(`/admin/nada/datasets/${encodeURIComponent(datasetId)}/download`, window.location.origin);
-                url.searchParams.set('schema', schema);
-                url.searchParams.set('ingest', 'true');
+                showToast('Preparing dataset (downloading/extracting)...', 'info');
+                showPreparationLoader();
+
+                const url = new URL(`/admin/nada/datasets/${encodeURIComponent(datasetId)}/prepare`, window.location.origin);
                 if (fileNos) url.searchParams.set('file_nos', fileNos);
 
                 const response = await fetch(url.toString(), { 
@@ -612,18 +710,171 @@
                 });
                 const data = await response.json();
 
-                if (!response.ok) throw new Error(data?.detail || 'Failed to start import');
+                if (!response.ok) throw new Error(data?.detail || 'Failed to prepare dataset');
+
+                currentPrepareId = data.prepare_id;
+                preparedFilesList = data.files || [];
+
+                // Autofill Year
+                const yearField = document.getElementById('ingestYear');
+                if (yearField) {
+                    yearField.value = extractYear(datasetId);
+                }
+
+                renderExtractedFiles();
+                showExtractedFilesPanel();
+                showToast('Files extracted. Please select files for ingestion.', 'success');
+            } catch (e) {
+                showToast(e.message, 'error');
+                showBrowsePanel();
+            }
+        }
+
+        function renderExtractedFiles() {
+            const list = document.getElementById('extractedFilesList');
+            if (!list) return;
+            if (!preparedFilesList.length) {
+                list.innerHTML = '<div style="padding: 2rem; text-align: center; color: var(--text-muted);">No files found in extracted archive.</div>';
+                updateIngestionButtonState();
+                return;
+            }
+
+            list.innerHTML = preparedFilesList.map((f, index) => {
+                const type = (f.type || '').toUpperCase();
+                let badgeStyle = 'background: rgba(100, 116, 139, 0.1); color: #64748b; border: 1px solid rgba(100, 116, 139, 0.2);'; // default slate
+                
+                if (type === 'CSV') {
+                    badgeStyle = 'background: rgba(34, 197, 94, 0.1); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.2);';
+                } else if (type === 'XML' || type === 'DDI') {
+                    badgeStyle = 'background: rgba(245, 158, 11, 0.1); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.2);';
+                } else if (type === 'XLSX' || type === 'XLS') {
+                    badgeStyle = 'background: rgba(13, 148, 136, 0.1); color: #0d9488; border: 1px solid rgba(13, 148, 136, 0.2);';
+                } else if (type === 'SAV' || type === 'POR') {
+                    badgeStyle = 'background: rgba(79, 70, 229, 0.1); color: #4f46e5; border: 1px solid rgba(79, 70, 229, 0.2);';
+                } else if (type === 'TXT') {
+                    badgeStyle = 'background: rgba(100, 116, 139, 0.1); color: #64748b; border: 1px solid rgba(100, 116, 139, 0.2);';
+                } else if (type === 'DTA' || type === 'XPT') {
+                    badgeStyle = 'background: rgba(124, 58, 237, 0.1); color: #7c3aed; border: 1px solid rgba(124, 58, 237, 0.2);';
+                }
+
+                return `
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; background: var(--glass-bg); border-radius: 12px; border: 1px solid var(--glass-border); transition: all 0.2s ease; margin-bottom: 0.5rem;">
+                        <div style="display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0;">
+                            <input type="checkbox" class="extracted-file-checkbox" data-path="${f.relative_path}" onchange="updateIngestionButtonState()" style="width: 20px; height: 20px; cursor: pointer; flex-shrink: 0;">
+                            <div style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
+                                <span style="font-weight: 600; font-size: 0.95rem; color: var(--text-main); word-break: break-all; white-space: normal;">${f.filename}</span>
+                                <span style="font-size: 0.75rem; color: var(--text-muted); font-family: monospace;">${f.relative_path}</span>
+                            </div>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 12px; margin-left: 1rem; flex-shrink: 0;">
+                            <span style="padding: 4px 10px; border-radius: 6px; font-weight: 700; font-size: 0.75rem; ${badgeStyle}">${type}</span>
+                            <span style="font-size: 0.85rem; color: var(--text-muted); font-weight: 600; min-width: 65px; text-align: right;">${f.size_formatted}</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            updateIngestionButtonState();
+        }
+
+        function selectAllExtractedFiles() {
+            const checkboxes = document.querySelectorAll('.extracted-file-checkbox');
+            checkboxes.forEach(cb => cb.checked = true);
+            updateIngestionButtonState();
+        }
+
+        function deselectAllExtractedFiles() {
+            const checkboxes = document.querySelectorAll('.extracted-file-checkbox');
+            checkboxes.forEach(cb => cb.checked = false);
+            updateIngestionButtonState();
+        }
+
+        function updateIngestionButtonState() {
+            const checkboxes = document.querySelectorAll('.extracted-file-checkbox');
+            const checkedCount = Array.from(checkboxes).filter(cb => cb.checked).length;
+            const btn = document.getElementById('startIngestionBtn');
+            if (btn) {
+                btn.disabled = (checkedCount === 0);
+            }
+        }
+
+        async function startPreparedIngestion() {
+            const datasetId = document.getElementById('nadaDatasetId').value.trim();
+            const schema = document.getElementById('nadaSchema').value.trim();
+            const year = document.getElementById('ingestYear').value.trim();
+
+            if (!currentPrepareId) {
+                showToast('No active preparation session', 'error');
+                return;
+            }
+
+            if (!schema) {
+                showToast('Target Schema is required', 'error');
+                return;
+            }
+
+            if (!year) {
+                showToast('Ingestion Year is required', 'error');
+                return;
+            }
+
+            const checkboxes = document.querySelectorAll('.extracted-file-checkbox');
+            const selectedFiles = Array.from(checkboxes)
+                .filter(cb => cb.checked)
+                .map(cb => cb.getAttribute('data-path'));
+
+            if (selectedFiles.length === 0) {
+                showToast('Please select at least one file to ingest', 'error');
+                return;
+            }
+
+            try {
+                showToast('Starting ingestion job...', 'info');
+                const url = `/admin/nada/prepare/${encodeURIComponent(currentPrepareId)}/ingest`;
+                const body = {
+                    target_schema: schema,
+                    year: year,
+                    dataset_display_name: datasetId,
+                    selected_files: selectedFiles
+                };
+
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...getNadaHeaders()
+                    },
+                    body: JSON.stringify(body)
+                });
+
+                const data = await response.json();
+                if (!response.ok) throw new Error(data?.detail || 'Failed to start ingestion');
 
                 if (data.job_id) {
                     document.getElementById('nadaJobId').value = data.job_id;
-                    showToast(`Import queued: ${data.job_id}`, 'success');
+                    showToast(`Ingestion job queued: ${data.job_id}`, 'success');
+
+                    // Reset status UI
+                    document.getElementById('nadaJobStatus').style.display = 'block';
+                    document.getElementById('jobProgressBar').style.width = '0%';
+                    document.getElementById('jobStatusPercent').textContent = '0%';
+                    document.getElementById('jobStatusLabel').textContent = 'Queued...';
+                    document.getElementById('jobStatusDetails').innerHTML = '';
+
+                    // Go back to browse panel
+                    showBrowsePanel();
+
                     refreshNadaJob();
                     if (nadaJobPoller) clearInterval(nadaJobPoller);
-                    nadaJobPoller = setInterval(refreshNadaJob, 3000);
+                    nadaJobPoller = setInterval(refreshNadaJob, 2000);
                 }
             } catch (e) {
                 showToast(e.message, 'error');
             }
+        }
+
+        async function startNadaImport() {
+            await prepareNadaDataset();
         }
 
         async function refreshNadaJob() {
@@ -636,16 +887,57 @@
                 
                 const statusBox = document.getElementById('nadaJobStatus');
                 const statusText = document.getElementById('nadaJobStatusText');
+                const progressBar = document.getElementById('jobProgressBar');
+                const percentText = document.getElementById('jobStatusPercent');
+                const statusLabel = document.getElementById('jobStatusLabel');
+                const statusDetails = document.getElementById('jobStatusDetails');
                 
                 statusBox.style.display = 'block';
                 statusText.textContent = JSON.stringify(data, null, 2);
 
-                const status = (data.status || '').toUpperCase();
-                if (status === 'COMPLETED' || status === 'FAILED') {
+                const status = (data.status || '').toLowerCase();
+                let percent = 0;
+                let msg = 'Initializing...';
+                let detailsHtml = '';
+
+                if (status === 'queued') {
+                    percent = 10;
+                    msg = 'Job Queued...';
+                    progressBar.style.background = 'var(--primary-color)';
+                } else if (status === 'running') {
+                    percent = 50;
+                    msg = 'Direct Ingesting (Downloading & parsing files)...';
+                    progressBar.style.background = 'var(--primary-color)';
+                } else if (status === 'completed') {
+                    percent = 100;
+                    msg = '✅ Ingestion Completed Successfully!';
+                    progressBar.style.background = '#22c55e'; // Green
+                    
+                    const tables = data.result?.ingest || [];
+                    if (tables.length > 0) {
+                        detailsHtml = `<strong>Created Tables:</strong><ul style="margin: 0.5rem 0; padding-left: 1.25rem;">` + 
+                            tables.map(t => `<li><code style="background: rgba(0,0,0,0.05); padding: 2px 4px; border-radius: 4px;">${t}</code></li>`).join('') + 
+                            `</ul>`;
+                    } else {
+                        detailsHtml = `Ingested successfully, but no tables were created (or they already existed).`;
+                    }
+                } else if (status === 'failed') {
+                    percent = 100;
+                    msg = '❌ Ingestion Failed';
+                    progressBar.style.background = '#ef4444'; // Red
+                    detailsHtml = `<span style="color: #ef4444;"><strong>Error:</strong> ${data.error || 'Unknown error'}</span>`;
+                }
+
+                percentText.textContent = `${percent}%`;
+                progressBar.style.width = `${percent}%`;
+                statusLabel.textContent = msg;
+                statusDetails.innerHTML = detailsHtml;
+
+                if (status === 'completed' || status === 'failed') {
                     if (nadaJobPoller) {
                         clearInterval(nadaJobPoller);
                         nadaJobPoller = null;
-                        showToast(`Job ${status}`, status === 'COMPLETED' ? 'success' : 'error');
+                        showToast(`Job ${status.toUpperCase()}`, status === 'completed' ? 'success' : 'error');
                     }
                 }
             } catch (e) {
@@ -728,11 +1020,11 @@
         function _extractRows(p) {
             if (Array.isArray(p)) return p;
             if (!p) return [];
-            return p.result?.rows || p.data?.rows || p.rows || p.datasets || [];
+            return p.result?.rows || p.data?.rows || p.rows || p.datasets || p.files || [];
         }
 
         function _getId(r) {
-            return r.id || r.dataset_id || r.study_id || r.surveyid || '(no id)';
+            return r.idno || r.id || r.dataset_id || r.study_id || r.surveyid || '(no id)';
         }
 
         function _getTitle(r) {
@@ -757,32 +1049,35 @@
                     return;
                 }
 
+                // Cache files list
+                nadaFilesCache = rows;
+                nadaSelectedFileNos.clear();
+                document.getElementById('nadaFileNos').value = '';
+
                 list.innerHTML = `
-                    <div style="padding: 1rem; background: var(--bg-light); border-radius: 12px; border: 1px solid var(--glass-border);">
-                        <table style="width: 100%; border-collapse: collapse;">
-                            <thead>
-                                <tr style="text-align: left; border-bottom: 1px solid var(--glass-border);">
-                                    <th style="padding: 8px;">No</th>
-                                    <th style="padding: 8px;">Name</th>
-                                    <th style="padding: 8px;">Action</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${rows.map(f => {
-                                    const no = f.file_no || f.fileno || f.id;
-                                    const name = f.file_name || f.filename || f.name;
-                                    return `
-                                        <tr style="border-bottom: 1px solid rgba(0,0,0,0.05);">
-                                            <td style="padding: 8px;">${no}</td>
-                                            <td style="padding: 8px; font-size: 0.85rem;">${name}</td>
-                                            <td style="padding: 8px;">
-                                                <input type="checkbox" onchange="toggleFile('${no}', this.checked)">
-                                            </td>
-                                        </tr>
-                                    `;
-                                }).join('')}
-                            </tbody>
-                        </table>
+                    <div style="padding: 1rem; background: var(--bg-light); border-radius: 12px; border: 1px solid var(--glass-border); display: flex; flex-direction: column; gap: 0.75rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 0.5rem; border-bottom: 1px solid var(--glass-border);">
+                            <span style="font-weight: 700; font-size: 0.9rem;">Files available for Direct Ingest</span>
+                            <label style="display: flex; align-items: center; gap: 6px; font-size: 0.85rem; font-weight: 600; cursor: pointer; user-select: none;">
+                                <input type="checkbox" id="selectAllFiles" onchange="toggleSelectAllFiles(this.checked)"> Select All
+                            </label>
+                        </div>
+                        ${rows.map(f => {
+                            const name = f.name || f.file_name || f.filename;
+                            const size = f.size || f.file_size || '';
+                            const no = f.base64 || f.file_no || f.fileno || f.id || f.file_id;
+                            return `
+                                <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; background: white; border-radius: 8px; border: 1px solid rgba(0,0,0,0.04); transition: all 0.2s ease;">
+                                    <div style="display: flex; flex-direction: column; gap: 2px;">
+                                        <span style="font-weight: 600; font-size: 0.9rem; color: var(--text-main);">${name}</span>
+                                        ${size ? `<span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 500;">${size}</span>` : ''}
+                                    </div>
+                                    <div>
+                                        <input type="checkbox" class="file-checkbox" data-no="${no}" onchange="toggleFile('${no}', this.checked)" style="width: 18px; height: 18px; cursor: pointer;">
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
                     </div>
                 `;
             } catch (e) {
@@ -790,9 +1085,27 @@
             }
         }
 
+        function toggleSelectAllFiles(checked) {
+            const checkboxes = document.querySelectorAll('.file-checkbox');
+            nadaSelectedFileNos.clear();
+            checkboxes.forEach(cb => {
+                cb.checked = checked;
+                const no = cb.getAttribute('data-no');
+                if (checked) {
+                    nadaSelectedFileNos.add(no);
+                }
+            });
+            document.getElementById('nadaFileNos').value = Array.from(nadaSelectedFileNos).join(',');
+        }
+
         function toggleFile(no, checked) {
-            if (checked) nadaSelectedFileNos.add(no);
-            else nadaSelectedFileNos.delete(no);
+            if (checked) {
+                nadaSelectedFileNos.add(no);
+            } else {
+                nadaSelectedFileNos.delete(no);
+                const selectAll = document.getElementById('selectAllFiles');
+                if (selectAll) selectAll.checked = false;
+            }
             document.getElementById('nadaFileNos').value = Array.from(nadaSelectedFileNos).join(',');
         }
 
@@ -800,6 +1113,8 @@
             nadaSelectedFileNos.clear();
             document.getElementById('nadaFileNos').value = '';
             document.getElementById('nadaFilesList').innerHTML = '';
+            const selectAll = document.getElementById('selectAllFiles');
+            if (selectAll) selectAll.checked = false;
         }
 
         // Theme Toggle Functionality

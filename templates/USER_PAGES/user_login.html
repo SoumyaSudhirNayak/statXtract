@@ -1,12 +1,16 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sign In — STATXTRACT User Portal</title>
-  <meta name="description" content="Sign in to the STATXTRACT user portal to access 150+ verified government datasets and AI-powered analytics.">
+  <meta name="description"
+    content="Sign in to the STATXTRACT user portal to access 150+ verified government datasets and AI-powered analytics.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap"
+    rel="stylesheet">
   <link rel="stylesheet" href="/static/user_styles.css">
   {% if turnstile_enabled %}
   <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
@@ -29,6 +33,7 @@
       overflow: hidden;
       pointer-events: none;
     }
+
     .bg-orb {
       position: absolute;
       border-radius: 50%;
@@ -36,14 +41,54 @@
       animation: orbFloat linear infinite;
       opacity: 0.12;
     }
-    .bg-orb-1 { width: 700px; height: 700px; background: #2E7D32; top: -200px; left: -200px; animation-duration: 28s; }
-    .bg-orb-2 { width: 500px; height: 500px; background: #2E5BBA; bottom: -100px; right: -100px; animation-duration: 22s; animation-delay: -8s; opacity: 0.09; }
-    .bg-orb-3 { width: 350px; height: 350px; background: #F4A300; top: 40%; left: 55%; animation-duration: 18s; animation-delay: -4s; opacity: 0.06; }
+
+    .bg-orb-1 {
+      width: 700px;
+      height: 700px;
+      background: #2E7D32;
+      top: -200px;
+      left: -200px;
+      animation-duration: 28s;
+    }
+
+    .bg-orb-2 {
+      width: 500px;
+      height: 500px;
+      background: #2E5BBA;
+      bottom: -100px;
+      right: -100px;
+      animation-duration: 22s;
+      animation-delay: -8s;
+      opacity: 0.09;
+    }
+
+    .bg-orb-3 {
+      width: 350px;
+      height: 350px;
+      background: #F4A300;
+      top: 40%;
+      left: 55%;
+      animation-duration: 18s;
+      animation-delay: -4s;
+      opacity: 0.06;
+    }
+
     @keyframes orbFloat {
-      0%   { transform: translate(0, 0) scale(1); }
-      33%  { transform: translate(30px, -40px) scale(1.05); }
-      66%  { transform: translate(-20px, 30px) scale(0.97); }
-      100% { transform: translate(0, 0) scale(1); }
+      0% {
+        transform: translate(0, 0) scale(1);
+      }
+
+      33% {
+        transform: translate(30px, -40px) scale(1.05);
+      }
+
+      66% {
+        transform: translate(-20px, 30px) scale(0.97);
+      }
+
+      100% {
+        transform: translate(0, 0) scale(1);
+      }
     }
 
     /* ── GRID LAYOUT ── */
@@ -68,6 +113,7 @@
       justify-content: center;
       gap: 32px;
     }
+
     .brand-panel-logo {
       font-family: var(--font-head);
       font-size: 52px;
@@ -76,14 +122,24 @@
       letter-spacing: -2px;
       line-height: 1;
     }
-    .brand-panel-logo span { color: var(--green); }
+
+    .brand-panel-logo span {
+      color: var(--green);
+    }
+
     .brand-panel-tagline {
       font-size: 18px;
       color: var(--text-muted);
       line-height: 1.6;
       max-width: 380px;
     }
-    .brand-feature-list { display: flex; flex-direction: column; gap: 16px; }
+
+    .brand-feature-list {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
     .brand-feature {
       display: flex;
       align-items: center;
@@ -92,45 +148,71 @@
       font-weight: 600;
       color: var(--text-main);
     }
+
     .brand-feature-icon {
-      width: 40px; height: 40px;
+      width: 40px;
+      height: 40px;
       border-radius: 10px;
-      display: flex; align-items: center; justify-content: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       font-size: 18px;
       flex-shrink: 0;
     }
-    .fi-green  { background: #E8F5E9; }
-    .fi-blue   { background: #E3F2FD; }
-    .fi-orange { background: #FFF3E0; }
+
+    .fi-green {
+      background: #E8F5E9;
+    }
+
+    .fi-blue {
+      background: #E3F2FD;
+    }
+
+    .fi-orange {
+      background: #FFF3E0;
+    }
 
     /* ── AUTH CARD ── */
     .auth-card {
-      background: rgba(255,255,255,0.92);
+      background: rgba(255, 255, 255, 0.92);
       backdrop-filter: blur(20px);
-      border: 2px solid rgba(255,255,255,0.8);
+      border: 2px solid rgba(255, 255, 255, 0.8);
       border-radius: 24px;
       padding: 48px 44px;
-      box-shadow: 0 32px 80px rgba(31,58,95,0.18), 0 0 0 1px rgba(255,255,255,0.5);
+      box-shadow: 0 32px 80px rgba(31, 58, 95, 0.18), 0 0 0 1px rgba(255, 255, 255, 0.5);
       position: relative;
       overflow: hidden;
       transition: box-shadow 0.4s ease;
     }
+
     .auth-card::before {
       content: '';
       position: absolute;
-      top: 0; left: 0; right: 0;
+      top: 0;
+      left: 0;
+      right: 0;
       height: 4px;
       background: linear-gradient(90deg, var(--green), var(--saffron), var(--green));
       background-size: 200% 100%;
       animation: shimmer 3s ease infinite;
     }
+
     @keyframes shimmer {
-      0%   { background-position: 0% 50%; }
-      50%  { background-position: 100% 50%; }
-      100% { background-position: 0% 50%; }
+      0% {
+        background-position: 0% 50%;
+      }
+
+      50% {
+        background-position: 100% 50%;
+      }
+
+      100% {
+        background-position: 0% 50%;
+      }
     }
+
     .auth-card:hover {
-      box-shadow: 0 40px 100px rgba(31,58,95,0.22), 0 0 0 1px rgba(255,255,255,0.5);
+      box-shadow: 0 40px 100px rgba(31, 58, 95, 0.22), 0 0 0 1px rgba(255, 255, 255, 0.5);
     }
 
     .card-heading {
@@ -140,6 +222,7 @@
       color: var(--text-main);
       margin-bottom: 6px;
     }
+
     .card-sub {
       font-size: 14px;
       color: var(--text-muted);
@@ -148,7 +231,10 @@
     }
 
     /* ── FORM ELEMENTS ── */
-    .field-wrap { margin-bottom: 20px; }
+    .field-wrap {
+      margin-bottom: 20px;
+    }
+
     .field-label {
       display: block;
       font-size: 12px;
@@ -158,9 +244,11 @@
       letter-spacing: 0.6px;
       margin-bottom: 8px;
     }
+
     .input-group {
       position: relative;
     }
+
     .input-icon {
       position: absolute;
       left: 16px;
@@ -169,7 +257,11 @@
       color: var(--text-muted);
       pointer-events: none;
     }
-    .input-icon svg { display: block; }
+
+    .input-icon svg {
+      display: block;
+    }
+
     .field-input {
       width: 100%;
       padding: 14px 48px 14px 46px;
@@ -182,14 +274,17 @@
       transition: all 0.3s ease;
       outline: none;
     }
+
     .field-input:hover {
       border-color: #9CA3AF;
-      box-shadow: 0 0 0 3px rgba(46,125,50,0.06);
+      box-shadow: 0 0 0 3px rgba(46, 125, 50, 0.06);
     }
+
     .field-input:focus {
       border-color: var(--green);
-      box-shadow: 0 0 0 3px rgba(46,125,50,0.15), 0 0 20px rgba(144,238,144,0.2);
+      box-shadow: 0 0 0 3px rgba(46, 125, 50, 0.15), 0 0 20px rgba(144, 238, 144, 0.2);
     }
+
     .pw-eye {
       position: absolute;
       right: 14px;
@@ -203,7 +298,10 @@
       display: flex;
       transition: color 0.2s;
     }
-    .pw-eye:hover { color: var(--green); }
+
+    .pw-eye:hover {
+      color: var(--green);
+    }
 
     .forgot-row {
       display: flex;
@@ -211,6 +309,7 @@
       margin-top: -12px;
       margin-bottom: 24px;
     }
+
     .forgot-link {
       font-size: 13px;
       font-weight: 600;
@@ -219,7 +318,10 @@
       text-decoration: none;
       transition: color 0.2s;
     }
-    .forgot-link:hover { color: var(--green); }
+
+    .forgot-link:hover {
+      color: var(--green);
+    }
 
     /* ── SUBMIT BUTTON ── */
     .submit-btn {
@@ -241,21 +343,29 @@
       overflow: hidden;
       transition: all 0.3s ease;
     }
+
     .submit-btn::before {
       content: '';
       position: absolute;
-      top: 0; left: -100%;
-      width: 100%; height: 100%;
-      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
       transition: left 0.5s ease;
     }
-    .submit-btn:hover::before { left: 100%; }
+
+    .submit-btn:hover::before {
+      left: 100%;
+    }
+
     .submit-btn:hover {
       background: var(--green-dark);
       border-color: var(--saffron);
-      box-shadow: 0 8px 30px rgba(46,125,50,0.5), 0 0 40px rgba(144,238,144,0.3);
+      box-shadow: 0 8px 30px rgba(46, 125, 50, 0.5), 0 0 40px rgba(144, 238, 144, 0.3);
       transform: translateY(-2px);
     }
+
     .submit-btn:disabled {
       opacity: 0.65;
       cursor: not-allowed;
@@ -269,12 +379,15 @@
       gap: 12px;
       margin: 24px 0;
     }
-    .divider-or::before, .divider-or::after {
+
+    .divider-or::before,
+    .divider-or::after {
       content: '';
       flex: 1;
       height: 1px;
       background: var(--border-soft);
     }
+
     .divider-or span {
       font-size: 12px;
       color: var(--text-muted);
@@ -289,13 +402,17 @@
       font-size: 14px;
       color: var(--text-muted);
     }
+
     .auth-footer a {
       color: var(--green);
       font-weight: 700;
       cursor: pointer;
       text-decoration: none;
     }
-    .auth-footer a:hover { text-decoration: underline; }
+
+    .auth-footer a:hover {
+      text-decoration: underline;
+    }
 
     /* ── BACK LINK ── */
     .back-btn {
@@ -313,7 +430,10 @@
       margin-bottom: 24px;
       transition: color 0.2s;
     }
-    .back-btn:hover { color: var(--green); }
+
+    .back-btn:hover {
+      color: var(--green);
+    }
 
     /* ── ERROR ALERT ── */
     .error-alert {
@@ -330,9 +450,17 @@
       margin-bottom: 20px;
       animation: fadeInDown 0.3s ease;
     }
+
     @keyframes fadeInDown {
-      from { opacity: 0; transform: translateY(-8px); }
-      to   { opacity: 1; transform: translateY(0); }
+      from {
+        opacity: 0;
+        transform: translateY(-8px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
     }
 
     /* ── SECURITY BADGE ── */
@@ -357,6 +485,7 @@
       flex-direction: column;
       gap: 10px;
     }
+
     .toast {
       min-width: 300px;
       background: #fff;
@@ -365,27 +494,70 @@
       display: flex;
       align-items: center;
       gap: 12px;
-      box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
       border: 1px solid var(--border);
       font-size: 14px;
       font-weight: 500;
       animation: slideInRight 0.3s ease;
     }
-    .toast.success { border-left: 4px solid var(--green); }
-    .toast.error   { border-left: 4px solid var(--danger); }
-    @keyframes slideInRight  { from { transform: translateX(120px); opacity: 0; } to { transform: none; opacity: 1; } }
-    @keyframes slideOutRight { from { transform: none; opacity: 1; } to { transform: translateX(120px); opacity: 0; } }
+
+    .toast.success {
+      border-left: 4px solid var(--green);
+    }
+
+    .toast.error {
+      border-left: 4px solid var(--danger);
+    }
+
+    @keyframes slideInRight {
+      from {
+        transform: translateX(120px);
+        opacity: 0;
+      }
+
+      to {
+        transform: none;
+        opacity: 1;
+      }
+    }
+
+    @keyframes slideOutRight {
+      from {
+        transform: none;
+        opacity: 1;
+      }
+
+      to {
+        transform: translateX(120px);
+        opacity: 0;
+      }
+    }
 
     /* ── SHAKE ANIMATION ── */
     @keyframes shakeX {
-      0%,100%  { transform: translateX(0); }
-      20%,60%  { transform: translateX(-8px); }
-      40%,80%  { transform: translateX(8px); }
+
+      0%,
+      100% {
+        transform: translateX(0);
+      }
+
+      20%,
+      60% {
+        transform: translateX(-8px);
+      }
+
+      40%,
+      80% {
+        transform: translateX(8px);
+      }
     }
 
     /* ── RESPONSIVE ── */
     @media (max-width: 1100px) {
-      .brand-panel { display: none; }
+      .brand-panel {
+        display: none;
+      }
+
       .login-grid {
         grid-template-columns: 1fr;
         justify-items: center;
@@ -393,6 +565,7 @@
     }
   </style>
 </head>
+
 <body>
   <!-- Animated Background -->
   <div class="bg-canvas">
@@ -411,7 +584,8 @@
     <div class="brand-panel">
       <div>
         <div class="brand-panel-logo">STAT<span>XTRACT</span></div>
-        <p class="brand-panel-tagline">India's premier platform for accessing verified government statistics and Data Analytics.</p>
+        <p class="brand-panel-tagline">India's premier platform for accessing verified government statistics and Data
+          Analytics.</p>
       </div>
       <div class="brand-feature-list">
         <div class="brand-feature">
@@ -437,7 +611,9 @@
     <div class="auth-card" id="authCard">
       <!-- Back Button -->
       <button class="back-btn" onclick="window.location.href='/user/module-selection'">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <polyline points="15 18 9 12 15 6" />
+        </svg>
         Back to Portal
       </button>
 
@@ -446,7 +622,9 @@
 
       <!-- Error Alert -->
       <div class="error-alert hidden" id="errorMsg">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+        </svg>
         <span id="errorText">Invalid credentials. Please try again.</span>
       </div>
 
@@ -457,9 +635,13 @@
           <label class="field-label" for="email">Email Address</label>
           <div class="input-group">
             <span class="input-icon">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,12 2,6"/></svg>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+                <polyline points="22,6 12,12 2,6" />
+              </svg>
             </span>
-            <input type="email" id="email" name="username" class="field-input" placeholder="you@example.com" autocomplete="email" required>
+            <input type="email" id="email" name="username" class="field-input" placeholder="you@example.com"
+              autocomplete="email" required>
           </div>
         </div>
 
@@ -468,11 +650,19 @@
           <label class="field-label" for="password">Password</label>
           <div class="input-group">
             <span class="input-icon">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
             </span>
-            <input type="password" id="password" name="password" class="field-input" placeholder="••••••••" autocomplete="current-password" required>
+            <input type="password" id="password" name="password" class="field-input" placeholder="••••••••"
+              autocomplete="current-password" required>
             <button type="button" class="pw-eye" id="pwToggle" title="Show/Hide">
-              <svg id="eyeIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              <svg id="eyeIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
             </button>
           </div>
         </div>
@@ -491,7 +681,11 @@
 
         <!-- Submit -->
         <button type="submit" class="submit-btn" id="submitBtn">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+            <polyline points="10 17 15 12 10 7" />
+            <line x1="15" y1="12" x2="3" y2="12" />
+          </svg>
           <span>Sign In to Account</span>
         </button>
       </form>
@@ -503,7 +697,10 @@
       </p>
 
       <div class="security-note">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="11" width="18" height="11" rx="2" />
+          <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+        </svg>
         Secured with JWT authentication &middot; Data encrypted in transit
       </div>
     </div>
@@ -515,7 +712,7 @@
   <script>
     // ── Password Toggle ──
     const pwToggle = document.getElementById('pwToggle');
-    const pwInput  = document.getElementById('password');
+    const pwInput = document.getElementById('password');
     pwToggle.addEventListener('click', () => {
       const isText = pwInput.type === 'text';
       pwInput.type = isText ? 'password' : 'text';
@@ -525,14 +722,14 @@
     });
 
     // ── Form Submission ──
-    const form      = document.getElementById('loginForm');
+    const form = document.getElementById('loginForm');
     const submitBtn = document.getElementById('submitBtn');
-    const errorMsg  = document.getElementById('errorMsg');
+    const errorMsg = document.getElementById('errorMsg');
     const errorText = document.getElementById('errorText');
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const email    = document.getElementById('email').value.trim();
+      const email = document.getElementById('email').value.trim();
       const password = document.getElementById('password').value;
 
       // Client-side Validation
@@ -624,10 +821,10 @@
 
     function showToast(msg, type = 'info') {
       const tc = document.getElementById('toastContainer');
-      const t  = document.createElement('div');
+      const t = document.createElement('div');
       t.className = `toast ${type}`;
       const icons = { success: '✅', error: '❌', info: 'ℹ️' };
-      t.innerHTML = `<span>${icons[type]||'ℹ️'}</span><span>${msg}</span>`;
+      t.innerHTML = `<span>${icons[type] || 'ℹ️'}</span><span>${msg}</span>`;
       tc.appendChild(t);
       setTimeout(() => {
         t.style.animation = 'slideOutRight 0.3s ease forwards';
@@ -655,4 +852,5 @@
     }
   </script>
 </body>
+
 </html>

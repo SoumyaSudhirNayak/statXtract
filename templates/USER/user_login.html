@@ -1,10 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sign In — STATXTRACT User Portal</title>
-  <meta name="description" content="Sign in to the STATXTRACT user portal to access verified government data and analytics tools.">
+  <meta name="description"
+    content="Sign in to the STATXTRACT user portal to access verified government data and analytics tools.">
   <link rel="stylesheet" href="/static/user_styles.css">
   <style>
     /* ── PAGE-SPECIFIC ── */
@@ -14,6 +16,7 @@
       flex-direction: column;
       background: linear-gradient(135deg, #F5F7FA 0%, #EEF3FB 55%, #E9EEF7 100%);
     }
+
     .page-wrapper {
       flex: 1;
       display: flex;
@@ -23,14 +26,17 @@
       position: relative;
       z-index: 1;
     }
+
     .auth-container {
       width: 100%;
       max-width: 520px;
     }
+
     .brand-header {
       text-align: center;
       margin-bottom: 32px;
     }
+
     .brand-logo {
       font-family: var(--font-head);
       font-size: 42px;
@@ -41,14 +47,19 @@
       cursor: pointer;
       transition: opacity 0.2s;
     }
-    .brand-logo:hover { opacity: 0.85; }
+
+    .brand-logo:hover {
+      opacity: 0.85;
+    }
+
     .brand-tagline {
       font-size: 14px;
       color: var(--text-muted);
       margin-top: 6px;
     }
+
     .auth-card {
-      background: rgba(255,255,255,0.92);
+      background: rgba(255, 255, 255, 0.92);
       backdrop-filter: blur(16px);
       border: 2px solid var(--border);
       border-radius: var(--radius-xl);
@@ -58,25 +69,39 @@
       position: relative;
       overflow: hidden;
     }
+
     .auth-card::before {
       content: '';
       position: absolute;
-      top: 0; left: 0; right: 0;
+      top: 0;
+      left: 0;
+      right: 0;
       height: 3px;
       background: linear-gradient(90deg, var(--green), var(--saffron), var(--green));
       background-size: 200% 100%;
       animation: gradientShift 3s ease infinite;
     }
+
     @keyframes gradientShift {
-      0%   { background-position: 0% 50%; }
-      50%  { background-position: 100% 50%; }
-      100% { background-position: 0% 50%; }
+      0% {
+        background-position: 0% 50%;
+      }
+
+      50% {
+        background-position: 100% 50%;
+      }
+
+      100% {
+        background-position: 0% 50%;
+      }
     }
+
     .auth-card:hover {
       border-color: var(--green);
-      box-shadow: 0 25px 70px rgba(46,125,50,0.18);
+      box-shadow: 0 25px 70px rgba(46, 125, 50, 0.18);
       transform: translateY(-2px);
     }
+
     .auth-title {
       font-family: var(--font-head);
       font-size: 26px;
@@ -84,14 +109,17 @@
       color: var(--text-main);
       margin-bottom: 6px;
     }
+
     .auth-subtitle {
       font-size: 14px;
       color: var(--text-muted);
       margin-bottom: 30px;
     }
+
     .form-input-icon {
       position: relative;
     }
+
     .form-input-icon .icon {
       position: absolute;
       left: 14px;
@@ -101,9 +129,11 @@
       font-size: 16px;
       pointer-events: none;
     }
+
     .form-input-icon .form-input {
       padding-left: 44px;
     }
+
     .pw-toggle {
       position: absolute;
       right: 14px;
@@ -117,7 +147,11 @@
       padding: 2px;
       transition: color 0.2s;
     }
-    .pw-toggle:hover { color: var(--green); }
+
+    .pw-toggle:hover {
+      color: var(--green);
+    }
+
     .auth-btn {
       width: 100%;
       padding: 15px;
@@ -138,38 +172,52 @@
       position: relative;
       overflow: hidden;
     }
+
     .auth-btn::before {
       content: '';
       position: absolute;
-      top: 0; left: -100%;
-      width: 100%; height: 100%;
-      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
       transition: left 0.4s;
     }
-    .auth-btn:hover::before { left: 100%; }
+
+    .auth-btn:hover::before {
+      left: 100%;
+    }
+
     .auth-btn:hover {
       border-color: var(--saffron);
-      box-shadow: 0 8px 30px rgba(46,125,50,0.5), 0 0 40px rgba(144,238,144,0.3);
+      box-shadow: 0 8px 30px rgba(46, 125, 50, 0.5), 0 0 40px rgba(144, 238, 144, 0.3);
       transform: translateY(-2px);
     }
+
     .auth-btn:disabled {
       opacity: 0.7;
       cursor: not-allowed;
       transform: none;
     }
+
     .auth-footer {
       text-align: center;
       margin-top: 22px;
       font-size: 14px;
       color: var(--text-muted);
     }
+
     .auth-footer a {
       color: var(--green);
       font-weight: 700;
       cursor: pointer;
       transition: color 0.2s;
     }
-    .auth-footer a:hover { color: var(--green-dark); }
+
+    .auth-footer a:hover {
+      color: var(--green-dark);
+    }
+
     .error-message {
       background: #FFEBEE;
       border: 1px solid #FFCDD2;
@@ -183,24 +231,29 @@
       gap: 8px;
       margin-bottom: 20px;
     }
+
     .divider-or {
       display: flex;
       align-items: center;
       gap: 12px;
       margin: 20px 0;
     }
-    .divider-or::before, .divider-or::after {
+
+    .divider-or::before,
+    .divider-or::after {
       content: '';
       flex: 1;
       height: 1px;
       background: var(--border-soft);
     }
+
     .divider-or span {
       font-size: 12px;
       color: var(--text-muted);
       text-transform: uppercase;
       letter-spacing: 1px;
     }
+
     /* Floating particles */
     .particle {
       position: fixed;
@@ -210,20 +263,41 @@
       pointer-events: none;
       z-index: 0;
     }
+
     @keyframes floatParticle {
-      0%   { transform: translateY(100vh) rotate(0deg); opacity: 0; }
-      10%  { opacity: 0.08; }
-      90%  { opacity: 0.08; }
-      100% { transform: translateY(-100px) rotate(360deg); opacity: 0; }
+      0% {
+        transform: translateY(100vh) rotate(0deg);
+        opacity: 0;
+      }
+
+      10% {
+        opacity: 0.08;
+      }
+
+      90% {
+        opacity: 0.08;
+      }
+
+      100% {
+        transform: translateY(-100px) rotate(360deg);
+        opacity: 0;
+      }
     }
   </style>
 </head>
+
 <body>
   <!-- Animated Background -->
   <div class="animated-bg">
-    <div class="animated-bg-blob" style="width:700px;height:700px;background:radial-gradient(circle,#2E7D32,transparent 70%);top:-200px;left:-200px;"></div>
-    <div class="animated-bg-blob" style="width:500px;height:500px;background:radial-gradient(circle,#2E5BBA,transparent 70%);bottom:-100px;right:-100px;animation-delay:-10s;animation-duration:28s;"></div>
-    <div class="animated-bg-blob" style="width:300px;height:300px;background:radial-gradient(circle,#F4A300,transparent 70%);top:40%;left:60%;opacity:0.04;animation-duration:22s;animation-delay:-5s;"></div>
+    <div class="animated-bg-blob"
+      style="width:700px;height:700px;background:radial-gradient(circle,#2E7D32,transparent 70%);top:-200px;left:-200px;">
+    </div>
+    <div class="animated-bg-blob"
+      style="width:500px;height:500px;background:radial-gradient(circle,#2E5BBA,transparent 70%);bottom:-100px;right:-100px;animation-delay:-10s;animation-duration:28s;">
+    </div>
+    <div class="animated-bg-blob"
+      style="width:300px;height:300px;background:radial-gradient(circle,#F4A300,transparent 70%);top:40%;left:60%;opacity:0.04;animation-duration:22s;animation-delay:-5s;">
+    </div>
   </div>
 
   <!-- Toast Container -->
@@ -240,8 +314,11 @@
 
       <!-- Auth Card -->
       <div class="auth-card" id="authCard">
-        <button class="btn-back" type="button" onclick="window.location.href='/user/module-selection'" style="margin-bottom: 12px; display: inline-flex; align-items: center; gap: 8px; background: none; border: none; font-size: 14px; color: var(--text-muted); cursor: pointer; font-family: var(--font-body); font-weight: 600; padding: 6px 0; transition: color 0.2s;">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+        <button class="btn-back" type="button" onclick="window.location.href='/user/module-selection'"
+          style="margin-bottom: 12px; display: inline-flex; align-items: center; gap: 8px; background: none; border: none; font-size: 14px; color: var(--text-muted); cursor: pointer; font-family: var(--font-body); font-weight: 600; padding: 6px 0; transition: color 0.2s;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
           Back
         </button>
         <h1 class="auth-title">Welcome back 👋</h1>
@@ -249,7 +326,10 @@
 
         <!-- Error Alert -->
         <div class="error-message hidden" id="errorMsg">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <path
+              d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+          </svg>
           <span id="errorText">Invalid credentials. Please try again.</span>
         </div>
 
@@ -259,16 +339,13 @@
           <div class="form-field">
             <label class="form-label" for="email">Email Address</label>
             <div class="form-input-icon">
-              <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,12 2,6"></polyline></svg>
-              <input
-                type="email"
-                id="email"
-                name="username"
-                class="form-input"
-                placeholder="you@example.com"
-                autocomplete="email"
-                required
-              >
+              <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2">
+                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                <polyline points="22,6 12,12 2,6"></polyline>
+              </svg>
+              <input type="email" id="email" name="username" class="form-input" placeholder="you@example.com"
+                autocomplete="email" required>
             </div>
           </div>
 
@@ -276,25 +353,30 @@
           <div class="form-field">
             <label class="form-label" for="password">Password</label>
             <div class="form-input-icon">
-              <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
-              <input
-                type="password"
-                id="password"
-                name="password"
-                class="form-input"
-                placeholder="••••••••"
-                autocomplete="current-password"
-                required
-              >
+              <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+              </svg>
+              <input type="password" id="password" name="password" class="form-input" placeholder="••••••••"
+                autocomplete="current-password" required>
               <button type="button" class="pw-toggle" id="togglePw" title="Show/Hide Password">
-                <svg id="eyeIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                <svg id="eyeIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  stroke-width="2">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                  <circle cx="12" cy="12" r="3"></circle>
+                </svg>
               </button>
             </div>
           </div>
 
           <!-- Submit -->
           <button type="submit" class="auth-btn" id="submitBtn">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path><polyline points="10 17 15 12 10 7"></polyline><line x1="15" y1="12" x2="3" y2="12"></line></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+              <polyline points="10 17 15 12 10 7"></polyline>
+              <line x1="15" y1="12" x2="3" y2="12"></line>
+            </svg>
             <span>Sign In</span>
           </button>
         </form>
@@ -317,7 +399,7 @@
   <script>
     // ── Password toggle ──
     const togglePw = document.getElementById('togglePw');
-    const pwInput  = document.getElementById('password');
+    const pwInput = document.getElementById('password');
     togglePw.addEventListener('click', () => {
       const isText = pwInput.type === 'text';
       pwInput.type = isText ? 'password' : 'text';
@@ -327,14 +409,14 @@
     });
 
     // ── Form Submission ──
-    const form      = document.getElementById('loginForm');
+    const form = document.getElementById('loginForm');
     const submitBtn = document.getElementById('submitBtn');
-    const errorMsg  = document.getElementById('errorMsg');
+    const errorMsg = document.getElementById('errorMsg');
     const errorText = document.getElementById('errorText');
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const email    = document.getElementById('email').value.trim();
+      const email = document.getElementById('email').value.trim();
       const password = document.getElementById('password').value;
 
       // Validation
@@ -424,10 +506,10 @@
     // ── Toast ──
     function showToast(msg, type = 'info') {
       const tc = document.getElementById('toastContainer');
-      const t  = document.createElement('div');
+      const t = document.createElement('div');
       t.className = `toast ${type}`;
-      const icons = {success:'✅', error:'❌', info:'ℹ️'};
-      t.innerHTML = `<span>${icons[type]||'ℹ️'}</span><span>${msg}</span>`;
+      const icons = { success: '✅', error: '❌', info: 'ℹ️' };
+      t.innerHTML = `<span>${icons[type] || 'ℹ️'}</span><span>${msg}</span>`;
       tc.appendChild(t);
       setTimeout(() => { t.style.animation = 'slideOutRight 0.3s ease forwards'; setTimeout(() => t.remove(), 300); }, 4000);
     }
@@ -440,4 +522,5 @@
     }
   </script>
 </body>
+
 </html>
