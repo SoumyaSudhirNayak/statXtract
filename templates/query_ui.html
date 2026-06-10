@@ -2715,6 +2715,120 @@
             return result;
         }
 
+        // Helper to generate a theme-independent chart image (white background, black text/axes/titles)
+        function getThemeIndependentChartDataURL(format, quality) {
+            const originalCanvas = document.getElementById('myChart');
+            if (!originalCanvas || !currentChart) return '';
+
+            // Create temporary canvas
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = originalCanvas.width;
+            tempCanvas.height = originalCanvas.height;
+
+            const config = currentChart.config;
+            const xCol = document.getElementById('xAxis').value;
+            const yCol = document.getElementById('yAxis').value;
+
+            // Safely build options object manually to avoid circular references in config.options
+            const options = {
+                responsive: false,
+                maintainAspectRatio: false,
+                animation: false
+            };
+
+            if (config.options && config.options.interaction) {
+                options.interaction = Object.assign({}, config.options.interaction);
+            }
+
+            options.plugins = {};
+
+            // Title
+            if (config.options && config.options.plugins && config.options.plugins.title) {
+                options.plugins.title = Object.assign({}, config.options.plugins.title);
+                options.plugins.title.color = '#000000';
+                if (!options.plugins.title.font) options.plugins.title.font = {};
+                options.plugins.title.font = Object.assign({}, options.plugins.title.font);
+                options.plugins.title.font.weight = 'bold';
+            } else {
+                options.plugins.title = {
+                    display: true,
+                    text: `${yCol} by ${xCol}`,
+                    font: { size: 18, weight: 'bold' },
+                    color: '#000000'
+                };
+            }
+
+            // Legend
+            if (config.options && config.options.plugins && config.options.plugins.legend) {
+                options.plugins.legend = Object.assign({}, config.options.plugins.legend);
+                if (options.plugins.legend.labels) {
+                    options.plugins.legend.labels = Object.assign({}, options.plugins.legend.labels);
+                    options.plugins.legend.labels.color = '#000000';
+                }
+            }
+
+            // Scales
+            options.scales = {};
+            if (config.options && config.options.scales) {
+                for (const key in config.options.scales) {
+                    const originalScale = config.options.scales[key];
+                    if (!originalScale) continue;
+
+                    const scaleCopy = {};
+
+                    if (originalScale.title) {
+                        scaleCopy.title = Object.assign({}, originalScale.title);
+                        scaleCopy.title.color = '#000000';
+                    }
+                    if (originalScale.ticks) {
+                        scaleCopy.ticks = Object.assign({}, originalScale.ticks);
+                        scaleCopy.ticks.color = '#000000';
+                    }
+                    if (originalScale.grid) {
+                        scaleCopy.grid = Object.assign({}, originalScale.grid);
+                        const col = scaleCopy.grid.color;
+                        if (typeof col === 'string' && (col.includes('255') || col.includes('rgba(255') || col.includes('#fff') || col.includes('white'))) {
+                            scaleCopy.grid.color = 'rgba(17, 24, 39, 0.12)';
+                        }
+                    }
+
+                    options.scales[key] = scaleCopy;
+                }
+            }
+
+            // Plugin to fill background with white
+            const whiteBackgroundPlugin = {
+                id: 'customCanvasBackgroundColor',
+                beforeDraw: (chart) => {
+                    const {ctx} = chart;
+                    ctx.save();
+                    ctx.globalCompositeOperation = 'destination-over';
+                    ctx.fillStyle = '#FFFFFF';
+                    ctx.fillRect(0, 0, chart.width, chart.height);
+                    ctx.restore();
+                }
+            };
+
+            // Instantiate temporary chart
+            const tempChart = new Chart(tempCanvas, {
+                type: config.type,
+                data: config.data,
+                options: options,
+                plugins: [whiteBackgroundPlugin]
+            });
+
+            // Render it
+            tempChart.update('none');
+
+            // Get data URL
+            const dataURL = tempCanvas.toDataURL(format, quality);
+
+            // Clean up
+            tempChart.destroy();
+
+            return dataURL;
+        }
+
         // Chart Download Functions
         function downloadChartPNG() {
             if (!currentChart) {
@@ -2722,9 +2836,10 @@
                 return;
             }
 
+            const dataURL = getThemeIndependentChartDataURL('image/png', 1);
             const link = document.createElement('a');
             link.download = `chart_${getCurrentTimestamp()}.png`;
-            link.href = currentChart.toBase64Image('image/png', 1);
+            link.href = dataURL;
             link.click();
             showToast('Chart downloaded as PNG!', 'success');
         }
@@ -2735,9 +2850,10 @@
                 return;
             }
 
+            const dataURL = getThemeIndependentChartDataURL('image/jpeg', 0.9);
             const link = document.createElement('a');
             link.download = `chart_${getCurrentTimestamp()}.jpg`;
-            link.href = currentChart.toBase64Image('image/jpeg', 0.9);
+            link.href = dataURL;
             link.click();
             showToast('Chart downloaded as JPEG!', 'success');
         }
@@ -2748,8 +2864,9 @@
                 return;
             }
 
-            const canvas = document.getElementById('myChart');
-            const svgString = canvasToSVG(canvas);
+            const originalCanvas = document.getElementById('myChart');
+            const dataURL = getThemeIndependentChartDataURL('image/png', 1);
+            const svgString = canvasToSVG(dataURL, originalCanvas.width, originalCanvas.height);
             const blob = new Blob([svgString], { type: 'image/svg+xml' });
             const link = document.createElement('a');
             link.download = `chart_${getCurrentTimestamp()}.svg`;
@@ -2794,8 +2911,8 @@
                 pdf.text(`Generated: ${new Date().toLocaleString()}`, 20, 40);
                 pdf.text(`Records: ${latestResults.length}`, 20, 45);
 
-                const canvas = document.getElementById('myChart');
-                const canvasImg = canvas.toDataURL('image/png', 1.0);
+                const originalCanvas = document.getElementById('myChart');
+                const canvasImg = getThemeIndependentChartDataURL('image/png', 1.0);
                 const imgWidth = 250;
                 const imgHeight = 150;
 
@@ -2844,16 +2961,12 @@
         }
 
         // Utility Functions
-        function canvasToSVG(canvas) {
-            const width = canvas.width;
-            const height = canvas.height;
-            const dataURL = canvas.toDataURL();
-
+        function canvasToSVG(dataURL, width, height) {
             return `<?xml version="1.0" encoding="UTF-8"?>
                     <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" 
                          width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-                        <title>Chart Export</title>
-                        <image x="0" y="0" width="${width}" height="${height}" xlink:href="${dataURL}"/>
+                         <title>Chart Export</title>
+                         <image x="0" y="0" width="${width}" height="${height}" xlink:href="${dataURL}"/>
                     </svg>`;
         }
 

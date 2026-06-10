@@ -8,6 +8,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/user_styles.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/docx-preview@0.1.15/dist/docx-preview.min.js"></script>
   <script>
     (function() {
       const theme = localStorage.getItem('userTheme') || 'light';
@@ -716,6 +718,29 @@
       50% { transform: scale(1.05); opacity: 1; }
       100% { transform: scale(1); opacity: 0.8; }
     }
+
+    /* DOCX Viewer styles */
+    .docx-viewer-outer {
+        background-color: #525659;
+        overflow-y: auto;
+        height: 100%;
+        min-height: 550px;
+        width: 100%;
+        box-sizing: border-box;
+    }
+    .docx-viewer-outer .docx-wrapper {
+        background-color: #525659 !important;
+        padding: 20px !important;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+    .docx-viewer-outer .docx {
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+        background: #ffffff !important;
+        color: #000000 !important;
+        margin-bottom: 30px !important;
+    }
   </style>
 </head>
 <body>
@@ -1034,6 +1059,8 @@
     let chartInstance = null;
     let readmePdfUrl = '';
     let objectivesPdfUrl = '';
+    let readmeFilename = '';
+    let objectivesFilename = '';
     let currentReadmeMode = 'rendered';
     let currentObjectivesMode = 'rendered';
 
@@ -1072,7 +1099,38 @@
         pdfDiv.style.display = 'block';
         btnRendered.classList.remove('active');
         btnPdf.classList.add('active');
-        pdfDiv.innerHTML = `<iframe src="${readmePdfUrl}" width="100%" height="100%" style="border: none;"></iframe>`;
+        
+        const lowerName = readmeFilename.toLowerCase();
+        if (lowerName.endsWith('.docx')) {
+          if (!pdfDiv.querySelector('.docx-viewer-outer')) {
+            pdfDiv.innerHTML = `
+                <div class="docx-loading" style="text-align: center; padding: 40px; color: var(--text-muted);">
+                    <i class="fas fa-spinner fa-spin" style="font-size: 2rem; color: var(--primary-color);"></i>
+                    <p style="margin-top: 15px;">Loading Word Document...</p>
+                </div>
+            `;
+            fetch(readmePdfUrl)
+              .then(res => {
+                 if (!res.ok) throw new Error("Could not download file.");
+                 return res.arrayBuffer();
+              })
+              .then(arrayBuffer => {
+                 pdfDiv.innerHTML = `<div class="docx-viewer-outer"></div>`;
+                 const container = pdfDiv.querySelector('.docx-viewer-outer');
+                 return docx.renderAsync(arrayBuffer, container);
+              })
+              .catch(err => {
+                 pdfDiv.innerHTML = `
+                     <div style="text-align: center; padding: 40px; color: var(--danger);">
+                         <i class="fas fa-exclamation-triangle" style="font-size: 2rem;"></i>
+                         <p style="margin-top: 15px; font-weight: 600;">Failed to load DOCX: ${err.message}</p>
+                     </div>
+                 `;
+              });
+          }
+        } else {
+          pdfDiv.innerHTML = `<iframe src="${readmePdfUrl}" width="100%" height="100%" style="border: none;"></iframe>`;
+        }
       } else {
         contentDiv.style.display = 'block';
         pdfDiv.style.display = 'none';
@@ -1093,7 +1151,38 @@
         pdfDiv.style.display = 'block';
         btnRendered.classList.remove('active');
         btnPdf.classList.add('active');
-        pdfDiv.innerHTML = `<iframe src="${objectivesPdfUrl}" width="100%" height="100%" style="border: none;"></iframe>`;
+        
+        const lowerName = objectivesFilename.toLowerCase();
+        if (lowerName.endsWith('.docx')) {
+          if (!pdfDiv.querySelector('.docx-viewer-outer')) {
+            pdfDiv.innerHTML = `
+                <div class="docx-loading" style="text-align: center; padding: 40px; color: var(--text-muted);">
+                    <i class="fas fa-spinner fa-spin" style="font-size: 2rem; color: var(--primary-color);"></i>
+                    <p style="margin-top: 15px;">Loading Word Document...</p>
+                </div>
+            `;
+            fetch(objectivesPdfUrl)
+              .then(res => {
+                 if (!res.ok) throw new Error("Could not download file.");
+                 return res.arrayBuffer();
+              })
+              .then(arrayBuffer => {
+                 pdfDiv.innerHTML = `<div class="docx-viewer-outer"></div>`;
+                 const container = pdfDiv.querySelector('.docx-viewer-outer');
+                 return docx.renderAsync(arrayBuffer, container);
+              })
+              .catch(err => {
+                 pdfDiv.innerHTML = `
+                     <div style="text-align: center; padding: 40px; color: var(--danger);">
+                         <i class="fas fa-exclamation-triangle" style="font-size: 2rem;"></i>
+                         <p style="margin-top: 15px; font-weight: 600;">Failed to load DOCX: ${err.message}</p>
+                     </div>
+                 `;
+              });
+          }
+        } else {
+          pdfDiv.innerHTML = `<iframe src="${objectivesPdfUrl}" width="100%" height="100%" style="border: none;"></iframe>`;
+        }
       } else {
         contentDiv.style.display = 'block';
         pdfDiv.style.display = 'none';
@@ -1551,8 +1640,17 @@
               document.getElementById('btnExpandReadme').style.display = 'none';
             }
 
-            if (data && data.filename && data.filename.toLowerCase().endsWith('.pdf')) {
+            readmeFilename = (data && data.filename) ? data.filename : '';
+            const lowerName = readmeFilename.toLowerCase();
+            const isPdfOrDocx = lowerName.endsWith('.pdf') || lowerName.endsWith('.docx');
+            if (data && isPdfOrDocx) {
               readmePdfUrl = `/api/user/explore/document/raw?schema=${activeSchema}&doc_type=readme&table=${activeTable}`;
+              const btnReadmePdf = document.getElementById('btnReadmePdf');
+              if (lowerName.endsWith('.docx')) {
+                btnReadmePdf.textContent = 'DOCX Viewer';
+              } else {
+                btnReadmePdf.textContent = 'PDF Viewer';
+              }
               document.getElementById('readmeModeToggle').style.display = 'flex';
               document.getElementById('btnExpandReadme').style.display = 'inline-block';
             }
@@ -1584,8 +1682,17 @@
               document.getElementById('btnExpandObjectives').style.display = 'none';
             }
 
-            if (data && data.filename && data.filename.toLowerCase().endsWith('.pdf')) {
+            objectivesFilename = (data && data.filename) ? data.filename : '';
+            const lowerName = objectivesFilename.toLowerCase();
+            const isPdfOrDocx = lowerName.endsWith('.pdf') || lowerName.endsWith('.docx');
+            if (data && isPdfOrDocx) {
               objectivesPdfUrl = `/api/user/explore/document/raw?schema=${activeSchema}&doc_type=objectives&table=${activeTable}`;
+              const btnObjectivesPdf = document.getElementById('btnObjectivesPdf');
+              if (lowerName.endsWith('.docx')) {
+                btnObjectivesPdf.textContent = 'DOCX Viewer';
+              } else {
+                btnObjectivesPdf.textContent = 'PDF Viewer';
+              }
               document.getElementById('objectivesModeToggle').style.display = 'flex';
               document.getElementById('btnExpandObjectives').style.display = 'inline-block';
             }
@@ -1631,6 +1738,12 @@
       
       if (isPdf) {
         modeToggle.style.display = 'flex';
+        const btnModalPdf = document.getElementById('btnModalPdf');
+        if (readmeFilename.toLowerCase().endsWith('.docx')) {
+          btnModalPdf.textContent = 'DOCX Viewer';
+        } else {
+          btnModalPdf.textContent = 'PDF Viewer';
+        }
         if (currentReadmeMode === 'pdf') {
           setModalMode('pdf');
         } else {
@@ -1663,6 +1776,12 @@
       
       if (isPdf) {
         modeToggle.style.display = 'flex';
+        const btnModalPdf = document.getElementById('btnModalPdf');
+        if (objectivesFilename.toLowerCase().endsWith('.docx')) {
+          btnModalPdf.textContent = 'DOCX Viewer';
+        } else {
+          btnModalPdf.textContent = 'PDF Viewer';
+        }
         if (currentObjectivesMode === 'pdf') {
           setModalMode('pdf');
         } else {
@@ -1699,8 +1818,40 @@
         pdfViewer.style.width = '100%';
         
         const pdfUrl = currentExpandedDoc === 'readme' ? readmePdfUrl : objectivesPdfUrl;
-        if (!pdfViewer.querySelector('iframe')) {
-          pdfViewer.innerHTML = `<iframe src="${pdfUrl}" width="100%" height="100%" style="border: none; flex-grow: 1; min-height: 75vh;"></iframe>`;
+        const currentFilename = currentExpandedDoc === 'readme' ? readmeFilename : objectivesFilename;
+        const lowerName = currentFilename.toLowerCase();
+        
+        if (lowerName.endsWith('.docx')) {
+          if (!pdfViewer.querySelector('.docx-viewer-outer')) {
+            pdfViewer.innerHTML = `
+                <div class="docx-loading" style="text-align: center; padding: 40px; color: var(--text-muted);">
+                    <i class="fas fa-spinner fa-spin" style="font-size: 2rem; color: var(--primary-color);"></i>
+                    <p style="margin-top: 15px;">Loading Word Document...</p>
+                </div>
+            `;
+            fetch(pdfUrl)
+              .then(res => {
+                 if (!res.ok) throw new Error("Could not download file.");
+                 return res.arrayBuffer();
+              })
+              .then(arrayBuffer => {
+                 pdfViewer.innerHTML = `<div class="docx-viewer-outer"></div>`;
+                 const container = pdfViewer.querySelector('.docx-viewer-outer');
+                 return docx.renderAsync(arrayBuffer, container);
+              })
+              .catch(err => {
+                 pdfViewer.innerHTML = `
+                     <div style="text-align: center; padding: 40px; color: var(--danger);">
+                         <i class="fas fa-exclamation-triangle" style="font-size: 2rem;"></i>
+                         <p style="margin-top: 15px; font-weight: 600;">Failed to load DOCX: ${err.message}</p>
+                     </div>
+                 `;
+              });
+          }
+        } else {
+          if (!pdfViewer.querySelector('iframe')) {
+            pdfViewer.innerHTML = `<iframe src="${pdfUrl}" width="100%" height="100%" style="border: none; flex-grow: 1; min-height: 75vh;"></iframe>`;
+          }
         }
       } else {
         renderedContent.style.display = 'block';
