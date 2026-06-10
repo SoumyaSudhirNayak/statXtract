@@ -60,6 +60,7 @@ def scan_batch_archive(temp_dir: str) -> List[Dict[str, Any]]:
         layout_files = []
         dataset_files = []
         documentation_files = []
+        reference_mapping_files = []
         unsupported_files = []
         total_size = 0
         file_tree = []
@@ -74,7 +75,11 @@ def scan_batch_archive(temp_dir: str) -> List[Dict[str, Any]]:
             elif is_layout_file(f):
                 layout_files.append(rel_path)
             elif is_dataset_file(f):
-                dataset_files.append(rel_path)
+                from utils.reference_mapping import is_reference_mapping_file
+                if is_reference_mapping_file(f):
+                    reference_mapping_files.append(rel_path)
+                else:
+                    dataset_files.append(rel_path)
             elif is_documentation_file(f):
                 documentation_files.append(rel_path)
             else:
@@ -117,6 +122,7 @@ def scan_batch_archive(temp_dir: str) -> List[Dict[str, Any]]:
             "layout_files": layout_files,
             "dataset_files": dataset_files,
             "documentation_files": documentation_files,
+            "reference_mapping_files": reference_mapping_files,
             "validation": validation,
             "table_naming_previews": table_naming_previews
         })

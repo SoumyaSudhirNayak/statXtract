@@ -52,7 +52,15 @@ def resolve_target_mappings(surveys: List[Dict[str, Any]], custom_mappings: Dict
                     continue
                 resolved_docs.append(doc_file)
                 
-        if not resolved_files and not resolved_docs:
+        resolved_refs = []
+        if "reference_mapping_files" in survey:
+            for ref_file in survey["reference_mapping_files"]:
+                ref_override = override.get("reference_mapping_files", {}).get(ref_file, {})
+                if ref_override.get("skip", False):
+                    continue
+                resolved_refs.append(ref_file)
+                
+        if not resolved_files and not resolved_docs and not resolved_refs:
             continue
             
         resolved.append({
@@ -62,7 +70,8 @@ def resolve_target_mappings(surveys: List[Dict[str, Any]], custom_mappings: Dict
             "ddi_files": survey["ddi_files"],
             "layout_files": survey["layout_files"],
             "files": resolved_files,
-            "documentation_files": resolved_docs
+            "documentation_files": resolved_docs,
+            "reference_mapping_files": resolved_refs
         })
         
     return resolved

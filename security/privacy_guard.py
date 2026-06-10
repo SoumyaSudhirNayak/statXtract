@@ -135,6 +135,111 @@ async def apply_privacy_and_labeling(conn, schema: str, table: str, user_role: s
     role_name = _normalize_role(user_role)
     labels = labels or {}
 
+    def lookup_decoded_label(val, map_dict, row_dict=None):
+        if val is None or not map_dict:
+            return None
+        
+        # Try composite key lookup first if row_dict is available
+        if row_dict:
+            val_str = str(val).strip()
+            if val_str.endswith('.0') and '.' in val_str:
+                val_str = val_str[:-2]
+            val_clean = val_str.lstrip('0') or '0'
+            
+            # Search for a state column value in row_dict
+            state_val = None
+            state_keys = ["state", "stnew", "st", "hta", "state_cd", "statecode", "st_code", "region"]
+            row_keys_lower = {k.lower(): k for k in row_dict.keys()}
+            for sk in state_keys:
+                if sk in row_keys_lower:
+                    state_val = row_dict[row_keys_lower[sk]]
+                    break
+            
+            if state_val is not None:
+                st_str = str(state_val).strip()
+                if st_str.endswith('.0') and '.' in st_str:
+                    st_str = st_str[:-2]
+                st_clean = st_str.lstrip('0') or '0'
+                
+                # Check composite key format: "state_key"
+                composite_key = f"{st_clean}_{val_clean}"
+                if composite_key in map_dict:
+                    return map_dict[composite_key]
+                
+                # Try search in case composite key stored with different formatting
+                for k, v in map_dict.items():
+                    k_clean = str(k).strip()
+                    if "_" in k_clean:
+                        parts = k_clean.split("_", 1)
+                        if len(parts) == 2:
+                            pk_st = parts[0].lstrip('0') or '0'
+                            pk_val = parts[1].lstrip('0') or '0'
+                            if pk_st == st_clean and pk_val == val_clean:
+                                return v
+
+        val_str = str(val).strip()
+        if val_str in map_dict:
+            return map_dict[val_str]
+        if val_str.endswith('.0') and '.' in val_str:
+            val_str_int = val_str[:-2]
+            if val_str_int in map_dict:
+                return map_dict[val_str_int]
+        try:
+            val_int = int(float(val))
+            val_int_str = str(val_int)
+            if val_int_str in map_dict:
+                return map_dict[val_int_str]
+        except Exception:
+            pass
+        try:
+            val_clean = val_str.lstrip('0') or '0'
+            for k, v in map_dict.items():
+                k_clean = str(k).strip().lstrip('0') or '0'
+                if k_clean == val_clean:
+                    return v
+        except Exception:
+            pass
+        return None
+
+    # Fetch reference mappings for additive decoded labels feature
+    ref_mappings = []
+    mapping_by_col = {}
+    try:
+        ref_mappings = await conn.fetch(
+            """
+            SELECT cm.column_name, rm.label_column, rm.mappings
+            FROM dataset_column_mappings cm
+            JOIN dataset_reference_mappings rm ON cm.mapping_id = rm.id
+            WHERE cm.dataset_schema = $1 AND cm.table_name = $2
+            """,
+            schema,
+            table
+        )
+        import json
+        for r in ref_mappings:
+            m_val = r["mappings"]
+            if isinstance(m_val, str):
+                try:
+                    m_val = json.loads(m_val)
+                except Exception:
+                    m_val = {}
+            if not isinstance(m_val, dict):
+                m_val = {}
+            
+            col_name = r["column_name"]
+            if col_name not in mapping_by_col:
+                mapping_by_col[col_name] = (r["label_column"], m_val)
+            else:
+                existing_label_col, existing_dict = mapping_by_col[col_name]
+                merged_dict = existing_dict.copy()
+                for k, v in m_val.items():
+                    # Merge keys safely, prioritizing non-empty values
+                    if k and v and (k not in merged_dict or not merged_dict[k]):
+                        merged_dict[k] = v
+                mapping_by_col[col_name] = (existing_label_col, merged_dict)
+    except Exception as ref_db_err:
+        pass
+
     # Admin bypass cell suppression
     if role_name == "admin":
         # Format rows but bypass minimum count restriction
@@ -147,6 +252,14 @@ async def apply_privacy_and_labeling(conn, schema: str, table: str, user_role: s
                 if val is not None and col in labels:
                     val = labels[col].get(str(val), val)
                 item[col] = val
+                
+                # Check for reference mapping (decoded metadata support)
+                if col in mapping_by_col:
+                    lbl_col, map_dict = mapping_by_col[col]
+                    raw_val = row_dict.get(col)
+                    decoded_val = lookup_decoded_label(raw_val, map_dict, row_dict)
+                    if decoded_val is not None:
+                        item[col] = decoded_val
             formatted.append(item)
         return formatted
 
@@ -171,6 +284,14 @@ async def apply_privacy_and_labeling(conn, schema: str, table: str, user_role: s
             if val is not None and col in labels:
                 val = labels[col].get(str(val), val)
             item[col] = val
+
+            # Check for reference mapping (decoded metadata support)
+            if col in mapping_by_col:
+                lbl_col, map_dict = mapping_by_col[col]
+                raw_val = row_dict.get(col)
+                decoded_val = lookup_decoded_label(raw_val, map_dict, row_dict)
+                if decoded_val is not None:
+                    item[col] = decoded_val
             
             # Check if this column raises our suppression threshold
             cfg = var_configs.get(col)

@@ -894,6 +894,7 @@ async def ingest_upload_file(
 
     ddi_path: Path | None = None
     processed_files: list[Path] = []
+    reference_files: list[Path] = []
 
     update_job(job_id, status=JOB_STATUS_PROCESSING, current_state=JOB_STATUS_PROCESSING, message="Preparing files...")
     log_terminal(f"Starting ingestion for dataset: {dataset_display_name} (Job: {job_id})")
@@ -963,7 +964,14 @@ async def ingest_upload_file(
 
                 dest = processed_dir / p.name
                 shutil.copy2(p, dest)
-                processed_files.append(dest)
+                
+                from utils.reference_mapping import is_reference_mapping_file
+                if is_reference_mapping_file(p):
+                    reference_files.append(dest)
+                    log_terminal(f"Detected reference mapping file in Nesstar export: {p.name} (preserved & queued)")
+                else:
+                    processed_files.append(dest)
+                    
                 manifest[p.name] = {
                     "checksum": checksum,
                     "size": p.stat().st_size,
@@ -1033,7 +1041,14 @@ async def ingest_upload_file(
                 
                 dest = processed_dir / p.name
                 shutil.copy2(p, dest)
-                processed_files.append(dest)
+                
+                from utils.reference_mapping import is_reference_mapping_file
+                if is_reference_mapping_file(p):
+                    reference_files.append(dest)
+                    log_terminal(f"Detected reference mapping file in ZIP: {p.name} (preserved & queued)")
+                else:
+                    processed_files.append(dest)
+                    
                 manifest[p.name] = {
                     "checksum": checksum,
                     "size": p.stat().st_size,
@@ -1051,7 +1066,14 @@ async def ingest_upload_file(
 
         dest = processed_dir / src.name
         shutil.copy2(raw_dest, dest)
-        processed_files.append(dest)
+        
+        from utils.reference_mapping import is_reference_mapping_file
+        if is_reference_mapping_file(src):
+            reference_files.append(dest)
+            log_terminal(f"Detected reference mapping file upload: {src.name} (preserved & queued)")
+        else:
+            processed_files.append(dest)
+            
         manifest[src.name] = {
             "checksum": checksum,
             "size": src.stat().st_size,
@@ -1063,7 +1085,7 @@ async def ingest_upload_file(
         json.dump(manifest, f, indent=2)
 
     processed_files = [p for p in processed_files if p.exists() and p.stat().st_size > 0]
-    if not processed_files:
+    if not processed_files and not reference_files:
         if any(m for m in manifest):
              log_terminal("All files were duplicates and skipped", "warning")
              update_job(job_id, status=JOB_STATUS_COMPLETED, progress=100, message="All files skipped (duplicates)")
@@ -1386,7 +1408,20 @@ async def ingest_upload_file(
     except Exception as e:
         log_terminal(f"Warning: Failed processing documentation files: {e}", "warning")
 
-    if not created_tables:
+    # Store reference mapping files (pure additive feature)
+    try:
+        from utils.reference_mapping import store_reference_mapping, auto_link_mappings
+        for ref_file in reference_files:
+            log_terminal(f"Processing reference mapping file: {ref_file.name}...")
+            store_reference_mapping(db_url, schema, dataset_schema, ref_file)
+        
+        if reference_files and created_tables:
+            log_terminal("Auto-linking reference mappings...")
+            auto_link_mappings(db_url, dataset_schema, created_tables, ddi_meta.get("variables") if ddi_meta else None)
+    except Exception as ref_err:
+        log_terminal(f"Warning: Reference mapping processing failed: {ref_err}", "warning")
+
+    if not created_tables and not reference_files:
         raise ValueError("No tables were ingested")
 
     update_job(job_id, status=JOB_STATUS_COMPLETED, current_state=JOB_STATUS_COMPLETED, progress=100, message="Upload completed successfully")

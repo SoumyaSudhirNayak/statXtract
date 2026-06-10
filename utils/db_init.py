@@ -586,6 +586,39 @@ async def ensure_core_tables(conn: asyncpg.Connection) -> None:
         except Exception:
             pass
 
+    # Reference Mapping Tables (Additive feature)
+    await conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS dataset_reference_mappings (
+            id SERIAL PRIMARY KEY,
+            survey_schema TEXT NOT NULL,
+            dataset_schema TEXT NOT NULL,
+            filename TEXT NOT NULL,
+            mapping_type TEXT NOT NULL,
+            source_column TEXT NOT NULL,
+            label_column TEXT NOT NULL,
+            mappings JSONB NOT NULL,
+            original_file BYTEA,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE (dataset_schema, filename, mapping_type)
+        );
+        """
+    )
+
+    await conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS dataset_column_mappings (
+            id SERIAL PRIMARY KEY,
+            dataset_schema TEXT NOT NULL,
+            table_name TEXT NOT NULL,
+            column_name TEXT NOT NULL,
+            mapping_id INTEGER NOT NULL REFERENCES dataset_reference_mappings(id) ON DELETE CASCADE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE (dataset_schema, table_name, column_name, mapping_id)
+        );
+        """
+    )
+
 
     keep_schemas = set()
 

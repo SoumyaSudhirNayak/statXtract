@@ -3394,12 +3394,23 @@ async def get_metadata_v2(
             variables = await conn.fetch(f'SELECT * FROM "{dataset_schema}".variables ORDER BY table_name, variable_name')
             categories = await conn.fetch(f'SELECT * FROM "{dataset_schema}".variable_categories')
             stats = await conn.fetch(f'SELECT * FROM "{dataset_schema}".variable_statistics')
+            ref_rows = await conn.fetch(
+                """
+                SELECT DISTINCT filename
+                FROM dataset_reference_mappings
+                WHERE dataset_schema = $1
+                ORDER BY filename
+                """,
+                dataset_schema
+            )
+            reference_files = [r["filename"] for r in ref_rows]
         except Exception:
             # Sub-schema might not be initialized yet
             meta = None
             variables = []
             categories = []
             stats = []
+            reference_files = []
 
     dataset_folder = dataset_schema.split("__", 1)[1] if "__" in dataset_schema else dataset_schema
     downloads_enabled = (await _get_system_setting(conn, "enable_downloads", await _get_system_setting(conn, "features.enable_downloads", "true"))).strip().lower() == "true"
@@ -3414,6 +3425,7 @@ async def get_metadata_v2(
         "variables": [dict(v) for v in variables],
         "variable_categories": [dict(c) for c in categories],
         "variable_statistics": [dict(s) for s in stats],
+        "reference_files": reference_files,
     }
 
 

@@ -824,6 +824,14 @@
                                 ${s.documentation_files.map(f => `<li>${f}</li>`).join('')}
                             </ul>
                         ` : ''}
+                        ${s.reference_mapping_files && s.reference_mapping_files.length > 0 ? `
+                            <div style="color: var(--secondary-color); font-weight: 700; font-size: 0.95rem; margin-top: 10px; margin-bottom: 5px;">
+                                <i class="fas fa-map-signs"></i> Reference Mapping Files:
+                            </div>
+                            <ul style="padding-left: 20px; font-size: 0.9rem; margin-bottom: 15px; list-style-type: disc;">
+                                ${s.reference_mapping_files.map(f => `<li>${f}</li>`).join('')}
+                            </ul>
+                        ` : ''}
                         ${val.unsupported_files && val.unsupported_files.length > 0 ? `
                             <div style="color: var(--warning-color); font-weight: 600; font-size: 0.9rem; margin-top: 10px;">
                                 <i class="fas fa-exclamation-triangle"></i> Unsupported / Extra files detected (these will be ignored):
@@ -876,6 +884,21 @@
                                 <td style="color: var(--text-muted); font-size: 0.9rem; font-style: italic;">Metadata Document</td>
                                 <td style="text-align: center;">
                                     <input type="checkbox" id="skip-${sIdx}-${df}" style="width: 20px; height: 20px; accent-color: var(--primary-color); cursor: pointer;">
+                                </td>
+                            </tr>
+                        `;
+                    }).join('');
+                }
+
+                let refRows = "";
+                if (s.reference_mapping_files && s.reference_mapping_files.length > 0) {
+                    refRows = s.reference_mapping_files.map(rf => {
+                        return `
+                            <tr>
+                                <td style="font-weight: 600; font-size: 0.95rem;">${rf}</td>
+                                <td style="color: var(--text-muted); font-size: 0.9rem; font-style: italic;">Reference Mapping File</td>
+                                <td style="text-align: center;">
+                                    <input type="checkbox" id="skip-${sIdx}-${rf}" style="width: 20px; height: 20px; accent-color: var(--primary-color); cursor: pointer;">
                                 </td>
                             </tr>
                         `;
@@ -940,6 +963,22 @@
                             </tbody>
                         </table>
                         ` : ''}
+
+                        ${refRows ? `
+                        <h4 style="font-weight: 700; margin-top: 20px; margin-bottom: 12px; font-size: 1rem;"><i class="fas fa-map-signs" style="color: var(--secondary-color);"></i> Reference Mapping Files:</h4>
+                        <table class="mapping-table">
+                            <thead>
+                                <tr>
+                                    <th>Reference File</th>
+                                    <th>Type</th>
+                                    <th style="text-align: center;">Exclude File</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${refRows}
+                            </tbody>
+                        </table>
+                        ` : ''}
                     </div>
                 `;
                 container.appendChild(card);
@@ -996,12 +1035,23 @@
                     });
                 }
 
+                const refFilesConfig = {};
+                if (s.reference_mapping_files) {
+                    s.reference_mapping_files.forEach(rf => {
+                        const fileSkip = document.getElementById(`skip-${sIdx}-${rf}`).checked;
+                        refFilesConfig[rf] = {
+                            "skip": fileSkip
+                        };
+                    });
+                }
+
                 mappings[s.folder_name] = {
                     "skip": folderSkip,
                     "schema": targetSchema,
                     "display_name": customDisplayName,
                     "files": filesConfig,
-                    "documentation_files": docFilesConfig
+                    "documentation_files": docFilesConfig,
+                    "reference_mapping_files": refFilesConfig
                 };
             });
 
