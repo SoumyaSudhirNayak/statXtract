@@ -610,7 +610,6 @@
       .resize-handle {
         display: none !important;
       }
-    }
       .sidebar.expanded { display: flex; }
       .sidebar-nav { margin-top: 10px; max-height: none; }
     }
@@ -1458,8 +1457,12 @@
               datasetVal = decodeURIComponent(urlParts[3]);
               tableVal = decodeURIComponent(urlParts[4]);
             } else if (urlParts[1] === 'datasets') {
-              datasetVal = decodeURIComponent(urlParts[2]);
-              tableVal = decodeURIComponent(urlParts[3]);
+              if (q.dataset && q.dataset !== '-') {
+                datasetVal = q.dataset;
+              }
+              if (urlParts[2]) {
+                tableVal = decodeURIComponent(urlParts[2]);
+              }
             }
             columnsVal = url.searchParams.get('columns') || '';
             if (!filtersVal) {
