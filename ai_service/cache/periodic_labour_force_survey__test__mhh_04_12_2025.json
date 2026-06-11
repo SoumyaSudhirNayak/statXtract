@@ -1,0 +1,8 @@
+[
+  "Dataset Purpose**: To estimate employment and unemployment indicators using unit-level data from the Periodic Labour Force Survey (PLFS) for April–December 2025, with restrictions on use for variables beyond labor force indicators.",
+  "Geographic Coverage**: Nationwide across India, with detailed breakdown by state, district, and basic stratum (districts or NSS regions), using district codes and state codes.",
+  "Population Coverage**: All households and individuals covered in the PLFS sample for the 9-month period (April–December 2025), including demographic and expenditure variables.",
+  "Key Variables**: Household and person-level data including NSC (number of surveyed units), MULT (weight), Bstrm (basic stratum code), Zst (basic stratum size), Caph (total households), Smallh (sampled households), and labor force classification variables.",
+  "Sample Size / Scope**: 804,145 household records and 3,394,123 person records for 9 months; 39 FSUs included in annual estimates only after month-end.",
+  "Important Notes**: Unit-level data must be weighted (MULT/100) for estimation; weights are calculated at the second-stage stratum level; data must not be used for variables outside employment/unemployment; data layout and conversion tools are provided; file names and structure must remain unaltered for proper use."
+]

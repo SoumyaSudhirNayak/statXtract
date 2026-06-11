@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  ai_service:
+    build:
+      context: ./ai_service
+      dockerfile: Dockerfile
+    ports:
+      - "8001:8001"
+    environment:
+      - LM_STUDIO_URL=http://host.docker.internal:1234
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./ai_service/cache:/app/cache

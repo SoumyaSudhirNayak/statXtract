@@ -1,0 +1,8 @@
+[
+  "Dataset Purpose: Measures household-level health consumption indicators (ailments, hospitalizations, medical expenditure) for the period January–December 2025, using unit-level, weighted survey data from Schedule 25.0.",
+  "Geographic Coverage: Covers all states and union territories of India, with data collected across 11 blocks, stratified by first-stage and second-stage units.",
+  "Population Coverage: Targets households and individuals within sampled first-stage units (FSUs), with weights applied to generate population-level estimates.",
+  "Key Variables: Includes proportion of persons reporting ailment (PPRA), hospitalization rate (excluding childbirth), average medical and out-of-pocket expenditure per hospitalization case, and childbirth-related expenditure.",
+  "Sample Size / Scope: Multiplier-posted unit-level data from 11 blocks; sample households vary by sub-stratum; final estimates require aggregation using weights (Final Weight = Mult/100).",
+  "Important Notes: Data files are text-based with numeric values only; weights are per stratum; childbirth cases excluded from hospitalization metrics; data layout and coding files provided for reference; requires aggregation with weights for valid estimates."
+]

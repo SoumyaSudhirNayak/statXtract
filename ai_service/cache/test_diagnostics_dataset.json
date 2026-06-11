@@ -1,0 +1,8 @@
+[
+  "Dataset Purpose: Measures short-term changes in industrial production volume across key sectors to track economic activity.",
+  "Geographic Coverage: Nation-wide, compiled and published by the National Statistical Office (NSO).",
+  "Population Coverage: Covers all industrial activities within the country’s Mining, Manufacturing, and Electricity sectors.",
+  "Key Variables: Monthly production volume indices for mining, manufacturing, and electricity sectors.",
+  "Sample Size / Scope: Monthly, comprehensive coverage of all industrial sectors; no specified sample size due to census-like nature of industrial output reporting.",
+  "Important Notes: Data reflects volume changes, not value; published by NSO; sector-specific indices are aggregated into a composite IIP index."
+]

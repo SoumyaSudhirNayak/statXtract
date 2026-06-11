@@ -1,0 +1,17 @@
+.venv
+__pycache__
+.git
+.gitignore
+*.pyc
+*.pyo
+*.pyd
+
+uploads
+processed
+temp
+logs
+
+.env
+
+.vscode
+.idea

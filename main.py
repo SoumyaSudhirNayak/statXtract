@@ -7273,3 +7273,85 @@ async def admin_delete_dataset(
             "deleted_tables_count": len(table_names),
             "deleted_tables": table_names,
         }
+
+class AiSummarizeRequest(BaseModel):
+    dataset_key: str
+    text: str
+
+@app.post("/api/ai/summarize")
+async def api_ai_summarize(req: AiSummarizeRequest, request: Request):
+    db = request.app.state.db
+    
+    # 1. Check database for existing cached summary
+    async with db.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT summary FROM dataset_summaries WHERE dataset_key = $1",
+            req.dataset_key
+        )
+        if row:
+            try:
+                summary_list = json.loads(row["summary"])
+                if isinstance(summary_list, list):
+                    return {"success": True, "summary": summary_list}
+            except Exception:
+                # Fallback to splitting by newline if stored as plain text
+                lines = [l.strip() for l in row["summary"].split("\n") if l.strip()]
+                return {"success": True, "summary": lines}
+                
+    # 2. Call AI Service (port 8001)
+    ai_service_url = os.getenv("AI_SERVICE_URL", "http://localhost:8001")
+    
+    import httpx
+    try:
+        async with httpx.AsyncClient(timeout=65.0) as client:
+            resp = await client.post(
+                f"{ai_service_url}/summarize",
+                json={
+                    "dataset_key": req.dataset_key,
+                    "text": req.text
+                }
+            )
+            if resp.status_code == 503:
+                return JSONResponse(
+                    status_code=503,
+                    content={"success": False, "message": "AI summarization service currently unavailable."}
+                )
+            if resp.status_code != 200:
+                return JSONResponse(
+                    status_code=500,
+                    content={"success": False, "message": "Unable to generate summary."}
+                )
+            
+            result = resp.json()
+            if not result.get("success") or "summary" not in result:
+                return JSONResponse(
+                    status_code=500,
+                    content={"success": False, "message": "Unable to generate summary."}
+                )
+                
+            summary_list = result["summary"]
+            
+            # 3. Cache the new summary in database
+            async with db.acquire() as conn:
+                await conn.execute(
+                    """
+                    INSERT INTO dataset_summaries (dataset_key, summary)
+                    VALUES ($1, $2)
+                    ON CONFLICT (dataset_key) DO UPDATE SET summary = EXCLUDED.summary, generated_at = NOW()
+                    """,
+                    req.dataset_key,
+                    json.dumps(summary_list, ensure_ascii=False)
+                )
+                
+            return {"success": True, "summary": summary_list}
+            
+    except httpx.RequestError:
+        return JSONResponse(
+            status_code=503,
+            content={"success": False, "message": "AI summarization service currently unavailable."}
+        )
+    except Exception:
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "message": "Unable to generate summary."}
+        )

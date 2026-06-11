@@ -574,6 +574,17 @@ async def ensure_core_tables(conn: asyncpg.Connection) -> None:
         """
     )
 
+    await conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS dataset_summaries (
+            id SERIAL PRIMARY KEY,
+            dataset_key VARCHAR(255) UNIQUE,
+            summary TEXT,
+            generated_at TIMESTAMP DEFAULT NOW()
+        );
+        """
+    )
+
     # Enhance dataset_documents with binary storage and rendered HTML
     for col_def in [
         ("original_file", "BYTEA"),
