@@ -39,8 +39,8 @@ from utils.db_utils import (
 
 def is_layout_file(p: Path) -> bool:
     name_lower = p.name.lower()
-    if p.suffix.lower() in {".xls", ".xlsx"}:
-        if any(pat in name_lower for pat in ["layout", "lyt", "lay_out"]):
+    if p.suffix.lower() in {".xls", ".xlsx", ".pdf"}:
+        if any(pat in name_lower for pat in ["layout", "lyt", "lay_out", "position", "var_list", "variable", "structure", "block", "record", "field"]):
             return True
     return False
 
@@ -48,8 +48,10 @@ def find_layout_file(extract_dir: Path) -> Optional[Path]:
     layout_patterns = [
         "*layout*.xls",
         "*layout*.xlsx",
+        "*layout*.pdf",
         "*.xlsx",
-        "*.xls"
+        "*.xls",
+        "*.pdf"
     ]
     for pattern in layout_patterns:
         for p in extract_dir.rglob(pattern):
@@ -64,6 +66,10 @@ def find_layout_file(extract_dir: Path) -> Optional[Path]:
         if p.is_file():
             if is_layout_file(p):
                 return p
+    for p in extract_dir.rglob("*.pdf"):
+        if p.is_file():
+            if is_layout_file(p):
+                return p
     return None
 
 def find_layout_file_in_dataset(data_file_path: Path) -> Optional[Path]:
@@ -71,17 +77,11 @@ def find_layout_file_in_dataset(data_file_path: Path) -> Optional[Path]:
     for _ in range(5):
         if not curr or curr == curr.parent:
             break
-        for pattern in ("*layout*.xls", "*layout*.xlsx", "*.xlsx", "*.xls"):
+        for pattern in ("*layout*.xls", "*layout*.xlsx", "*layout*.pdf", "*.xlsx", "*.xls", "*.pdf"):
             for p in curr.glob(pattern):
                 if p.is_file():
                     if is_layout_file(p):
                         return p
-        for p in curr.glob("*.xlsx"):
-            if p.is_file() and is_layout_file(p):
-                return p
-        for p in curr.glob("*.xls"):
-            if p.is_file() and is_layout_file(p):
-                return p
         curr = curr.parent
     return None
 
@@ -902,6 +902,7 @@ async def ingest_upload_file(
     ddi_path: Path | None = None
     processed_files: list[Path] = []
     reference_files: list[Path] = []
+    layout_files: list[Path] = []
 
     update_job(job_id, status=JOB_STATUS_PROCESSING, current_state=JOB_STATUS_PROCESSING, message="Preparing files...")
     log_terminal(f"Starting ingestion for dataset: {dataset_display_name} (Job: {job_id})")
@@ -1092,7 +1093,10 @@ async def ingest_upload_file(
         json.dump(manifest, f, indent=2)
 
     processed_files = [p for p in processed_files if p.exists() and p.stat().st_size > 0]
-    if not processed_files and not reference_files:
+    layout_files_to_process = [p for p in processed_files if is_layout_file(p)]
+    processed_files = [p for p in processed_files if not is_layout_file(p)]
+
+    if not processed_files and not reference_files and not layout_files_to_process:
         if any(m for m in manifest):
              log_terminal("All files were duplicates and skipped", "warning")
              update_job(job_id, status=JOB_STATUS_COMPLETED, progress=100, message="All files skipped (duplicates)")
@@ -1310,9 +1314,10 @@ async def ingest_upload_file(
         if ext == ".zip":
             extract_dir = raw_dir / "extracted"
             if extract_dir.exists():
-                doc_candidates = [p for p in extract_dir.rglob("*") if p.is_file() and p.suffix.lower() in {".pdf", ".docx"}]
+                doc_candidates = [p for p in extract_dir.rglob("*") if p.is_file() and p.suffix.lower() in {".pdf", ".docx"} and not is_layout_file(p)]
         elif ext in {".pdf", ".docx"}:
-            doc_candidates = [raw_dest]
+            if not is_layout_file(raw_dest):
+                doc_candidates = [raw_dest]
 
         if doc_candidates:
             log_terminal(f"Found {len(doc_candidates)} documentation files. Extracting content...")
@@ -1428,7 +1433,71 @@ async def ingest_upload_file(
     except Exception as ref_err:
         log_terminal(f"Warning: Reference mapping processing failed: {ref_err}", "warning")
 
-    if not created_tables and not reference_files:
+    # Data Layout Interpretation Support (pure additive feature)
+    try:
+        from utils.layout_parser import detect_and_parse_layout
+        layout_candidates = []
+        if ext == ".zip":
+            extract_dir = raw_dir / "extracted"
+            if extract_dir.exists():
+                layout_candidates.extend(list(extract_dir.rglob("*")))
+        else:
+            layout_candidates.append(raw_dest)
+
+        if processed_dir.exists():
+            layout_candidates.extend(list(processed_dir.rglob("*")))
+
+        # Filter unique file paths that are files
+        layout_files.clear()
+        seen_paths = set()
+        for p in layout_candidates:
+            if p.is_file() and p.resolve() not in seen_paths:
+                seen_paths.add(p.resolve())
+                layout_files.append(p)
+
+        log_terminal(f"Scanning {len(layout_files)} files for Data Layout information...")
+        
+        with engine.begin() as conn:
+            for layout_file in layout_files:
+                extracted_rows = detect_and_parse_layout(layout_file)
+                if extracted_rows:
+                    log_terminal(f"Found and parsed layout document: {layout_file.name} with {len(extracted_rows)} rows.", "success")
+                    
+                    # Delete any existing layout rows for this filename in this schema
+                    conn.execute(
+                        text(f'DELETE FROM "{dataset_schema}".dataset_layouts WHERE filename = :fname'),
+                        {"fname": layout_file.name}
+                    )
+                    
+                    # Insert the parsed layout rows
+                    for row in extracted_rows:
+                        conn.execute(
+                            text(
+                                f"""
+                                INSERT INTO "{dataset_schema}".dataset_layouts (
+                                    filename, block_name, field_name, variable_name, description, data_type, width, reference, position, code_values
+                                ) VALUES (
+                                    :fname, :block_name, :field_name, :variable_name, :description, :data_type, :width, :reference, :position, CAST(:code_values AS JSONB)
+                                )
+                                """
+                            ),
+                            {
+                                "fname": layout_file.name,
+                                "block_name": row.get("block_name"),
+                                "field_name": row.get("field_name"),
+                                "variable_name": row.get("variable_name"),
+                                "description": row.get("description"),
+                                "data_type": row.get("data_type"),
+                                "width": row.get("width"),
+                                "reference": row.get("reference"),
+                                "position": row.get("position"),
+                                "code_values": json.dumps(row.get("code_values")) if row.get("code_values") is not None else None
+                            }
+                        )
+    except Exception as layout_err:
+        log_terminal(f"Warning: Data Layout extraction failed: {layout_err}", "warning")
+
+    if not created_tables and not reference_files and not layout_files:
         raise ValueError("No tables were ingested")
 
     update_job(job_id, status=JOB_STATUS_COMPLETED, current_state=JOB_STATUS_COMPLETED, progress=100, message="Upload completed successfully")

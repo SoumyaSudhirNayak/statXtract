@@ -86,6 +86,7 @@
       overflow: hidden;
       min-height: 0;
       width: 100%;
+      height: calc(100vh - 160px);
     }
     @media(max-width: 1024px) {
       .explore-workspace { grid-template-columns: 1fr; }
@@ -109,12 +110,12 @@
     }
     .search-input {
       width: 100%;
-      padding: 10px 14px 10px 36px;
+      padding: 12px 16px 12px 38px;
       border: 2px solid var(--border);
       border-radius: 12px;
       background: var(--bg-white);
       color: var(--text-main);
-      font-size: 13.5px;
+      font-size: 14px;
       outline: none;
       transition: all 0.3s;
     }
@@ -384,8 +385,8 @@
       position: sticky;
       top: 0;
       background: #f1f5f9;
-      padding: 12px 16px;
-      font-size: 12px;
+      padding: 14px 18px;
+      font-size: 12.5px;
       font-weight: 700;
       text-transform: uppercase;
       color: var(--text-muted);
@@ -393,10 +394,10 @@
       z-index: 10;
     }
     .dict-table td {
-      padding: 12px 16px;
-      font-size: 13px;
+      padding: 14px 18px;
+      font-size: 13.5px;
       border-bottom: 1px solid var(--border-soft);
-      vertical-align: top;
+      vertical-align: middle;
     }
     .dict-table tr:hover { background: rgba(0,0,0,0.015); }
     .col-highlight { font-weight: 700; color: var(--green); }
@@ -940,18 +941,21 @@
                 </div>
 
                 <!-- Panel 2: Column Dictionary -->
-                <div class="tab-panel" id="tab-dictionary">
+                <div class="tab-panel" id="tab-dictionary" style="overflow: hidden;">
                   <div class="dict-table-container">
                     <table class="dict-table" style="width: 100%; table-layout: fixed;">
                       <thead>
                         <tr>
-                          <th style="width: 30%;">Variable Name</th>
-                          <th style="width: 50%;">DDI Label</th>
-                          <th style="width: 20%;">Data Type</th>
+                          <th style="width: 15%;">Variable</th>
+                          <th style="width: 35%;">Description</th>
+                          <th style="width: 12%;">Type</th>
+                          <th style="width: 10%;">Width</th>
+                          <th style="width: 15%;">Block</th>
+                          <th style="width: 13%;">Reference</th>
                         </tr>
                       </thead>
                       <tbody id="dictTableBody">
-                        <tr><td colspan="3" style="text-align:center; padding:30px; color:var(--text-muted);">Loading column dictionary...</td></tr>
+                        <tr><td colspan="6" style="text-align:center; padding:30px; color:var(--text-muted);">Loading column dictionary...</td></tr>
                       </tbody>
                     </table>
                   </div>
@@ -1004,8 +1008,6 @@
                     </div>
                   </div>
                 </div>
-
-
 
               </div>
             </div>
@@ -1488,6 +1490,8 @@
       document.getElementById(panelId).classList.add('active');
     }
 
+
+
     function formatDocumentText(text) {
       if (!text) return "";
       const lines = text.split('\n');
@@ -1548,7 +1552,7 @@
     // ── Retrieve Table Metadata (DDI descriptors + Columns Dictionary) ──
     async function loadTableMetadata() {
       const dictTBody = document.getElementById('dictTableBody');
-      dictTBody.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:30px; color:var(--text-muted);">Loading column dictionary...</td></tr>';
+      dictTBody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:30px; color:var(--text-muted);">Loading column dictionary...</td></tr>';
       
       try {
         const res = await fetch(`/api/user/explore/metadata?schema=${activeSchema}&table=${activeTable}`);
@@ -1599,9 +1603,12 @@
           tableMetadata.columns.forEach(col => {
             const tr = document.createElement('tr');
             tr.innerHTML = `
-              <td class="col-highlight" style="width: 30%;">${col.name}</td>
-              <td style="width: 50%; font-weight:600;">${col.name}</td>
-              <td style="width: 20%; color:var(--text-muted); font-family:monospace;">${col.type}</td>
+              <td class="col-highlight" style="width: 15%;">${escapeHTML(col.name)}</td>
+              <td style="width: 35%; font-weight:600;">-</td>
+              <td style="width: 12%; color:var(--text-muted); font-family:monospace;">${escapeHTML(col.type)}</td>
+              <td style="width: 10%; font-weight:500;">-</td>
+              <td style="width: 15%; font-weight:500; color:var(--royal);">-</td>
+              <td style="width: 13%; font-weight:500; color:var(--text-muted);">-</td>
             `;
             dictTBody.appendChild(tr);
           });
@@ -1611,9 +1618,12 @@
             const vName = v.variable_name;
             const tr = document.createElement('tr');
             tr.innerHTML = `
-              <td class="col-highlight" style="width: 30%;">${vName}</td>
-              <td style="font-weight:600; width: 50%;">${v.label || '-'}</td>
-              <td style="color:var(--text-muted); font-family:monospace; font-size:12px; width: 20%;">${v.ddi_type || v.final_type || 'numeric'}</td>
+              <td class="col-highlight" style="width: 15%;">${escapeHTML(vName)}</td>
+              <td style="font-weight:600; width: 35%;">${escapeHTML(v.label || '-')}</td>
+              <td style="color:var(--text-muted); font-family:monospace; font-size:12px; width: 12%;">${escapeHTML(v.ddi_type || v.final_type || 'numeric')}</td>
+              <td style="width: 10%; font-weight:500;">${escapeHTML(String(v.width !== undefined && v.width !== null ? v.width : '-'))}</td>
+              <td style="width: 15%; font-weight:500; color:var(--royal);">${escapeHTML(v.block_name || '-')}</td>
+              <td style="width: 13%; font-weight:500; color:var(--text-muted);">${escapeHTML(v.reference || '-')}</td>
             `;
             dictTBody.appendChild(tr);
           });
@@ -1707,7 +1717,7 @@
 
       } catch (e) {
         console.error(e);
-        dictTBody.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:30px; color:var(--danger);">Connection failed loading column dictionary.</td></tr>';
+        dictTBody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:30px; color:var(--danger);">Connection failed loading column dictionary.</td></tr>';
       }
     }
 

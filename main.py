@@ -128,7 +128,7 @@ def format_utc_timestamp_to_utc_iso(dt) -> str:
 # ── Internal / metadata tables that should NOT appear in user-facing dropdowns ──
 _INTERNAL_TABLE_NAMES = {
     "datasets", "dataset_files", "dataset_metadata", "dataset_registry", "dataset_tables",
-    "variables", "variable_categories", "variable_statistics", "variable_missing_values",
+    "variables", "variable_categories", "variable_statistics", "variable_missing_values", "dataset_layouts",
 }
 _INTERNAL_TABLE_KEYWORDS = (
     "variable", "metadata", "category", "missing", "_error", "_stat",

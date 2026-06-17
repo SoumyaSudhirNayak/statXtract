@@ -303,18 +303,24 @@ async def _run_ingest_job(
         downloaded: list[dict[str, Any]] = []
         download_errors: list[dict[str, Any]] = []
 
+        from utils.batch_validation import is_layout_file
+
         for idx, item in enumerate(items, start=1):
             file_no = guess_file_no(item)
             if not file_no:
                 download_errors.append({"index": idx, "error": "Missing file_no", "item": item})
                 continue
-            if requested is not None and file_no not in requested:
-                continue
 
             raw_name = guess_file_name(item, fallback=f"{dataset_id}_{file_no}")
             filename = _sanitize_filename(raw_name)
             ext = Path(filename).suffix.lower()
-            if ext and ext not in {".zip", ".xml", ".csv", ".txt", ".sav", ".por", ".xlsx", ".json"}:
+
+            is_layout = is_layout_file(Path(filename))
+
+            if requested is not None and file_no not in requested and not is_layout:
+                continue
+
+            if ext and ext not in {".zip", ".xml", ".csv", ".txt", ".sav", ".por", ".xlsx", ".json", ".pdf", ".xls"} and not is_layout:
                 continue
 
             dest_path = ingest_dir / filename
@@ -462,15 +468,20 @@ async def prepare_dataset(
     extracted_dir.mkdir(parents=True, exist_ok=True)
 
     downloaded_count = 0
+    from utils.batch_validation import is_layout_file
+
     for idx, item in enumerate(items, start=1):
         file_no = guess_file_no(item)
         if not file_no:
             continue
-        if requested is not None and file_no not in requested:
-            continue
 
         raw_name = guess_file_name(item, fallback=f"{dataset_id}_{file_no}")
         filename = _sanitize_filename(raw_name)
+        is_layout = is_layout_file(Path(filename))
+
+        if requested is not None and file_no not in requested and not is_layout:
+            continue
+
         dest_path = download_dir / filename
 
         try:
@@ -592,6 +603,15 @@ async def _run_prepared_ingest_job(
             dest_file = ingest_files_dir / rel_path
             dest_file.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src_file, dest_file)
+
+        # Automatically copy layout files if present in the extracted dir
+        from utils.batch_validation import is_layout_file
+        for p in extracted_dir.rglob("*"):
+            if p.is_file() and is_layout_file(p):
+                rel_path = p.relative_to(extracted_dir)
+                dest_file = ingest_files_dir / rel_path
+                dest_file.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(p, dest_file)
 
         # 2. Package selected files into a temporary ZIP file
         temp_zip_path = ingest_temp_dir / f"{job_id}_ingest.zip"

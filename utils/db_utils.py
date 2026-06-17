@@ -397,3 +397,24 @@ def ensure_dataset_schema_tables(dataset_schema: str, db_url: str) -> None:
             )
         )
 
+        conn.execute(
+            text(
+                f"""
+                CREATE TABLE IF NOT EXISTS "{schema}".dataset_layouts (
+                    id SERIAL PRIMARY KEY,
+                    filename TEXT NOT NULL,
+                    block_name TEXT,
+                    field_name TEXT,
+                    variable_name TEXT,
+                    description TEXT,
+                    data_type TEXT,
+                    width TEXT,
+                    reference TEXT,
+                    position TEXT,
+                    code_values JSONB,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+                """
+            )
+        )
+

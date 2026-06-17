@@ -6,8 +6,8 @@ from typing import Dict, Any, List
 def is_layout_file(p: Path) -> bool:
     """Helper to check if a file looks like a MOSPI layout file."""
     name = p.name.lower()
-    return p.suffix.lower() in [".xlsx", ".xls"] and any(
-        k in name for k in ["layout", "position", "var_list", "variable"]
+    return p.suffix.lower() in [".xlsx", ".xls", ".pdf"] and any(
+        k in name for k in ["layout", "lyt", "lay_out", "position", "var_list", "variable", "structure", "block", "record", "field"]
     )
 
 def is_ddi_file(p: Path) -> bool:
@@ -16,7 +16,7 @@ def is_ddi_file(p: Path) -> bool:
 
 def is_documentation_file(p: Path) -> bool:
     """Helper to check if a file is a documentation PDF or DOCX."""
-    return p.suffix.lower() in [".pdf", ".docx"]
+    return p.suffix.lower() in [".pdf", ".docx"] and not is_layout_file(p)
 
 def is_dataset_file(p: Path) -> bool:
     """Helper to check if a file is an ingestible dataset."""

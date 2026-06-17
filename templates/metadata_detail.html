@@ -382,9 +382,22 @@
                         ${_metaRow('Producer', meta.producer)}
                         ${_metaRow('DDI ID', meta.ddi_id)}
                     </div>
+
+                    <div class="section" id="data-layout-section">
+                        <div class="section-title" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                            <span><i class="fas fa-table"></i> Data Layout Specifications</span>
+                            <input type="text" id="layoutSearchInput" placeholder="Search variables/descriptions..." style="padding: 6px 12px; font-size: 0.85rem; border: 1px solid var(--glass-border); border-radius: 8px; background: transparent; color: var(--text-main); outline: none; width: 240px;" oninput="handleLayoutSearch()">
+                        </div>
+                        <div id="layoutContent" style="margin-top: 15px;">
+                            <div style="text-align: center; padding: 20px; color: var(--text-muted);">
+                                <i class="fas fa-circle-notch fa-spin"></i> Loading layout...
+                            </div>
+                        </div>
+                    </div>
                 `;
 
                 document.getElementById('metadata-body').innerHTML = html;
+                loadDataLayout();
 
             } catch (e) {
                 document.getElementById('metadata-body').innerHTML = `
@@ -394,6 +407,144 @@
                     </div>
                 `;
             }
+        }
+
+        let currentLayoutData = {};
+        let currentLayoutPages = {};
+        const LAYOUT_PAGE_SIZE = 25;
+
+        async function loadDataLayout() {
+            const contentDiv = document.getElementById('layoutContent');
+            if (!contentDiv) return;
+            
+            const searchVal = document.getElementById('layoutSearchInput').value.trim();
+            const url = `/api/user/explore/layout?schema=${SCHEMA}${searchVal ? '&search=' + encodeURIComponent(searchVal) : ''}`;
+            
+            try {
+                const res = await fetch(url);
+                if (!res.ok) {
+                    contentDiv.innerHTML = '<div style="color:var(--text-muted); font-size:0.9rem;">No layout specifications available.</div>';
+                    return;
+                }
+                const data = await res.json();
+                currentLayoutData = data.layouts || {};
+                renderLayoutContent();
+            } catch (err) {
+                console.error(err);
+                contentDiv.innerHTML = '<div style="color:var(--text-muted); font-size:0.9rem;">Error loading layouts.</div>';
+            }
+        }
+
+        function handleLayoutSearch() {
+            loadDataLayout();
+        }
+
+        function renderLayoutContent() {
+            const contentDiv = document.getElementById('layoutContent');
+            if (!contentDiv) return;
+            
+            const keys = Object.keys(currentLayoutData);
+            if (keys.length === 0) {
+                contentDiv.innerHTML = '<div style="color:var(--text-muted); font-size:0.9rem; padding: 10px 0;">No matching layout specifications found.</div>';
+                return;
+            }
+            
+            let html = "";
+            keys.forEach(blockName => {
+                const allRows = currentLayoutData[blockName] || [];
+                if (allRows.length === 0) return;
+                
+                if (!currentLayoutPages[blockName]) {
+                    currentLayoutPages[blockName] = 1;
+                }
+                
+                const currentPage = currentLayoutPages[blockName];
+                const totalRows = allRows.length;
+                const totalPages = Math.ceil(totalRows / LAYOUT_PAGE_SIZE);
+                const startIndex = (currentPage - 1) * LAYOUT_PAGE_SIZE;
+                const endIndex = Math.min(startIndex + LAYOUT_PAGE_SIZE, totalRows);
+                const rows = allRows.slice(startIndex, endIndex);
+                
+                html += `
+                    <div style="margin-bottom: 20px; padding: 15px; background: rgba(0,0,0,0.015); border-radius: 12px; border: 1px solid var(--glass-border);">
+                        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; margin-bottom:10px; border-bottom: 1px solid var(--glass-border); padding-bottom: 6px;">
+                            <span style="font-weight:700; color:var(--primary); font-size: 0.95rem;"><i class="fas fa-folder"></i> ${_escapeHtml(blockName)} (${totalRows} variables)</span>
+                            <span style="font-size: 11px; color: var(--text-muted);">Showing ${startIndex + 1}-${endIndex} of ${totalRows}</span>
+                        </div>
+                        <div style="overflow-x: auto; width: 100%; border: 1px solid var(--glass-border); border-radius: 8px; background: var(--glass-bg);">
+                            <table style="width: 100%; border-collapse: collapse; min-width: 850px; text-align: left; font-size: 12px;">
+                                <thead>
+                                    <tr style="background: rgba(0,0,0,0.02); border-bottom: 2px solid var(--glass-border);">
+                                        <th style="padding: 8px 10px; font-weight:700; color:var(--text-muted); width: 60px;">S.No</th>
+                                        <th style="padding: 8px 10px; font-weight:700; color:var(--text-muted); width: 120px;">Variable Name</th>
+                                        <th style="padding: 8px 10px; font-weight:700; color:var(--text-muted); width: 200px;">Description</th>
+                                        <th style="padding: 8px 10px; font-weight:700; color:var(--text-muted); width: 90px;">Type</th>
+                                        <th style="padding: 8px 10px; font-weight:700; color:var(--text-muted); width: 70px;">Width</th>
+                                        <th style="padding: 8px 10px; font-weight:700; color:var(--text-muted); width: 90px;">Reference</th>
+                                        <th style="padding: 8px 10px; font-weight:700; color:var(--text-muted); width: 70px;">Position</th>
+                                        <th style="padding: 8px 10px; font-weight:700; color:var(--text-muted);">Codes/Values</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                `;
+                
+                rows.forEach(r => {
+                    let codeValuesHtml = "";
+                    if (r.code_values) {
+                        if (typeof r.code_values === 'object') {
+                            codeValuesHtml = Object.entries(r.code_values)
+                                .map(([k, v]) => `<span style="display:inline-block; padding: 2px 4px; background: rgba(0,0,0,0.03); border: 1px solid var(--glass-border); border-radius: 4px; font-size: 10px; margin-right: 4px; margin-bottom: 4px;"><strong>${_escapeHtml(k)}</strong>: ${_escapeHtml(v)}</span>`)
+                                .join("");
+                        } else {
+                            codeValuesHtml = `<span style="font-size: 11px; color: var(--text-muted);">${_escapeHtml(r.code_values)}</span>`;
+                        }
+                    } else {
+                        codeValuesHtml = `<span style="color:var(--text-muted); font-size:10px; font-style:italic;">none</span>`;
+                    }
+                    
+                    html += `
+                        <tr style="border-bottom: 1px solid var(--glass-border);">
+                            <td style="padding: 8px 10px; color: var(--text-muted);">${_escapeHtml(r.field_name || '-')}</td>
+                            <td style="padding: 8px 10px; font-weight:700; color:var(--accent);">${_escapeHtml(r.variable_name)}</td>
+                            <td style="padding: 8px 10px; line-height: 1.4;">${_escapeHtml(r.description || '-')}</td>
+                            <td style="padding: 8px 10px; font-family: monospace; font-weight:600; color: var(--primary);">${_escapeHtml(r.data_type || '-')}</td>
+                            <td style="padding: 8px 10px;">${_escapeHtml(r.width || '-')}</td>
+                            <td style="padding: 8px 10px; color: var(--text-muted);">${_escapeHtml(r.reference || '-')}</td>
+                            <td style="padding: 8px 10px; font-family: monospace;">${_escapeHtml(r.position || '-')}</td>
+                            <td style="padding: 8px 10px;">${codeValuesHtml}</td>
+                        </tr>
+                    `;
+                });
+                
+                html += `
+                                </tbody>
+                            </table>
+                        </div>
+                `;
+                
+                if (totalPages > 1) {
+                    html += `
+                        <div style="display: flex; justify-content: flex-end; align-items: center; gap: 10px; margin-top: 10px; font-size: 11px;">
+                            <button class="btn-back" style="padding: 4px 10px; border-radius: 6px; font-size: 11px;" ${currentPage === 1 ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''} onclick="changeLayoutPage('${blockName.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}', ${currentPage - 1})">
+                                Prev
+                            </button>
+                            <span style="font-weight: 600;">Page ${currentPage} of ${totalPages}</span>
+                            <button class="btn-back" style="padding: 4px 10px; border-radius: 6px; font-size: 11px;" ${currentPage === totalPages ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''} onclick="changeLayoutPage('${blockName.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}', ${currentPage + 1})">
+                                Next
+                            </button>
+                        </div>
+                    `;
+                }
+                
+                html += `</div>`;
+            });
+            
+            contentDiv.innerHTML = html;
+        }
+
+        function changeLayoutPage(blockName, targetPage) {
+            currentLayoutPages[blockName] = targetPage;
+            renderLayoutContent();
         }
 
         window.onload = loadMetadata;

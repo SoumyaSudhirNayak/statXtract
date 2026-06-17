@@ -18,6 +18,7 @@ lxml
 aiofiles
 python-docx
 pypdf
+pdfplumber
 
 # --- Asynchronous I/O ---
 asyncpg

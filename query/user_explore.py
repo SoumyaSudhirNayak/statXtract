@@ -196,14 +196,33 @@ async def get_explore_metadata(
                 schema
             )
             if has_variables:
-                variables_rows = await conn.fetch(
-                    f"""
-                    SELECT column_name AS variable_name, label, ddi_type, width, decimals, concept, universe, question_text
-                    FROM "{schema}".variables
-                    WHERE table_name = $1
+                has_column_name = await conn.fetchval(
+                    """
+                    SELECT EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_schema = $1 AND table_name = 'variables' AND column_name = 'column_name'
+                    )
                     """,
-                    table
+                    schema
                 )
+                if has_column_name:
+                    variables_rows = await conn.fetch(
+                        f"""
+                        SELECT column_name AS variable_name, label, data_type AS ddi_type, width, decimals, concept, universe, question_text
+                        FROM "{schema}".variables
+                        WHERE table_name = $1
+                        """,
+                        table
+                    )
+                else:
+                    variables_rows = await conn.fetch(
+                        f"""
+                        SELECT variable_name, label, ddi_type, width, NULL::integer AS decimals, NULL::text AS concept, NULL::text AS universe, NULL::text AS question_text
+                        FROM "{schema}".variables
+                        WHERE table_name = $1
+                        """,
+                        table
+                    )
             else:
                 variables_rows = await conn.fetch(
                     f"""
@@ -216,6 +235,80 @@ async def get_explore_metadata(
             variables_list = [dict(v) for v in variables_rows if v["variable_name"] in allowed_set]
         except Exception:
             variables_list = []
+
+        if not variables_list:
+            variables_list = []
+            for col in filtered_cols:
+                variables_list.append({
+                    "variable_name": col["column_name"],
+                    "label": col["column_name"],
+                    "ddi_type": col["data_type"],
+                    "final_type": col["data_type"],
+                    "width": None,
+                })
+
+        # Fetch layouts for this schema to merge
+        layout_dict = {}
+        layout_dict_norm = {}
+        import re
+        def normalize_match_str(s: str) -> str:
+            return re.sub(r'[^a-z0-9]', '', str(s).lower().strip())
+
+        try:
+            has_layouts = await conn.fetchval(
+                """
+                SELECT EXISTS (
+                    SELECT 1 FROM information_schema.tables 
+                    WHERE table_schema = $1 AND table_name = 'dataset_layouts'
+                )
+                """,
+                schema
+            )
+            if has_layouts:
+                layout_rows = await conn.fetch(
+                    f"""
+                    SELECT block_name, field_name, variable_name, description, data_type, width, reference, position, code_values
+                    FROM "{schema}".dataset_layouts
+                    """
+                )
+                for lr in layout_rows:
+                    if lr["variable_name"]:
+                        v_key = lr["variable_name"].lower().strip()
+                        if v_key not in layout_dict:
+                            layout_dict[v_key] = lr
+                        v_norm = normalize_match_str(lr["variable_name"])
+                        if v_norm not in layout_dict_norm:
+                            layout_dict_norm[v_norm] = lr
+        except Exception:
+            pass
+
+        for v in variables_list:
+            v_key = v["variable_name"].lower().strip()
+            v_norm = normalize_match_str(v["variable_name"])
+            v["block_name"] = None
+            v["reference"] = None
+            v["field_name"] = None
+            v["position"] = None
+            
+            layout_row = None
+            if v_key in layout_dict:
+                layout_row = layout_dict[v_key]
+            elif v_norm in layout_dict_norm:
+                layout_row = layout_dict_norm[v_norm]
+
+            if layout_row:
+                if not v.get("label") or v.get("label").strip() == "" or v.get("label") == v.get("variable_name"):
+                    v["label"] = layout_row["description"]
+                if not v.get("ddi_type") or v.get("ddi_type").strip() == "":
+                    v["ddi_type"] = layout_row["data_type"]
+                if not v.get("final_type") or v.get("final_type").strip() == "":
+                    v["final_type"] = layout_row["data_type"]
+                if not v.get("width") or str(v.get("width")).strip() in ("", "None", "0"):
+                    v["width"] = layout_row["width"]
+                v["block_name"] = layout_row["block_name"]
+                v["reference"] = layout_row["reference"]
+                v["field_name"] = layout_row["field_name"]
+                v["position"] = layout_row["position"]
 
         # 4. Fetch Categories & Statistics (Premium restricted - Pro and Enterprise only)
         categories_list = []
@@ -531,6 +624,78 @@ async def get_explore_document_raw(
         return JSONResponse(status_code=he.status_code, content={"detail": he.detail})
     except Exception as e:
         return JSONResponse(status_code=500, content={"detail": str(e)})
+
+
+@router.get("/api/user/explore/layout")
+async def get_explore_layout(
+    request: Request,
+    schema: str,
+    search: Optional[str] = None,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1", "2", "3"])),
+):
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        await check_user_access(conn, current_user, "query", limit=1)
+        
+        has_layouts = await conn.fetchval(
+            """
+            SELECT EXISTS (
+                SELECT 1 FROM information_schema.tables 
+                WHERE table_schema = $1 AND table_name = 'dataset_layouts'
+            )
+            """,
+            schema
+        )
+        if not has_layouts:
+            return {"layouts": {}}
+            
+        params = []
+        if search:
+            query_sql = f"""
+                SELECT filename, block_name, field_name, variable_name, description, data_type, width, reference, position, code_values
+                FROM "{schema}".dataset_layouts
+                WHERE LOWER(variable_name) LIKE $1 
+                   OR LOWER(description) LIKE $1 
+                   OR LOWER(block_name) LIKE $1
+                ORDER BY id
+            """
+            params.append(f"%{search.lower()}%")
+        else:
+            query_sql = f"""
+                SELECT filename, block_name, field_name, variable_name, description, data_type, width, reference, position, code_values
+                FROM "{schema}".dataset_layouts
+                ORDER BY id
+            """
+            
+        rows = await conn.fetch(query_sql, *params)
+        
+        grouped_layouts = {}
+        for r in rows:
+            block = r["block_name"] or "Uncategorized"
+            if block not in grouped_layouts:
+                grouped_layouts[block] = []
+            
+            codes = r["code_values"]
+            if isinstance(codes, str):
+                try:
+                    codes = json.loads(codes)
+                except Exception:
+                    pass
+                    
+            grouped_layouts[block].append({
+                "filename": r["filename"],
+                "field_name": r["field_name"],
+                "variable_name": r["variable_name"],
+                "description": r["description"],
+                "data_type": r["data_type"],
+                "width": r["width"],
+                "reference": r["reference"],
+                "position": r["position"],
+                "code_values": codes
+            })
+            
+        return {"layouts": grouped_layouts}
+
 
 
 

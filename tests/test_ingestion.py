@@ -109,3 +109,114 @@ def test_load_malformed_json_data_file():
         with pytest.raises(ValueError) as excinfo:
             _load_data_file(json_file, None)
         assert "Invalid JSON format detected." in str(excinfo.value)
+
+@pytest.mark.asyncio
+async def test_ingest_upload_layout_pdf_mock():
+    """Test that ingestion pipeline handles a layout PDF correctly and parses it as a metadata source."""
+    from unittest.mock import MagicMock, patch
+    from pathlib import Path
+    
+    mock_engine = MagicMock()
+    mock_conn = MagicMock()
+    mock_engine.begin.return_value.__enter__.return_value = mock_conn
+    
+    # Mock return values for DB checks
+    mock_conn.fetchval.return_value = False
+    
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_path = Path(temp_dir)
+        pdf_file = temp_path / "survey_layout.pdf"
+        pdf_file.write_bytes(b"%PDF-1.4 mock pdf content")
+        
+        with patch("utils.ingestion_pipeline.create_engine", return_value=mock_engine), \
+             patch("utils.ingestion_pipeline.update_job") as mock_update, \
+             patch("utils.ingestion_pipeline.ensure_dataset_schema_tables"), \
+             patch("utils.ingestion_pipeline.get_file_checksum", side_effect=lambda *args: __import__("uuid").uuid4().hex), \
+             patch("utils.layout_parser.detect_and_parse_layout") as mock_parse:
+            
+            mock_parse.return_value = [
+                {
+                    "block_name": "BLOCK-A",
+                    "field_name": "1",
+                    "variable_name": "YR",
+                    "description": "'24' for ASI 2023-24",
+                    "data_type": "Character",
+                    "width": "2",
+                    "reference": "-",
+                    "position": "1",
+                    "code_values": None
+                }
+            ]
+            
+            from utils.ingestion_pipeline import ingest_upload_file
+            await ingest_upload_file(
+                input_path=str(pdf_file),
+                db_url="postgresql://localhost/mock",
+                schema="mock_survey",
+                year="2024",
+                dataset_display_name="Mock Layout",
+                dataset_db_name="mock_layout",
+                job_id="job_mock"
+            )
+            
+            # Verify layout parser was called
+            assert mock_parse.call_count >= 1
+
+@pytest.mark.asyncio
+async def test_ingest_upload_layout_zip_csv_mock():
+    """Test that ingestion pipeline handles a ZIP containing CSV and layout PDF correctly."""
+    from unittest.mock import MagicMock, patch
+    from pathlib import Path
+    import zipfile
+    
+    mock_engine = MagicMock()
+    mock_conn = MagicMock()
+    mock_engine.begin.return_value.__enter__.return_value = mock_conn
+    
+    # Mock return values for DB checks
+    mock_conn.fetchval.return_value = False
+    
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_path = Path(temp_dir)
+        zip_file = temp_path / "dataset.zip"
+        
+        # Create a mock zip containing data.csv and layout.pdf
+        with zipfile.ZipFile(zip_file, "w") as zf:
+            zf.writestr("data.csv", "a,b\n1,2\n3,4")
+            zf.writestr("layout.pdf", "%PDF-1.4 mock pdf content")
+        
+        with patch("utils.ingestion_pipeline.create_engine", return_value=mock_engine), \
+             patch("utils.ingestion_pipeline.update_job") as mock_update, \
+             patch("utils.ingestion_pipeline.ensure_dataset_schema_tables"), \
+             patch("utils.ingestion_pipeline.get_file_checksum", side_effect=lambda *args: __import__("uuid").uuid4().hex), \
+             patch("utils.layout_parser.detect_and_parse_layout") as mock_parse, \
+             patch("utils.ingestion_pipeline._load_data_file") as mock_load:
+            
+            mock_load.return_value = pd.DataFrame({"a": [1, 3], "b": [2, 4]})
+            mock_parse.return_value = [
+                {
+                    "block_name": "BLOCK-A",
+                    "field_name": "1",
+                    "variable_name": "a",
+                    "description": "Variable A description",
+                    "data_type": "Character",
+                    "width": "2",
+                    "reference": "-",
+                    "position": "1",
+                    "code_values": None
+                }
+            ]
+            
+            from utils.ingestion_pipeline import ingest_upload_file
+            await ingest_upload_file(
+                input_path=str(zip_file),
+                db_url="postgresql://localhost/mock",
+                schema="mock_survey",
+                year="2024",
+                dataset_display_name="Mock ZIP CSV",
+                dataset_db_name="mock_zip_csv",
+                job_id="job_mock"
+            )
+            
+            # Verify layout parser was called
+            assert mock_parse.call_count >= 1
