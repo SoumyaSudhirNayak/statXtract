@@ -1,0 +1,8 @@
+[
+  "Dataset Purpose: To generate estimates of employment and unemployment characteristics in India at national and state levels.",
+  "Geographic Coverage: The whole of India except Nagaland interior villages and Andaman & Nicobar.",
+  "Population Coverage: Not explicitly specified in the dataset documentation.",
+  "Key Variables: HH_Size (Household size), Land_Owned (Area of land owned), Sector (Rural/Urban sector), State (State name), Religion (Household religion)",
+  "Sample Size / Scope: Approximately 115,000 households were surveyed.",
+  "Important Notes: A stratified multi-stage design was used., Subsample-wise weights (multipliers) are provided., The survey was conducted from July 2011 to June 2012 by NSSO."
+]

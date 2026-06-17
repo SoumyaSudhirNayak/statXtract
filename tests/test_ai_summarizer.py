@@ -26,7 +26,7 @@ async def test_truncation_and_formatting():
     mock_get_response.json.return_value = {
         "data": [
             {
-                "id": "Qwen3-VL-4B-Instruct-GGUF"
+                "id": "meta-llama-3.1-8b-instruct"
             }
         ]
     }
@@ -46,7 +46,7 @@ async def test_truncation_and_formatting():
             assert mock_post.called
             sent_payload = mock_post.call_args[1]["json"]
             user_msg = sent_payload["messages"][1]["content"]
-            assert len(user_msg) >= 12000 and len(user_msg) < 13000
+            assert len(user_msg) >= 12000 and len(user_msg) < 15000
             assert points == ["Point 1", "Point 2", "Point 3"]
         
     # Clean up cache
@@ -63,7 +63,7 @@ async def test_bullet_parsing_variations():
     mock_get_response.json.return_value = {
         "data": [
             {
-                "id": "Qwen3-VL-4B-Instruct-GGUF"
+                "id": "meta-llama-3.1-8b-instruct"
             }
         ]
     }

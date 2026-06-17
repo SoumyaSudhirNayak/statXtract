@@ -123,6 +123,8 @@ Make sure your PostgreSQL instance is running and accessible via `DATABASE_URL`.
 uvicorn main:app --reload
 ```
 
+for ai summary: (.venv) PS C:\statXtract\statxtract\ai_service> uvicorn app:app --host 0.0.0.0 --port 8001
+
 Then open:
 
 - Swagger UI: http://localhost:8000/docs  

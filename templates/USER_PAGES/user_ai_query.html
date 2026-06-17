@@ -596,6 +596,17 @@
               </div>
             </div>
 
+            <!-- AI Query Plan Card (hidden initially) (Task 13) -->
+            <div class="ai-card" id="planCard" style="display:none;">
+              <div class="ai-card-header" style="cursor: pointer;" onclick="togglePlanCard()">
+                <div class="ai-card-title">🗺️ AI Query Plan</div>
+                <span class="badge badge-blue" id="planToggleIcon">Show Plan</span>
+              </div>
+              <div class="ai-card-body" id="planCardBody" style="display:none;">
+                <pre id="planText" style="background: #1E293B; color: #E2E8F0; padding: 14px; border-radius: 8px; font-family: monospace; font-size: 13px; overflow-x: auto; margin: 0;"></pre>
+              </div>
+            </div>
+
             <!-- SQL Preview Card (hidden initially) -->
             <div class="ai-card" id="sqlCard" style="display:none;">
               <div class="ai-card-header">
@@ -625,6 +636,16 @@
               </div>
               <div class="ai-card-body">
                 <div class="results-table-wrap" id="resultsTableWrap"></div>
+              </div>
+            </div>
+
+            <!-- Explanation Card (hidden initially) -->
+            <div class="ai-card" id="explanationCard" style="display:none;">
+              <div class="ai-card-header">
+                <div class="ai-card-title">💡 Query Interpretation</div>
+              </div>
+              <div class="ai-card-body">
+                <div id="explanationText" style="font-size: 14px; font-weight: 500; color: var(--text-main); line-height: 1.6;"></div>
               </div>
             </div>
 
@@ -851,6 +872,9 @@
         }
 
         const data = await res.json();
+        if (data.success === false) {
+          throw new Error(data.message || 'Parse failed');
+        }
         lastParsed = data;
         hideLoading();
         showParsedResults(data);
@@ -888,6 +912,9 @@
         }
 
         const data = await res.json();
+        if (data.success === false) {
+          throw new Error(data.message || 'Execution failed');
+        }
         hideLoading();
         showFullResults(data);
         loadCredits(); // Refresh credits after execution
@@ -903,6 +930,8 @@
       document.getElementById('emptyState').style.display = 'none';
       showRiskCard(data.risk, data.parsed);
       showFiltersCard(data.parsed);
+      showExplanationCard(data.parsed.explanation);
+      showQueryPlanCard(data.parsed);
     }
 
     // ── Display: Full Results ──
@@ -919,8 +948,14 @@
       // Filters
       showFiltersCard(data.parsed);
 
+      // Query Plan Card (Task 13)
+      showQueryPlanCard(data.parsed);
+
       // SQL Preview
       showSqlCard(data.sql_preview);
+
+      // Explanation
+      showExplanationCard(data.parsed.explanation);
 
       // Summary
       showSummaryCard(data.summary);
@@ -940,6 +975,45 @@
         const pct = limit > 0 ? Math.min(100, (used / limit) * 100) : 0;
         document.getElementById('creditsBar').style.width = pct + '%';
         document.getElementById('creditsSub').textContent = `${used} used this month • ${remaining} remaining`;
+      }
+    }
+
+    function togglePlanCard() {
+      const body = document.getElementById('planCardBody');
+      const icon = document.getElementById('planToggleIcon');
+      if (body.style.display === 'none') {
+        body.style.display = '';
+        icon.textContent = 'Hide Plan';
+      } else {
+        body.style.display = 'none';
+        icon.textContent = 'Show Plan';
+      }
+    }
+
+    function showQueryPlanCard(parsed) {
+      const card = document.getElementById('planCard');
+      const text = document.getElementById('planText');
+      
+      // Collapse by default
+      document.getElementById('planCardBody').style.display = 'none';
+      document.getElementById('planToggleIcon').textContent = 'Show Plan';
+      
+      if (parsed && parsed.parsed_json) {
+        card.style.display = '';
+        text.textContent = JSON.stringify(parsed.parsed_json, null, 2);
+      } else {
+        card.style.display = 'none';
+      }
+    }
+
+    function showExplanationCard(explanation) {
+      const card = document.getElementById('explanationCard');
+      const text = document.getElementById('explanationText');
+      if (explanation) {
+        card.style.display = '';
+        text.textContent = explanation;
+      } else {
+        card.style.display = 'none';
       }
     }
 
@@ -972,18 +1046,24 @@
       const chips = document.getElementById('filterChips');
       let html = '';
       
-      // Show filters
-      (parsed.filters || []).forEach(f => {
-        html += `<span class="filter-chip">
-          <span class="chip-col">${f.column}</span>
-          <span class="chip-op">${f.operator}</span>
-          <span class="chip-val">${f.value}</span>
-        </span>`;
-      });
+      // Show filters in debug details format (Task 8)
+      const filters = parsed.filters || [];
+      if (filters.length > 0) {
+        filters.forEach(f => {
+          html += `
+            <div class="interpreted-filter-debug" style="margin-bottom: 12px; padding: 10px; border-left: 4px solid var(--green); background: rgba(46,125,50,0.03); border-radius: 0 8px 8px 0; font-size: 13.5px; line-height: 1.6;">
+              <div><strong>Column:</strong> ${f.column}</div>
+              <div><strong>Value:</strong> ${f.value}</div>
+              <div><strong>Confidence:</strong> ${Math.round((parsed.confidence || 0.85) * 100)}%</div>
+            </div>
+          `;
+        });
+      }
       
+      let otherHtml = '';
       // Show aggregations
       (parsed.aggregations || []).forEach(a => {
-        html += `<span class="filter-chip agg-chip">
+        otherHtml += `<span class="filter-chip agg-chip">
           <span class="chip-col">${a.function}</span>
           <span class="chip-op">(</span>
           <span class="chip-val">${a.column}</span>
@@ -993,11 +1073,15 @@
 
       // Show group by
       (parsed.group_by || []).forEach(g => {
-        html += `<span class="filter-chip" style="background:rgba(123,31,162,0.08); color:#7B1FA2; border-color:rgba(123,31,162,0.2);">
+        otherHtml += `<span class="filter-chip" style="background:rgba(123,31,162,0.08); color:#7B1FA2; border-color:rgba(123,31,162,0.2);">
           <span class="chip-op">GROUP BY</span>
           <span class="chip-col">${g}</span>
         </span>`;
       });
+
+      if (otherHtml) {
+        html += `<div style="margin-top: 10px; display: flex; flex-wrap: wrap; gap: 8px;">${otherHtml}</div>`;
+      }
 
       if (!html) {
         html = '<span style="color: var(--text-muted); font-size:13px; font-weight:500;">No specific filters extracted — general data exploration</span>';
@@ -1145,7 +1229,7 @@
       document.getElementById('loadingCard').style.display = '';
       document.getElementById('loadingText').textContent = text || 'Processing...';
       // Hide result cards during loading
-      ['riskCard','filtersCard','sqlCard','summaryCard','resultsCard','chartCard'].forEach(id => {
+      ['riskCard','filtersCard','sqlCard','explanationCard','summaryCard','resultsCard','chartCard'].forEach(id => {
         document.getElementById(id).style.display = 'none';
       });
     }

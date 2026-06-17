@@ -1,0 +1,16 @@
+[
+  "Here are the requested bullet points:",
+  "Dataset Purpose**: The Household Social Consumption: Health dataset is designed to collect information on health-related expenditures and outcomes at the household level in India.",
+  "Geographic Coverage**: The dataset covers all states and union territories (UTs) of India, with data collected from 11 blocks across 7 data files.",
+  "Population Coverage**: The dataset aims to represent the population of India, with a focus on household-level information on health-related expenditures and outcomes.",
+  "Key Variables**:",
+  "+ Proportion of persons reporting an ailment (PPRA)",
+  "+ Hospitalization rate",
+  "+ Average medical expenditure per hospitalization case",
+  "+ Average out-of-pocket medical expenditure per hospitalization case",
+  "+ Average medical expenditure per childbirth case",
+  "Sample Size / Scope**: The dataset is based on a survey conducted across 11 blocks, with a total of 7 data files containing unit-level information.",
+  "Important Notes**:",
+  "+ Weights are provided for each record to enable estimation of population parameters.",
+  "+ Data files are in text format and require aggregation using weights for generating estimates."
+]

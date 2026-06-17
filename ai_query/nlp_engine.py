@@ -152,10 +152,17 @@ def extract_age_range(text: str) -> Optional[dict]:
 
 
 def extract_limit(text: str) -> Optional[int]:
-    """Extract row limit from text like 'top 10', 'first 50', 'limit 100'."""
-    m = re.search(r'(?:top|first|limit|show)\s*(\d+)', text, re.IGNORECASE)
+    """Extract row limit from text like 'top 10', 'first 50', 'limit 100', 'list 15 records'."""
+    # Pattern 1: keyword followed by number (e.g. list 15, top 10, limit 100)
+    m = re.search(r'\b(?:top|first|limit|show|list)\s*(\d+)\b', text, re.IGNORECASE)
     if m:
         val = int(m.group(1))
+        if 1 <= val <= 10000:
+            return val
+    # Pattern 2: number followed by row/record/line/result keyword (e.g. 15 records, 20 rows)
+    m2 = re.search(r'\b(\d+)\s*(?:records|rows|results|lines|items)\b', text, re.IGNORECASE)
+    if m2:
+        val = int(m2.group(1))
         if 1 <= val <= 10000:
             return val
     return None

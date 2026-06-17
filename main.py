@@ -7277,38 +7277,197 @@ async def admin_delete_dataset(
 class AiSummarizeRequest(BaseModel):
     dataset_key: str
     text: str
+    bypass_cache: bool = False
 
 @app.post("/api/ai/summarize")
 async def api_ai_summarize(req: AiSummarizeRequest, request: Request):
     db = request.app.state.db
     
-    # 1. Check database for existing cached summary
-    async with db.acquire() as conn:
-        row = await conn.fetchrow(
-            "SELECT summary FROM dataset_summaries WHERE dataset_key = $1",
-            req.dataset_key
-        )
-        if row:
-            try:
-                summary_list = json.loads(row["summary"])
-                if isinstance(summary_list, list):
-                    return {"success": True, "summary": summary_list}
-            except Exception:
-                # Fallback to splitting by newline if stored as plain text
-                lines = [l.strip() for l in row["summary"].split("\n") if l.strip()]
-                return {"success": True, "summary": lines}
+    # 1. Check database for existing cached summary if bypass_cache is False
+    if not req.bypass_cache:
+        async with db.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT summary, generated_at FROM dataset_summaries WHERE dataset_key = $1",
+                req.dataset_key
+            )
+            if row:
+                generated_at = row["generated_at"].isoformat() if row.get("generated_at") else None
+                try:
+                    summary_list = json.loads(row["summary"])
+                    if isinstance(summary_list, list):
+                        return {"success": True, "summary": summary_list, "generated_at": generated_at}
+                except Exception:
+                    # Fallback to splitting by newline if stored as plain text
+                    lines = [l.strip() for l in row["summary"].split("\n") if l.strip()]
+                    return {"success": True, "summary": lines, "generated_at": generated_at}
                 
     # 2. Call AI Service (port 8001)
     ai_service_url = os.getenv("AI_SERVICE_URL", "http://localhost:8001")
     
+    # Fetch additional context from database (Task 10)
+    enriched_text = req.text
+    async with db.acquire() as conn:
+        resolved_schema = None
+        resolved_table = None
+        try:
+            registry_rows = await conn.fetch("SELECT dataset_schema FROM dataset_registry")
+            for r in registry_rows:
+                ds_schema = r["dataset_schema"]
+                tables = await conn.fetch(
+                    "SELECT table_name FROM information_schema.tables WHERE table_schema = $1 AND table_type = 'BASE TABLE'",
+                    ds_schema
+                )
+                for t in tables:
+                    tname = t["table_name"]
+                    key_candidate = f"{ds_schema}__{tname}".lower()
+                    if key_candidate == req.dataset_key.lower():
+                        resolved_schema = ds_schema
+                        resolved_table = tname
+                        break
+                if resolved_schema:
+                    break
+            
+            if not resolved_schema:
+                # Fallback to match schema alone
+                for r in registry_rows:
+                    ds_schema = r["dataset_schema"]
+                    if ds_schema.lower() == req.dataset_key.lower():
+                        resolved_schema = ds_schema
+                        break
+        except Exception as e:
+            print(f"Error resolving schema/table for summary context: {e}")
+
+        # Fetch README and Objectives content
+        readme_content = ""
+        objectives_content = ""
+        if resolved_schema:
+            try:
+                if resolved_table:
+                    readme_row = await conn.fetchrow(
+                        """
+                        SELECT content FROM dataset_documents 
+                        WHERE dataset_schema = $1 AND doc_type = 'readme' AND (table_name = $2 OR table_name IS NULL)
+                        ORDER BY table_name NULLS LAST LIMIT 1
+                        """,
+                        resolved_schema, resolved_table
+                    )
+                    objectives_row = await conn.fetchrow(
+                        """
+                        SELECT content FROM dataset_documents 
+                        WHERE dataset_schema = $1 AND doc_type = 'objectives' AND (table_name = $2 OR table_name IS NULL)
+                        ORDER BY table_name NULLS LAST LIMIT 1
+                        """,
+                        resolved_schema, resolved_table
+                    )
+                else:
+                    readme_row = await conn.fetchrow(
+                        "SELECT content FROM dataset_documents WHERE dataset_schema = $1 AND doc_type = 'readme' AND table_name IS NULL LIMIT 1",
+                        resolved_schema
+                    )
+                    objectives_row = await conn.fetchrow(
+                        "SELECT content FROM dataset_documents WHERE dataset_schema = $1 AND doc_type = 'objectives' AND table_name IS NULL LIMIT 1",
+                        resolved_schema
+                    )
+                
+                if readme_row and readme_row["content"]:
+                    readme_content = readme_row["content"]
+                if objectives_row and objectives_row["content"]:
+                    objectives_content = objectives_row["content"]
+            except Exception as e:
+                print(f"Error fetching documents content: {e}")
+
+        # Fetch dataset metadata
+        metadata_str = ""
+        if resolved_schema:
+            try:
+                meta_row = await conn.fetchrow(
+                    f"""
+                    SELECT title, abstract, keywords, geographic_coverage, industrial_coverage, 
+                           product_coverage, weighting, frequency, methodology, collection_mode, 
+                           time_method, procedures, producer, file_case_count, file_variable_count
+                    FROM "{resolved_schema}".dataset_metadata
+                    LIMIT 1
+                    """
+                )
+                if meta_row:
+                    meta_items = []
+                    for k, v in dict(meta_row).items():
+                        if v is not None and str(v).strip():
+                            key_title = k.replace("_", " ").title()
+                            meta_items.append(f"{key_title}: {v}")
+                    metadata_str = "\n".join(meta_items)
+            except Exception as e:
+                print(f"Error fetching dataset metadata for context: {e}")
+
+        # Fetch variable dictionary labels
+        variables_str = ""
+        if resolved_schema and resolved_table:
+            try:
+                has_variables = await conn.fetchval(
+                    """
+                    SELECT EXISTS (
+                        SELECT 1 FROM information_schema.tables 
+                        WHERE table_schema = $1 AND table_name = 'variables'
+                    )
+                    """,
+                    resolved_schema
+                )
+                if has_variables:
+                    variables_rows = await conn.fetch(
+                        f"""
+                        SELECT column_name AS variable_name, label
+                        FROM "{resolved_schema}".variables
+                        WHERE table_name = $1 AND label IS NOT NULL AND label != ''
+                        """,
+                        resolved_table
+                    )
+                else:
+                    variables_rows = await conn.fetch(
+                        f"""
+                        SELECT variable_name, label
+                        FROM "{resolved_schema}".variable_dictionary
+                        WHERE table_name = $1 AND label IS NOT NULL AND label != ''
+                        """,
+                        resolved_table
+                    )
+                if variables_rows:
+                    var_items = []
+                    for r in variables_rows:
+                        var_items.append(f"- {r['variable_name']}: {r['label']}")
+                    variables_str = "\n".join(var_items)
+            except Exception as e:
+                print(f"Error fetching variables for context: {e}")
+
+        # Combine fetched elements
+        context_parts = []
+        if metadata_str:
+            context_parts.append(f"--- DATASET METADATA ---\n{metadata_str}")
+        
+        final_readme = readme_content.strip() or req.text.strip()
+        if final_readme:
+            context_parts.append(f"--- DATASET README / DOCUMENTATION ---\n{final_readme}")
+            
+        if objectives_content.strip():
+            context_parts.append(f"--- DATASET OBJECTIVES ---\n{objectives_content.strip()}")
+            
+        if variables_str:
+            context_parts.append(f"--- VARIABLE DICTIONARY (Metadata/DDI Labels) ---\n{variables_str}")
+            
+        combined_enriched = "\n\n".join(context_parts)
+        if combined_enriched.strip():
+            enriched_text = combined_enriched
+
     import httpx
+    import datetime
     try:
         async with httpx.AsyncClient(timeout=65.0) as client:
             resp = await client.post(
                 f"{ai_service_url}/summarize",
                 json={
                     "dataset_key": req.dataset_key,
-                    "text": req.text
+                    "text": enriched_text,
+                    "temperature": 0.4,
+                    "bypass_cache": req.bypass_cache
                 }
             )
             if resp.status_code == 503:
@@ -7333,17 +7492,19 @@ async def api_ai_summarize(req: AiSummarizeRequest, request: Request):
             
             # 3. Cache the new summary in database
             async with db.acquire() as conn:
-                await conn.execute(
+                row = await conn.fetchrow(
                     """
-                    INSERT INTO dataset_summaries (dataset_key, summary)
-                    VALUES ($1, $2)
+                    INSERT INTO dataset_summaries (dataset_key, summary, generated_at)
+                    VALUES ($1, $2, NOW())
                     ON CONFLICT (dataset_key) DO UPDATE SET summary = EXCLUDED.summary, generated_at = NOW()
+                    RETURNING generated_at
                     """,
                     req.dataset_key,
                     json.dumps(summary_list, ensure_ascii=False)
                 )
+                generated_at = row["generated_at"].isoformat() if (row and row.get("generated_at")) else datetime.datetime.now().isoformat()
                 
-            return {"success": True, "summary": summary_list}
+            return {"success": True, "summary": summary_list, "generated_at": generated_at}
             
     except httpx.RequestError:
         return JSONResponse(

@@ -741,6 +741,44 @@
         color: #000000 !important;
         margin-bottom: 30px !important;
     }
+    /* AI Dataset Summary Research Report Styles */
+    .ai-summary-report {
+      max-width: 800px;
+      margin: 0 auto;
+      font-family: var(--font-body);
+      color: var(--text-main);
+    }
+    .ai-report-section {
+      margin-bottom: 24px;
+    }
+    .ai-report-header {
+      font-family: var(--font-head);
+      font-weight: 700;
+      font-size: 15px;
+      text-transform: uppercase;
+      color: var(--green);
+      margin-top: 18px;
+      margin-bottom: 6px;
+      letter-spacing: 0.5px;
+    }
+    .ai-report-content {
+      font-weight: 400;
+      line-height: 1.7;
+      color: var(--text-main);
+    }
+    .ai-summary-metadata {
+      font-size: 11.5px;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+    .ai-metadata-title {
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-main);
+      font-size: 11px;
+      margin-bottom: 4px;
+    }
   </style>
 </head>
 <body>
@@ -1903,13 +1941,22 @@
       const modal = document.getElementById('aiSummaryModal');
       const title = document.getElementById('aiSummaryModalTitle');
       const container = document.getElementById('ai-summary-content');
+      const btn = document.getElementById('btnReSummarize');
+      const timestampSpan = document.getElementById('ai-summary-timestamp');
+      
+      if (btn) {
+        btn.disabled = true;
+      }
+      if (timestampSpan) {
+        timestampSpan.textContent = 'Loading...';
+      }
       
       if (!originalAiSummaryHtml) {
         originalAiSummaryHtml = container.innerHTML;
       }
       
       const capitalizedDocType = docType.charAt(0).toUpperCase() + docType.slice(1);
-      title.innerHTML = `✨ AI Summary: ${capitalizedDocType} - ${activeTable || activeSchema}`;
+      title.innerHTML = `AI Summary: ${capitalizedDocType} - ${activeTable || activeSchema}`;
       modal.style.display = 'flex';
       
       // Show loading state
@@ -1966,33 +2013,30 @@
         
         if (response.status === 503) {
           showErrorState("AI summarization service currently unavailable.");
+          if (timestampSpan) timestampSpan.textContent = 'N/A';
           return;
         }
         
         if (!response.ok || !result.success || !result.summary || result.summary.length === 0) {
           showErrorState(result.message || "Unable to generate summary.");
+          if (timestampSpan) timestampSpan.textContent = 'N/A';
           return;
         }
         
-        // Render summary bullet points
+        // Enable Refresh Summary button and update timestamp
+        if (btn) {
+          btn.disabled = false;
+        }
+        if (timestampSpan) {
+          timestampSpan.textContent = formatTimestamp(result.generated_at);
+        }
+        
+        // Render summary cards
         renderSummaryCard(result.summary);
         
       } catch (err) {
         showErrorState("AI summarization service currently unavailable.");
-      }
-      
-      function renderSummaryCard(points) {
-        let listItems = points.map(pt => `<li style="margin-bottom: 10px;">${escapeHTML(pt)}</li>`).join("");
-        container.innerHTML = `
-          <div class="ai-summary-card" style="background: rgba(46, 125, 50, 0.03); border: 2px solid var(--green); border-radius: 12px; padding: 24px; margin-bottom: 10px;">
-            <h3 style="font-family: var(--font-head); font-size: 20px; font-weight: 800; color: var(--green); margin-top: 0; margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
-              ✨ AI Dataset Summary
-            </h3>
-            <ul style="margin: 0; padding-left: 20px; list-style-type: disc; font-size: 14.5px; line-height: 1.8; color: var(--text-main); display: flex; flex-direction: column; gap: 8px;">
-              ${listItems}
-            </ul>
-          </div>
-        `;
+        if (timestampSpan) timestampSpan.textContent = 'N/A';
       }
       
       function showErrorState(msg) {
@@ -2005,10 +2049,223 @@
       }
     }
 
+    // Clean up markdown markers and prefixes from AI text
+    function cleanMarkdownArtifacts(str) {
+      if (!str) return '';
+      let s = str.trim();
+      // Remove leading bullets, hyphens, stars, spaces
+      while (s.startsWith('*') || s.startsWith(':') || s.startsWith('-') || s.startsWith('•') || s.startsWith(' ')) {
+        s = s.substring(1).trim();
+      }
+      // Remove leading bold/colons/markdown artifacts
+      s = s.replace(/^\*\*[:\-\s]*/, '').trim();
+      // Remove trailing bold stars
+      s = s.replace(/\*\*$/, '').trim();
+      return s;
+    }
+
+    // Parse the summary bullets into structured sections
+    function parseSummaryPoints(points) {
+      const sections = {
+        "Dataset Purpose": "",
+        "Geographic Coverage": "",
+        "Population Coverage": "",
+        "Key Variables": "",
+        "Sample Size / Scope": "",
+        "Important Notes": ""
+      };
+      
+      const sectionKeys = Object.keys(sections);
+      const assignedIndices = new Set();
+      
+      const normalize = str => str.toLowerCase().replace(/[^a-z0-9]/g, '');
+      
+      // Try exact/prefix matching first
+      sectionKeys.forEach(key => {
+        const normKey = normalize(key);
+        for (let i = 0; i < points.length; i++) {
+          if (assignedIndices.has(i)) continue;
+          
+          const cleanPt = points[i].replace(/^[\s\d\.\-\*•]*/, '').trim();
+          const normPt = normalize(cleanPt);
+          
+          if (normPt.startsWith(normKey)) {
+            const keyRegex = new RegExp('^' + key.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&').replace(/\s+/g, '\\s*'), 'i');
+            const match = cleanPt.match(keyRegex);
+            if (match) {
+              let content = cleanPt.substring(match[0].length).trim();
+              content = content.replace(/^[:\-\s]+/, '').trim();
+              sections[key] = cleanMarkdownArtifacts(content);
+              assignedIndices.add(i);
+              break;
+            }
+          }
+        }
+      });
+      
+      // Positional fallback for anything not matched
+      let pointIndex = 0;
+      sectionKeys.forEach(key => {
+        if (!sections[key]) {
+          while (pointIndex < points.length && assignedIndices.has(pointIndex)) {
+            pointIndex++;
+          }
+          if (pointIndex < points.length) {
+            let content = points[pointIndex].replace(/^[\s\d\.\-\*•]*/, '').trim();
+            sectionKeys.forEach(k => {
+              const kRegex = new RegExp('^' + k.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&').replace(/\s+/g, '\\s*'), 'i');
+              const m = content.match(kRegex);
+              if (m) {
+                content = content.substring(m[0].length).trim();
+              }
+            });
+            content = content.replace(/^[:\-\s]+/, '').trim();
+            sections[key] = cleanMarkdownArtifacts(content);
+            assignedIndices.add(pointIndex);
+          } else {
+            sections[key] = "Not specified in dataset documentation.";
+          }
+        }
+      });
+      
+      sectionKeys.forEach(key => {
+        if (!sections[key]) {
+          sections[key] = "Not specified in dataset documentation.";
+        }
+      });
+      
+      return sections;
+    }
+
+    // Format ISO string to D MMM YYYY h:mm AM/PM (e.g. 12 Jun 2026 11:40 AM)
+    function formatTimestamp(isoString) {
+      if (!isoString) return 'N/A';
+      try {
+        const date = new Date(isoString);
+        if (isNaN(date.getTime())) return isoString;
+        
+        const day = date.getDate();
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const month = months[date.getMonth()];
+        const year = date.getFullYear();
+        
+        let hours = date.getHours();
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        const ampm = hours >= 12 ? 'PM' : 'AM';
+        hours = hours % 12;
+        hours = hours ? hours : 12; // the hour '0' should be '12'
+        
+        return `${day} ${month} ${year} ${hours}:${minutes} ${ampm}`;
+      } catch (e) {
+        return isoString;
+      }
+    }
+
+    // Render structured layout inside ai-summary-content container
+    function renderSummaryCard(points) {
+      const container = document.getElementById('ai-summary-content');
+      const parsed = parseSummaryPoints(points);
+      
+      const sectionsHtml = Object.keys(parsed).map(key => {
+        return `
+          <div class="ai-report-section">
+            <div class="ai-report-header">${key}</div>
+            <div class="ai-report-content">
+              ${escapeHTML(parsed[key])}
+            </div>
+          </div>
+        `;
+      }).join("");
+      
+      container.innerHTML = `
+        <div class="ai-summary-report">
+          ${sectionsHtml}
+        </div>
+      `;
+    }
+
+    // Trigger re-summarization bypassing cache
+    async function triggerReSummarize() {
+      const btn = document.getElementById('btnReSummarize');
+      if (!btn || btn.disabled) return;
+      
+      const originalBtnHtml = btn.innerHTML;
+      const timestampSpan = document.getElementById('ai-summary-timestamp');
+      
+      // Enter loading state
+      btn.disabled = true;
+      btn.innerHTML = `<span class="spinner" style="border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; width: 14px; height: 14px; margin-right: 6px; display: inline-block; vertical-align: middle;"></span> Refreshing Summary...`;
+      
+      const datasetKey = (activeSchema + "__" + activeTable).toLowerCase();
+      
+      // Combine displayed text of README and Objectives
+      let readmeText = "";
+      const readmeElem = document.getElementById('readmeContent');
+      if (readmeElem) {
+        const text = readmeElem.innerText || "";
+        if (!text.includes("No README available") && !text.includes("Loading README...")) {
+          readmeText = text;
+        }
+      }
+      
+      let objectivesText = "";
+      const objectivesElem = document.getElementById('objectivesContent');
+      if (objectivesElem) {
+        const text = objectivesElem.innerText || "";
+        if (!text.includes("No Objectives available") && !text.includes("Loading Objectives...")) {
+          objectivesText = text;
+        }
+      }
+      
+      const combinedText = (readmeText + "\n\n" + objectivesText).trim();
+      
+      try {
+        const response = await fetch('/api/ai/summarize', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            dataset_key: datasetKey,
+            text: combinedText,
+            bypass_cache: true
+          })
+        });
+        
+        const result = await response.json();
+        
+        if (!response.ok || !result.success || !result.summary || result.summary.length === 0) {
+          showToast("Unable to refresh summary.", "warning");
+          return;
+        }
+        
+        // Render updated summary
+        if (timestampSpan) {
+          timestampSpan.textContent = formatTimestamp(result.generated_at);
+        }
+        renderSummaryCard(result.summary);
+        showToast("Summary updated successfully.", "success");
+        
+      } catch (err) {
+        showToast("Unable to refresh summary.", "warning");
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalBtnHtml;
+      }
+    }
+
     function closeAiSummaryModal() {
       document.getElementById('aiSummaryModal').style.display = 'none';
       if (originalAiSummaryHtml) {
         document.getElementById('ai-summary-content').innerHTML = originalAiSummaryHtml;
+      }
+      const btn = document.getElementById('btnReSummarize');
+      const timestampSpan = document.getElementById('ai-summary-timestamp');
+      if (btn) {
+        btn.disabled = true;
+      }
+      if (timestampSpan) {
+        timestampSpan.textContent = 'N/A';
       }
     }
 
@@ -2057,7 +2314,7 @@
     <div class="modal-content">
       <div class="modal-header">
         <div class="modal-title" id="aiSummaryModalTitle">
-          ✨ AI Summary
+          AI Summary
         </div>
         <button class="modal-close" onclick="closeAiSummaryModal()">&times;</button>
       </div>
@@ -2065,7 +2322,7 @@
         <div id="ai-summary-content">
           <!-- Placeholder structure -->
           <div class="ai-placeholder-container" style="display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 40px 20px; gap: 20px;">
-            <div style="font-size: 48px;">✨</div>
+            <div style="font-size: 48px;"></div>
             <h3 style="font-family: var(--font-head); font-size: 24px; font-weight: 800; color: var(--text-main); margin: 0;">AI Summary</h3>
             <p style="font-size: 15px; color: var(--text-muted); max-width: 500px; line-height: 1.6; margin: 0;">
               AI-powered document summarization will be available soon.
@@ -2088,8 +2345,20 @@
           </div>
         </div>
       </div>
-      <div class="modal-footer">
-        <button class="btn-view" onclick="closeAiSummaryModal()">Close</button>
+      <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: flex-end; padding: 20px 24px; border-top: 1px solid var(--border-soft); background: rgba(0,0,0,0.01);">
+        <div class="ai-summary-metadata" style="text-align: left;">
+          <div class="ai-metadata-title">AI Generated Summary</div>
+          <div>Last Updated: <span id="ai-summary-timestamp">N/A</span></div>
+          <div>Source: README + Objectives</div>
+          <div style="margin-top: 10px;">
+            <button id="btnReSummarize" class="btn btn-primary" onclick="triggerReSummarize()" style="padding: 8px 16px; font-size: 13px; font-weight: 600;">
+              Refresh Summary
+            </button>
+          </div>
+        </div>
+        <div>
+          <button class="btn-view" onclick="closeAiSummaryModal()" style="padding: 8px 16px; font-size: 13px; font-weight: 600;">Close</button>
+        </div>
       </div>
     </div>
   </div>

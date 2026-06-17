@@ -11,9 +11,17 @@ except ImportError:
 
 app = FastAPI(title="AI Summarizer Service (LM Studio)")
 
+@app.on_event("startup")
+async def startup_event():
+    model_name = await get_model_name()
+    print("LM Studio Provider: Active", flush=True)
+    print(f"Detected Model: {model_name}", flush=True)
+
 class SummarizeRequest(BaseModel):
     dataset_key: str
     text: str
+    temperature: float = 0.4
+    bypass_cache: bool = False
 
 class SummarizeResponse(BaseModel):
     success: bool
@@ -34,7 +42,12 @@ async def summarize(req: SummarizeRequest):
         if not req.text.strip():
             return SummarizeResponse(success=True, summary=[])
             
-        summary_points = await summarize_text(req.dataset_key, req.text)
+        summary_points = await summarize_text(
+            req.dataset_key,
+            req.text,
+            temperature=req.temperature,
+            bypass_cache=req.bypass_cache
+        )
         return SummarizeResponse(success=True, summary=summary_points)
     except Exception as e:
         return JSONResponse(
