@@ -883,7 +883,7 @@
                 <div class="upload-instructions">
                     <h3><i class="fas fa-info-circle"></i> Upload Guidelines</h3>
                     <ul>
-                        <li>Only ZIP files containing .sav , .csv , .xlsx , .txt and their respective Metadata</li>
+                        <li>Supported formats: ZIP, Nesstar package, or standalone JSON/SAV/CSV/XLSX/DTA/XPT</li>
                         <li>Ensure Data is present in above mentioned format</li>
                         <li>Ensure your dataset is properly formatted</li>
                         <li>Select the appropriate data category before uploading</li>
@@ -917,7 +917,7 @@
                         <i class="fas fa-file-archive"></i> Dataset File (.zip)
                     </label>
                     <div class="file-input-wrapper" id="fileInputWrapper">
-                        <input type="file" name="file" id="fileInput" class="file-input" accept=".zip,.nesstar" required>
+                        <input type="file" name="file" id="fileInput" class="file-input" accept=".zip,.nesstar,.json" required>
                         <div class="file-input-content">
                             <i class="fas fa-cloud-upload-alt file-input-icon"></i>
                             <div class="file-input-text">Drag & Drop your ZIP file here</div>
@@ -1060,13 +1060,13 @@
             if (files.length > 0) {
                 const file = files[0];
                 const lower = (file.name || '').toLowerCase();
-                if (lower.endsWith('.zip') || lower.endsWith('.nesstar')) {
+                if (lower.endsWith('.zip') || lower.endsWith('.nesstar') || lower.endsWith('.json')) {
                     fileInput.files = files;
                     selectedFileName.textContent = file.name;
                     fileSelected.classList.add('show');
                     showToast('File dropped successfully!', 'success');
                 } else {
-                    showToast('Please select a valid ZIP or Nesstar Study (.nesstar) file.', 'error');
+                    showToast('Please select a valid ZIP, JSON, or Nesstar Study (.nesstar) file.', 'error');
                 }
             }
         });
@@ -1113,8 +1113,8 @@
             }
 
             const lower = file.name.toLowerCase();
-            if (!(lower.endsWith('.zip') || lower.endsWith('.nesstar'))) {
-                showToast('Please select a valid ZIP or Nesstar Study (.nesstar) file.', 'error');
+            if (!(lower.endsWith('.zip') || lower.endsWith('.nesstar') || lower.endsWith('.json'))) {
+                showToast('Please select a valid ZIP, JSON, or Nesstar Study (.nesstar) file.', 'error');
                 return;
             }
 

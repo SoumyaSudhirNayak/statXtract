@@ -314,7 +314,7 @@ async def _run_ingest_job(
             raw_name = guess_file_name(item, fallback=f"{dataset_id}_{file_no}")
             filename = _sanitize_filename(raw_name)
             ext = Path(filename).suffix.lower()
-            if ext and ext not in {".zip", ".xml", ".csv", ".txt", ".sav", ".por", ".xlsx"}:
+            if ext and ext not in {".zip", ".xml", ".csv", ".txt", ".sav", ".por", ".xlsx", ".json"}:
                 continue
 
             dest_path = ingest_dir / filename

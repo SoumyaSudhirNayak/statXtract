@@ -114,3 +114,22 @@ def test_wrapped_zip_structure():
         sa = next(s for s in surveys if s["folder_name"] == "Survey_A")
         assert sa["relative_dir"] == "Main_Zip/Survey_A"
 
+def test_batch_validation_with_json():
+    """Test that scan_batch_archive correctly recognizes .json files as datasets."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_path = Path(temp_dir)
+        
+        survey_dir = temp_path / "Survey_JSON"
+        survey_dir.mkdir()
+        
+        (survey_dir / "data.json").write_text("[{\"col\": 1}]")
+        (survey_dir / "other.txt").write_text("fixed width maybe")
+        
+        surveys = scan_batch_archive(temp_dir)
+        assert len(surveys) == 1
+        s = surveys[0]
+        assert s["folder_name"] == "Survey_JSON"
+        assert s["dataset_count"] == 2 # data.json and other.txt
+        assert "data.json" in s["dataset_files"]
+        assert s["validation"]["datasets_found"] is True
+

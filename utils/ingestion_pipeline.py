@@ -607,11 +607,18 @@ def _profile_series(series: pd.Series) -> dict[str, Any]:
 
     if pd.api.types.is_numeric_dtype(s):
         clean = pd.to_numeric(s, errors="coerce")
+        def safe_float(val):
+            if pd.isna(val):
+                return None
+            try:
+                return float(val)
+            except Exception:
+                return None
         return {
-            "mean": float(clean.mean()) if clean.notna().any() else None,
-            "min": float(clean.min()) if clean.notna().any() else None,
-            "max": float(clean.max()) if clean.notna().any() else None,
-            "stddev": float(clean.std()) if clean.notna().any() else None,
+            "mean": safe_float(clean.mean()),
+            "min": safe_float(clean.min()),
+            "max": safe_float(clean.max()),
+            "stddev": safe_float(clean.std()),
             "unique_count": unique_count,
         }
 
@@ -955,7 +962,7 @@ async def ingest_upload_file(
         for p in export_nesstar_dir.rglob("*"):
             if not p.is_file():
                 continue
-            if p.suffix.lower() in {".csv", ".xlsx", ".txt", ".sav", ".por", ".dta", ".xpt"}:
+            if p.suffix.lower() in {".csv", ".xlsx", ".txt", ".sav", ".por", ".dta", ".xpt", ".json"}:
                 checksum = get_file_checksum(str(p))
                 if p.name in manifest and manifest[p.name]["checksum"] == checksum:
                     log_terminal(f"Skipping duplicate file: {p.name} (already uploaded)", "warning")
@@ -1031,7 +1038,7 @@ async def ingest_upload_file(
                 continue
             if is_layout_file(p):
                 continue
-            if p.suffix.lower() in {".csv", ".xlsx", ".txt", ".sav", ".por", ".dta", ".xpt"}:
+            if p.suffix.lower() in {".csv", ".xlsx", ".txt", ".sav", ".por", ".dta", ".xpt", ".json"}:
                 # Duplicate detection
                 checksum = get_file_checksum(str(p))
                 if p.name in manifest and manifest[p.name]["checksum"] == checksum:
@@ -2176,7 +2183,7 @@ async def process_dataset_zip(zip_path: str, db_url: str, schema: str = None, cu
     logger.info(f"Processing package: {zip_path}")
 
     # FIX: Handle standalone files directly to bypass Nesstar/Zip logic
-    if package_ext in [".sav", ".por", ".csv", ".xlsx", ".txt", ".dta", ".xpt"]:
+    if package_ext in [".sav", ".por", ".csv", ".xlsx", ".txt", ".dta", ".xpt", ".json"]:
         if job_id:
             update_job(job_id, status="processing", progress=5, message=f"Processing standalone file: {os.path.basename(zip_path)}")
         file_sha1 = _hash_file_sha1(zip_path)
@@ -2221,7 +2228,7 @@ async def process_dataset_zip(zip_path: str, db_url: str, schema: str = None, cu
             visible = [
                 Path(n).name
                 for n in names
-                if Path(n).suffix.lower() in [".xml", ".nsdstat", ".nesstar", ".txt", ".csv", ".sav", ".por", ".xlsx", ".dta", ".xpt"]
+                if Path(n).suffix.lower() in [".xml", ".nsdstat", ".nesstar", ".txt", ".csv", ".sav", ".por", ".xlsx", ".dta", ".xpt", ".json"]
             ]
             file_status_list = [{"name": n, "status": "pending", "rows": 0} for n in sorted(set(visible))]
             update_job(job_id, progress=5, message="Package opened. Preparing extraction...", files=file_status_list)
@@ -2311,7 +2318,7 @@ async def process_directory(
     has_nesstar_metadata = any(f.suffix.lower() == ".nsdstat" for f in ddi_candidates)
     data_files = [
         f for f in files 
-        if f.suffix.lower() in [".txt", ".csv", ".sav", ".por", ".xlsx", ".dta", ".xpt"]
+        if f.suffix.lower() in [".txt", ".csv", ".sav", ".por", ".xlsx", ".dta", ".xpt", ".json"]
         and not is_layout_file(f)
     ]
 
@@ -2362,10 +2369,10 @@ async def process_directory(
                 job_id,
                 status="failed",
                 progress=100,
-                message="No data files (.txt, .csv, .sav, .por, .xlsx) found",
-                error="No data files (.txt, .csv, .sav, .por, .xlsx) found",
+                message="No data files (.txt, .csv, .sav, .por, .xlsx, .json) found",
+                error="No data files (.txt, .csv, .sav, .por, .xlsx, .json) found",
             )
-        raise ValueError("No data files (.txt, .csv, .sav, .por, .xlsx) found")
+        raise ValueError("No data files (.txt, .csv, .sav, .por, .xlsx, .json) found")
 
     # Initialize file status in job
     if job_id:
@@ -2541,7 +2548,7 @@ async def process_directory(
                     if rename_map:
                         df = df.rename(columns=rename_map)
 
-                    if data_file.suffix.lower() in [".csv", ".xlsx", ".sav", ".dta", ".xpt"]:
+                    if data_file.suffix.lower() in [".csv", ".xlsx", ".sav", ".dta", ".xpt", ".json"]:
                         ddi_var_names = set(v.name for v in ddi_metadata["variables"])
                         df_columns = set(df.columns)
 
@@ -2742,7 +2749,66 @@ def _load_data_file(file_path: Path, ddi_metadata: Optional[Dict]) -> Optional[p
     """Loads data file into DataFrame using appropriate method."""
     ext = file_path.suffix.lower()
     
-    if ext == '.txt':
+    if ext == '.json':
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+        except Exception as e:
+            logger.error(f"Invalid JSON format: {e}")
+            raise ValueError("Invalid JSON format detected.")
+            
+        def flatten_item(x, prefix=''):
+            out = {}
+            def flatten(val, name=''):
+                if isinstance(val, dict):
+                    if not val:
+                        out[name[:-1]] = None
+                    for k, v in val.items():
+                        flatten(v, name + str(k) + '.')
+                elif isinstance(val, list):
+                    if not val:
+                        out[name[:-1]] = None
+                    for i, v in enumerate(val):
+                        flatten(v, name + str(i) + '.')
+                else:
+                    col_name = name[:-1]
+                    if val is True:
+                        out[col_name] = 'true'
+                    elif val is False:
+                        out[col_name] = 'false'
+                    elif val is None:
+                        out[col_name] = None
+                    else:
+                        out[col_name] = str(val)
+            flatten(x, prefix)
+            return out
+
+        if isinstance(data, dict):
+            flat_records = [flatten_item(data)]
+        elif isinstance(data, list):
+            flat_records = []
+            for item in data:
+                if isinstance(item, (dict, list)):
+                    flat_records.append(flatten_item(item))
+                else:
+                    if item is True:
+                        flat_records.append({'value': 'true'})
+                    elif item is False:
+                        flat_records.append({'value': 'false'})
+                    elif item is None:
+                        flat_records.append({'value': None})
+                    else:
+                        flat_records.append({'value': str(item)})
+        else:
+            raise ValueError("Invalid JSON format detected.")
+            
+        if not flat_records:
+            return pd.DataFrame()
+            
+        df = pd.DataFrame(flat_records, dtype=str)
+        return df
+
+    elif ext == '.txt':
         if not ddi_metadata:
             raise ValueError(f"Cannot parse fixed-width file {file_path.name} without DDI metadata")
         
