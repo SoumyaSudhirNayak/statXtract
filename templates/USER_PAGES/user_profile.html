@@ -536,6 +536,14 @@
 
     // ── Update Password ──
     async function updatePassword() {
+      async function sha256(message) {
+        const msgBuffer = new TextEncoder().encode(message);
+        const hashBuffer = await window.crypto.subtle.digest('SHA-256', msgBuffer);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        return hashHex;
+      }
+
       const cur  = document.getElementById('curPw').value;
       const nw   = document.getElementById('newPw').value;
       const conf = document.getElementById('confPw').value;
@@ -543,14 +551,25 @@
       if (nw.length < 8)         { showToast('New password must be at least 8 characters.', 'error'); return; }
       if (nw !== conf)            { showToast('Passwords do not match.', 'error'); return; }
       
+      let curH = cur;
+      let nwH = nw;
+      let confH = conf;
+      try {
+        curH = await sha256(cur);
+        nwH = await sha256(nw);
+        confH = await sha256(conf);
+      } catch (err) {
+        console.error('Hashing failed', err);
+      }
+
       try {
         const res = await fetch('/api/user/change-password', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            current_password: cur,
-            new_password: nw,
-            confirm_password: conf
+            current_password: curH,
+            new_password: nwH,
+            confirm_password: confH
           })
         });
         if (res.ok) {

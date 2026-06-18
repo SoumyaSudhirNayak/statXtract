@@ -51,7 +51,7 @@ from utils.db_utils import to_snake_case_identifier
 from auth.local.dependencies import get_current_user, get_current_active_user_with_role
 from auth.local.schemas import TokenData
 from auth.local.crud import get_user_by_email
-from auth.local.utils import create_access_token
+from auth.local.utils import create_access_token, verify_password, hash_password
 from auth.local.routes import router as local_auth_router
 
 
@@ -585,9 +585,7 @@ async def login_post(
     conn = request.app.state.db
     async with conn.acquire() as db:
         user = await get_user_by_email(db, form_data.username)
-        if not user or not bcrypt.checkpw(
-            form_data.password.encode(), user["hashed_password"].encode()
-        ):
+        if not user or not verify_password(form_data.password, user["hashed_password"]):
             return templates.TemplateResponse(
         request=request,
         name="login.html",
@@ -696,7 +694,7 @@ async def register_user(
     )
 
         role_id = role_row["id"]
-        hashed_pw = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+        hashed_pw = hash_password(password)
 
         # Determine if we have a verification document
         has_doc = verification_doc is not None and verification_doc.filename
@@ -809,7 +807,7 @@ async def forgot_password_post(request: Request, data: ForgotPasswordRequest):
         if not user:
             raise HTTPException(status_code=404, detail="User not found.")
             
-        hashed_pw = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+        hashed_pw = hash_password(password)
         
         await conn.execute(
             "UPDATE users SET hashed_password = $1 WHERE email = $2",
@@ -1346,7 +1344,7 @@ async def user_delete_account(
     pool = request.app.state.db
     async with pool.acquire() as conn:
         user = await conn.fetchrow("SELECT * FROM users WHERE email = $1", current_user.username)
-        if not user or not bcrypt.checkpw(password.encode(), user["hashed_password"].encode()):
+        if not user or not verify_password(password, user["hashed_password"]):
             raise HTTPException(status_code=400, detail="Invalid password verification.")
         
         # Anonymize governance logs
@@ -1575,10 +1573,10 @@ async def user_change_password(
         user = await conn.fetchrow(
             "SELECT * FROM users WHERE email = $1", current_user.username
         )
-        if not user or not bcrypt.checkpw(current_password.encode(), user["hashed_password"].encode()):
+        if not user or not verify_password(current_password, user["hashed_password"]):
             raise HTTPException(status_code=400, detail="Current password is incorrect")
 
-        new_hashed = bcrypt.hashpw(new_password.encode(), bcrypt.gensalt()).decode()
+        new_hashed = hash_password(new_password)
         await conn.execute(
             "UPDATE users SET hashed_password = $1 WHERE email = $2",
             new_hashed,
@@ -2807,7 +2805,8 @@ async def get_variable_configs(schema: str, table: str) -> dict[str, dict]:
         """
         SELECT 1
         FROM information_schema.columns
-        WHERE table_name = 'variable_configs'
+        WHERE table_schema = 'public'
+          AND table_name = 'variable_configs'
           AND column_name = 'table_name'
         LIMIT 1
         """
@@ -2816,7 +2815,7 @@ async def get_variable_configs(schema: str, table: str) -> dict[str, dict]:
         rows = await conn.fetch(
             """
             SELECT *
-            FROM variable_configs
+            FROM public.variable_configs
             WHERE schema_name = $1
               AND table_name IN ($2, '*')
             ORDER BY (table_name <> '*') DESC, updated_at DESC
@@ -2828,7 +2827,7 @@ async def get_variable_configs(schema: str, table: str) -> dict[str, dict]:
         rows = await conn.fetch(
             """
             SELECT *
-            FROM variable_configs
+            FROM public.variable_configs
             WHERE schema_name = $1
             ORDER BY updated_at DESC
             """,
@@ -3288,7 +3287,7 @@ async def execute_sql_query(
     table = payload.table
     sql = payload.sql
     
-    # 1. Clean and check the SQL string
+    # 1. Clean and check the SQL string (SQL Validation)
     sql_clean = re.sub(r'--.*$', '', sql, flags=re.MULTILINE)
     sql_clean = re.sub(r'/\*.*?\*/', '', sql_clean, flags=re.DOTALL)
     sql_clean = sql_clean.strip()
@@ -3312,102 +3311,319 @@ async def execute_sql_query(
     if blocked_pattern.search(sql_clean):
         raise HTTPException(status_code=400, detail="Write operations (DROP, DELETE, UPDATE, INSERT, ALTER, etc.) are blocked.")
         
-    # Appending Limit safety check
+    user_role = str(current_user.role)
+    role_name = _normalize_role(user_role)
+    
+    # Automatic Limit Protection (Step 6)
     sql_stripped = sql_clean
     if sql_stripped.endswith(";"):
         sql_stripped = sql_stripped[:-1].strip()
 
     limit_match = re.search(r'\bLIMIT\s+(\d+)\b', sql_stripped, re.IGNORECASE)
-    if limit_match:
-        val = int(limit_match.group(1))
-        if val > 1000:
-            sql_to_run = re.sub(r'\bLIMIT\s+\d+\b', 'LIMIT 1000', sql_stripped, flags=re.IGNORECASE)
+    if role_name != "admin":
+        if limit_match:
+            val = int(limit_match.group(1))
+            if val > 1000:
+                sql_to_run = re.sub(r'\bLIMIT\s+\d+\b', 'LIMIT 1000', sql_stripped, flags=re.IGNORECASE)
+            else:
+                sql_to_run = sql_stripped
         else:
-            sql_to_run = sql_stripped
+            sql_to_run = f"{sql_stripped} LIMIT 1000"
     else:
-        sql_to_run = f"{sql_stripped} LIMIT 1000"
-        
+        # Admin retains current behavior
+        if limit_match:
+            val = int(limit_match.group(1))
+            if val > 1000:
+                sql_to_run = re.sub(r'\bLIMIT\s+\d+\b', 'LIMIT 1000', sql_stripped, flags=re.IGNORECASE)
+            else:
+                sql_to_run = sql_stripped
+        else:
+            sql_to_run = f"{sql_stripped} LIMIT 1000"
+
     pool = request.app.state.db
     start_time = time.time()
     
+    blocked = False
+    suppressed = False
+    rows_returned = 0
+    duration_ms = 0
+    status = "success"
+    result = []
+    
+    # Helper to extract group-by columns
+    def extract_groupby_columns(sql_str: str, known_columns: list[str]) -> list[str]:
+        match = re.search(r'\bGROUP\s+BY\s+(.+?)(?:\bLIMIT\b|\bORDER\b|\bHAVING\b|\bWINDOW\b|;|$)', sql_str, re.IGNORECASE | re.DOTALL)
+        if not match:
+            return []
+        groupby_expr = match.group(1)
+        parts = groupby_expr.split(",")
+        cols = []
+        known_lower = {c.lower(): c for c in known_columns}
+        for part in parts:
+            part = part.strip().strip('"\'')
+            if "." in part:
+                part = part.split(".")[-1].strip().strip('"\'')
+            if part.lower() in known_lower:
+                cols.append(known_lower[part.lower()])
+        return cols
+        
     async with pool.acquire() as conn:
-        # Check table existence
-        table_check = await conn.fetch(
-            """
-            SELECT table_name FROM information_schema.tables 
-            WHERE table_schema = $1 AND table_name = $2
-            """,
-            dataset,
-            table,
-        )
-        if not table_check:
-            raise HTTPException(status_code=404, detail=f"Table {dataset}.{table} not found")
-            
-        # Get actual columns to check permissions/config
-        actual_columns = await conn.fetch(
-            """
-            SELECT column_name
-            FROM information_schema.columns
-            WHERE table_schema = $1 AND table_name = $2
-            """,
-            dataset,
-            table,
-        )
-        raw_cols = [c["column_name"] for c in actual_columns]
-        
-        # Enforce governance status check & rate limiting
-        # Note: Do not pass sql_to_run to filters to avoid false SQL injection alarm
-        await check_user_access(
-            conn=conn,
-            user=current_user,
-            action_type="query",
-            schema_name=dataset,
-            table_name=table,
-            rows_requested=1000,
-        )
-        
-        # Apply column level configs
         tokens = _set_apply_context(conn=conn, filters=None)
         try:
+            # Check table existence
+            table_check = await conn.fetch(
+                """
+                SELECT table_name FROM information_schema.tables 
+                WHERE table_schema = $1 AND table_name = $2
+                """,
+                dataset,
+                table,
+            )
+            if not table_check:
+                raise HTTPException(status_code=404, detail=f"Table {dataset}.{table} not found")
+                
+            # Get actual columns to check permissions/config
+            actual_columns = await conn.fetch(
+                """
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_schema = $1 AND table_name = $2
+                """,
+                dataset,
+                table,
+            )
+            raw_cols = [c["column_name"] for c in actual_columns]
+            
+            # 2. Rate Limit Validation (Step 4)
+            if role_name != "admin":
+                hourly_limit = 200 if role_name == "analyst" else 30
+                hourly_count = await conn.fetchval(
+                    """
+                    SELECT COUNT(*) FROM usage_logs
+                    WHERE user_email = $1 AND queried_at >= NOW() - INTERVAL '1 hour'
+                    """,
+                    current_user.username
+                ) or 0
+                if hourly_count >= hourly_limit:
+                    raise HTTPException(
+                        status_code=429,
+                        detail=f"Rate limit exceeded: {hourly_limit} queries per hour limit for your role."
+                    )
+                    
+            # 3. Query Cost Protection (Step 7)
+            if role_name != "admin":
+                try:
+                    explain_plan = await conn.fetch(f"EXPLAIN {sql_to_run}")
+                    plan_text = "\n".join(r[0] for r in explain_plan)
+                    
+                    first_line = explain_plan[0][0]
+                    cost_match = re.search(r'cost=\d+\.\d+\.\.(\d+\.\d+)', first_line)
+                    rows_match = re.search(r'rows=(\d+)', first_line)
+                    
+                    estimated_cost = float(cost_match.group(1)) if cost_match else 0.0
+                    estimated_rows = int(rows_match.group(1)) if rows_match else 0
+                    
+                    join_count = plan_text.lower().count("join") + plan_text.lower().count("loop")
+                    
+                    if estimated_cost > 50000.0 or estimated_rows > 50000 or join_count > 3:
+                        raise HTTPException(
+                            status_code=400,
+                            detail="Query exceeds governance limits."
+                        )
+                except HTTPException:
+                    raise
+                except Exception as e:
+                    sql_lower = sql_to_run.lower()
+                    joins_in_sql = sql_lower.count("join")
+                    if joins_in_sql > 3:
+                        raise HTTPException(
+                            status_code=400,
+                            detail="Query exceeds governance limits."
+                        )
+
+            # 4. Enforce central access checks
+            await check_user_access(
+                conn=conn,
+                user=current_user,
+                action_type="query",
+                schema_name=dataset,
+                table_name=table,
+                rows_requested=1000,
+            )
+            
+            # Apply column level configs
             try:
                 allowed_columns, _ = await apply_config(dataset, table, current_user, raw_cols, None)
             except TableHidden:
                 raise HTTPException(status_code=404, detail=f"Table {dataset}.{table} not found")
-        finally:
-            _reset_apply_context(tokens)
+                
+            if not allowed_columns:
+                raise HTTPException(status_code=403, detail="No columns available")
+                
+            # Execute query in a read-only transaction block
+            try:
+                async with conn.transaction():
+                    await conn.execute("SET TRANSACTION READ ONLY")
+                    await conn.execute(f'SET search_path TO "{dataset}", public')
+                    rows = await conn.fetch(sql_to_run)
+            except Exception as e:
+                error_msg = str(e)
+                raise HTTPException(status_code=400, detail=f"Database execution error: {error_msg}")
+                
+            result = [dict(r) for r in rows]
+            rows_returned = len(result)
             
-        if not allowed_columns:
-            raise HTTPException(status_code=403, detail="No columns available")
-            
-        # Execute query in a read-only transaction block
-        try:
-            async with conn.transaction():
-                await conn.execute("SET TRANSACTION READ ONLY")
-                await conn.execute(f'SET search_path TO "{dataset}"')
-                rows = await conn.fetch(sql_to_run)
+            # 5. Variable Configuration Enforcement (Step 1)
+            if role_name != "admin":
+                var_configs = await get_variable_configs(dataset, table)
+                sensitive_enabled = (await _get_system_setting(conn, "enable_sensitive_columns", "false")).strip().lower() == "true"
+                
+                disallowed_cols = set()
+                for col in raw_cols:
+                    cfg = var_configs.get(col)
+                    if cfg and cfg.get("include_in_api") is False:
+                        disallowed_cols.add(col)
+                    elif cfg and cfg.get("is_sensitive") and not sensitive_enabled:
+                        disallowed_cols.add(col)
+                    elif cfg and cfg.get("is_sensitive"):
+                        disallowed_cols.add(col)
+                        
+                for r in result:
+                    for dc in disallowed_cols:
+                        if dc in r:
+                            del r[dc]
+
+            # 6. Cell Suppression (Step 2)
+            is_agg = "group by" in sql_clean.lower()
+            if role_name != "admin" and not is_agg:
+                if rows_returned < 5:
+                    suppressed = True
+                    status = "suppressed"
+                    raise HTTPException(
+                        status_code=403,
+                        detail="Result suppressed due to disclosure threshold."
+                    )
+
+            # 7. Aggregation Cell Suppression (Step 3)
+            if role_name != "admin" and is_agg:
+                groupby_cols = extract_groupby_columns(sql_to_run, raw_cols)
+                group_counts_map = {}
+                if groupby_cols:
+                    try:
+                        select_expr = ", ".join(f'"{c}"' for c in groupby_cols)
+                        count_sql = f'SELECT {select_expr}, COUNT(*) as group_cnt FROM "{dataset}"."{table}" GROUP BY {select_expr}'
+                        count_rows = await conn.fetch(count_sql)
+                        for cr in count_rows:
+                            key_tuple = tuple(cr[c] for c in groupby_cols)
+                            group_counts_map[key_tuple] = int(cr["group_cnt"])
+                    except Exception as e:
+                        print(f"Error getting group counts: {e}")
+                
+                for r in result:
+                    grp_cnt = None
+                    if groupby_cols:
+                        key_tuple = tuple(r.get(c) for c in groupby_cols)
+                        grp_cnt = group_counts_map.get(key_tuple)
+                    
+                    if grp_cnt is None:
+                        count_keys = [k for k in r.keys() if any(x in k.lower() for x in ("count", "cnt"))]
+                        for ck in count_keys:
+                            try:
+                                val = r[ck]
+                                if val is not None:
+                                    grp_cnt = int(float(val))
+                                    break
+                            except ValueError:
+                                pass
+                                
+                    if grp_cnt is not None and grp_cnt < 5:
+                        for k in list(r.keys()):
+                            if k not in groupby_cols:
+                                r[k] = "Suppressed"
+
+            return result
+
+        except HTTPException as he:
+            detail_str = str(he.detail).lower()
+            if he.status_code == 429:
+                blocked = True
+                status = "rate_limited"
+            elif he.status_code == 403:
+                if "suppressed" in detail_str or "suppress" in detail_str:
+                    suppressed = True
+                    status = "suppressed"
+                else:
+                    blocked = True
+                    status = "blocked"
+            elif "suppress" in detail_str:
+                suppressed = True
+                status = "suppressed"
+            else:
+                blocked = True
+                status = "blocked"
+            raise he
         except Exception as e:
-            error_msg = str(e)
-            raise HTTPException(status_code=400, detail=f"Database execution error: {error_msg}")
+            blocked = True
+            status = "failed"
+            raise HTTPException(status_code=400, detail=f"Database execution error: {e}")
+        finally:
+            try:
+                await conn.execute("SET search_path TO public")
+            except Exception:
+                pass
+            _reset_apply_context(tokens)
+            # 8. Audit Logging (Step 5)
+            duration_ms = int((time.time() - start_time) * 1000)
             
-        result = [dict(r) for r in rows]
-        
-        # Log to usage tracker
-        duration_ms = int((time.time() - start_time) * 1000)
-        from security.usage_tracker import log_api_usage
-        await log_api_usage(
-            conn,
-            current_user.username,
-            "/api/sql/execute",
-            dataset,
-            table,
-            len(result),
-            len(json.dumps(result, default=str).encode()),
-            query_time_ms=duration_ms,
-            status="success",
-            filters=sql_to_run
-        )
-        
-        return result
+            try:
+                user_id = await conn.fetchval("SELECT id FROM users WHERE email = $1", current_user.username)
+            except Exception:
+                user_id = None
+                
+            role_map = {"1": "Admin", "2": "Analyst", "3": "Guest"}
+            role_formatted = role_map.get(str(current_user.role), "Guest")
+            
+            from security.usage_tracker import log_api_usage
+            try:
+                await log_api_usage(
+                    conn,
+                    current_user.username,
+                    "/api/sql/execute",
+                    dataset,
+                    table,
+                    rows_returned,
+                    len(json.dumps(result, default=str).encode()) if status == "success" else 0,
+                    query_time_ms=duration_ms,
+                    status=status,
+                    filters=sql_to_run
+                )
+            except Exception as usage_err:
+                print(f"Error logging to usage_logs: {usage_err}")
+                
+            try:
+                metadata_obj = {
+                    "user_id": user_id,
+                    "role": role_formatted,
+                    "dataset": dataset,
+                    "query_text": sql,
+                    "rows_returned": rows_returned,
+                    "execution_time_ms": duration_ms,
+                    "suppressed": "Yes" if suppressed else "No",
+                    "blocked": "Yes" if blocked else "No"
+                }
+                
+                await conn.execute(
+                    """
+                    INSERT INTO governance_logs (user_email, event_type, detail, metadata, created_at)
+                    VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
+                    """,
+                    current_user.username,
+                    "sql_execution",
+                    sql,
+                    json.dumps(metadata_obj)
+                )
+            except Exception as gov_err:
+                print(f"Error logging to governance_logs: {gov_err}")
 
 
 @app.get("/schemas/{schema}/datasets")
@@ -5333,9 +5549,7 @@ async def admin_change_password(
         user = await conn.fetchrow(
             "SELECT * FROM users WHERE email = $1", current_user.username
         )
-        if not user or not bcrypt.checkpw(
-            current_password.encode(), user["hashed_password"].encode()
-        ):
+        if not user or not verify_password(current_password, user["hashed_password"]):
             return templates.TemplateResponse(
         request=request,
         name="admin_change_password.html",
@@ -5349,7 +5563,7 @@ async def admin_change_password(
     )
 
         # Update password
-        new_hashed = bcrypt.hashpw(new_password.encode(), bcrypt.gensalt()).decode()
+        new_hashed = hash_password(new_password)
         await conn.execute(
             "UPDATE users SET hashed_password = $1 WHERE email = $2",
             new_hashed,
@@ -5415,7 +5629,7 @@ async def get_schema_variables(
             cfg_rows = await conn.fetch(
                 """
                 SELECT *
-                FROM variable_configs
+                FROM public.variable_configs
                 WHERE schema_name = $1
                   AND table_name IN ($2, '*')
                 ORDER BY (table_name <> '*') DESC, updated_at DESC
@@ -5566,7 +5780,7 @@ async def update_variable_config(
                 min_rows = max(1, min_rows)
                 upd_var = await conn.execute(
                     """
-                    UPDATE variable_configs
+                    UPDATE public.variable_configs
                     SET label = $4,
                         include_in_api = $5,
                         filterable = $6,
@@ -5589,7 +5803,7 @@ async def update_variable_config(
                 if str(upd_var).upper().endswith(" 0"):
                     await conn.execute(
                         """
-                        INSERT INTO variable_configs
+                        INSERT INTO public.variable_configs
                             (schema_name, table_name, variable_name, label, include_in_api, filterable, is_sensitive, min_rows, updated_at)
                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
                         """,
@@ -5607,7 +5821,7 @@ async def update_variable_config(
             if keep_names:
                 await conn.execute(
                     """
-                    DELETE FROM variable_configs
+                    DELETE FROM public.variable_configs
                     WHERE schema_name = $1
                       AND table_name = $2
                       AND variable_name <> ALL($3::text[])
@@ -5619,7 +5833,7 @@ async def update_variable_config(
             else:
                 await conn.execute(
                     """
-                    DELETE FROM variable_configs
+                    DELETE FROM public.variable_configs
                     WHERE schema_name = $1
                       AND table_name = $2
                     """,
@@ -7517,7 +7731,7 @@ async def admin_delete_dataset(
             # 3b. Delete variable_configs entries for this schema
             try:
                 await conn.execute(
-                    "DELETE FROM variable_configs WHERE schema_name = $1",
+                    "DELETE FROM public.variable_configs WHERE schema_name = $1",
                     schema_name,
                 )
             except Exception:

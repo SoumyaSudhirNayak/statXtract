@@ -530,14 +530,24 @@
             updateThemeUI(savedTheme);
         })();
 
+        async function sha256(message) {
+            const msgBuffer = new TextEncoder().encode(message);
+            const hashBuffer = await window.crypto.subtle.digest('SHA-256', msgBuffer);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+            return hashHex;
+        }
+
         // Form validation and enhancement
-        document.getElementById('loginForm').addEventListener('submit', function (e) {
+        document.getElementById('loginForm').addEventListener('submit', async function (e) {
+            e.preventDefault();
+            const form = this;
             const username = document.querySelector('input[name="username"]').value;
-            const password = document.querySelector('input[name="password"]').value;
+            const passwordInput = document.querySelector('input[name="password"]');
+            const password = passwordInput.value;
 
             // Basic validation
             if (!username || !password) {
-                e.preventDefault();
                 showToast('Please fill in all fields.', 'error');
                 return;
             }
@@ -545,7 +555,6 @@
             // Email validation
             const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
             if (!emailRegex.test(username)) {
-                e.preventDefault();
                 showToast('Please enter a valid email address.', 'error');
                 return;
             }
@@ -554,6 +563,34 @@
             const submitBtn = document.querySelector('.btn');
             submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Signing In...';
             submitBtn.disabled = true;
+
+            try {
+                const hashed = await sha256(password);
+                
+                // Create temporary hidden input
+                const hiddenInput = document.createElement('input');
+                hiddenInput.type = 'hidden';
+                hiddenInput.name = 'password';
+                hiddenInput.value = hashed;
+                form.appendChild(hiddenInput);
+
+                // Temporarily disable submission of the visible password input
+                const origName = passwordInput.name;
+                passwordInput.removeAttribute('name');
+
+                form.submit();
+
+                // Restore name and clean up in case page doesn't reload immediately
+                setTimeout(() => {
+                    passwordInput.name = origName;
+                    hiddenInput.remove();
+                    submitBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Sign In';
+                    submitBtn.disabled = false;
+                }, 100);
+            } catch (err) {
+                console.error('Hashing failed', err);
+                form.submit();
+            }
         });
 
         // Toast Notification Function

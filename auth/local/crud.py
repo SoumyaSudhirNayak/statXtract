@@ -1,4 +1,4 @@
-import bcrypt
+from auth.local.utils import hash_password
 from asyncpg import Connection
 from fastapi import HTTPException
 
@@ -18,7 +18,7 @@ async def register_user(conn: Connection, email: str, password: str, role: str =
     role_id = role_row["id"]
 
     # Hash password
-    hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+    hashed = hash_password(password)
 
     # Insert user with role_id
     await conn.execute(

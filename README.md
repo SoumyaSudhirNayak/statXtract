@@ -16,6 +16,8 @@ It focuses on:
 - **Secure Authentication**
   - JWT-based login with roles (`admin`, `user`)
   - Protected endpoints using Bearer tokens
+  - Client-side SHA256 password hashing at form submission (login, register, admin change password) — passwords are never sent in plaintext over the network
+  - CAPTCHA verification on all authentication forms
 
 - **Dataset Ingestion**
   - Upload ZIP files containing `.csv`, `.txt` and `.xml` (DDI)
@@ -27,6 +29,19 @@ It focuses on:
   - Role-based access control
   - Cell suppression for queries returning fewer than 5 rows (for non-admins)
   - Daily row limits per user via `usage_logs`
+
+- **Advanced SQL Editor (Governed)**
+  - Full SQL editor with syntax highlighting for custom SELECT/CTE queries
+  - Governed pipeline applying the same security controls as the Query Builder:
+    - SQL validation (read-only enforcement, write-operation blocking)
+    - Rate limiting (30/200/unlimited queries per hour by role)
+    - Query cost protection via EXPLAIN plan analysis
+    - Variable configuration enforcement (hidden/sensitive column filtering)
+    - Cell suppression (5-row threshold for non-aggregated queries)
+    - Aggregation cell suppression (per-group count threshold)
+    - Automatic LIMIT 1000 injection for non-admin users
+  - Full audit logging to `usage_logs` and `governance_logs`
+  - Schema-qualified metadata queries (`public.variable_configs`) for reliable cross-schema access
 
 - **Governed Dataset Explorer**
   - Hierarchical logical survey -> dataset -> table navigation tree.
@@ -46,6 +61,7 @@ It focuses on:
     - Active users
     - Data schemas
     - System uptime
+  - Navy blue icon theme in light mode, gold/amber icons in dark mode
   - Query UI for interactive filtering and charting
   - Integrated clear logs capabilities, including an admin-only "Clear Payment Logs" button
 
@@ -55,20 +71,25 @@ It focuses on:
   - **Standardized Auto-Refresh**: Background polling timer updating stats and indicators every 9 seconds silently across portal views.
   - **Theme Support**: Fixed dark mode integration for consistent user exploration layout styles.
 
+- **Testing**
+  - SQL governance unit tests verifying rate limiting, write-op blocking, variable filtering, and suppression (`tests/test_sql_governance.py`)
+  - AI query parsing and risk classification tests (`tests/test_ai_query.py`)
+
 ---
 
 ## Project Structure
 
 Some key paths in this repository:
 
-- [main.py](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/main.py) – FastAPI application entrypoint (routes, admin dashboard, schema-aware querying)
-- [auth/local/](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/auth/local) – Local auth (register, login, JWT utilities, role checks)
-- [ai_query/](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/ai_query) – NLP parsing engine, risk checks, and API routes for Governed AI Queries
-- [query/](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/query) – Query-related routers (safe query endpoints, suppression, logging, user explore data endpoints)
-- [utils/](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/utils) – Ingestion pipeline, CSV/Excel/SAV conversion, metadata helpers, ingestion watcher
-- [templates/](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/templates) – HTML templates for login, admin dashboard, query UI, datasets view, upload progress, user explore panel, and user AI query panel
-- [tests/](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/tests) – Pytest suite for ingestion pipeline, watcher, AI query parsing, and related helpers
-- [statathon-docs-only/](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/statathon-docs-only) – MkDocs configuration and standalone documentation site
+- [main.py](main.py) – FastAPI application entrypoint (routes, admin dashboard, schema-aware querying, SQL editor governance)
+- [auth/local/](auth/local) – Local auth (register, login, JWT utilities, role checks, SHA256 password hashing)
+- [ai_query/](ai_query) – NLP parsing engine, risk checks, and API routes for Governed AI Queries
+- [security/](security) – Central Security Layer (access control, plan enforcer, usage tracker, warning manager, suspicious detector, privacy guard)
+- [query/](query) – Query-related routers (safe query endpoints, suppression, logging, user explore data endpoints)
+- [utils/](utils) – Ingestion pipeline, CSV/Excel/SAV conversion, metadata helpers, ingestion watcher
+- [templates/](templates) – HTML templates for login, admin dashboard, query UI, datasets view, upload progress, user explore panel, and user AI query panel
+- [tests/](tests) – Pytest suite for ingestion pipeline, watcher, AI query parsing, SQL governance, and related helpers
+- [statathon-docs-only/](statathon-docs-only) – MkDocs configuration and standalone documentation site
 
 For a more narrative overview, see:
 - [Docs Home](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/statathon-docs-only/docs/index.md)

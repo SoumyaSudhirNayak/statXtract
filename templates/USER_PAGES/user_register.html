@@ -577,6 +577,14 @@
   </div><!-- /page-wrapper -->
 
   <script>
+    async function sha256(message) {
+      const msgBuffer = new TextEncoder().encode(message);
+      const hashBuffer = await window.crypto.subtle.digest('SHA-256', msgBuffer);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      return hashHex;
+    }
+
     let currentStep     = 1;
     let selectedOrgType = null;
 
@@ -673,13 +681,21 @@
       const fullName = document.getElementById('fullName').value.trim();
       const username = fullName.replace(/\s+/g,'_').toLowerCase();
       const email    = document.getElementById('regEmail').value.trim();
-      const password = document.getElementById('regPw').value;
+      const passwordInput = document.getElementById('regPw');
+      const password = passwordInput.value;
+
+      let clientHash = password;
+      try {
+        clientHash = await sha256(password);
+      } catch (err) {
+        console.error('Hashing failed', err);
+      }
 
       // ── Build FormData with file ──
       const fd = new FormData();
       fd.append('username', username);
       fd.append('email', email);
-      fd.append('password', password);
+      fd.append('password', clientHash);
       fd.append('role', 'user');
       fd.append('org_type', selectedOrgType || '');
       fd.append('phone', document.getElementById('phone')?.value.trim() || '');
@@ -767,7 +783,7 @@
         // Fallback: plain HTML form submit (no file)
         const f = document.createElement('form');
         f.method = 'POST'; f.action = '/register'; f.enctype = 'multipart/form-data';
-        const params = [['username',username],['email',email],['password',password],['role','user'],['org_type',selectedOrgType||''],['phone',document.getElementById('phone')?.value.trim() || '']];
+        const params = [['username',username],['email',email],['password',clientHash],['role','user'],['org_type',selectedOrgType||''],['phone',document.getElementById('phone')?.value.trim() || '']];
         if (capInput) {
           params.push(['captcha_answer',captchaAns]);
         }

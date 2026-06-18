@@ -734,10 +734,19 @@
     const errorMsg = document.getElementById('errorMsg');
     const errorText = document.getElementById('errorText');
 
+    async function sha256(message) {
+      const msgBuffer = new TextEncoder().encode(message);
+      const hashBuffer = await window.crypto.subtle.digest('SHA-256', msgBuffer);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      return hashHex;
+    }
+
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const email = document.getElementById('email').value.trim();
-      const password = document.getElementById('password').value;
+      const passwordInput = document.getElementById('password');
+      const password = passwordInput.value;
 
       // Client-side Validation
       if (!email || !password) { showError('Please fill in all fields.'); shakeCard(); return; }
@@ -749,10 +758,17 @@
       submitBtn.innerHTML = `<span class="spinner"></span><span>Signing In...</span>`;
       errorMsg.classList.add('hidden');
 
+      let clientHash = password;
+      try {
+        clientHash = await sha256(password);
+      } catch (err) {
+        console.error('Hashing failed', err);
+      }
+
       try {
         const formData = new URLSearchParams();
         formData.append('username', email);
-        formData.append('password', password);
+        formData.append('password', clientHash);
         const captchaInput = document.getElementById('captcha_answer');
         if (captchaInput) {
           formData.append('captcha_answer', captchaInput.value.trim());
@@ -813,7 +829,25 @@
         if (captchaInput) captchaInput.value = '';
         showError('Network error. Trying standard login...');
         shakeCard();
-        setTimeout(() => form.submit(), 800);
+        
+        setTimeout(() => {
+          // Create temporary hidden input for fallback submission
+          const hiddenInput = document.createElement('input');
+          hiddenInput.type = 'hidden';
+          hiddenInput.name = 'password';
+          hiddenInput.value = clientHash;
+          form.appendChild(hiddenInput);
+
+          const origName = passwordInput.name;
+          passwordInput.removeAttribute('name');
+
+          form.submit();
+
+          setTimeout(() => {
+            passwordInput.name = origName;
+            hiddenInput.remove();
+          }, 100);
+        }, 800);
       }
 
       submitBtn.disabled = false;

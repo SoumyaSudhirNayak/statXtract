@@ -45,7 +45,8 @@ async def get_variable_configs(conn, schema: str, table: str) -> dict[str, dict]
         """
         SELECT 1
         FROM information_schema.columns
-        WHERE table_name = 'variable_configs'
+        WHERE table_schema = 'public'
+          AND table_name = 'variable_configs'
           AND column_name = 'table_name'
         LIMIT 1
         """
@@ -54,7 +55,7 @@ async def get_variable_configs(conn, schema: str, table: str) -> dict[str, dict]
         rows = await conn.fetch(
             """
             SELECT *
-            FROM variable_configs
+            FROM public.variable_configs
             WHERE schema_name = $1
               AND table_name IN ($2, '*')
             ORDER BY (table_name <> '*') DESC, updated_at DESC
@@ -66,7 +67,7 @@ async def get_variable_configs(conn, schema: str, table: str) -> dict[str, dict]
         rows = await conn.fetch(
             """
             SELECT *
-            FROM variable_configs
+            FROM public.variable_configs
             WHERE schema_name = $1
             ORDER BY updated_at DESC
             """,

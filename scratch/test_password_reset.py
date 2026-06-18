@@ -65,7 +65,9 @@ async def test_flow():
     assert user_after.get("plan") == orig_plan, "plan should not change"
     
     # Verify new password works with bcrypt verification
-    assert bcrypt.checkpw("newpassword123".encode(), new_hash.encode()), "Bcrypt verification of new password failed"
+    import hashlib
+    sha_pw = hashlib.sha256("newpassword123".encode()).hexdigest()
+    assert bcrypt.checkpw(sha_pw.encode(), new_hash.encode()), "Bcrypt verification of new password failed"
     print("Database invariants and hashing verified.")
     
     print("\n--- TEST 4: Login Verification with New Password ---")

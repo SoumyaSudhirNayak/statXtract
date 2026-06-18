@@ -42,6 +42,18 @@ Context: National Statistics Office (MoSPI) hosts anonymized unit-level microdat
 - **Dynamic API Status** — dynamic status badges ("API Access Enabled" vs "API Access Restricted") in the User Profile snapshot responding in real-time to plan settings and user status.
 - **Auto Temporary Freeze System** — rate-limit automatic temporary freeze system (Free: 5m, Pro: 2m, Enterprise: 30s) triggering on excessive rate limit violations, tracked in the new `auto_temporary_freezes` table with real-time frontend countdowns on user dashboard and error page.
 - **Dark Mode fix** — integrated theme initialization in `user_explore.html` to fix dark theme display issues.
+- **Client-Side SHA256 Password Hashing** — all authentication forms (user login, user register, admin login, admin register, admin change password) hash passwords with SHA256 at form submission time only (not during typing/focus events). Passwords are never transmitted in plaintext. Backend verifies `bcrypt(sha256(password))`.
+- **Advanced SQL Editor Governance Pipeline** — the `/api/sql/execute` endpoint now applies the same full governance pipeline as the Query Builder:
+  - SQL validation (SELECT/CTE only, blocked write operations)
+  - Rate limiting (30 queries/hr for users, 200 for analysts, unlimited for admins)
+  - Query cost protection via EXPLAIN plan analysis (cost > 50k, rows > 50k, joins > 3 blocked)
+  - Variable configuration enforcement via `apply_config()` (hidden/sensitive column filtering)
+  - Cell suppression (5-row threshold for non-aggregated results)
+  - Aggregation cell suppression (per-group count threshold with GROUP BY detection)
+  - Automatic LIMIT 1000 injection for non-admin users
+  - Full audit logging to `usage_logs` and `governance_logs`
+- **Schema-Qualified Metadata Queries** — all references to `variable_configs` table throughout the codebase (`privacy_guard.py`, `main.py`) are now schema-qualified as `public.variable_configs` to prevent `relation does not exist` errors when the connection's `search_path` is set to a dataset schema.
+- **Admin Dashboard Icon Theming** — introduced `--icon-color` and `--icon-hover-color` CSS variables. Light mode uses navy blue (`#1B3A6B`) icons; dark mode retains gold/amber (`#F4A300`) icons. Affects card icons, schema/table icons, card arrows, and variable names.
 
 Nesstar-specific ingest path:
 
@@ -62,6 +74,7 @@ Nesstar-specific ingest path:
 - `test_cat.py` is environment-dependent and may fail in local setups where referenced sample tables do not exist.
 - ~~Request-rate limiting (requests/time) is not implemented; only daily row caps exist.~~ **Resolved:** Central Security Layer now enforces daily query count + daily row count limits per plan, with per-user overrides.
 - ~~Privacy controls are minimal (cell suppression by row count only).~~ **Resolved:** Privacy guard now enforces column-level restrictions (`include_in_api`, `is_sensitive`), filter-column validation (`filterable`), and configurable cell suppression thresholds (`min_rows`) per variable.
+- ~~SQL Editor bypasses governance controls.~~ **Resolved:** Advanced SQL Editor (`/api/sql/execute`) now applies the full governance pipeline (SQL validation, rate limiting, cost protection, variable filtering, cell suppression, aggregation suppression, audit logging).
 - Duplicate query endpoints exist (schema-aware and public-only variants).
 
 ## 3) Architecture overview
@@ -235,6 +248,16 @@ Source: [query_data.py](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gatewa
   - still executes SQL directly
 
 Source: [query_data.py run_query](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/query/query_data.py#L52-L92)
+
+4) Governed SQL Editor
+- `POST /api/sql/execute` with JSON body: `{"survey", "dataset", "table", "sql"}`
+  - Full governance pipeline: SQL validation, rate limiting, cost protection, variable filtering, cell suppression, aggregation suppression
+  - Read-only enforcement (SELECT/WITH only, blocked write operations)
+  - Automatic LIMIT 1000 for non-admin users
+  - Audit logging to `usage_logs` and `governance_logs`
+  - Connection search_path set to `"{dataset}", public` for cross-schema access
+
+Source: [main.py execute_sql_query](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/main.py#L3273-L3625)
 
 ### D) Upload / ingestion
 
@@ -634,6 +657,7 @@ The `generateChart()` function also handles governance errors, displaying the er
   - [templates/system_settings.html](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/templates/system_settings.html) — system settings with plan governance controls
 - Test Suites:
   - [tests/test_ai_query.py](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/tests/test_ai_query.py) — unit tests for NLP query parsing, risk classification, and summaries
+  - [tests/test_sql_governance.py](file:///e:/STATATHON%202025%20LOCAL/Statathon_API_Gateway/tests/test_sql_governance.py) — unit tests for SQL Editor governance pipeline (rate limiting, write-op blocking, variable filtering, cell suppression)
 
 ---
 

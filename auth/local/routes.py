@@ -42,7 +42,7 @@ async def login_for_access_token(
 ):
     async with request.app.state.db.acquire() as conn:
         user = await get_user_by_email(conn, form_data.username)
-        if not user or not bcrypt.checkpw(form_data.password.encode(), user["hashed_password"].encode()):
+        if not user or not verify_password(form_data.password, user["hashed_password"]):
             raise HTTPException(status_code=400, detail="Invalid email or password")
 
         token = create_access_token({
@@ -88,7 +88,7 @@ async def login_form(
         error_redirect_base = "/login" if is_admin_login else "/user/login"
 
 
-        if not user or not bcrypt.checkpw(form_data.password.encode(), user["hashed_password"].encode()):
+        if not user or not verify_password(form_data.password, user["hashed_password"]):
             return RedirectResponse(f"{error_redirect_base}?error=invalid", status_code=HTTP_302_FOUND)
 
         # Check if blocked

@@ -20,6 +20,8 @@
             --primary-gradient: linear-gradient(135deg, #2E5BBA 0%, #1F3A5F 100%);
             --secondary-color: #F4A300;
             --secondary-gradient: linear-gradient(135deg, #F4A300 0%, #D97706 100%);
+            --icon-color: #1B3A6B;
+            --icon-hover-color: #2E5BBA;
             --success-color: #2E7D32;
             --warning-color: #F4A300;
             --danger-color: #D4183D;
@@ -47,6 +49,8 @@
             --primary-gradient: linear-gradient(135deg, #1F3A5F 0%, #2E5BBA 100%);
             --secondary-color: #F4A300;
             --secondary-gradient: linear-gradient(135deg, #F4A300 0%, #D97706 100%);
+            --icon-color: #F4A300;
+            --icon-hover-color: #FBBF24;
             --success-color: #F4A300;
             --warning-color: #F4A300;
             --danger-color: #EF4444;
@@ -246,13 +250,13 @@
 
         .glass-card:hover .card-icon {
             transform: scale(1.1);
-            color: var(--secondary-color);
+            color: var(--icon-hover-color);
         }
 
         /* Card Content */
         .card-icon {
             font-size: 3rem;
-            color: var(--primary-color);
+            color: var(--icon-color);
             margin-bottom: 20px;
             transition: var(--transition);
             display: block;
@@ -283,7 +287,7 @@
 
         .glass-card:hover .card-arrow {
             transform: translateX(5px);
-            color: var(--secondary-color);
+            color: var(--icon-hover-color);
         }
 
         /* Quick Stats */
@@ -505,7 +509,7 @@
 
         .variable-name {
             font-weight: 600;
-            color: var(--secondary-color);
+            color: var(--icon-color);
             font-family: 'Courier New', monospace;
         }
 
@@ -797,7 +801,7 @@
         .card-icon,
         .schema-icon,
         .table-icon {
-            color: var(--secondary-color);
+            color: var(--icon-color);
         }
 
         /* Selection Highlight */
