@@ -3603,8 +3603,9 @@ async def execute_sql_query(
                             del r[dc]
 
             # 6. Cell Suppression (Step 2)
-            is_agg = "group by" in sql_clean.lower()
-            if role_name != "admin" and not is_agg:
+            is_agg = bool(re.search(r'\b(COUNT|SUM|AVG|MIN|MAX|GROUP\s+BY|HAVING)\b', sql_clean, re.IGNORECASE))
+            is_distinct = bool(re.search(r'\bSELECT\s+DISTINCT\b', sql_clean, re.IGNORECASE))
+            if role_name != "admin" and not is_agg and not is_distinct:
                 if rows_returned < 5:
                     suppressed = True
                     status = "suppressed"
