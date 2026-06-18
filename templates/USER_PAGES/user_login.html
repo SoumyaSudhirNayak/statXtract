@@ -12,9 +12,7 @@
     href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap"
     rel="stylesheet">
   <link rel="stylesheet" href="/static/user_styles.css">
-  {% if turnstile_enabled %}
-  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
-  {% endif %}
+
   <style>
     /* ── PAGE LAYOUT ── */
     body {
@@ -672,12 +670,21 @@
           <a href="/forgot-password" class="forgot-link">Forgot password?</a>
         </div>
 
-        {% if turnstile_enabled %}
-        <!-- Cloudflare Turnstile Widget -->
-        <div class="field-wrap" style="display: flex; justify-content: center; margin-bottom: 20px;">
-          <div class="cf-turnstile" data-sitekey="{{ turnstile_site_key }}" data-theme="auto"></div>
+        <!-- Simple Math CAPTCHA -->
+        <div class="field-wrap" style="margin-bottom: 20px;">
+          <label class="field-label" for="captcha_answer">Security Verification *</label>
+          <div class="input-group" style="display: flex; gap: 10px; align-items: center;">
+            <div id="captcha-question" style="font-weight: 700; font-size: 16px; background: #f4f6f9; border: 2px solid var(--border); border-radius: 12px; padding: 12px 20px; white-space: nowrap; min-width: 110px; text-align: center; color: var(--navy);">...</div>
+            <input type="text" id="captcha_answer" name="captcha_answer" class="field-input" placeholder="Answer" style="padding: 14px 18px;" required>
+            <button type="button" id="refresh-captcha" style="background: none; border: 2px solid var(--border); border-radius: 12px; padding: 12px; cursor: pointer; color: var(--text-muted); display: flex; align-items: center; justify-content: center; transition: all 0.2s;" title="Refresh Captcha">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M23 4v6h-6"></path>
+                <path d="M1 20v-6h6"></path>
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+              </svg>
+            </button>
+          </div>
         </div>
-        {% endif %}
 
         <!-- Submit -->
         <button type="submit" class="submit-btn" id="submitBtn">
@@ -746,9 +753,9 @@
         const formData = new URLSearchParams();
         formData.append('username', email);
         formData.append('password', password);
-        const turnstileResponse = document.querySelector('[name="cf-turnstile-response"]');
-        if (turnstileResponse) {
-          formData.append('cf-turnstile-response', turnstileResponse.value);
+        const captchaInput = document.getElementById('captcha_answer');
+        if (captchaInput) {
+          formData.append('captcha_answer', captchaInput.value.trim());
         }
 
         const res = await fetch('/auth/login', {
@@ -760,6 +767,8 @@
 
         if (res.redirected) {
           if (res.url.includes('error=')) {
+            loadCaptcha();
+            if (captchaInput) captchaInput.value = '';
             const urlObj = new URL(res.url);
             const errVal = urlObj.searchParams.get('error');
             if (errVal === 'invalid') {
@@ -793,11 +802,15 @@
             window.location.href = '/query';
           }
         } else {
+          loadCaptcha();
+          if (captchaInput) captchaInput.value = '';
           const err = await res.json().catch(() => ({ detail: 'Sign-in failed. Check your credentials.' }));
           showError(err.detail || 'Invalid email or password.');
           shakeCard();
         }
       } catch (err) {
+        loadCaptcha();
+        if (captchaInput) captchaInput.value = '';
         showError('Network error. Trying standard login...');
         shakeCard();
         setTimeout(() => form.submit(), 800);
@@ -805,6 +818,27 @@
 
       submitBtn.disabled = false;
       submitBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg><span>Sign In to Account</span>`;
+    });
+
+    async function loadCaptcha() {
+      try {
+        const res = await fetch('/auth/captcha');
+        if (res.ok) {
+          const data = await res.json();
+          const qEl = document.getElementById('captcha-question');
+          if (qEl) qEl.textContent = data.question;
+        }
+      } catch (err) {
+        console.error('Failed to load captcha:', err);
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      loadCaptcha();
+      const refreshBtn = document.getElementById('refresh-captcha');
+      if (refreshBtn) {
+        refreshBtn.addEventListener('click', loadCaptcha);
+      }
     });
 
     function showError(msg) {

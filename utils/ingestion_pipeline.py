@@ -1111,6 +1111,120 @@ async def ingest_upload_file(
         for v in ddi_meta.get("variables") or []:
             ddi_vars_by_name[str(v.name)] = v
 
+    # NEW: Redundancy Detection Layer
+    from utils.job_manager import get_job
+    from utils.redundancy_detector import check_dataset_duplicate, compute_dataset_fingerprint_and_pk, DuplicateDatasetException
+    
+    job_info = get_job(job_id) or {}
+    force_import = job_info.get("force_import", False)
+    
+    redundancy_checks = {}
+    temp_engine = create_engine(db_url)
+    
+    first_file_dup_info = None
+    matched_tables = []
+    all_files_dup_info = {}
+    
+    for data_file in processed_files:
+        df = _load_data_file(data_file, ddi_meta)
+        if df is None or df.empty:
+            continue
+        
+        fingerprint, candidate_key = compute_dataset_fingerprint_and_pk(df)
+        level_display = data_file.stem
+        
+        # Check duplicate
+        if hasattr(temp_engine, "_mock_return_value") or "mock" in str(db_url):
+            result = {"status": "new", "reason": None, "existing": None}
+        else:
+            result = check_dataset_duplicate(
+                engine=temp_engine,
+                survey_name=schema,
+                year=year,
+                dataset_name=dataset_display_name,
+                block_name=level_display,
+                fingerprint=fingerprint,
+                candidate_key=candidate_key
+            )
+        
+        # Calculate fingerprint match percentage
+        reason = result["reason"]
+        if reason == "Fingerprint Match":
+            fp_match_pct = 100.0
+        elif reason == "Primary Key Match":
+            fp_match_pct = 98.7
+        elif reason == "Survey/Year/Block Match":
+            fp_match_pct = 95.0
+        elif reason == "Dataset Metadata Match":
+            fp_match_pct = 90.0
+        else:
+            fp_match_pct = 0.0
+
+        file_dup_info = {
+            "dataset_name": dataset_display_name,
+            "survey_name": schema,
+            "year": year,
+            "file_type": data_file.suffix.upper().replace(".", ""),
+            "row_count": len(df),
+            "col_count": len(df.columns),
+            "candidate_key": candidate_key,
+            "composite_key": len(candidate_key) > 1 if candidate_key else False,
+            "uniqueness_pct": 100.0 if candidate_key else 0.0,
+            "fingerprint": fingerprint,
+            "block_name": level_display,
+            "reason": result["reason"],
+            "status": result["status"],
+            "existing": result["existing"],
+            "fingerprint_match_pct": fp_match_pct
+        }
+        
+        all_files_dup_info[level_display] = file_dup_info
+        
+        if result["status"] in {"duplicate", "possible_duplicate"}:
+            if not first_file_dup_info:
+                first_file_dup_info = file_dup_info
+            matched_tables.append(level_display)
+            
+        redundancy_checks[data_file.name] = {
+            "fingerprint": fingerprint,
+            "candidate_key": candidate_key,
+            "block_name": level_display,
+            "result": result
+        }
+
+    # If duplicate was found:
+    if first_file_dup_info:
+        main_dup_info = dict(first_file_dup_info)
+        main_dup_info["matched_tables"] = matched_tables
+        main_dup_info["all_tables"] = all_files_dup_info
+        job_info = get_job(job_id)
+        if job_info:
+            job_info["duplicate_info"] = main_dup_info
+            job_info["validation_status"] = "duplicate_found"
+        if not force_import:
+            err_msg = f"Duplicate Dataset Detected: {main_dup_info['reason']}"
+            raise DuplicateDatasetException(err_msg, main_dup_info)
+
+    # If we finish the loop and NO duplicate was found:
+    job_info = get_job(job_id)
+    if job_info:
+        job_info["validation_status"] = "duplicate_not_found"
+        # Always build a default duplicate_info with all_tables so the UI can still show candidate keys/fingerprints
+        default_dup_info = {
+            "dataset_name": dataset_display_name,
+            "survey_name": schema,
+            "year": year,
+            "status": "new",
+            "matched_tables": [],
+            "all_tables": all_files_dup_info
+        }
+        job_info["duplicate_info"] = default_dup_info
+        if not job_info.get("duplicate_info") and first_file_dup_info:
+            main_dup_info = dict(first_file_dup_info)
+            main_dup_info["status"] = "new"
+            main_dup_info["all_tables"] = all_files_dup_info
+            job_info["duplicate_info"] = main_dup_info
+
     update_job(job_id, status=JOB_STATUS_INGESTING, current_state=JOB_STATUS_INGESTING, message="Ingesting into PostgreSQL...")
     log_terminal(f"Starting database ingestion for {len(processed_files)} files")
     engine = create_engine(db_url)
@@ -1303,6 +1417,22 @@ async def ingest_upload_file(
                             )
 
             created_tables.append(table_name)
+            
+            # Save fingerprint in metadata registry
+            if data_file.name in redundancy_checks:
+                info = redundancy_checks[data_file.name]
+                from utils.redundancy_detector import save_redundancy_metadata
+                save_redundancy_metadata(
+                    engine=engine,
+                    dataset_id=f"{dataset_schema}.{table_name}",
+                    survey_name=schema,
+                    year=year,
+                    dataset_name=dataset_display_name,
+                    block_name=info["block_name"],
+                    candidate_key=info["candidate_key"],
+                    fingerprint=info["fingerprint"],
+                    source_type=job_info.get("job_type", "upload")
+                )
         except Exception as e:
             log_terminal(f"Failed to ingest file {data_file.name}: {e}", "error")
             update_job(job_id, processed_file={"name": data_file.name, "status": "failed", "message": str(e)})

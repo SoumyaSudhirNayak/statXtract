@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dataset Redundancy Registry</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            /* Standard Theme Tokens */
+            --primary: #2E5BBA;
+            --primary-gradient: linear-gradient(135deg, #2E5BBA 0%, #1F3A5F 100%);
+            --secondary: #64748b;
+            --accent: #F4A300;
+            --text-main: #1C1C1C;
+            --text-muted: #6B7280;
+            --bg-page: linear-gradient(135deg, #F5F7FA 0%, #EEF3FB 55%, #E9EEF7 100%);
+            --glass-bg: rgba(255, 255, 255, 0.95);
+            --glass-border: rgba(209, 213, 219, 0.5);
+            --shadow-heavy: 0 12px 32px rgba(31, 58, 95, 0.1);
+            --radius: 20px;
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        [data-theme="dark"] {
+            --primary: #6366F1;
+            --text-main: #F8FAFC;
+            --text-muted: rgba(255, 255, 255, 0.7);
+            --bg-page: linear-gradient(135deg, #0F172A 0%, #1E293B 50%, #334155 100%);
+            --glass-bg: rgba(15, 23, 42, 0.78);
+            --glass-border: rgba(100, 116, 139, 0.25);
+            --shadow-heavy: 0 12px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        * { box-sizing: border-box; margin:0; padding:0; }
+
+        body {
+            font-family:'Inter',sans-serif;
+            background: var(--bg-page);
+            min-height:100vh;
+            color:var(--text-main);
+            padding:22px;
+            transition: var(--transition);
+        }
+
+        .wrap { max-width:1200px; margin:0 auto; padding-top:60px; }
+
+        .back {
+            position: fixed; top:16px; left:16px;
+            color: var(--text-main); text-decoration:none;
+            background:var(--glass-bg); border:1px solid var(--glass-border);
+            border-radius:999px; padding:10px 18px;
+            transition: var(--transition);
+            z-index: 100;
+        }
+
+        .back:hover { background: var(--primary); color: #fff; transform: translateX(-5px); }
+
+        .theme-toggle {
+            position: fixed; top:16px; right:16px;
+            color: var(--text-main); cursor: pointer;
+            background:var(--glass-bg); border:1px solid var(--glass-border);
+            border-radius:999px; padding:10px 18px;
+            transition: var(--transition);
+            display: flex; align-items: center; gap: 8px; font-weight: 500;
+            z-index: 100;
+        }
+
+        .theme-toggle:hover { background: var(--primary); color: #fff; transform: translateY(-2px); }
+
+        .head { background:var(--glass-bg); border:1px solid var(--glass-border); border-radius:var(--radius); padding:24px; margin-bottom:16px; box-shadow:var(--shadow-heavy); }
+        .head h1 { font-size:1.8rem; display:flex; gap:12px; align-items:center; color: var(--primary); }
+        .head p { color: var(--text-muted); margin-top:8px; }
+
+        .card { background:var(--glass-bg); border:1px solid var(--glass-border); border-radius:var(--radius); padding:24px; box-shadow:var(--shadow-heavy); margin-bottom:20px; }
+        
+        .filters {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        
+        .search-input {
+            flex: 1;
+            padding: 12px;
+            background: var(--bg-page);
+            border: 1px solid var(--glass-border);
+            border-radius: 10px;
+            color: var(--text-main);
+            font-size: .9rem;
+            transition: var(--transition);
+        }
+        .search-input:focus { border-color: var(--primary); outline: none; }
+
+        .table-container {
+            width: 100%;
+            overflow-x: auto;
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            background: var(--bg-page);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+
+        th, td {
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 1px solid var(--glass-border);
+        }
+
+        th {
+            background-color: var(--primary);
+            color: white;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.78rem;
+            letter-spacing: 0.05em;
+        }
+
+        tr:hover {
+            background-color: rgba(46, 91, 186, 0.05);
+        }
+
+        .code-pill {
+            font-family: monospace;
+            background: rgba(0, 0, 0, 0.05);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+        }
+        
+        [data-theme="dark"] .code-pill {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 50px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .badge-sp {
+            background: rgba(46, 91, 186, 0.1);
+            color: var(--primary);
+        }
+        .badge-nada {
+            background: rgba(244, 163, 0, 0.15);
+            color: #d97706;
+        }
+    </style>
+</head>
+<body>
+    <a class="back" href="/admin/dashboard"><i class="fas fa-arrow-left"></i> Dashboard</a>
+    <div class="theme-toggle" id="theme-toggle" onclick="toggleTheme()">
+        <i class="fas fa-moon"></i>
+        <span>Dark Mode</span>
+    </div>
+
+    <div class="wrap">
+        <div class="head">
+            <h1><i class="fas fa-database"></i> Dataset Redundancy Registry</h1>
+            <p>Admin read-only log of duplicate detection metadata and file fingerprints.</p>
+        </div>
+
+        <div class="card">
+            <div class="filters">
+                <input type="text" id="registrySearch" class="search-input" placeholder="Search by Dataset, Survey, or Fingerprint..." oninput="filterRegistry()">
+            </div>
+
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Dataset Name</th>
+                            <th>Survey</th>
+                            <th>Year</th>
+                            <th>Candidate Key</th>
+                            <th>Fingerprint</th>
+                            <th>Upload Date</th>
+                            <th>Source Type</th>
+                        </tr>
+                    </thead>
+                    <tbody id="registryTableBody">
+                        <tr>
+                            <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 2rem;">
+                                <i class="fas fa-spinner fa-spin fa-2x" style="margin-bottom: 0.5rem; display: block;"></i>
+                                Loading redundancy registry log...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let registryData = [];
+
+        function toggleTheme() {
+            const currentTheme = document.body.getAttribute('data-theme') || 'light';
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            applyTheme(newTheme);
+        }
+
+        function applyTheme(theme) {
+            document.body.setAttribute('data-theme', theme);
+            const icon = document.querySelector('.theme-toggle i');
+            const text = document.querySelector('.theme-toggle span');
+            if (theme === 'dark') {
+                icon.className = 'fas fa-sun';
+                text.textContent = 'Light Mode';
+            } else {
+                icon.className = 'fas fa-moon';
+                text.textContent = 'Dark Mode';
+            }
+            localStorage.setItem('admin_theme', theme);
+        }
+
+        // Initialize Theme
+        const savedTheme = localStorage.getItem('admin_theme') || 'light';
+        applyTheme(savedTheme);
+
+        async function fetchRegistry() {
+            try {
+                const res = await fetch('/api/admin/redundancy-registry');
+                if (!res.ok) throw new Error("Failed to fetch registry data");
+                registryData = await res.json();
+                renderRegistry(registryData);
+            } catch (e) {
+                console.error(e);
+                document.getElementById('registryTableBody').innerHTML = `
+                    <tr>
+                        <td colspan="7" style="text-align: center; color: var(--primary); font-weight: 600; padding: 2rem;">
+                            Error loading registry: ${e.message}
+                        </td>
+                    </tr>
+                `;
+            }
+        }
+
+        function renderRegistry(data) {
+            const tbody = document.getElementById('registryTableBody');
+            if (!data || data.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 2rem;">
+                            No datasets registered in the redundancy log yet.
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = data.map(r => {
+                const dateStr = r.upload_date ? new Date(r.upload_date).toLocaleString() : 'N/A';
+                const sourceBadge = r.source_type === 'NADA' ? 
+                    '<span class="badge badge-nada">NADA</span>' : 
+                    '<span class="badge badge-sp">Standard</span>';
+                
+                const ckStr = r.candidate_key ? r.candidate_key : 'None';
+                const fpShort = r.fingerprint ? r.fingerprint.substring(0, 12) : 'N/A';
+
+                return `
+                    <tr>
+                        <td style="font-weight: 600;">${r.dataset_name || 'N/A'}</td>
+                        <td><code class="code-pill">${r.survey_name || 'N/A'}</code></td>
+                        <td>${r.year || 'N/A'}</td>
+                        <td><code class="code-pill">${ckStr}</code></td>
+                        <td title="${r.fingerprint || ''}"><code class="code-pill">${fpShort}</code></td>
+                        <td>${dateStr}</td>
+                        <td>${sourceBadge}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function filterRegistry() {
+            const query = document.getElementById('registrySearch').value.toLowerCase().trim();
+            if (!query) {
+                renderRegistry(registryData);
+                return;
+            }
+
+            const filtered = registryData.filter(r => {
+                return (r.dataset_name || '').toLowerCase().includes(query) ||
+                       (r.survey_name || '').toLowerCase().includes(query) ||
+                       (r.fingerprint || '').toLowerCase().includes(query) ||
+                       (r.source_type || '').toLowerCase().includes(query);
+            });
+            renderRegistry(filtered);
+        }
+
+        // Fetch on load
+        fetchRegistry();
+    </script>
+</body>
+</html>

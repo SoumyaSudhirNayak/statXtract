@@ -373,6 +373,63 @@
             background: var(--surface-bg);
             min-height: 400px;
             border-radius: 12px;
+            position: relative;
+        }
+
+        .chart-toolbar {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            z-index: 10;
+            display: flex;
+            gap: 6px;
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            padding: 4px;
+            border-radius: 8px;
+            border: 1px solid var(--glass-border);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            transition: opacity 0.2s, transform 0.2s;
+        }
+
+        .chart-toolbar button {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            border: none;
+            border-radius: 6px;
+            background: transparent;
+            cursor: pointer;
+            color: var(--text-main);
+            font-size: 0.9rem;
+            transition: all 0.25s ease;
+        }
+
+        .chart-toolbar button:hover {
+            background: rgba(46, 91, 186, 0.1);
+            color: var(--primary-color);
+        }
+
+        .chart-toolbar button.active {
+            background: var(--primary-color) !important;
+            color: #ffffff !important;
+        }
+
+        /* Dark mode compatibility for toolbar */
+        [data-theme="dark"] .chart-toolbar {
+            background: rgba(15, 23, 42, 0.85);
+            border-color: rgba(255, 255, 255, 0.1);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+        [data-theme="dark"] .chart-toolbar button {
+            color: rgba(255, 255, 255, 0.85);
+        }
+        [data-theme="dark"] .chart-toolbar button:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: #ffffff;
         }
 
         .filter-mode-toggle {
@@ -887,6 +944,81 @@
                 font-size: 0.8rem;
             }
         }
+
+        /* Open SQL Button Hover Effect */
+        #btnOpenAdvancedSql {
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        }
+        #btnOpenAdvancedSql:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(37,99,235,0.45) !important;
+            filter: brightness(1.1);
+        }
+        #btnOpenAdvancedSql:active {
+            transform: translateY(0);
+        }
+
+        /* SQL Editor Light Theme Overrides */
+        .sql-modal-container.light-theme {
+            background: #ffffff !important;
+            border: 1px solid #cccccc !important;
+            color: #333333 !important;
+        }
+        .sql-modal-container.light-theme .sql-modal-header,
+        .sql-modal-container.light-theme .sql-modal-footer {
+            background: #f3f3f3 !important;
+            border-color: #cccccc !important;
+        }
+        .sql-modal-container.light-theme .sql-modal-title {
+            color: #333333 !important;
+        }
+        .sql-modal-container.light-theme .sql-editor-workspace {
+            background: #ffffff !important;
+        }
+        .sql-modal-container.light-theme .sql-line-numbers {
+            background: #f3f3f3 !important;
+            border-color: #e2e8f0 !important;
+            color: #64748b !important;
+        }
+        .sql-modal-container.light-theme .sql-textarea {
+            caret-color: #000000 !important;
+        }
+        .sql-modal-container.light-theme .sql-highlight-backdrop {
+            color: #333333 !important;
+        }
+        .sql-modal-container.light-theme #sqlAutocompleteList {
+            background: #ffffff !important;
+            border-color: #cccccc !important;
+            color: #333333 !important;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15) !important;
+        }
+        .sql-modal-container.light-theme .autocomplete-item {
+            color: #333333 !important;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        .sql-modal-container.light-theme .autocomplete-item:hover,
+        .sql-modal-container.light-theme .autocomplete-item.active {
+            background: #e2e8f0 !important;
+            color: #000000 !important;
+        }
+        .sql-modal-container.light-theme .btn-sql-theme {
+            border-color: #cccccc !important;
+            color: #333333 !important;
+            background: #e2e8f0 !important;
+        }
+        
+        /* Highlight colors overrides for Light Theme */
+        .sql-modal-container.light-theme .sql-keyword {
+            color: #0000ff !important;
+            font-weight: bold;
+        }
+        .sql-modal-container.light-theme .sql-string {
+            color: #a31515 !important;
+        }
+        .sql-modal-container.light-theme .sql-comment {
+            color: #008000 !important;
+            font-style: italic;
+        }
     </style>
 </head>
 
@@ -988,7 +1120,7 @@
                                     <i class="fas fa-code"></i> Advanced
                                 </button>
                             </div>
-                            <select class="form-select" id="filterLogic" style="width:auto;padding:5px 8px;font-size:11px;border-radius:7px;">
+                            <select class="form-select" id="filterLogic" onchange="renderFilterChips()" style="width:auto;padding:5px 8px;font-size:11px;border-radius:7px;">
                                 <option value="AND">Match ALL (AND)</option>
                                 <option value="OR">Match ANY (OR)</option>
                             </select>
@@ -1007,16 +1139,15 @@
                             </div>
                         </div>
 
-                        <div id="manualFilterSection" style="display:none;">
-                            <div style="margin-bottom:8px;display:flex;align-items:center;gap:8px;color:var(--text-secondary);">
-                                <i class="fas fa-terminal"></i>
-                                <span style="font-size:11px;font-weight:600;">Write SQL-style filter expressions</span>
-                            </div>
-                            <textarea class="form-input" id="manualFilters" rows="3" placeholder="Examples:&#10;age >= 18 AND gender = 'Female'&#10;state IN ('10', '11')" style="resize:vertical;min-height:66px;font-family:'Consolas',monospace;font-size:11px;line-height:1.35;"></textarea>
+                        <div id="manualFilterSection" style="display:none; text-align: center; padding: 10px 0;">
+                            <textarea id="manualFilters" style="display:none;"></textarea>
+                            <button type="button" class="btn btn-primary" id="btnOpenAdvancedSql" onclick="openSqlEditorModal()" style="width:100%; padding:16px 24px; font-size:1.05rem; font-weight:700; border-radius:12px; background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); border:none; color:#ffffff; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:10px; box-shadow:0 6px 20px rgba(37,99,235,0.3); transition:all 0.25s cubic-bezier(0.4, 0, 0.2, 1);">
+                                <i class="fas fa-database"></i> Open Advanced SQL Editor
+                            </button>
                             <div id="manualFilterError" style="display:none;margin-top:8px;padding:8px 10px;background:rgba(212,24,61,0.1);border:1px solid rgba(212,24,61,0.35);border-radius:10px;color:#d4183d;font-size:11px;"></div>
-                            <div style="margin-top:8px;font-size:10px;color:var(--text-secondary);">
-                                <i class="fas fa-shield-alt" style="margin-right:4px;"></i>
-                                Supports: =, !=, &gt;, &lt;, &gt;=, &lt;=, BETWEEN, IN, LIKE, AND, OR. DML keywords are blocked.
+                            <div style="margin-top:12px;font-size:11px;color:var(--text-muted);display:flex;align-items:center;justify-content:center;gap:6px;">
+                                <i class="fas fa-shield-alt"></i>
+                                <span>Security enforced: Read-only transactions only</span>
                             </div>
                         </div>
                     </div>
@@ -1060,9 +1191,11 @@
                 </div>
 
                 <div class="table-results-container">
-                    <div class="results-header">
+                    <div class="results-header" style="display:flex; justify-content:space-between; align-items:center; width:100%;">
                         <h3><i class="fas fa-table"></i> Table Results</h3>
-                        <div></div>
+                        <button type="button" class="btn btn-secondary btn-sm" id="btnExpandResults" onclick="openExpandResultsModal()" style="display:none; padding:4px 10px; font-size:11px; border-radius:6px; border:none; background: var(--primary-color, #2E5BBA); color:#ffffff; font-weight:600; cursor:pointer;">
+                            <i class="fas fa-expand" style="margin-right: 4px;"></i> Expand Results
+                        </button>
                     </div>
 
                     <div class="loading-spinner" id="loadingSpinner">
@@ -1111,6 +1244,13 @@
 
                     <div class="chart-controls" id="chartControls">
                         <div class="chart-control-group">
+                            <label>Chart Source</label>
+                            <select id="chartSource" onchange="onChartSourceChange()">
+                                <option value="full" selected>Full Dataset</option>
+                                <option value="sql">SQL Result</option>
+                            </select>
+                        </div>
+                        <div class="chart-control-group">
                             <label>Chart Type</label>
                             <select id="chartType" onchange="markChartDirty()">
                                 <option value="bar">Bar Chart</option>
@@ -1126,7 +1266,18 @@
                         </div>
                         <div class="chart-control-group">
                             <label>Y-Axis</label>
-                            <select id="yAxis" onchange="markChartDirty()"></select>
+                            <select id="yAxis" onchange="onYAxisChange()"></select>
+                        </div>
+                        <div class="chart-control-group" id="chartAggGroup">
+                            <label>Aggregation</label>
+                            <select id="chartAggregation" onchange="markChartDirty()">
+                                <option value="NONE">None / Plot Raw</option>
+                                <option value="COUNT">COUNT</option>
+                                <option value="SUM">SUM</option>
+                                <option value="AVG">AVG</option>
+                                <option value="MIN">MIN</option>
+                                <option value="MAX">MAX</option>
+                            </select>
                         </div>
                         <button class="btn btn-primary" id="generateChartBtn" onclick="generateChart()">
                             <i class="fas fa-chart-line"></i>
@@ -1149,10 +1300,77 @@
                         </div>
 
                     </div>
+                    <!-- Chart Query Preview -->
+                    <div id="chartQueryPreviewContainer" style="display: none; margin: 0 0 16px 0; padding: 12px 16px; background: var(--surface-muted, #f8fafc); border: 1px solid var(--glass-border, #e2e8f0); border-radius: 8px;">
+                        <span style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); display: block; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em;">
+                            <i class="fas fa-code" style="color: var(--primary-color, #4f46e5); margin-right: 4px;"></i> Generated Chart Query Preview
+                        </span>
+                        <pre style="margin: 0; font-family: var(--font-mono, monospace); font-size: 0.8rem; color: var(--text-main, #0f172a); white-space: pre-wrap; word-break: break-all;"><code id="chartQueryPreviewText"></code></pre>
+                    </div>
+
                     <div class="chart-container" id="chartView">
                         <div class="chart-canvas-wrapper">
                             <canvas id="myChart"></canvas>
                         </div>
+                    </div>
+                </div>
+                
+                <!-- Aggregation / Metrics Panel -->
+                <div class="aggregation-panel-container" style="margin-top: 24px; padding: 24px; background: var(--surface-bg, #ffffff); border: 1px solid var(--glass-border, #e2e8f0); border-radius: 16px; box-shadow: var(--shadow-light);">
+                    <div class="results-header" style="margin-bottom: 20px; border-bottom: 1px solid var(--glass-border, #e2e8f0); padding-bottom: 12px; display: flex; align-items: center; justify-content: space-between;">
+                        <h3 style="margin: 0; font-family: var(--font-head); font-size: 1.15rem; font-weight: 700; color: var(--text-main); display: flex; align-items: center; gap: 8px;">
+                            <i class="fas fa-calculator" style="color: var(--primary-color);"></i> Aggregation Panel
+                        </h3>
+                        <span style="font-size: 0.78rem; color: var(--text-muted); font-weight: 600;">Perform analytical calculations on dataset</span>
+                    </div>
+                    
+                    <div class="agg-controls-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 20px; align-items: flex-end;">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" style="font-weight: 600; font-size: 11px; color: var(--text-muted); text-transform: uppercase; margin-bottom: 6px; display: block;">Aggregation Source</label>
+                            <select class="form-select" id="aggSource" style="width: 100%; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--glass-border); height: 38px; background: var(--surface-bg); color: var(--text-main);">
+                                <option value="full" selected>Full Dataset</option>
+                                <option value="sql">SQL Result</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" style="font-weight: 600; font-size: 11px; color: var(--text-muted); text-transform: uppercase; margin-bottom: 6px; display: block;">Function</label>
+                            <select class="form-select" id="aggFunction" style="width: 100%; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--glass-border); height: 38px; background: var(--surface-bg); color: var(--text-main);">
+                                <option value="COUNT">COUNT</option>
+                                <option value="SUM">SUM</option>
+                                <option value="AVG">AVG</option>
+                                <option value="MIN">MIN</option>
+                                <option value="MAX">MAX</option>
+                                <option value="DISTINCT_COUNT">DISTINCT COUNT</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" style="font-weight: 600; font-size: 11px; color: var(--text-muted); text-transform: uppercase; margin-bottom: 6px; display: block;">Measure Column</label>
+                            <select class="form-select" id="aggMeasureColumn" style="width: 100%; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--glass-border); height: 38px; background: var(--surface-bg); color: var(--text-main);">
+                                <option value="*">All Rows (*)</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" style="font-weight: 600; font-size: 11px; color: var(--text-muted); text-transform: uppercase; margin-bottom: 6px; display: block;">Group By</label>
+                            <select class="form-select" id="aggGroupBy" style="width: 100%; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--glass-border); height: 38px; background: var(--surface-bg); color: var(--text-main);">
+                                <option value="">None</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" style="font-weight: 600; font-size: 11px; color: var(--text-muted); text-transform: uppercase; margin-bottom: 6px; display: block;">Having Condition</label>
+                            <input type="text" class="form-input" id="aggHaving" placeholder="e.g. COUNT(*) > 10" style="width: 100%; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--glass-border); height: 38px; background: var(--surface-bg); color: var(--text-main);">
+                        </div>
+                        <div style="display: flex;">
+                            <button class="btn btn-primary" onclick="calculateAggregation()" style="width: 100%; padding: 10px; font-weight: 600; border-radius: 8px; height: 38px; cursor: pointer;">
+                                <i class="fas fa-calculator"></i> Aggregate
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div id="aggResultsTableContainer" style="display: none; margin-top: 20px; overflow-x: auto; border: 1px solid var(--glass-border); border-radius: 12px;">
+                        <table class="data-table" style="width: 100%; margin: 0;">
+                            <thead id="aggTableHead"></thead>
+                            <tbody id="aggTableBody"></tbody>
+                        </table>
                     </div>
                 </div>
             </div>
@@ -1166,6 +1384,7 @@
         // Global Variables
         let tableDataBySchema = {};
         let latestResults = [];
+        let allDatasetColumns = [];
         let currentChart = null;
         let chartDataRows = [];
         let chartRequestCache = { key: '', rows: [] };
@@ -1175,6 +1394,7 @@
         let currentView = 'both';
         let isDarkTheme = false;
         let filterMode = 'smart';  // 'smart' or 'manual'
+        let isCustomSqlQuery = false;
 
         // Theme Setup
         function toggleTheme() {
@@ -1239,6 +1459,9 @@
 
         // Load filter metadata for the selected table
         async function loadFilterMetadata(survey, dataset, tableName) {
+            isCustomSqlQuery = false;
+            const btnExpandResults = document.getElementById('btnExpandResults');
+            if (btnExpandResults) btnExpandResults.style.display = 'none';
             try {
                 const res = await fetch(`/surveys/${survey}/${encodeURIComponent(dataset)}/${tableName}/filter-metadata`);
                 if (res.ok) {
@@ -1250,6 +1473,22 @@
                 console.warn('Filter metadata not available:', e);
                 filterMetadata = [];
             }
+
+            // Smart Filter fallback: ensure all columns from dataset schema are present in filterMetadata
+            if (window.allDatasetColumns && Array.isArray(window.allDatasetColumns)) {
+                window.allDatasetColumns.forEach(col => {
+                    if (!filterMetadata.some(m => m.column_name === col)) {
+                        filterMetadata.push({
+                            column_name: col,
+                            label: col,
+                            filter_type: 'text',
+                            statistics: {},
+                            categories: []
+                        });
+                    }
+                });
+            }
+
             // Reset filter state
             activeFilters = [];
             filterRowId = 0;
@@ -1265,11 +1504,12 @@
 
         // Operators per type
         function getOperators(filterType) {
+            const analyticalOps = ['COUNT', 'SUM', 'AVG', 'MIN', 'MAX', 'DISTINCT COUNT'];
             switch (filterType) {
-                case 'numeric':  return ['=', '!=', '>', '<', '>=', '<=', 'BETWEEN'];
-                case 'categorical': return ['=', 'IN'];
-                case 'text':     return ['=', '!=', 'LIKE'];
-                default:         return ['=', '!=', '>', '<', 'LIKE'];
+                case 'numeric':  return ['=', '!=', '>', '<', '>=', '<=', 'BETWEEN', ...analyticalOps];
+                case 'categorical': return ['=', 'IN', 'COUNT', 'DISTINCT COUNT'];
+                case 'text':     return ['=', '!=', 'LIKE', 'COUNT', 'DISTINCT COUNT'];
+                default:         return ['=', '!=', '>', '<', 'LIKE', ...analyticalOps];
             }
         }
 
@@ -1344,7 +1584,10 @@
             const row = document.getElementById(`filter-row-${rowId}`);
             const valContainer = row.querySelector('.filter-value-container');
 
-            if (operator === 'BETWEEN' && meta.filter_type === 'numeric') {
+            if (['COUNT', 'SUM', 'AVG', 'MIN', 'MAX', 'DISTINCT COUNT'].includes(operator)) {
+                valContainer.innerHTML = `<input class="form-input filter-val" type="text" placeholder="e.g. > 10 or 5">`;
+                valContainer.querySelector('.filter-val').addEventListener('change', () => updateFilterFromRow(rowId));
+            } else if (operator === 'BETWEEN' && meta.filter_type === 'numeric') {
                 // Range inputs with optional slider
                 const stats = meta.statistics || {};
                 const minVal = stats.min != null ? parseFloat(stats.min) : '';
@@ -1516,6 +1759,7 @@
                 </div>`;
             });
             container.innerHTML = html;
+            updateChartQueryPreview();
         }
 
         // ── Validation Layer ──
@@ -1609,6 +1853,20 @@
 
                 if (f.operator === 'LIKE') {
                     return `LOWER(CAST(${col} AS TEXT)) LIKE LOWER('%${f.value}%')`;
+                }
+
+                // Analytical Operators
+                if (['COUNT', 'SUM', 'AVG', 'MIN', 'MAX', 'DISTINCT COUNT'].includes(f.operator)) {
+                    const tbl = document.getElementById('table').value;
+                    const valStr = String(f.value).trim();
+                    const compOp = /^[>=<!]/.test(valStr) ? "" : " = ";
+                    
+                    let aggExpr = "";
+                    if (f.operator === 'COUNT') aggExpr = 'COUNT(*)';
+                    else if (f.operator === 'DISTINCT COUNT') aggExpr = `COUNT(DISTINCT "${col}")`;
+                    else aggExpr = `${f.operator}("${col}")`;
+                    
+                    return `"${col}" IN (SELECT "${col}" FROM "${tbl}" GROUP BY "${col}" HAVING ${aggExpr}${compOp}${valStr})`;
                 }
 
                 // Case-insensitive text equality
@@ -1859,17 +2117,19 @@
             showLoading(true);
 
             try {
-                // Fetch columns + filter metadata in parallel
-                const [colRes, metaRes] = await Promise.all([
-                    fetch(`/surveys/${survey}/${encodeURIComponent(dataset)}/${tableName}/columns`),
-                    loadFilterMetadata(survey, dataset, tableName)
-                ]);
+                // Fetch columns sequentially to support metadata fallbacks
+                const colRes = await fetch(`/surveys/${survey}/${encodeURIComponent(dataset)}/${tableName}/columns`);
                 const columns = await colRes.json();
+                
+                allDatasetColumns = Array.isArray(columns) ? columns : [];
+
+                // Load filter metadata (will incorporate fallbacks from allDatasetColumns)
+                await loadFilterMetadata(survey, dataset, tableName);
 
                 const grid = document.getElementById('columns-grid');
                 grid.innerHTML = "";
 
-                (Array.isArray(columns) ? columns : []).forEach((col, index) => {
+                allDatasetColumns.forEach((col, index) => {
                     const columnItem = document.createElement("div");
                     columnItem.className = "column-item";
                     columnItem.style.animationDelay = `${index * 50}ms`;
@@ -1892,8 +2152,9 @@
                     grid.appendChild(columnItem);
                 });
 
-                updateAxisOptions(Array.isArray(columns) ? columns : []);
-                showToast(`Loaded ${Array.isArray(columns) ? columns.length : 0} columns successfully!`, 'success');
+                updateAxisOptions();
+                updateAggregationDropdowns();
+                showToast(`Loaded ${allDatasetColumns.length} columns successfully!`, 'success');
 
             } catch (error) {
                 console.error("Error loading columns:", error);
@@ -1904,24 +2165,8 @@
         }
 
         // Update Axis Options
-        function updateAxisOptions(columns) {
-            const xAxis = document.getElementById('xAxis');
-            const yAxis = document.getElementById('yAxis');
-
-            xAxis.innerHTML = "";
-            yAxis.innerHTML = "";
-
-            columns.forEach(col => {
-                const xOption = document.createElement("option");
-                xOption.value = col;
-                xOption.textContent = col;
-                xAxis.appendChild(xOption);
-
-                const yOption = document.createElement("option");
-                yOption.value = col;
-                yOption.textContent = col;
-                yAxis.appendChild(yOption);
-            });
+        function updateAxisOptions() {
+            onChartSourceChange();
         }
 
         // Get Selected Columns
@@ -1970,6 +2215,7 @@
             if (hint) {
                 hint.textContent = 'Chart settings changed. Click Generate Chart.';
             }
+            updateChartQueryPreview();
         }
 
         function setGenerateChartLoading(isLoading) {
@@ -2023,6 +2269,7 @@
 
         // Run Query with Progress
         async function runQuery() {
+            isCustomSqlQuery = false;
             hasQueryRun = true;
             // Sync any un-committed filter rows before querying (smart mode)
             if (filterMode === 'smart') {
@@ -2103,6 +2350,116 @@
             }
         }
 
+        function isColumnMeasure(colName) {
+            const colMeta = getColumnMeta(colName);
+            let isNumeric = colMeta ? (colMeta.filter_type === 'numeric') : false;
+            
+            // Fallback for custom SQL results
+            if (!colMeta && window.latestResults && window.latestResults.length > 0) {
+                isNumeric = window.latestResults.some(row => isNumericValue(row[colName]));
+            }
+
+            if (!isNumeric) return false;
+            // Whitelist known measure indicators
+            if (/(?:income|spending|members|amount|value|qty|quantity|count|sum|avg|min|max|total|score|weight|height|salary|cost|price|revenue|profit|expense|rate|ratio|percent|pct)/i.test(colName)) {
+                return true;
+            }
+            // Blacklist dimension indicators (even if they are numeric)
+            if (/(?:_id|^id|id_|_code|code_|^code|^a\d+|sector|sex|relation|year|yr|month|day|date|phone|zip|postal|pin|age)/i.test(colName)) {
+                return false;
+            }
+            return true; // Default numeric columns to measure
+        }
+
+        function onYAxisChange() {
+            markChartDirty();
+            updateChartAggregationUI();
+        }
+
+        function updateChartAggregationUI() {
+            const chartSource = document.getElementById('chartSource')?.value || 'full';
+            const yAxisCol = document.getElementById('yAxis')?.value;
+            const chartAggSelect = document.getElementById('chartAggregation');
+            if (!yAxisCol || !chartAggSelect) return;
+
+            const isMeas = isColumnMeasure(yAxisCol);
+            
+            // In Full Dataset mode, "None" is not allowed. Hide "None" option.
+            const noneOpt = chartAggSelect.querySelector('option[value="NONE"]');
+            if (chartSource === 'full') {
+                if (noneOpt) noneOpt.style.display = 'none';
+                if (chartAggSelect.value === 'NONE') {
+                    chartAggSelect.value = isMeas ? 'SUM' : 'COUNT';
+                }
+            } else {
+                if (noneOpt) noneOpt.style.display = 'block';
+            }
+
+            if (!isMeas) {
+                // Dimension column selected as Y-axis. Default to COUNT.
+                if (chartAggSelect.value === 'NONE' || isMeas) {
+                    chartAggSelect.value = 'COUNT';
+                }
+                showToast(`Y-Axis is a Dimension column. Aggregation defaulted to COUNT.`, 'info');
+            } else {
+                // Measure column.
+                if (chartSource === 'full' && (chartAggSelect.value === 'NONE' || chartAggSelect.value === 'COUNT')) {
+                    chartAggSelect.value = 'SUM';
+                }
+            }
+            updateChartQueryPreview();
+        }
+
+        function updateChartQueryPreview() {
+            const previewContainer = document.getElementById('chartQueryPreviewContainer');
+            const previewText = document.getElementById('chartQueryPreviewText');
+            if (!previewContainer || !previewText) return;
+
+            const xAxisCol = document.getElementById('xAxis')?.value;
+            const yAxisCol = document.getElementById('yAxis')?.value;
+            const chartSource = document.getElementById('chartSource')?.value || 'full';
+            const table = document.getElementById('table')?.value;
+            const aggFunc = document.getElementById('chartAggregation')?.value || 'COUNT';
+
+            if (!xAxisCol || !yAxisCol || !table) {
+                previewContainer.style.display = 'none';
+                return;
+            }
+
+            previewContainer.style.display = 'block';
+
+            if (chartSource === 'sql') {
+                let aggExpr = "";
+                if (aggFunc === 'NONE') {
+                    aggExpr = `${yAxisCol}`;
+                } else if (aggFunc === 'COUNT') {
+                    aggExpr = `COUNT(${yAxisCol === xAxisCol ? '*' : yAxisCol})`;
+                } else {
+                    aggExpr = `${aggFunc}(${yAxisCol})`;
+                }
+                previewText.textContent = `[Client-side Aggregation] SELECT ${xAxisCol}, ${aggExpr} FROM latestResults GROUP BY ${xAxisCol}`;
+            } else {
+                let aggExpr = "";
+                let targetAgg = aggFunc;
+                if (targetAgg === 'NONE') {
+                    targetAgg = isColumnMeasure(yAxisCol) ? 'SUM' : 'COUNT';
+                }
+                if (targetAgg === 'COUNT') {
+                    aggExpr = yAxisCol === xAxisCol ? 'COUNT(*)' : `COUNT(${yAxisCol})`;
+                } else {
+                    aggExpr = `${targetAgg}(${yAxisCol})`;
+                }
+                
+                let sql = `SELECT ${xAxisCol}, ${aggExpr} AS value FROM ${table}`;
+                const filters = buildFilterString();
+                if (filters && filters !== '__BLOCKED__') {
+                    sql += ` WHERE ${filters}`;
+                }
+                sql += ` GROUP BY ${xAxisCol}`;
+                previewText.textContent = sql;
+            }
+        }
+
         async function generateChart() {
             if (isGeneratingChart) return;
 
@@ -2132,22 +2489,34 @@
 
             try {
                 let rows = [];
-                if (!chartNeedsRefresh && chartRequestCache.key === context.cacheKey && Array.isArray(chartRequestCache.rows)) {
-                    rows = chartRequestCache.rows;
+                const chartSource = document.getElementById('chartSource')?.value || 'full';
+
+                if (chartSource === 'sql') {
+                    // MODE 1: Use SQL results directly
+                    if (!latestResults || latestResults.length === 0) {
+                        throw new Error("No SQL results available. Please execute a query first.");
+                    }
+                    
+                    const aggFunc = document.getElementById('chartAggregation')?.value || 'NONE';
+                    if (aggFunc !== 'NONE') {
+                        // Perform client-side aggregation
+                        rows = computeClientAggregation(latestResults, aggFunc, yAxisCol, xAxisCol);
+                    } else {
+                        rows = latestResults;
+                    }
                 } else {
-                    // Build chart-specific query with backend grouping/aggregation
+                    // MODE 2: Full Dataset (Default)
                     const params = new URLSearchParams(context.queryString);
                     params.set("group_by", xAxisCol);
-                    params.set("limit", "1000"); // Increase limit for aggregated categories to ensure we get all of them
-                    if (xAxisCol === yAxisCol) {
-                        params.set("aggregation", "count");
-                        params.set("aggregation_column", xAxisCol);
-                    } else {
-                        // Check if yAxisCol is numeric
-                        const isNum = latestResults.some(r => isNumericValue(r[yAxisCol]));
-                        params.set("aggregation", isNum ? "sum" : "count");
-                        params.set("aggregation_column", yAxisCol);
+                    params.set("limit", "100000"); // Retrieve up to 100,000 aggregated groups
+                    
+                    let aggFunc = document.getElementById('chartAggregation')?.value || 'COUNT';
+                    if (aggFunc === 'NONE') {
+                        aggFunc = isColumnMeasure(yAxisCol) ? 'SUM' : 'COUNT';
                     }
+                    params.set("aggregation", aggFunc.toLowerCase());
+                    params.set("aggregation_column", yAxisCol);
+                    
                     const chartEndpoint = `/surveys/${context.survey}/${encodeURIComponent(context.dataset)}/${context.table}/query?${params.toString()}`;
 
                     const response = await fetch(chartEndpoint);
@@ -2161,7 +2530,6 @@
                         throw new Error(data?.message || data?.error || data?.detail || 'Unexpected chart response format.');
                     }
                     rows = data;
-                    chartRequestCache = { key: context.cacheKey, rows };
                 }
 
                 chartDataRows = rows;
@@ -2205,6 +2573,8 @@
                     </div>
                 </td></tr>`;
                 document.getElementById('tablePagination').style.display = 'none';
+                const btnExpandResults = document.getElementById('btnExpandResults');
+                if (btnExpandResults) btnExpandResults.style.display = 'none';
                 return;
             }
 
@@ -2222,7 +2592,9 @@
                 tableBody.appendChild(tr);
             });
             
-            document.getElementById('tablePagination').style.display = 'flex';
+            document.getElementById('tablePagination').style.display = isCustomSqlQuery ? 'none' : 'flex';
+            const btnExpandResults = document.getElementById('btnExpandResults');
+            if (btnExpandResults) btnExpandResults.style.display = 'inline-block';
         }
 
         // Render Governance/Security Error Panel
@@ -2438,6 +2810,49 @@
         }
 
         // Update Chart with Animations
+        let chartDragZoomMode = false;
+
+        function chartZoomIn() {
+            if (currentChart) {
+                currentChart.zoom(1.2);
+            }
+        }
+
+        function chartZoomOut() {
+            if (currentChart) {
+                currentChart.zoom(0.8);
+            }
+        }
+
+        function chartZoomReset() {
+            if (currentChart) {
+                currentChart.resetZoom();
+            }
+        }
+
+        function toggleChartPan() {
+            if (!currentChart) return;
+            chartDragZoomMode = !chartDragZoomMode;
+            
+            const panBtn = document.getElementById('btnPanToggle');
+            if (panBtn) {
+                if (chartDragZoomMode) {
+                    panBtn.classList.add('active');
+                    panBtn.title = "Drag to Zoom Mode (Click to switch to Pan Mode)";
+                    panBtn.innerHTML = '<i class="fas fa-search"></i>';
+                } else {
+                    panBtn.classList.remove('active');
+                    panBtn.title = "Drag to Pan Mode (Click to switch to Drag-Zoom Mode)";
+                    panBtn.innerHTML = '<i class="fas fa-hand-paper"></i>';
+                }
+            }
+
+            // Update chart zoom configuration
+            currentChart.options.plugins.zoom.pan.enabled = !chartDragZoomMode;
+            currentChart.options.plugins.zoom.zoom.drag.enabled = chartDragZoomMode;
+            currentChart.update();
+        }
+
         function updateChart(dataRows = chartDataRows, showSuccessToast = true) {
             const chartWrapper = document.querySelector('.chart-canvas-wrapper');
             if (!Array.isArray(dataRows) || dataRows.length === 0) {
@@ -2466,7 +2881,30 @@
                 return;
             }
 
-            chartWrapper.innerHTML = '<canvas id="myChart"></canvas>';
+            chartWrapper.innerHTML = `
+                <div class="chart-toolbar">
+                    <button id="btnZoomIn" onclick="chartZoomIn()" title="Zoom In"><i class="fas fa-search-plus"></i></button>
+                    <button id="btnZoomOut" onclick="chartZoomOut()" title="Zoom Out"><i class="fas fa-search-minus"></i></button>
+                    <button id="btnPanToggle" onclick="toggleChartPan()" title="Drag to Pan Mode (Click to toggle Drag-Zoom Mode)"><i class="fas fa-hand-paper"></i></button>
+                    <button id="btnZoomReset" onclick="chartZoomReset()" title="Reset Zoom"><i class="fas fa-undo"></i></button>
+                </div>
+                <canvas id="myChart"></canvas>
+            `;
+
+            // Sync Pan Button UI on load
+            const panBtn = document.getElementById('btnPanToggle');
+            if (panBtn) {
+                if (chartDragZoomMode) {
+                    panBtn.classList.add('active');
+                    panBtn.title = "Drag to Zoom Mode (Click to switch to Pan Mode)";
+                    panBtn.innerHTML = '<i class="fas fa-search"></i>';
+                } else {
+                    panBtn.classList.remove('active');
+                    panBtn.title = "Drag to Pan Mode (Click to switch to Drag-Zoom Mode)";
+                    panBtn.innerHTML = '<i class="fas fa-hand-paper"></i>';
+                }
+            }
+
             if (currentChart) {
                 currentChart.destroy();
             }
@@ -2484,8 +2922,32 @@
             }
         }
 
+        function getYAxisKey(row, xCol, yCol) {
+            if (!row) return yCol;
+            const keys = Object.keys(row);
+            if (yCol && yCol !== xCol && keys.includes(yCol)) {
+                return yCol;
+            }
+            const metricKeys = ["count", "sum", "avg", "min", "max", "distinct"];
+            for (let mk of metricKeys) {
+                const found = keys.find(k => k.toLowerCase().includes(mk) && k !== xCol);
+                if (found) return found;
+            }
+            const fallbackKey = keys.find(k => k !== xCol);
+            return fallbackKey || yCol;
+        }
+
         // Enhanced Chart Options
+        const preciseFormatter = new Intl.NumberFormat('en-US');
+        const compactFormatter = new Intl.NumberFormat('en-US', {
+            notation: 'compact',
+            maximumFractionDigits: 1
+        });
+
         function getEnhancedChartOptions(chartType, xCol, yCol) {
+            const firstRow = (chartDataRows && chartDataRows[0]) || (latestResults && latestResults[0]) || {};
+            const actualYKey = getYAxisKey(firstRow, xCol, yCol);
+            
             const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
             const textColor = isDark ? '#ffffff' : '#000000';
             const axisTextColor = isDark ? 'rgba(255, 255, 255, 0.85)' : '#111827';
@@ -2502,9 +2964,30 @@
                     mode: 'index'
                 },
                 plugins: {
+                    zoom: {
+                        zoom: {
+                            wheel: {
+                                enabled: true,
+                            },
+                            pinch: {
+                                enabled: true
+                            },
+                            drag: {
+                                enabled: chartDragZoomMode,
+                                backgroundColor: 'rgba(102, 126, 234, 0.3)',
+                                borderColor: 'rgba(102, 126, 234, 1)',
+                                borderWidth: 1
+                            },
+                            mode: 'xy'
+                        },
+                        pan: {
+                            enabled: !chartDragZoomMode,
+                            mode: 'xy',
+                        }
+                    },
                     title: {
                         display: true,
-                        text: `${yCol} by ${xCol}`,
+                        text: `${actualYKey} by ${xCol}`,
                         font: {
                             size: 18,
                             weight: 'bold'
@@ -2533,10 +3016,15 @@
                                     label += ': ';
                                 }
                                 if (context.parsed.y !== null) {
-                                    if (categoricalIndexCols.has(yCol) && categoryMaps[yCol] && categoryMaps[yCol][context.parsed.y]) {
-                                        label += categoryMaps[yCol][context.parsed.y];
+                                    if (chartType === 'scatter' && categoricalIndexCols.has(actualYKey) && categoryMaps[actualYKey] && categoryMaps[actualYKey][context.parsed.y] !== undefined) {
+                                        label += categoryMaps[actualYKey][context.parsed.y];
                                     } else {
-                                        label += context.parsed.y;
+                                        const val = context.parsed.y;
+                                        if (typeof val === 'number') {
+                                            label += preciseFormatter.format(val);
+                                        } else {
+                                            label += val;
+                                        }
                                     }
                                 }
                                 return label;
@@ -2568,7 +3056,17 @@
                                 if (categoryMaps[xCol] && categoryMaps[xCol][value]) {
                                     return categoryMaps[xCol][value];
                                 }
-                                return this.getLabelForValue(value);
+                                const label = this.getLabelForValue(value);
+                                if (isNumericValue(label)) {
+                                    const numVal = Number(label);
+                                    const visibleRange = (typeof this.max === 'number' && typeof this.min === 'number') ? (this.max - this.min) : null;
+                                    if (visibleRange === null || visibleRange < 50000) {
+                                        return preciseFormatter.format(numVal);
+                                    } else {
+                                        return compactFormatter.format(numVal);
+                                    }
+                                }
+                                return label;
                             }
                         },
                         grid: {
@@ -2578,7 +3076,7 @@
                     y: {
                         title: {
                             display: true,
-                            text: yCol,
+                            text: actualYKey,
                             color: axisTextColor,
                             font: {
                                 size: 14,
@@ -2588,8 +3086,16 @@
                         ticks: {
                             color: axisTextColor,
                             callback: function(value, index, values) {
-                                if (categoricalIndexCols.has(yCol) && categoryMaps[yCol] && categoryMaps[yCol][value]) {
-                                    return categoryMaps[yCol][value];
+                                if (chartType === 'scatter' && categoricalIndexCols.has(actualYKey) && categoryMaps[actualYKey] && categoryMaps[actualYKey][value] !== undefined) {
+                                    return categoryMaps[actualYKey][value];
+                                }
+                                if (typeof value === 'number') {
+                                    const visibleRange = (typeof this.max === 'number' && typeof this.min === 'number') ? (this.max - this.min) : null;
+                                    if (visibleRange === null || visibleRange < 50000) {
+                                        return preciseFormatter.format(value);
+                                    } else {
+                                        return compactFormatter.format(value);
+                                    }
                                 }
                                 return value;
                             }
@@ -2606,13 +3112,16 @@
 
         // Prepare Chart Data with Purple Colors
         function prepareChartData(data, xCol, yCol, chartType) {
+            const firstRow = data[0] || {};
+            const actualYKey = getYAxisKey(firstRow, xCol, yCol);
+            
             if (chartType === 'pie' || chartType === 'doughnut') {
                 const aggregated = {};
-                const yIsNumeric = data.some(row => isNumericValue(row[yCol]));
+                const yIsNumeric = data.some(row => isNumericValue(row[actualYKey]));
                 data.forEach(row => {
                     const key = row[xCol];
                     if (yIsNumeric) {
-                        const value = Number(row[yCol]) || 0;
+                        const value = Number(row[actualYKey]) || 0;
                         aggregated[key] = (aggregated[key] || 0) + value;
                     } else {
                         aggregated[key] = (aggregated[key] || 0) + 1;
@@ -2631,10 +3140,10 @@
             } else if (chartType === 'scatter') {
                 return {
                     datasets: [{
-                        label: `${yCol} vs ${xCol}`,
+                        label: `${actualYKey} vs ${xCol}`,
                         data: data.map(row => ({
                             x: parseChartValue(row[xCol], xCol),
-                            y: parseChartValue(row[yCol], yCol)
+                            y: parseChartValue(row[actualYKey], actualYKey)
                         })),
                         backgroundColor: 'rgba(102, 126, 234, 0.6)',
                         borderColor: 'rgba(102, 126, 234, 1)',
@@ -2644,7 +3153,7 @@
                     }]
                 };
             } else {
-                const yIsNumeric = data.some(row => isNumericValue(row[yCol]));
+                const yIsNumeric = data.some(row => isNumericValue(row[actualYKey]));
                 if (!yIsNumeric) {
                     const aggregated = {};
                     data.forEach(row => {
@@ -2673,12 +3182,12 @@
                 }
 
                 const labels = data.map(row => row[xCol]);
-                const values = data.map(row => Number(row[yCol]) || 0);
+                const values = data.map(row => Number(row[actualYKey]) || 0);
 
                 return {
                     labels: labels,
                     datasets: [{
-                        label: yCol,
+                        label: actualYKey,
                         data: values,
                         backgroundColor: chartType === 'line' ? 'rgba(102, 126, 234, 0.2)' : 'rgba(102, 126, 234, 0.7)',
                         borderColor: 'rgba(102, 126, 234, 1)',
@@ -2793,6 +3302,20 @@
                     }
 
                     options.scales[key] = scaleCopy;
+                }
+            }
+
+            // Apply current scale min/max (zoom limits) to the copy
+            if (currentChart && currentChart.scales) {
+                for (const key in currentChart.scales) {
+                    const originalScale = currentChart.scales[key];
+                    if (originalScale) {
+                        if (!options.scales[key]) {
+                            options.scales[key] = {};
+                        }
+                        options.scales[key].min = originalScale.min;
+                        options.scales[key].max = originalScale.max;
+                    }
                 }
             }
 
@@ -3035,6 +3558,11 @@
         }
 
         async function exportDataset(format) {
+            // ── When custom SQL query was executed, export from latestResults (client-side) ──
+            if (isCustomSqlQuery && latestResults && latestResults.length > 0) {
+                return exportFromClientData(latestResults, format);
+            }
+
             const context = getQueryContext();
             if (context.error) {
                 showToast(context.error, 'error');
@@ -3090,6 +3618,108 @@
             }
             
             setTimeout(fetchPlanAndEnforceUI, 2000);
+        }
+
+        /**
+         * Client-side export: exports latestResults directly as CSV/JSON/Excel/PDF.
+         * Used when isCustomSqlQuery is true so that exports always match the Results Grid.
+         */
+        function exportFromClientData(data, format) {
+            const table = document.getElementById('table').value || 'query_result';
+            const filename = `${table}_query.${format === 'excel' ? 'xlsx' : format}`;
+            showToast(`Exporting ${data.length} rows as ${format.toUpperCase()} from current results...`, 'info');
+
+            try {
+                if (format === 'csv') {
+                    const headers = Object.keys(data[0]);
+                    const csvRows = [headers.join(',')];
+                    data.forEach(row => {
+                        csvRows.push(headers.map(h => {
+                            let val = row[h] ?? '';
+                            val = String(val).replace(/"/g, '""');
+                            return `"${val}"`;
+                        }).join(','));
+                    });
+                    const csvContent = csvRows.join('\n');
+                    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                    triggerBlobDownload(blob, filename);
+                } else if (format === 'json') {
+                    const jsonContent = JSON.stringify(data, null, 2);
+                    const blob = new Blob([jsonContent], { type: 'application/json;charset=utf-8;' });
+                    triggerBlobDownload(blob, filename);
+                } else if (format === 'excel') {
+                    // Build a simple HTML table and export as .xlsx via Blob
+                    const headers = Object.keys(data[0]);
+                    let html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">';
+                    html += '<head><meta charset="utf-8"></head><body><table border="1">';
+                    html += '<tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr>';
+                    data.forEach(row => {
+                        html += '<tr>' + headers.map(h => `<td>${row[h] ?? ''}</td>`).join('') + '</tr>';
+                    });
+                    html += '</table></body></html>';
+                    const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+                    triggerBlobDownload(blob, filename);
+                } else if (format === 'pdf') {
+                    // Use jsPDF for client-side PDF generation
+                    const { jsPDF } = window.jspdf;
+                    if (!jsPDF) {
+                        showToast('PDF library not loaded. Please refresh and try again.', 'error');
+                        return;
+                    }
+                    const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+                    pdf.setFontSize(14);
+                    pdf.text(`Query Export: ${table}`, 15, 15);
+                    pdf.setFontSize(9);
+                    pdf.text(`Exported: ${new Date().toLocaleString()} | Rows: ${data.length}`, 15, 22);
+
+                    const headers = Object.keys(data[0]);
+                    const maxCols = Math.min(headers.length, 10);
+                    const colWidth = 260 / maxCols;
+                    let yPos = 30;
+
+                    // Header row
+                    pdf.setFontSize(7);
+                    pdf.setFont(undefined, 'bold');
+                    for (let c = 0; c < maxCols; c++) {
+                        pdf.text(String(headers[c]).substring(0, 20), 15 + c * colWidth, yPos);
+                    }
+                    yPos += 5;
+                    pdf.setFont(undefined, 'normal');
+
+                    const maxRows = Math.min(data.length, 200);
+                    for (let r = 0; r < maxRows; r++) {
+                        if (yPos > 190) {
+                            pdf.addPage();
+                            yPos = 15;
+                        }
+                        for (let c = 0; c < maxCols; c++) {
+                            pdf.text(String(data[r][headers[c]] ?? '').substring(0, 25), 15 + c * colWidth, yPos);
+                        }
+                        yPos += 4;
+                    }
+                    if (data.length > maxRows) {
+                        yPos += 3;
+                        pdf.setFont(undefined, 'italic');
+                        pdf.text(`... and ${data.length - maxRows} more rows`, 15, yPos);
+                    }
+                    pdf.save(filename.replace('.pdf', '') + '.pdf');
+                }
+                showToast(`Data export in ${format.toUpperCase()} completed! (${data.length} rows)`, 'success');
+            } catch (err) {
+                console.error('Client-side export error:', err);
+                showToast(`Export failed: ${err.message}`, 'error');
+            }
+        }
+
+        function triggerBlobDownload(blob, filename) {
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(url);
         }
 
         function scrollToTop() {
@@ -3337,6 +3967,491 @@
             }
         }
 
+        // ── Advanced SQL Editor Overlay Logic ──
+        let selectedSuggestionIndex = 0;
+        let filteredSuggestions = [];
+
+        function openSqlEditorModal() {
+            const survey = document.getElementById('survey').value;
+            const dataset = document.getElementById('dataset').value;
+            const table = document.getElementById('table').value;
+            
+            if (!survey || !dataset || !table) {
+                showToast('Please select survey, dataset, and table first.', 'warning');
+                return;
+            }
+
+            applySqlEditorTheme();
+            const modal = document.getElementById('advancedSqlEditorModal');
+            modal.style.display = 'flex';
+            
+            const textarea = document.getElementById('sqlCodeEditor');
+            if (!textarea.value.trim()) {
+                textarea.value = `SELECT * FROM ${table} LIMIT 100;`;
+            }
+            
+            // Initial render
+            setTimeout(() => {
+                updateLineNumbers();
+                const backdrop = document.getElementById('sqlHighlightBackdrop');
+                backdrop.querySelector('code').innerHTML = highlightSQL(textarea.value);
+                textarea.focus();
+                // trigger initial validation
+                onSqlEditorInput();
+            }, 50);
+        }
+
+        function closeSqlEditorModal() {
+            document.getElementById('advancedSqlEditorModal').style.display = 'none';
+        }
+
+        function updateLineNumbers() {
+            const textarea = document.getElementById('sqlCodeEditor');
+            const lineNumbers = document.getElementById('sqlLineNumbers');
+            const lines = textarea.value.split('\n');
+            let html = '';
+            for (let i = 1; i <= lines.length; i++) {
+                html += `<div>${i}</div>`;
+            }
+            lineNumbers.innerHTML = html;
+            lineNumbers.scrollTop = textarea.scrollTop;
+        }
+
+        function syncEditorScroll() {
+            const textarea = document.getElementById('sqlCodeEditor');
+            const backdrop = document.getElementById('sqlHighlightBackdrop');
+            const lineNumbers = document.getElementById('sqlLineNumbers');
+            
+            backdrop.scrollTop = textarea.scrollTop;
+            backdrop.scrollLeft = textarea.scrollLeft;
+            lineNumbers.scrollTop = textarea.scrollTop;
+        }
+
+        function highlightSQL(code) {
+            let escaped = code
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;");
+                
+            // String literals
+            escaped = escaped.replace(/(['"])(.*?)\1/g, '<span class="sql-string">$1$2$1</span>');
+            
+            // SQL keywords
+            const keywords = [
+                "SELECT", "FROM", "WHERE", "GROUP BY", "ORDER BY", "LIMIT", "OFFSET",
+                "HAVING", "JOIN", "LEFT JOIN", "RIGHT JOIN", "INNER JOIN", "ON",
+                "AND", "OR", "IN", "NOT IN", "BETWEEN", "LIKE", "IS", "NULL", "NOT",
+                "AS", "WITH", "COUNT", "SUM", "AVG", "MIN", "MAX", "DISTINCT"
+            ];
+            
+            const keywordRegex = new RegExp('\\b(' + keywords.join('|') + ')\\b', 'gi');
+            escaped = escaped.replace(keywordRegex, function(match) {
+                return '<span class="sql-keyword">' + match.toUpperCase() + '</span>';
+            });
+            
+            // Comments
+            escaped = escaped.replace(/(--.*)$/gm, '<span class="sql-comment">$1</span>');
+            
+            return escaped;
+        }
+
+        function validateSQL(sql) {
+            const sql_clean = sql.replace(/--.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '').trim();
+            if (!sql_clean) {
+                return { valid: false, error: "SQL query cannot be empty." };
+            }
+            
+            const firstWord = (sql_clean.match(/^[a-zA-Z]+/)||[""])[0].toUpperCase();
+            if (firstWord !== "SELECT" && firstWord !== "WITH") {
+                return { valid: false, error: "Query must start with SELECT or WITH." };
+            }
+            
+            const blockedKeywords = ["DROP", "DELETE", "UPDATE", "TRUNCATE", "ALTER", "CREATE", "GRANT", "REVOKE", "EXECUTE", "COPY", "VACUUM", "INSERT", "INTO"];
+            for (let kw of blockedKeywords) {
+                const regex = new RegExp('\\b' + kw + '\\b', 'i');
+                if (regex.test(sql_clean)) {
+                    return { valid: false, error: `Write operations like ${kw} are blocked for security.` };
+                }
+            }
+            
+            const singleQuotes = (sql_clean.match(/'/g) || []).length;
+            if (singleQuotes % 2 !== 0) {
+                return { valid: false, error: "Unbalanced single quotes (')." };
+            }
+            const doubleQuotes = (sql_clean.match(/"/g) || []).length;
+            if (doubleQuotes % 2 !== 0) {
+                return { valid: false, error: "Unbalanced double quotes (\")." };
+            }
+            
+            const openParens = (sql_clean.match(/\(/g) || []).length;
+            const closeParens = (sql_clean.match(/\)/g) || []).length;
+            if (openParens !== closeParens) {
+                return { valid: false, error: `Unbalanced parentheses: ${openParens} opened, ${closeParens} closed.` };
+            }
+            
+            return { valid: true };
+        }
+
+        function onSqlEditorInput() {
+            const textarea = document.getElementById('sqlCodeEditor');
+            const backdrop = document.getElementById('sqlHighlightBackdrop');
+            const statusBar = document.getElementById('sqlStatusBar');
+            const sql = textarea.value;
+            
+            // Update syntax coloring
+            backdrop.querySelector('code').innerHTML = highlightSQL(sql);
+            updateLineNumbers();
+            
+            // Run validation
+            const validation = validateSQL(sql);
+            if (validation.valid) {
+                statusBar.innerHTML = '<span class="sql-status-valid"><i class="fas fa-check-circle"></i> SQL Ready to execute</span>';
+            } else {
+                statusBar.innerHTML = `<span class="sql-status-invalid"><i class="fas fa-exclamation-triangle"></i> ${validation.error}</span>`;
+            }
+            
+            // Trigger autocomplete
+            triggerAutocomplete();
+        }
+
+        function formatSQL(sql) {
+            let formatted = sql;
+            const keywords = [
+                "select", "from", "where", "group by", "having", "order by", "limit",
+                "offset", "count", "sum", "avg", "min", "max", "distinct", "join", "left join",
+                "right join", "inner join", "on", "and", "or", "in", "between", "like", "with"
+            ];
+            
+            keywords.forEach(kw => {
+                const regex = new RegExp('\\b' + kw + '\\b', 'gi');
+                formatted = formatted.replace(regex, kw.toUpperCase());
+            });
+            
+            formatted = formatted
+                .replace(/\bSELECT\b/g, 'SELECT')
+                .replace(/\bFROM\b/g, '\nFROM')
+                .replace(/\bWHERE\b/g, '\nWHERE')
+                .replace(/\bGROUP BY\b/g, '\nGROUP BY')
+                .replace(/\bORDER BY\b/g, '\nORDER BY')
+                .replace(/\bHAVING\b/g, '\nHAVING')
+                .replace(/\bLIMIT\b/g, '\nLIMIT')
+                .replace(/\bWITH\b/g, 'WITH')
+                .replace(/\b(LEFT|RIGHT|INNER)?\s*JOIN\b/g, '\n$&');
+                
+            return formatted.split('\n')
+                .map(line => line.trim())
+                .filter(line => line.length > 0)
+                .join('\n');
+        }
+
+        function triggerFormatSQL() {
+            const textarea = document.getElementById('sqlCodeEditor');
+            textarea.value = formatSQL(textarea.value);
+            onSqlEditorInput();
+            textarea.focus();
+        }
+
+        function getCursorCoordinates(textarea, cursorIndex) {
+            const text = textarea.value;
+            const textBefore = text.substring(0, cursorIndex);
+            
+            const div = document.createElement('div');
+            const copyStyles = getComputedStyle(textarea);
+            for (const prop of copyStyles) {
+                div.style[prop] = copyStyles[prop];
+            }
+            div.style.position = 'absolute';
+            div.style.visibility = 'hidden';
+            div.style.whiteSpace = 'pre-wrap';
+            div.style.wordBreak = 'break-all';
+            
+            div.textContent = textBefore;
+            const span = document.createElement('span');
+            span.textContent = text.substring(cursorIndex) || '.';
+            div.appendChild(span);
+            
+            document.body.appendChild(div);
+            const rect = span.getBoundingClientRect();
+            const divRect = div.getBoundingClientRect();
+            const textareaRect = textarea.getBoundingClientRect();
+            
+            const top = textareaRect.top + (rect.top - divRect.top) - textarea.scrollTop;
+            const left = textareaRect.left + (rect.left - divRect.left) - textarea.scrollLeft;
+            
+            document.body.removeChild(div);
+            return { top, left };
+        }
+
+        function triggerAutocomplete() {
+            const textarea = document.getElementById('sqlCodeEditor');
+            const cursor = textarea.selectionStart;
+            const textBefore = textarea.value.substring(0, cursor);
+            
+            const words = textBefore.split(/[\s,\(\)=;]+/);
+            const lastWord = words[words.length - 1] || "";
+            
+            const cleanWords = textBefore.trim().split(/\s+/);
+            const precedingWord = cleanWords.length > 1 ? cleanWords[cleanWords.length - 2].toUpperCase() : "";
+            const lastCleanWord = cleanWords.length > 0 ? cleanWords[cleanWords.length - 1].toUpperCase() : "";
+            
+            let showTables = false;
+            let showColumns = false;
+            let showKeywords = true;
+            
+            if (lastCleanWord === "FROM" || precedingWord === "FROM") {
+                showTables = true;
+                showKeywords = false;
+            } else if (["WHERE", "AND", "OR", "SELECT"].includes(lastCleanWord) || ["WHERE", "AND", "OR", "SELECT"].includes(precedingWord)) {
+                showColumns = true;
+            }
+            
+            let matches = [];
+            
+            if (showKeywords) {
+                const keywords = [
+                    "SELECT", "FROM", "WHERE", "GROUP BY", "HAVING", "ORDER BY", "LIMIT",
+                    "OFFSET", "COUNT", "SUM", "AVG", "MIN", "MAX", "DISTINCT", "JOIN", "CTE", "WITH"
+                ];
+                keywords.forEach(kw => {
+                    if (kw.toLowerCase().startsWith(lastWord.toLowerCase())) {
+                        matches.push({ value: kw, type: 'keyword', label: kw, desc: 'SQL Keyword' });
+                    }
+                });
+            }
+            
+            if (showTables || lastWord.length > 0) {
+                const tableSelect = document.getElementById('table');
+                const tablesList = Array.from(tableSelect.options)
+                    .map(opt => opt.value)
+                    .filter(val => val && val.trim() !== "");
+                    
+                tablesList.forEach(tbl => {
+                    if (tbl.toLowerCase().startsWith(lastWord.toLowerCase()) || showTables) {
+                        if (!matches.some(m => m.value === tbl)) {
+                            matches.push({ value: tbl, type: 'table', label: tbl, desc: 'Dataset Table' });
+                        }
+                    }
+                });
+            }
+            
+            if (showColumns || lastWord.length > 0) {
+                filterMetadata.forEach(meta => {
+                    const colName = meta.column_name;
+                    const label = meta.label || "";
+                    if (colName.toLowerCase().startsWith(lastWord.toLowerCase()) || 
+                        label.toLowerCase().startsWith(lastWord.toLowerCase()) ||
+                        showColumns) {
+                        
+                        const displayLabel = label && label !== colName ? `${colName} (${label})` : colName;
+                        if (!matches.some(m => m.value === colName)) {
+                            matches.push({ value: colName, type: 'column', label: displayLabel, desc: label || 'Column' });
+                        }
+                    }
+                });
+            }
+            
+            filteredSuggestions = matches.slice(0, 15);
+            
+            const list = document.getElementById('sqlAutocompleteList');
+            if (filteredSuggestions.length === 0 || (lastWord.trim() === "" && !showTables && !showColumns)) {
+                list.style.display = 'none';
+                return;
+            }
+            
+            selectedSuggestionIndex = 0;
+            renderSuggestionsList();
+        }
+
+        function renderSuggestionsList() {
+            const textarea = document.getElementById('sqlCodeEditor');
+            const list = document.getElementById('sqlAutocompleteList');
+            
+            list.innerHTML = "";
+            filteredSuggestions.forEach((item, index) => {
+                const div = document.createElement('div');
+                div.className = `autocomplete-item ${index === selectedSuggestionIndex ? 'active' : ''}`;
+                div.innerHTML = `
+                    <span class="item-label">${item.label}</span>
+                    <span class="item-desc">${item.desc}</span>
+                    <span class="item-type">${item.type}</span>
+                `;
+                div.onclick = (e) => {
+                    e.stopPropagation();
+                    selectedSuggestionIndex = index;
+                    insertSelectedSuggestion();
+                };
+                list.appendChild(div);
+            });
+            
+            const coords = getCursorCoordinates(textarea, textarea.selectionStart);
+            list.style.display = 'block';
+            
+            list.style.position = 'fixed';
+            list.style.zIndex = '11005';
+            
+            let topPos = coords.top + 20;
+            const listHeight = list.offsetHeight || 180;
+            if (topPos + listHeight > window.innerHeight) {
+                topPos = coords.top - listHeight - 4;
+            }
+            list.style.top = `${topPos}px`;
+            list.style.left = `${coords.left}px`;
+        }
+
+        function handleAutocompleteKeydown(e) {
+            const list = document.getElementById('sqlAutocompleteList');
+            if (list.style.display === 'none') return;
+            
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                selectedSuggestionIndex = (selectedSuggestionIndex + 1) % filteredSuggestions.length;
+                renderSuggestionsList();
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                selectedSuggestionIndex = (selectedSuggestionIndex - 1 + filteredSuggestions.length) % filteredSuggestions.length;
+                renderSuggestionsList();
+            } else if (e.key === 'Enter' || e.key === 'Tab') {
+                e.preventDefault();
+                insertSelectedSuggestion();
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                list.style.display = 'none';
+            }
+        }
+
+        function insertSelectedSuggestion() {
+            const textarea = document.getElementById('sqlCodeEditor');
+            const selected = filteredSuggestions[selectedSuggestionIndex];
+            if (!selected) return;
+            
+            const cursor = textarea.selectionStart;
+            const text = textarea.value;
+            const textBefore = text.substring(0, cursor);
+            const textAfter = text.substring(cursor);
+            
+            const lastWordStart = textBefore.search(/[\s,\(\)=;]+[^\s,\(\)=;]*$/) + 1;
+            const replaceStart = textBefore.substring(lastWordStart).match(/^[\s,\(\)=;]+/) 
+                ? cursor 
+                : lastWordStart;
+                
+            const replacement = selected.value;
+            const newText = text.substring(0, replaceStart) + replacement + textAfter;
+            
+            textarea.value = newText;
+            const newCursorPos = replaceStart + replacement.length;
+            textarea.setSelectionRange(newCursorPos, newCursorPos);
+            
+            document.getElementById('sqlAutocompleteList').style.display = 'none';
+            onSqlEditorInput();
+            textarea.focus();
+        }
+
+        async function runSqlEditorQuery() {
+            const sql = document.getElementById('sqlCodeEditor').value;
+            const validation = validateSQL(sql);
+            if (!validation.valid) {
+                showToast(validation.error, 'error');
+                return;
+            }
+
+            const survey = document.getElementById('survey').value;
+            const dataset = document.getElementById('dataset').value;
+            const table = document.getElementById('table').value;
+
+            showLoading(true);
+            showProgress(true, 30);
+            
+            try {
+                showProgress(true, 50);
+                const response = await fetch('/api/sql/execute', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ survey, dataset, table, sql })
+                });
+                
+                showProgress(true, 80);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    isCustomSqlQuery = true;
+                    latestResults = data;
+                    const chartSrcEl = document.getElementById('chartSource');
+                    if (chartSrcEl) {
+                        chartSrcEl.value = 'sql';
+                    }
+                    
+                    chartNeedsRefresh = true;
+                    chartDataRows = [];
+                    chartRequestCache = { key: '', rows: [] };
+                    if (currentChart) {
+                        currentChart.destroy();
+                        currentChart = null;
+                    }
+                    
+                    renderChartInfoState('fas fa-bolt', 'Chart ready to generate', 'Click Generate Chart to render visualization for current query.');
+                    const hint = document.getElementById('chartStateHint');
+                    if (hint) {
+                        hint.textContent = 'Query data updated. Click Generate Chart.';
+                    }
+                    
+                    if (data.length > 0) {
+                        updateAxisOptions();
+                    }
+                    
+                    renderTable(data);
+                    closeSqlEditorModal();
+                    showToast(`Query executed successfully! ${data.length} rows returned.`, 'success');
+                } else {
+                    const msg = data.detail || data.message || 'Error executing query';
+                    showToast(msg, 'error');
+                }
+            } catch (error) {
+                console.error("SQL Execution error:", error);
+                showToast("Failed to connect to the execution server.", 'error');
+            } finally {
+                showLoading(false);
+                showProgress(false);
+            }
+        }
+
+        // ── Expanded Results View Overlay Logic ──
+        function openExpandResultsModal() {
+            if (!latestResults || latestResults.length === 0) {
+                showToast('No query results available to view.', 'warning');
+                return;
+            }
+            
+            const modal = document.getElementById('expandedResultsModal');
+            modal.style.display = 'flex';
+            
+            const tableHead = document.getElementById('expandedTableHead');
+            const tableBody = document.getElementById('expandedTableBody');
+            tableHead.innerHTML = "";
+            tableBody.innerHTML = "";
+            
+            const columns = Object.keys(latestResults[0]);
+            tableHead.innerHTML = "<tr>" + columns.map(col => `<th>${col}</th>`).join("") + "</tr>";
+            
+            latestResults.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = columns.map(col => `<td>${row[col] ?? ''}</td>`).join("");
+                tableBody.appendChild(tr);
+            });
+        }
+
+        function closeExpandResultsModal() {
+            document.getElementById('expandedResultsModal').style.display = 'none';
+        }
+
+        document.addEventListener('click', function(e) {
+            const list = document.getElementById('sqlAutocompleteList');
+            if (list && !list.contains(e.target) && e.target.id !== 'sqlCodeEditor') {
+                list.style.display = 'none';
+            }
+        });
+
         // Handle session expiry
         window.addEventListener('unhandledrejection', function (event) {
             if (event.reason && event.reason.status === 401) {
@@ -3350,7 +4465,714 @@
                 }, 2000);
             }
         });
+
+        // SQL Editor Theme Toggle Logic
+        let sqlEditorTheme = sessionStorage.getItem('sql_editor_theme') || 'dark';
+
+        function applySqlEditorTheme() {
+            const modalContainer = document.querySelector('#advancedSqlEditorModal .sql-modal-container');
+            const themeBtn = document.getElementById('btnSqlThemeToggle');
+            if (!modalContainer || !themeBtn) return;
+
+            if (sqlEditorTheme === 'light') {
+                modalContainer.classList.add('light-theme');
+                themeBtn.innerHTML = '<i class="fas fa-sun"></i> <span>Light Mode</span>';
+            } else {
+                modalContainer.classList.remove('light-theme');
+                themeBtn.innerHTML = '<i class="fas fa-moon"></i> <span>Dark Mode</span>';
+            }
+        }
+
+        function toggleSqlEditorTheme() {
+            sqlEditorTheme = sqlEditorTheme === 'dark' ? 'light' : 'dark';
+            sessionStorage.setItem('sql_editor_theme', sqlEditorTheme);
+            applySqlEditorTheme();
+            const textarea = document.getElementById('sqlCodeEditor');
+            if (textarea) textarea.focus();
+        }
+
+        // Aggregation Panel Dropdowns Sync and Calculations
+        function updateAggregationDropdowns() {
+            const aggMeasure = document.getElementById('aggMeasureColumn');
+            const aggGroupBy = document.getElementById('aggGroupBy');
+            if (!aggMeasure || !aggGroupBy) return;
+
+            const selectedMeasure = aggMeasure.value;
+            const selectedGroupBy = aggGroupBy.value;
+
+            aggMeasure.innerHTML = '<option value="*">All Rows (*)</option>';
+            aggGroupBy.innerHTML = '<option value="">None</option>';
+
+            allDatasetColumns.forEach(col => {
+                const opt1 = document.createElement('option');
+                opt1.value = col;
+                opt1.textContent = col;
+                aggMeasure.appendChild(opt1);
+
+                const opt2 = document.createElement('option');
+                opt2.value = col;
+                opt2.textContent = col;
+                aggGroupBy.appendChild(opt2);
+            });
+
+            if (selectedMeasure && allDatasetColumns.includes(selectedMeasure)) {
+                aggMeasure.value = selectedMeasure;
+            }
+            if (selectedGroupBy && allDatasetColumns.includes(selectedGroupBy)) {
+                aggGroupBy.value = selectedGroupBy;
+            }
+        }
+
+        // Dynamically rebuild axis dropdowns based on selected Chart Source mode
+        function onChartSourceChange() {
+            markChartDirty();
+            const source = document.getElementById('chartSource')?.value || 'full';
+            const xAxis = document.getElementById('xAxis');
+            const yAxis = document.getElementById('yAxis');
+            if (!xAxis || !yAxis) return;
+            
+            const selectedX = xAxis.value;
+            const selectedY = yAxis.value;
+            
+            let cols = [];
+            if (source === 'sql' && latestResults && latestResults.length > 0) {
+                cols = Object.keys(latestResults[0]);
+            } else {
+                cols = allDatasetColumns;
+            }
+            
+            xAxis.innerHTML = "";
+            yAxis.innerHTML = "";
+
+            const xDimGroup = document.createElement("optgroup");
+            xDimGroup.label = "Dimensions (Categorical)";
+            const xMeasGroup = document.createElement("optgroup");
+            xMeasGroup.label = "Measures (Numeric)";
+
+            const yMeasGroup = document.createElement("optgroup");
+            yMeasGroup.label = "Measures (Numeric)";
+            const yDimGroup = document.createElement("optgroup");
+            yDimGroup.label = "Dimensions (Categorical)";
+
+            cols.forEach(col => {
+                const isMeas = isColumnMeasure(col);
+                
+                const optX = document.createElement("option");
+                optX.value = col;
+                optX.textContent = col;
+                if (isMeas) {
+                    xMeasGroup.appendChild(optX);
+                } else {
+                    xDimGroup.appendChild(optX);
+                }
+
+                const optY = document.createElement("option");
+                optY.value = col;
+                optY.textContent = col;
+                if (isMeas) {
+                    yMeasGroup.appendChild(optY);
+                } else {
+                    yDimGroup.appendChild(optY);
+                }
+            });
+
+            if (xDimGroup.children.length > 0) xAxis.appendChild(xDimGroup);
+            if (xMeasGroup.children.length > 0) xAxis.appendChild(xMeasGroup);
+
+            if (yMeasGroup.children.length > 0) yAxis.appendChild(yMeasGroup);
+            if (yDimGroup.children.length > 0) yAxis.appendChild(yDimGroup);
+            
+            // Set defaults if not already set or invalid
+            const dims = cols.filter(c => !isColumnMeasure(c));
+            const meas = cols.filter(c => isColumnMeasure(c));
+
+            if (selectedX && cols.includes(selectedX)) {
+                xAxis.value = selectedX;
+            } else {
+                if (dims.length > 0) {
+                    xAxis.value = dims[0];
+                } else if (cols.length > 0) {
+                    xAxis.value = cols[0];
+                }
+            }
+
+            if (selectedY && cols.includes(selectedY)) {
+                yAxis.value = selectedY;
+            } else {
+                if (meas.length > 0) {
+                    yAxis.value = meas[0];
+                } else if (cols.length > 0) {
+                    yAxis.value = cols[0];
+                }
+            }
+
+            updateChartAggregationUI();
+        }
+
+        async function calculateAggregation() {
+            const survey = document.getElementById('survey').value;
+            const dataset = document.getElementById('dataset').value;
+            const table = document.getElementById('table').value;
+
+            if (!survey || !dataset || !table) {
+                showToast('Please select survey, dataset, and table first.', 'warning');
+                return;
+            }
+
+            const aggSource = document.getElementById('aggSource')?.value || 'full';
+            const func = document.getElementById('aggFunction').value;
+            const measureCol = document.getElementById('aggMeasureColumn').value;
+            const groupByCol = document.getElementById('aggGroupBy').value;
+            const havingCond = document.getElementById('aggHaving').value.trim();
+
+            const head = document.getElementById('aggTableHead');
+            const body = document.getElementById('aggTableBody');
+            const container = document.getElementById('aggResultsTableContainer');
+
+            head.innerHTML = '';
+            body.innerHTML = '';
+            container.style.display = 'none';
+
+            // ── MODE: SQL Result (client-side aggregation over latestResults) ──
+            if (aggSource === 'sql') {
+                if (!latestResults || latestResults.length === 0) {
+                    showToast('No SQL results available. Execute a query first.', 'warning');
+                    return;
+                }
+                try {
+                    const result = computeClientAggregation(latestResults, func, measureCol, groupByCol, havingCond);
+                    renderAggResult(result, head, body, container);
+                    showToast(`Aggregation calculated on SQL result (${latestResults.length} rows)`, 'success');
+                } catch (err) {
+                    console.error('Client aggregation error:', err);
+                    showToast(`Aggregation failed: ${err.message}`, 'error');
+                }
+                return;
+            }
+
+            // ── MODE: Full Dataset (server-side SQL aggregation) ──
+            let aggExpr = "";
+            let alias = "";
+            
+            if (func === 'COUNT') {
+                aggExpr = measureCol === '*' ? 'COUNT(*)' : `COUNT(${measureCol})`;
+                alias = 'Count';
+            } else if (func === 'DISTINCT_COUNT' || func === 'DISTINCT COUNT') {
+                aggExpr = `COUNT(DISTINCT ${measureCol})`;
+                alias = 'Distinct_Count';
+            } else {
+                aggExpr = `${func}(${measureCol})`;
+                alias = func.charAt(0) + func.slice(1).toLowerCase();
+            }
+
+            let sql = "";
+            if (groupByCol) {
+                sql = `SELECT ${groupByCol}, ${aggExpr} AS "${alias}" FROM ${table}`;
+            } else {
+                sql = `SELECT ${aggExpr} AS "${alias}" FROM ${table}`;
+            }
+
+            const filters = buildFilterString();
+            if (filters && filters !== '__BLOCKED__') {
+                sql += ` WHERE ${filters}`;
+            }
+
+            if (groupByCol) {
+                sql += ` GROUP BY ${groupByCol}`;
+            }
+
+            if (havingCond) {
+                if (/^[>=<!]/.test(havingCond)) {
+                    sql += ` HAVING ${aggExpr} ${havingCond}`;
+                } else if (/^\d+/.test(havingCond)) {
+                    sql += ` HAVING ${aggExpr} = ${havingCond}`;
+                } else {
+                    sql += ` HAVING ${havingCond}`;
+                }
+            }
+
+            if (groupByCol) {
+                sql += ` ORDER BY ${groupByCol} ASC`;
+            }
+
+            showLoading(true);
+            showProgress(true, 30);
+
+            try {
+                showProgress(true, 50);
+                const response = await fetch('/api/sql/execute', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ survey, dataset, table, sql })
+                });
+
+                showProgress(true, 80);
+                const data = await response.json();
+
+                if (response.ok) {
+                    renderAggResult(data, head, body, container);
+                    showToast('Aggregations calculated on full dataset successfully!', 'success');
+                } else {
+                    const msg = data.detail || data.message || 'Error executing query';
+                    showToast(msg, 'error');
+                }
+            } catch (error) {
+                console.error("Aggregation error:", error);
+                showToast("Failed to connect to the execution server.", 'error');
+            } finally {
+                showLoading(false);
+                showProgress(false);
+            }
+        }
+
+        /** Render aggregation result rows into the table */
+        function renderAggResult(data, head, body, container) {
+            if (Array.isArray(data) && data.length > 0) {
+                const headers = Object.keys(data[0]);
+                head.innerHTML = '<tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr>';
+                data.forEach(row => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = headers.map(h => `<td>${row[h] ?? 'NULL'}</td>`).join('');
+                    body.appendChild(tr);
+                });
+            } else if (Array.isArray(data)) {
+                body.innerHTML = `<tr><td colspan="100%" style="text-align:center; padding: 20px; color: var(--text-muted);">No results returned.</td></tr>`;
+            } else {
+                body.innerHTML = `<tr><td colspan="100%" style="text-align:center; padding: 20px; color: var(--danger-color);">${data.detail || data.message || 'Error executing aggregation'}</td></tr>`;
+            }
+            container.style.display = 'block';
+        }
+
+        /**
+         * Client-side aggregation over a JS array of row objects.
+         * Supports COUNT, SUM, AVG, MIN, MAX, DISTINCT_COUNT with optional groupBy.
+         */
+        function computeClientAggregation(rows, func, measureCol, groupByCol, havingCond) {
+            const groups = {};
+            const ALL_KEY = '__ALL__';
+
+            rows.forEach(row => {
+                const key = groupByCol ? String(row[groupByCol] ?? 'NULL') : ALL_KEY;
+                if (!groups[key]) groups[key] = [];
+                groups[key].push(row);
+            });
+
+            const results = [];
+            const alias = func === 'DISTINCT_COUNT' ? 'Distinct_Count'
+                        : func === 'COUNT' ? 'Count'
+                        : func.charAt(0) + func.slice(1).toLowerCase();
+
+            for (const [key, groupRows] of Object.entries(groups)) {
+                let aggValue;
+                if (func === 'COUNT') {
+                    aggValue = measureCol === '*' ? groupRows.length
+                             : groupRows.filter(r => r[measureCol] !== null && r[measureCol] !== undefined && r[measureCol] !== '').length;
+                } else if (func === 'DISTINCT_COUNT') {
+                    const col = measureCol === '*' ? Object.keys(groupRows[0])[0] : measureCol;
+                    aggValue = new Set(groupRows.map(r => r[col])).size;
+                } else {
+                    const nums = groupRows.map(r => Number(r[measureCol])).filter(n => !isNaN(n));
+                    if (nums.length === 0) { aggValue = null; }
+                    else if (func === 'SUM') { aggValue = nums.reduce((a, b) => a + b, 0); }
+                    else if (func === 'AVG') { aggValue = nums.reduce((a, b) => a + b, 0) / nums.length; aggValue = Math.round(aggValue * 100) / 100; }
+                    else if (func === 'MIN') { aggValue = Math.min(...nums); }
+                    else if (func === 'MAX') { aggValue = Math.max(...nums); }
+                }
+
+                const resultRow = {};
+                if (groupByCol) resultRow[groupByCol] = key;
+                resultRow[alias] = aggValue;
+                results.push(resultRow);
+            }
+
+            // Apply simple HAVING filter if provided
+            if (havingCond && havingCond.trim()) {
+                const havingMatch = havingCond.match(/^\s*([><=!]+)\s*([\d.]+)\s*$/);
+                if (havingMatch) {
+                    const op = havingMatch[1];
+                    const val = Number(havingMatch[2]);
+                    return results.filter(r => {
+                        const v = Number(r[alias]);
+                        if (op === '>') return v > val;
+                        if (op === '>=') return v >= val;
+                        if (op === '<') return v < val;
+                        if (op === '<=') return v <= val;
+                        if (op === '=' || op === '==') return v === val;
+                        if (op === '!=') return v !== val;
+                        return true;
+                    });
+                }
+            }
+
+            // Sort by group key if applicable
+            if (groupByCol) {
+                results.sort((a, b) => String(a[groupByCol]).localeCompare(String(b[groupByCol])));
+            }
+
+            return results;
+        }
     </script>
+    
+    <!-- Modals Layout HTML -->
+    <style>
+        .sql-modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(8px);
+            z-index: 10000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            animation: sqlFadeIn 0.2s ease-out;
+        }
+        @keyframes sqlFadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        .sql-modal-container {
+            width: 90%;
+            max-width: 1100px;
+            height: 85%;
+            max-height: 800px;
+            background: #1e1e1e;
+            border: 1px solid #3c3c3c;
+            border-radius: 12px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #d4d4d4;
+            animation: sqlSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        @keyframes sqlSlideUp {
+            from { transform: translateY(30px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        .sql-modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 20px;
+            background: #252526;
+            border-bottom: 1px solid #3c3c3c;
+        }
+        .sql-modal-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 600;
+            color: #f3f3f3;
+            font-size: 14px;
+        }
+        .sql-modal-close {
+            background: none;
+            border: none;
+            color: #858585;
+            cursor: pointer;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: color 0.15s;
+        }
+        .sql-modal-close:hover {
+            color: #ffffff;
+        }
+        .sql-editor-workspace {
+            display: flex;
+            flex: 1;
+            min-height: 0;
+            position: relative;
+            background: #1e1e1e;
+        }
+        .sql-line-numbers {
+            width: 45px;
+            background: #1e1e1e;
+            border-right: 1px solid #2d2d2d;
+            padding: 12px 0;
+            color: #858585;
+            text-align: right;
+            padding-right: 10px;
+            font-family: 'Consolas', 'Fira Code', monospace;
+            font-size: 13px;
+            line-height: 20px;
+            user-select: none;
+            overflow-y: hidden;
+            box-sizing: border-box;
+        }
+        .sql-line-numbers div {
+            height: 20px;
+        }
+        .sql-editor-area {
+            position: relative;
+            flex: 1;
+            height: 100%;
+            overflow: hidden;
+            box-sizing: border-box;
+        }
+        .sql-highlight-backdrop, .sql-textarea {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 12px;
+            font-family: 'Consolas', 'Fira Code', monospace;
+            font-size: 13px;
+            line-height: 20px;
+            white-space: pre;
+            box-sizing: border-box;
+            border: none;
+            background: transparent;
+        }
+        .sql-highlight-backdrop {
+            pointer-events: none;
+            color: #d4d4d4;
+            z-index: 1;
+            overflow: hidden;
+        }
+        .sql-textarea {
+            color: transparent;
+            caret-color: #ffffff;
+            background: transparent;
+            z-index: 2;
+            resize: none;
+            outline: none;
+            overflow: auto;
+        }
+        .sql-keyword {
+            color: #569cd6;
+            font-weight: bold;
+        }
+        .sql-string {
+            color: #ce9178;
+        }
+        .sql-comment {
+            color: #6a9955;
+            font-style: italic;
+        }
+        .sql-modal-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 20px;
+            background: #252526;
+            border-top: 1px solid #3c3c3c;
+        }
+        .sql-status-bar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+        }
+        .sql-status-valid {
+            color: #4ec9b0;
+        }
+        .sql-status-invalid {
+            color: #f48771;
+        }
+        .sql-actions {
+            display: flex;
+            gap: 10px;
+        }
+        .btn-sql-run {
+            background: #0e639c;
+            color: #ffffff;
+            border: none;
+            padding: 6px 16px;
+            font-size: 12px;
+            font-weight: 600;
+            border-radius: 4px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: background 0.15s;
+        }
+        .btn-sql-run:hover {
+            background: #1177bb;
+        }
+        .btn-sql-format {
+            background: #3c3c3c;
+            color: #cccccc;
+            border: 1px solid #555555;
+            padding: 6px 12px;
+            font-size: 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.15s, color 0.15s;
+        }
+        .btn-sql-format:hover {
+            background: #4a4a4a;
+            color: #ffffff;
+        }
+        .autocomplete-item {
+            padding: 6px 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            transition: background 0.15s;
+            font-family: var(--font-body, sans-serif);
+        }
+        .autocomplete-item:hover, .autocomplete-item.active {
+            background: #073655;
+            color: #ffffff;
+        }
+        .autocomplete-item .item-type {
+            font-size: 9px;
+            color: #858585;
+            text-transform: uppercase;
+            border: 1px solid #454545;
+            padding: 1px 4px;
+            border-radius: 3px;
+            margin-left: 8px;
+        }
+        .autocomplete-item .item-label {
+            font-weight: 600;
+        }
+        .autocomplete-item .item-desc {
+            font-size: 11px;
+            color: #858585;
+            max-width: 140px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            margin-left: auto;
+        }
+        /* Expanded Results Modal Styling */
+        .results-modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(8px);
+            z-index: 10000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            animation: sqlFadeIn 0.2s ease-out;
+        }
+        .results-modal-container {
+            width: 95%;
+            max-width: 1300px;
+            height: 90%;
+            max-height: 900px;
+            background: var(--surface-bg, #ffffff);
+            border: 1px solid var(--glass-border, #e2e8f0);
+            border-radius: 12px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            color: var(--text-main, #0f172a);
+            animation: sqlSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .results-modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--glass-border, #e2e8f0);
+            background: var(--surface-muted, #f8fafc);
+        }
+        .results-modal-title {
+            font-size: 16px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-main, #0f172a);
+        }
+        .results-modal-close {
+            background: none;
+            border: none;
+            color: var(--text-muted, #64748b);
+            cursor: pointer;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: color 0.15s;
+        }
+        .results-modal-close:hover {
+            color: var(--text-main, #0f172a);
+        }
+        .results-modal-body {
+            flex: 1;
+            overflow: auto;
+            padding: 20px;
+            min-height: 0;
+        }
+    </style>
+    <!-- Advanced SQL Editor Modal -->
+    <div id="advancedSqlEditorModal" class="sql-modal-backdrop" onclick="if(event.target===this) closeSqlEditorModal()">
+        <div class="sql-modal-container" onclick="event.stopPropagation()">
+            <div class="sql-modal-header">
+                <div class="sql-modal-title">
+                    <i class="fas fa-terminal" style="color: #6366F1;"></i>
+                    <span>Advanced SQL Editor - Live Database IDE</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 12px; margin-left: auto; margin-right: 15px;">
+                    <button class="btn-sql-theme" id="btnSqlThemeToggle" onclick="toggleSqlEditorTheme()" style="background: #3c3c3c; border: 1px solid #555555; color: #cccccc; border-radius: 4px; padding: 6px 12px; font-size: 11px; cursor: pointer; display: flex; align-items: center; gap: 6px; font-family: inherit; transition: all 0.15s; font-weight: 600;">
+                        <i class="fas fa-moon"></i> <span>Dark Mode</span>
+                    </button>
+                </div>
+                <button class="sql-modal-close" onclick="closeSqlEditorModal()">&times;</button>
+            </div>
+            <div class="sql-editor-workspace">
+                <div class="sql-line-numbers" id="sqlLineNumbers">
+                    <div>1</div>
+                </div>
+                <div class="sql-editor-area">
+                    <pre class="sql-highlight-backdrop" id="sqlHighlightBackdrop"><code></code></pre>
+                    <textarea class="sql-textarea" id="sqlCodeEditor" spellcheck="false" oninput="onSqlEditorInput()" onscroll="syncEditorScroll()" onkeydown="handleAutocompleteKeydown(event)"></textarea>
+                    
+                    <!-- Autocomplete dropdown -->
+                    <div id="sqlAutocompleteList" style="display: none; position: fixed; background: #252526; border: 1px solid #454545; border-radius: 6px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); max-height: 200px; width: 280px; overflow-y: auto; z-index: 11005; font-family: Consolas, monospace; font-size: 13px; color: #cccccc; cursor: pointer;"></div>
+                </div>
+            </div>
+            <div class="sql-modal-footer">
+                <div class="sql-status-bar" id="sqlStatusBar">
+                    <span class="sql-status-valid"><i class="fas fa-check-circle"></i> SQL Ready</span>
+                </div>
+                <div class="sql-actions">
+                    <button class="btn-sql-format" onclick="triggerFormatSQL()">
+                        <i class="fas fa-magic"></i> Format SQL
+                    </button>
+                    <button class="btn-sql-run" onclick="runSqlEditorQuery()">
+                        <i class="fas fa-play"></i> Run Query
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Expanded Results Modal -->
+    <div id="expandedResultsModal" class="results-modal-backdrop" onclick="if(event.target===this) closeExpandResultsModal()">
+        <div class="results-modal-container" onclick="event.stopPropagation()">
+            <div class="results-modal-header">
+                <div class="results-modal-title">
+                    <i class="fas fa-table" style="color: var(--primary-color);"></i>
+                    <span>Expanded Query Results View</span>
+                </div>
+                <button class="results-modal-close" onclick="closeExpandResultsModal()">&times;</button>
+            </div>
+            <div class="results-modal-body">
+                <div class="table-container" style="height: 100%; max-height: 100%; overflow: auto;">
+                    <table class="data-table">
+                        <thead id="expandedTableHead"></thead>
+                        <tbody id="expandedTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
 </body>
 
 </html>

@@ -77,6 +77,74 @@ async def api_batch_import_upload(
         # Scan and validate subdirectories
         surveys = scan_batch_archive(temp_extract_dir)
 
+        # Post-process surveys to add duplicate checks
+        from sqlalchemy import create_engine
+        from utils.redundancy_detector import check_dataset_duplicate, compute_dataset_fingerprint_and_pk
+        from utils.ingestion_pipeline import _load_data_file
+        
+        db_url = os.getenv("DATABASE_URL")
+        engine = create_engine(db_url) if db_url else None
+        
+        for s in surveys:
+            s["duplicate_statuses"] = {}
+            if not engine:
+                continue
+                
+            subdir_path = Path(temp_extract_dir) / s["relative_dir"]
+            for df_rel in s["dataset_files"]:
+                file_path = subdir_path / df_rel
+                try:
+                    df = _load_data_file(file_path, None)
+                    if df is not None and not df.empty:
+                        fingerprint, candidate_key = compute_dataset_fingerprint_and_pk(df)
+                        
+                        # 1. Fingerprint check
+                        res = check_dataset_duplicate(
+                            engine,
+                            survey_name="",
+                            year="",
+                            dataset_name="",
+                            block_name=file_path.stem,
+                            fingerprint=fingerprint,
+                            candidate_key=candidate_key
+                        )
+                        
+                        # 2. Guessed identity check
+                        import re
+                        year_match = re.search(r'\b(19\d\d|20\d\d)(?:-\d\d)?\b', s["folder_name"])
+                        year = year_match.group(0) if year_match else str(datetime.now().year)
+                        
+                        res_with_identity = check_dataset_duplicate(
+                            engine,
+                            survey_name=s["folder_name"],
+                            year=year,
+                            dataset_name=s["folder_name"],
+                            block_name=file_path.stem,
+                            fingerprint=fingerprint,
+                            candidate_key=candidate_key
+                        )
+                        
+                        if res["status"] != "new":
+                            s["duplicate_statuses"][df_rel] = {
+                                "status": res["status"],
+                                "reason": res["reason"],
+                                "existing": res["existing"]
+                            }
+                        elif res_with_identity["status"] != "new":
+                            s["duplicate_statuses"][df_rel] = {
+                                "status": res_with_identity["status"],
+                                "reason": res_with_identity["reason"],
+                                "existing": res_with_identity["existing"]
+                            }
+                        else:
+                            s["duplicate_statuses"][df_rel] = {
+                                "status": "new",
+                                "reason": None,
+                                "existing": None
+                            }
+                except Exception as ex:
+                    print(f"Error checking duplicate for {df_rel}: {ex}")
+
         return {
             "batch_id": import_id,
             "temp_dir": temp_extract_dir,

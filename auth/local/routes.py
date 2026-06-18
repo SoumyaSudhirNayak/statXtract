@@ -58,50 +58,25 @@ async def login_form(
     request: Request,
     form_data: OAuth2PasswordRequestForm = Depends()
 ):
-    import os
-    from dotenv import load_dotenv
-    load_dotenv(override=True)
-    turnstile_enabled = os.getenv("TURNSTILE_ENABLED", "false").lower() == "true"
-    if turnstile_enabled:
-        async with request.app.state.db.acquire() as conn:
-            user = await get_user_by_email(conn, form_data.username)
+    async with request.app.state.db.acquire() as conn:
+        user = await get_user_by_email(conn, form_data.username)
+    
+    referer = request.headers.get("referer", "") or ""
+    is_admin_login = "/login" in referer and "/user/login" not in referer
+    if user and str(user.get("role_id")) == "1":
+        is_admin_login = True
         
-        referer = request.headers.get("referer", "") or ""
-        is_admin_login = "/login" in referer and "/user/login" not in referer
-        if user and str(user.get("role_id")) == "1":
-            is_admin_login = True
-            
-        if not is_admin_login:
-            form = await request.form()
-            token = form.get("cf-turnstile-response")
-            ip = request.client.host if request.client else None
-            secret = os.getenv("TURNSTILE_SECRET_KEY")
-            
-            import httpx
-            verified = False
-            if token and secret:
-                try:
-                    async with httpx.AsyncClient() as client:
-                        resp = await client.post(
-                            "https://challenges.cloudflare.com/turnstile/v0/siteverify",
-                            data={
-                                "secret": secret,
-                                "response": token,
-                                "remoteip": ip
-                            },
-                            timeout=5.0
-                        )
-                        if resp.status_code == 200:
-                            res_json = resp.json()
-                            verified = res_json.get("success", False)
-                except Exception as e:
-                    print(f"Turnstile error: {e}")
-                    
-            if not verified:
-                return RedirectResponse(
-                    "/user/login?error=CAPTCHA verification failed. Please try again.",
-                    status_code=302
-                )
+    if not is_admin_login:
+        form = await request.form()
+        captcha_answer = form.get("captcha_answer")
+        session_captcha = request.session.get("captcha")
+        request.session.pop("captcha", None)
+        
+        if not captcha_answer or captcha_answer != session_captcha:
+            return RedirectResponse(
+                "/user/login?error=CAPTCHA verification failed. Please try again.",
+                status_code=302
+            )
 
     async with request.app.state.db.acquire() as conn:
         user = await get_user_by_email(conn, form_data.username)

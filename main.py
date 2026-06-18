@@ -25,6 +25,7 @@ from watchgod import awatch, Change
 
 # Import your custom modules
 from utils.ingestion_pipeline import ingest_upload_file, process_dataset_zip, convert_and_ingest_nesstar_binary_study, discover_nesstar_converter_exe
+from utils.redundancy_detector import DuplicateDatasetException
 from utils.db_init import ensure_core_tables, _to_pg_schema_name
 from utils.metadata_helper import get_column_labels, apply_labels
 from utils.job_manager import (
@@ -510,6 +511,23 @@ app.include_router(ai_query_router)
 app.include_router(dashboard_studio_router)
 
 
+@app.get("/auth/captcha")
+async def get_captcha(request: Request):
+    import random
+    num1 = random.randint(1, 10)
+    num2 = random.randint(1, 10)
+    operator = random.choice(["+", "-"])
+    if operator == "+":
+        answer = num1 + num2
+    else:
+        if num1 < num2:
+            num1, num2 = num2, num1
+        answer = num1 - num2
+    question = f"{num1} {operator} {num2} = ?"
+    request.session["captcha"] = str(answer)
+    return {"question": question}
+
+
 # OAuth2 setup
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
 
@@ -607,12 +625,28 @@ async def register_user(
     org_details: str = Form(""),
     phone: str = Form(""),
     verification_doc: UploadFile = File(None),
+    captcha_answer: str = Form(None),
 ):
     pool = request.app.state.db
 
     # Determine if caller expects JSON (fetch) or HTML redirect
     accept = request.headers.get("accept", "")
     wants_json = "application/json" in accept
+
+    # Math CAPTCHA validation (unconditional)
+    session_captcha = request.session.get("captcha")
+    request.session.pop("captcha", None)
+    if not captcha_answer or captcha_answer != session_captcha:
+        if wants_json:
+            return JSONResponse(
+                status_code=400,
+                content={"detail": "CAPTCHA verification failed. Please try again."},
+            )
+        return templates.TemplateResponse(
+            request=request,
+            name="register.html",
+            context={"request": request, "error": "CAPTCHA verification failed. Please try again."}
+        )
 
     async with pool.acquire() as conn:
         # Check if user already exists
@@ -807,7 +841,10 @@ async def user_register_page(request: Request):
     return templates.TemplateResponse(
         request=request,
         name="USER_PAGES/user_register.html",
-        context={"request": request}
+        context={
+            "request": request,
+            "turnstile_enabled": os.getenv("TURNSTILE_ENABLED", "false").lower() == "true"
+        }
     )
 
 
@@ -3229,6 +3266,149 @@ async def query_survey_table(
     )
 
 
+class SQLExecuteRequest(BaseModel):
+    survey: str
+    dataset: str
+    table: str
+    sql: str
+
+@app.post("/api/sql/execute")
+async def execute_sql_query(
+    request: Request,
+    payload: SQLExecuteRequest,
+    current_user=Depends(get_current_user),
+):
+    import re
+    import time
+    import json
+    from fastapi import HTTPException
+    
+    survey = payload.survey
+    dataset = payload.dataset
+    table = payload.table
+    sql = payload.sql
+    
+    # 1. Clean and check the SQL string
+    sql_clean = re.sub(r'--.*$', '', sql, flags=re.MULTILINE)
+    sql_clean = re.sub(r'/\*.*?\*/', '', sql_clean, flags=re.DOTALL)
+    sql_clean = sql_clean.strip()
+    
+    if not sql_clean:
+        raise HTTPException(status_code=400, detail="SQL query cannot be empty.")
+    
+    # Check first keyword
+    match_first = re.match(r'^([a-zA-Z]+)', sql_clean)
+    if not match_first:
+        raise HTTPException(status_code=400, detail="Invalid SQL query format.")
+    first_keyword = match_first.group(1).upper()
+    if first_keyword not in ("SELECT", "WITH"):
+        raise HTTPException(status_code=400, detail="Only read-only SELECT and CTE queries (starting with WITH) are allowed.")
+        
+    # Check for blocked write keywords
+    blocked_pattern = re.compile(
+        r"\b(DROP|DELETE|UPDATE|TRUNCATE|ALTER|CREATE|GRANT|REVOKE|EXECUTE|COPY|VACUUM|INSERT|INTO)\b",
+        re.IGNORECASE
+    )
+    if blocked_pattern.search(sql_clean):
+        raise HTTPException(status_code=400, detail="Write operations (DROP, DELETE, UPDATE, INSERT, ALTER, etc.) are blocked.")
+        
+    # Appending Limit safety check
+    sql_stripped = sql_clean
+    if sql_stripped.endswith(";"):
+        sql_stripped = sql_stripped[:-1].strip()
+
+    limit_match = re.search(r'\bLIMIT\s+(\d+)\b', sql_stripped, re.IGNORECASE)
+    if limit_match:
+        val = int(limit_match.group(1))
+        if val > 1000:
+            sql_to_run = re.sub(r'\bLIMIT\s+\d+\b', 'LIMIT 1000', sql_stripped, flags=re.IGNORECASE)
+        else:
+            sql_to_run = sql_stripped
+    else:
+        sql_to_run = f"{sql_stripped} LIMIT 1000"
+        
+    pool = request.app.state.db
+    start_time = time.time()
+    
+    async with pool.acquire() as conn:
+        # Check table existence
+        table_check = await conn.fetch(
+            """
+            SELECT table_name FROM information_schema.tables 
+            WHERE table_schema = $1 AND table_name = $2
+            """,
+            dataset,
+            table,
+        )
+        if not table_check:
+            raise HTTPException(status_code=404, detail=f"Table {dataset}.{table} not found")
+            
+        # Get actual columns to check permissions/config
+        actual_columns = await conn.fetch(
+            """
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_schema = $1 AND table_name = $2
+            """,
+            dataset,
+            table,
+        )
+        raw_cols = [c["column_name"] for c in actual_columns]
+        
+        # Enforce governance status check & rate limiting
+        # Note: Do not pass sql_to_run to filters to avoid false SQL injection alarm
+        await check_user_access(
+            conn=conn,
+            user=current_user,
+            action_type="query",
+            schema_name=dataset,
+            table_name=table,
+            rows_requested=1000,
+        )
+        
+        # Apply column level configs
+        tokens = _set_apply_context(conn=conn, filters=None)
+        try:
+            try:
+                allowed_columns, _ = await apply_config(dataset, table, current_user, raw_cols, None)
+            except TableHidden:
+                raise HTTPException(status_code=404, detail=f"Table {dataset}.{table} not found")
+        finally:
+            _reset_apply_context(tokens)
+            
+        if not allowed_columns:
+            raise HTTPException(status_code=403, detail="No columns available")
+            
+        # Execute query in a read-only transaction block
+        try:
+            async with conn.transaction():
+                await conn.execute("SET TRANSACTION READ ONLY")
+                await conn.execute(f'SET search_path TO "{dataset}"')
+                rows = await conn.fetch(sql_to_run)
+        except Exception as e:
+            error_msg = str(e)
+            raise HTTPException(status_code=400, detail=f"Database execution error: {error_msg}")
+            
+        result = [dict(r) for r in rows]
+        
+        # Log to usage tracker
+        duration_ms = int((time.time() - start_time) * 1000)
+        from security.usage_tracker import log_api_usage
+        await log_api_usage(
+            conn,
+            current_user.username,
+            "/api/sql/execute",
+            dataset,
+            table,
+            len(result),
+            len(json.dumps(result, default=str).encode()),
+            query_time_ms=duration_ms,
+            status="success",
+            filters=sql_to_run
+        )
+        
+        return result
+
 
 @app.get("/schemas/{schema}/datasets")
 async def list_datasets_v2(
@@ -4778,6 +4958,14 @@ async def run_ingestion_job(job_id: str, zip_path: str, db_url: str):
             job_id=job_id,
         )
 
+    except DuplicateDatasetException as de:
+        print(f"⚠️ Duplicate detected for job {job_id}: {de.message}")
+        job = get_job(job_id)
+        if job:
+            job["status"] = "DUPLICATE"
+            job["current_state"] = "DUPLICATE"
+            job["message"] = de.message
+            job["duplicate_info"] = de.duplicate_info
     except Exception as e:
         print(f"❌ Job {job_id} failed: {e}")
         job = get_job(job_id)
@@ -4785,13 +4973,17 @@ async def run_ingestion_job(job_id: str, zip_path: str, db_url: str):
             # Always mark as FAILED
             update_job(job_id, status=JOB_STATUS_FAILED, current_state=JOB_STATUS_FAILED, message=str(e), error=str(e))
     finally:
-        # Clean up
-        if os.path.exists(zip_path):
-            try:
-                os.remove(zip_path)
-                print(f"🧹 Deleted ZIP: {zip_path}")
-            except Exception as e:
-                print(f"⚠️ Failed to delete ZIP {zip_path}: {e}")
+        # Clean up unless duplicate state pauses it
+        job = get_job(job_id)
+        if job and job.get("status") == "DUPLICATE":
+            print(f"Skipping deletion of ZIP for duplicate job: {zip_path}")
+        else:
+            if os.path.exists(zip_path):
+                try:
+                    os.remove(zip_path)
+                    print(f"🧹 Deleted ZIP: {zip_path}")
+                except Exception as e:
+                    print(f"⚠️ Failed to delete ZIP {zip_path}: {e}")
 
 async def _schema_exists(conn, schema: str) -> bool:
     s = (schema or "").strip()
@@ -4873,8 +5065,56 @@ async def get_upload_status(
         "message": job.get("message", ""),
         "error": job.get("error"),
         "logs": job.get("logs", []),
-        "processed_files": job.get("processed_files", [])
+        "processed_files": job.get("processed_files", []),
+        "duplicate_info": job.get("duplicate_info"),
+        "validation_status": job.get("validation_status")
     }
+
+
+@app.post("/upload/force/{job_id}", include_in_schema=False)
+async def force_upload(
+    job_id: str,
+    background_tasks: BackgroundTasks,
+    current_user=Depends(get_current_active_user_with_role(["1", "2"])),
+):
+    job = get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    # Set force_import = True
+    job["force_import"] = True
+    job["status"] = JOB_STATUS_QUEUED
+    job["current_state"] = JOB_STATUS_QUEUED
+    job["message"] = "Retrying with Force Import..."
+    
+    zip_path = job.get("input_file_path")
+    if not zip_path or not os.path.exists(zip_path):
+        raise HTTPException(status_code=400, detail="Source file not found for retry")
+        
+    background_tasks.add_task(run_ingestion_job, job_id, zip_path, DB_URL)
+    return {"status": "queued", "message": "Force import started."}
+
+
+@app.post("/upload/cancel/{job_id}", include_in_schema=False)
+async def cancel_upload(
+    job_id: str,
+    current_user=Depends(get_current_active_user_with_role(["1", "2"])),
+):
+    job = get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    zip_path = job.get("input_file_path")
+    if zip_path and os.path.exists(zip_path):
+        try:
+            os.remove(zip_path)
+        except Exception as e:
+            print(f"Failed to delete ZIP during cancel: {e}")
+            
+    job["status"] = "CANCELLED"
+    job["current_state"] = "CANCELLED"
+    job["message"] = "Import cancelled by admin."
+    return {"status": "cancelled", "message": "Import cancelled."}
 
 
 @app.get("/upload/progress/{job_id}", response_class=HTMLResponse, include_in_schema=False)
@@ -4985,6 +5225,8 @@ async def upload_dataset(
         # Save file
         zip_filename = f"{job_id}_{file.filename}"
         zip_path = os.path.join(UPLOAD_DIR, zip_filename)
+
+        update_job(job_id, input_file_path=zip_path)
 
         from utils.ingestion_pipeline import log_terminal
         log_terminal(f"Receiving upload: {file.filename} for survey {schema_display}")
@@ -5434,6 +5676,54 @@ async def user_management_page(
         },
         
     )
+
+
+@app.get("/admin/redundancy-registry", response_class=HTMLResponse, include_in_schema=False)
+async def redundancy_registry_page(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
+):
+    return templates.TemplateResponse(
+        request=request,
+        name="admin_redundancy_registry.html",
+        context={
+            "request": request,
+            "username": current_user.username,
+            "email": current_user.username,
+            "role": current_user.role,
+        },
+    )
+
+
+@app.get("/api/admin/redundancy-registry", include_in_schema=False)
+async def admin_redundancy_registry_api(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user_with_role(["1"])),
+):
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        table_exists = await conn.fetchval("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_name = 'dataset_redundancy_registry'
+            )
+        """)
+        if not table_exists:
+            return []
+            
+        rows = await conn.fetch("""
+            SELECT dataset_name, survey_name, year, candidate_key, fingerprint, upload_date, source_type
+            FROM dataset_redundancy_registry
+            ORDER BY upload_date DESC
+        """)
+        
+        data = []
+        for r in rows:
+            r_dict = dict(r)
+            if r_dict.get("upload_date"):
+                r_dict["upload_date"] = r_dict["upload_date"].isoformat()
+            data.append(r_dict)
+        return data
 
 
 @app.get("/admin/system-settings", response_class=HTMLResponse, include_in_schema=False)

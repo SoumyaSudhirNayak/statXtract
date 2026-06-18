@@ -124,6 +124,11 @@
             max-width: 800px;
             margin: 0 auto;
             padding-top: 80px;
+            transition: max-width 0.4s ease;
+        }
+
+        .main-container.wide {
+            max-width: 1250px;
         }
 
         /* Header */
@@ -717,8 +722,298 @@
             width: auto;
             padding: 12px 24px;
         }
-    
-        
+
+        /* ---- Duplicate Detection Report Card (inline) ---- */
+        .dup-report-card {
+            background: rgba(255, 255, 255, 0.75);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            border-radius: 20px;
+            padding: 2rem;
+            margin-top: 1.5rem;
+            box-shadow: 0 20px 40px rgba(31, 58, 95, 0.15);
+        }
+
+        [data-theme="dark"] .dup-report-card {
+            background: rgba(15, 23, 42, 0.82);
+            border-color: rgba(100, 116, 139, 0.4);
+        }
+
+        .dup-report-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+            padding-bottom: 1.25rem;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        [data-theme="dark"] .dup-report-header {
+            border-bottom-color: rgba(255, 255, 255, 0.08);
+        }
+
+        .dup-report-title {
+            font-family: var(--font-head);
+            font-size: 1.4rem;
+            font-weight: 800;
+            color: var(--primary-color);
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .dup-status-pill {
+            padding: 0.5rem 1rem;
+            border-radius: 50px;
+            font-weight: 700;
+            font-size: 0.9rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+
+        .dup-status-new {
+            background-color: #DEF7EC;
+            color: #03543F;
+            border: 1px solid #BCF0DA;
+        }
+
+        .dup-status-possible {
+            background-color: #FEF08A;
+            color: #713F12;
+            border: 1px solid #FDE047;
+        }
+
+        .dup-status-duplicate {
+            background-color: #FDE8E8;
+            color: #9B1C1C;
+            border: 1px solid #FBD5D5;
+        }
+
+        .dup-report-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 1.25rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .dup-report-grid-horizontal {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1.25rem;
+            margin-bottom: 1.5rem;
+        }
+
+        @media (max-width: 1200px) {
+            .dup-report-grid-horizontal {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .dup-report-grid-horizontal {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .dup-report-section {
+            background: rgba(255, 255, 255, 0.5);
+            border: 1px solid rgba(0,0,0,0.05);
+            border-radius: 14px;
+            padding: 1.25rem;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.02);
+        }
+
+        [data-theme="dark"] .dup-report-section {
+            background: rgba(30, 41, 59, 0.6);
+            border-color: rgba(100, 116, 139, 0.25);
+        }
+
+        .dup-report-section-title {
+            font-family: var(--font-head);
+            font-size: 1rem;
+            font-weight: 700;
+            color: #1F3A5F;
+            margin-top: 0;
+            margin-bottom: 0.75rem;
+            border-bottom: 1px dashed rgba(0,0,0,0.1);
+            padding-bottom: 0.4rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        [data-theme="dark"] .dup-report-section-title {
+            color: #93c5fd;
+            border-bottom-color: rgba(255,255,255,0.08);
+        }
+
+        .dup-report-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            font-size: 0.88rem;
+            line-height: 1.7;
+        }
+
+        .dup-report-list li {
+            display: flex;
+            justify-content: space-between;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.03);
+            padding: 3px 0;
+        }
+
+        [data-theme="dark"] .dup-report-list li {
+            border-bottom-color: rgba(255, 255, 255, 0.04);
+        }
+
+        .dup-report-list li:last-child { border-bottom: none; }
+
+        .dup-label {
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .dup-value {
+            color: var(--text-light);
+            font-weight: 600;
+            text-align: right;
+            word-break: break-all;
+        }
+
+        .dup-reason-section {
+            background: rgba(243, 244, 246, 0.6);
+            border-radius: 12px;
+            padding: 1rem 1.25rem;
+            margin-bottom: 1.25rem;
+            border: 1px solid rgba(0,0,0,0.04);
+        }
+
+        [data-theme="dark"] .dup-reason-section {
+            background: rgba(30, 41, 59, 0.5);
+            border-color: rgba(100, 116, 139, 0.2);
+        }
+
+        .dup-reason-title {
+            font-weight: 700;
+            font-size: 0.95rem;
+            margin-bottom: 0.75rem;
+            color: #1F3A5F;
+        }
+
+        [data-theme="dark"] .dup-reason-title {
+            color: #93c5fd;
+        }
+
+        .dup-reason-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.88rem;
+            font-weight: 600;
+        }
+
+        .dup-reason-matched {
+            color: var(--danger-color);
+        }
+
+        .dup-reason-not-matched {
+            color: var(--text-muted);
+            opacity: 0.6;
+        }
+
+        .dup-report-actions {
+            display: flex;
+            gap: 1rem;
+            justify-content: flex-end;
+            flex-wrap: wrap;
+        }
+
+        .dup-btn-discard {
+            background: #E5E7EB;
+            color: #374151;
+            border: 1px solid #D1D5DB;
+            padding: 0.75rem 1.5rem;
+            border-radius: 10px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-family: var(--font-body);
+            font-size: 0.95rem;
+        }
+
+        .dup-btn-discard:hover {
+            background: #F3F4F6;
+            border-color: #9CA3AF;
+        }
+
+        [data-theme="dark"] .dup-btn-discard {
+            background: rgba(51, 65, 85, 0.6);
+            color: #e2e8f0;
+            border-color: rgba(100, 116, 139, 0.5);
+        }
+
+        .dup-btn-force {
+            background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 10px;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(217, 119, 6, 0.25);
+            transition: all 0.2s ease;
+            font-family: var(--font-body);
+            font-size: 0.95rem;
+        }
+
+        .dup-btn-force:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(217, 119, 6, 0.35);
+        }
+
+        .dup-btn-continue {
+            background: var(--primary-gradient);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 10px;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(46, 91, 186, 0.25);
+            transition: all 0.2s ease;
+            font-family: var(--font-body);
+            font-size: 0.95rem;
+        }
+
+        .dup-btn-continue:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(46, 91, 186, 0.35);
+        }
+
+        .dup-frozen-row {
+            display: flex;
+            gap: 15px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #D4183D;
+            margin-top: 5px;
+        }
+
+        @keyframes dup-slide-in {
+            from { opacity: 0; transform: translateY(20px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        .dup-report-card.show {
+            animation: dup-slide-in 0.4s ease-out;
+        }
+
         [data-theme="dark"] .glass-card {
             background: rgba(15, 23, 42, 0.78);
             border-color: rgba(100, 116, 139, 0.35);
@@ -967,6 +1262,9 @@
                     <div id="liveFileList" class="live-file-list">
                         <!-- Individual files will appear here -->
                     </div>
+
+                    <!-- Inline Duplicate Detection Report Card (hidden by default) -->
+                    <div id="dupReportPanel" class="dup-report-card" style="display: none;"></div>
                 </div>
             </div>
         </form>
@@ -1312,12 +1610,32 @@
         }
 
         let pollInterval;
+        let _activeJobId = null;
+
         function startPolling(jobId) {
+            _activeJobId = jobId;
             const liveFileList = document.getElementById('liveFileList');
             const statusMessage = document.getElementById('statusMessage');
             const progressFill = document.getElementById('progressFill');
             const progressPercent = document.getElementById('progressPercent');
             const submitBtn = document.getElementById('submitBtn');
+            const dupPanel = document.getElementById('dupReportPanel');
+
+            function stopAllTimers() {
+                if (pollInterval) {
+                    clearInterval(pollInterval);
+                    pollInterval = null;
+                }
+                if (uploadUiTimer) {
+                    clearInterval(uploadUiTimer);
+                    uploadUiTimer = null;
+                }
+            }
+
+            function resetSubmitButton() {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fas fa-cloud-upload-alt"></i> Upload & Process';
+            }
 
             function renderProcessedFiles(processed) {
                 const mainFile = document.getElementById('upload-main-file');
@@ -1352,64 +1670,295 @@
                 });
             }
 
+            function renderDuplicateReportCard(data) {
+                const info = data.duplicate_info || {};
+                const valStatus = String(data.validation_status || '').toLowerCase();
+                const dataStatus = String(data.status || '').toLowerCase();
+                const isNewDataset = valStatus === 'duplicate_not_found' || (dataStatus === 'completed' && (!info.status || info.status === 'new'));
+                const isPossible = (info.status === 'possible_duplicate' || valStatus === 'possible_duplicate');
+
+                // Freeze progress and time
+                const frozenPercent = progressPercent.textContent;
+                const frozenTime = document.getElementById('uploadTime').textContent;
+
+                // Status badge
+                let badgeHtml = '';
+                if (isNewDataset) {
+                    badgeHtml = '<span class="dup-status-pill dup-status-new">🟢 New Dataset</span>';
+                } else if (isPossible) {
+                    badgeHtml = '<span class="dup-status-pill dup-status-possible">🟡 Possible Duplicate Dataset</span>';
+                } else {
+                    badgeHtml = '<span class="dup-status-pill dup-status-duplicate">🔴 Duplicate Dataset Detected</span>';
+                }
+
+                // Action buttons
+                let actionsHtml = '';
+                if (isNewDataset) {
+                    actionsHtml = `<button onclick="window.location.href='/admin/dashboard'" class="dup-btn-continue"><i class="fas fa-play"></i> Continue</button>`;
+                } else {
+                    actionsHtml = `
+                        <button onclick="discardUpload('${_activeJobId}')" class="dup-btn-discard"><i class="fas fa-trash-alt"></i> Discard Upload</button>
+                        <button onclick="forceUploadImport('${_activeJobId}')" class="dup-btn-force"><i class="fas fa-exclamation-triangle"></i> Force Import</button>
+                    `;
+                }
+
+                const allTables = info.all_tables || {};
+                const tableKeys = Object.keys(allTables);
+                let dropdownHtml = '';
+                if (tableKeys.length > 0) {
+                    dropdownHtml = `
+                        <div class="dup-selector-wrap" style="margin-bottom: 1.25rem; display: flex; align-items: center; gap: 10px;">
+                            <label for="dupTableSelector" style="font-weight: 700; font-size: 0.95rem; color: var(--primary-color);">Select Table/Block: ▼</label>
+                            <select id="dupTableSelector" style="padding: 0.5rem 1.5rem; border-radius: 10px; border: 2px solid var(--border); font-family: var(--font-body); font-weight: 600; cursor: pointer; outline: none; background: var(--bg-white);">
+                                ${tableKeys.map(k => `<option value="${k}">${k}</option>`).join('')}
+                            </select>
+                        </div>
+                    `;
+                }
+
+                dupPanel.innerHTML = `
+                    <div class="dup-report-header">
+                        <h3 class="dup-report-title">
+                            <i class="fas fa-search-minus"></i> Duplicate Detection Report Card
+                        </h3>
+                        <div>${badgeHtml}</div>
+                    </div>
+                    ${!isNewDataset ? `<div class="dup-frozen-row" style="margin-bottom: 1rem;">
+                        <span>Progress: ${frozenPercent} (Frozen)</span>
+                        <span>Time: ${frozenTime} (Frozen)</span>
+                    </div>` : ''}
+
+                    ${dropdownHtml}
+
+                    <div class="dup-report-grid-horizontal">
+                        <!-- Dataset Information -->
+                        <div class="dup-report-section">
+                            <h4 class="dup-report-section-title"><i class="fas fa-info-circle"></i> Dataset Information</h4>
+                            <ul class="dup-report-list">
+                                <li><span class="dup-label">Dataset Name:</span> <span class="dup-value">${info.dataset_name || 'N/A'}</span></li>
+                                <li><span class="dup-label">Survey Name:</span> <span class="dup-value">${info.survey_name || 'N/A'}</span></li>
+                                <li><span class="dup-label">Year:</span> <span class="dup-value">${info.year || 'N/A'}</span></li>
+                                <li><span class="dup-label">File Type:</span> <span class="dup-value">${info.file_type || 'N/A'}</span></li>
+                                <li><span class="dup-label">Rows:</span> <span class="dup-value">${info.row_count !== undefined ? info.row_count.toLocaleString() : 'N/A'}</span></li>
+                                <li><span class="dup-label">Columns:</span> <span class="dup-value">${info.col_count !== undefined ? info.col_count.toLocaleString() : 'N/A'}</span></li>
+                            </ul>
+                        </div>
+
+                        <!-- Candidate Key Analysis -->
+                        <div class="dup-report-section">
+                            <h4 class="dup-report-section-title"><i class="fas fa-key"></i> Candidate Key</h4>
+                            <ul class="dup-report-list">
+                                <li><span class="dup-label">Detected Key:</span> <span id="dup-ck-val" class="dup-value" style="font-size:0.85rem; font-weight:700; color:var(--primary-color);">N/A</span></li>
+                                <li><span class="dup-label">Composite Key:</span> <span id="dup-comp-val" class="dup-value">N/A</span></li>
+                                <li><span class="dup-label">Uniqueness %:</span> <span id="dup-uniq-val" class="dup-value">N/A</span></li>
+                            </ul>
+                        </div>
+
+                        <!-- Fingerprint Analysis -->
+                        <div class="dup-report-section">
+                            <h4 class="dup-report-section-title"><i class="fas fa-fingerprint"></i> Fingerprint</h4>
+                            <ul class="dup-report-list">
+                                <li><span class="dup-label">Fingerprint ID:</span> <span id="dup-fp-val" class="dup-value" style="font-size:0.8rem; max-width:140px; display:inline-block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">N/A</span></li>
+                                <li><span class="dup-label">Matched Dataset:</span> <span id="dup-match-name" class="dup-value">N/A</span></li>
+                                <li><span class="dup-label">Match %:</span> <span id="dup-fp-pct" class="dup-value" style="font-weight:700; color:#D4183D;">N/A</span></li>
+                            </ul>
+                        </div>
+
+                        <!-- Duplicate Result -->
+                        <div class="dup-report-section">
+                            <h4 class="dup-report-section-title"><i class="fas fa-exclamation-triangle"></i> Duplicate Result</h4>
+                            <div style="font-size: 0.88rem; margin-bottom: 0.5rem; font-weight:700; color:#1F3A5F;">Conflict Analysis:</div>
+                            <div id="dup-conflict-container" style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 0.8rem;">
+                                <!-- Ticks/crosses will be populated here -->
+                            </div>
+                            <div style="font-size: 0.88rem; margin-bottom: 0.4rem; font-weight:700; color:#1F3A5F;">Matched Tables:</div>
+                            <ul id="dup-matched-tables-section" style="padding-left: 0; list-style-type: none; margin: 0; font-size: 0.82rem; line-height:1.4;">
+                                <!-- Matched tables populated here -->
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div class="dup-report-actions" style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid rgba(0, 0, 0, 0.08); display: flex; justify-content: flex-end; gap: 1rem;">
+                        ${actionsHtml}
+                    </div>
+                `;
+
+                window.updateSelectedDuplicateTable = function(tableName) {
+                    const tableInfo = allTables[tableName] || info;
+                    
+                    // Candidate key details
+                    const ck = tableInfo.candidate_key;
+                    const ckVal = (Array.isArray(ck) ? ck.join(', ') : ck) || 'None';
+                    const compVal = (tableInfo.composite_key) ? 'Yes' : 'No';
+                    const uniqVal = (tableInfo.uniqueness_pct !== undefined ? tableInfo.uniqueness_pct : 100.0) + '%';
+                    
+                    document.getElementById('dup-ck-val').textContent = ckVal;
+                    document.getElementById('dup-comp-val').textContent = compVal;
+                    document.getElementById('dup-uniq-val').textContent = uniqVal;
+                    
+                    // Fingerprint details
+                    const fpVal = tableInfo.fingerprint || 'N/A';
+                    const matchName = (tableInfo.existing && tableInfo.existing.dataset_name) || 'N/A';
+                    const fpMatchPct = (tableInfo.fingerprint_match_pct !== undefined ? tableInfo.fingerprint_match_pct : (tableInfo.reason === 'Fingerprint Match' ? 100.0 : 0.0)) + '%';
+                    
+                    document.getElementById('dup-fp-val').textContent = fpVal;
+                    document.getElementById('dup-match-name').textContent = matchName;
+                    document.getElementById('dup-fp-pct').textContent = fpMatchPct;
+                    
+                    // Conflict analysis details
+                    const reason = tableInfo.reason || '';
+                    let fpCheck = '✗', pkCheck = '✗', structCheck = '✗', identityCheck = '✗';
+                    let fpClass = 'dup-reason-not-matched', pkClass = 'dup-reason-not-matched', structClass = 'dup-reason-not-matched', identityClass = 'dup-reason-not-matched';
+                    
+                    const tStatus = String(tableInfo.status || '').toLowerCase();
+                    const isTableNew = tStatus === 'new' || tStatus === 'success';
+                    
+                    if (!isTableNew) {
+                        if (reason === 'Fingerprint Match') {
+                            fpCheck = '✓'; pkCheck = '✓'; structCheck = '✓'; identityCheck = '✓';
+                            fpClass = 'dup-reason-matched'; pkClass = 'dup-reason-matched'; structClass = 'dup-reason-matched'; identityClass = 'dup-reason-matched';
+                        } else if (reason === 'Primary Key Match') {
+                            pkCheck = '✓'; structCheck = '✓'; identityCheck = '✓';
+                            pkClass = 'dup-reason-matched'; structClass = 'dup-reason-matched'; identityClass = 'dup-reason-matched';
+                        } else if (reason === 'Survey/Year/Block Match' || reason === 'Dataset Metadata Match') {
+                            identityCheck = '✓';
+                            identityClass = 'dup-reason-matched';
+                        }
+                    }
+                    
+                    const conflictContainer = document.getElementById('dup-conflict-container');
+                    if (conflictContainer) {
+                        conflictContainer.innerHTML = `
+                            <div class="dup-reason-item ${fpClass}"><span style="margin-right: 6px;">${fpCheck}</span> Fingerprint Match</div>
+                            <div class="dup-reason-item ${pkClass}"><span style="margin-right: 6px;">${pkCheck}</span> Candidate Key Match</div>
+                            <div class="dup-reason-item ${structClass}"><span style="margin-right: 6px;">${structCheck}</span> Same Structure</div>
+                            <div class="dup-reason-item ${identityClass}"><span style="margin-right: 6px;">${identityCheck}</span> Same Survey+Year+Block</div>
+                        `;
+                    }
+
+                    // Table match analysis details
+                    const matchedTablesSection = document.getElementById('dup-matched-tables-section');
+                    if (matchedTablesSection) {
+                        let matchedHtml = '';
+                        if (tableInfo.existing && tableInfo.existing.block_name) {
+                            matchedHtml = `<li><span style="color: #D4183D; font-weight: 600; margin-right: 8px;">✓</span> Matched: ${tableInfo.existing.block_name}</li>`;
+                        } else {
+                            matchedHtml = `<li><span style="color: var(--text-muted);">No match in DB</span></li>`;
+                        }
+                        matchedTablesSection.innerHTML = matchedHtml;
+                    }
+                };
+
+                dupPanel.style.display = 'block';
+                dupPanel.classList.add('show');
+                const mainContainer = document.querySelector('.main-container');
+                if (mainContainer) {
+                    mainContainer.classList.add('wide');
+                }
+
+                const selector = document.getElementById('dupTableSelector');
+                if (selector) {
+                    selector.addEventListener('change', (e) => {
+                        window.updateSelectedDuplicateTable(e.target.value);
+                    });
+                    window.updateSelectedDuplicateTable(selector.value);
+                } else {
+                    window.updateSelectedDuplicateTable('');
+                }
+            }
+
+            const _notifiedJobs = {};
+            function showJobToast(jobId, eventType, message, toastType) {
+                const key = `${jobId}_${eventType}`;
+                if (_notifiedJobs[key]) {
+                    return;
+                }
+                _notifiedJobs[key] = true;
+                showToast(message, toastType);
+            }
+
             pollInterval = setInterval(async () => {
                 try {
                     const res = await fetch(`/upload/status/${jobId}`);
                     if (!res.ok) {
-                        if (pollInterval) {
-                            clearInterval(pollInterval);
-                            pollInterval = null;
-                            statusMessage.textContent = `Status check failed (HTTP ${res.status}).`;
-                            showToast('Status check failed', 'error');
-                            submitBtn.disabled = false;
-                            submitBtn.innerHTML = '<i class="fas fa-cloud-upload-alt"></i> Upload & Process';
-                            if (uploadUiTimer) {
-                                clearInterval(uploadUiTimer);
-                                uploadUiTimer = null;
-                            }
-                        }
+                        stopAllTimers();
+                        statusMessage.textContent = `Status check failed (HTTP ${res.status}).`;
+                        showJobToast(jobId, 'status_check_failed', 'Status check failed', 'error');
+                        resetSubmitButton();
                         return;
                     }
                     const data = await res.json();
 
-                    if (data.status === 'completed') {
-                        if (pollInterval) {
-                            clearInterval(pollInterval);
-                            pollInterval = null;
-                            statusMessage.textContent = data.message || 'Completed.';
-                            progressFill.style.width = '100%';
-                            progressPercent.textContent = '100%';
-                            const onlyDuplicates = Array.isArray(data.processed_files) && data.processed_files.length > 0 && data.processed_files.every(f => f.status === 'duplicate');
-                            if (onlyDuplicates) {
-                                showToast('All files were duplicates and skipped', 'warning');
+                    // ===== CRITICAL: Check for duplicate terminal states FIRST =====
+                    const valStatus = String(data.validation_status || '').toLowerCase();
+                    const isDuplicateTerminal = (
+                        valStatus === 'duplicate_found' ||
+                        valStatus === 'possible_duplicate' ||
+                        valStatus === 'duplicate_not_found' ||
+                        data.status === 'duplicate'
+                    );
+
+                    if (isDuplicateTerminal) {
+                        // TERMINAL STATE: Stop everything immediately
+                        stopAllTimers();
+                        resetSubmitButton();
+
+                        // Update main file badge
+                        const mainFile = document.getElementById('upload-main-file');
+                        if (mainFile) {
+                            if (valStatus === 'duplicate_not_found') {
+                                mainFile.classList.add('success');
+                                mainFile.querySelector('.file-status').textContent = 'VALIDATED';
                             } else {
-                                showToast('Dataset uploaded and processed!', 'success');
-                            }
-
-                            renderProcessedFiles(data.processed_files);
-                            submitBtn.disabled = false;
-                            submitBtn.innerHTML = '<i class="fas fa-cloud-upload-alt"></i> Upload & Process';
-                            if (uploadUiTimer) {
-                                clearInterval(uploadUiTimer);
-                                uploadUiTimer = null;
+                                mainFile.classList.add('duplicate');
+                                mainFile.querySelector('.file-status').textContent = 'DUPLICATE DETECTED';
                             }
                         }
+
+                        // Hide progress stats, show report card
+                        const progressStats = document.querySelector('.progress-stats');
+                        const progressBar = document.getElementById('progressBar');
+                        if (progressStats) progressStats.style.display = 'none';
+                        if (progressBar) progressBar.style.display = 'none';
+
+                        if (valStatus === 'duplicate_not_found') {
+                            statusMessage.textContent = '✅ Validation complete — New dataset.';
+                            statusMessage.style.color = 'var(--success-color)';
+                            statusMessage.style.fontWeight = '700';
+                            showJobToast(jobId, 'validation_event', 'New dataset — no duplicates found!', 'success');
+                        } else {
+                            statusMessage.textContent = '🔴 Duplicate detection complete — Review report below.';
+                            statusMessage.style.color = 'var(--danger-color)';
+                            statusMessage.style.fontWeight = '700';
+                            showJobToast(jobId, 'validation_event', 'Duplicate dataset detected. Review the report.', 'warning');
+                        }
+
+                        renderDuplicateReportCard(data);
+                        return; // Do NOT continue polling
+                    }
+
+                    // ===== Normal completion / failure =====
+                    if (data.status === 'completed') {
+                        stopAllTimers();
+                        statusMessage.textContent = data.message || 'Completed.';
+                        progressFill.style.width = '100%';
+                        progressPercent.textContent = '100%';
+                        const onlyDuplicates = Array.isArray(data.processed_files) && data.processed_files.length > 0 && data.processed_files.every(f => f.status === 'duplicate');
+                        if (onlyDuplicates) {
+                            showJobToast(jobId, 'completion_event', 'All files were duplicates and skipped', 'warning');
+                        } else {
+                            showJobToast(jobId, 'completion_event', 'Dataset uploaded and processed!', 'success');
+                        }
+                        renderProcessedFiles(data.processed_files);
+                        resetSubmitButton();
                     } else if (data.status === 'failed') {
-                        if (pollInterval) {
-                            clearInterval(pollInterval);
-                            pollInterval = null;
-                            statusMessage.textContent = 'Processing failed: ' + (data.error || 'Unknown error');
-                            showToast('Processing failed', 'error');
-
-                            renderProcessedFiles(data.processed_files);
-                            submitBtn.disabled = false;
-                            submitBtn.innerHTML = '<i class="fas fa-cloud-upload-alt"></i> Upload & Process';
-                            if (uploadUiTimer) {
-                                clearInterval(uploadUiTimer);
-                                uploadUiTimer = null;
-                            }
-                        }
+                        stopAllTimers();
+                        statusMessage.textContent = 'Processing failed: ' + (data.error || 'Unknown error');
+                        showJobToast(jobId, 'failure_event', 'Processing failed: ' + (data.error || 'Unknown error'), 'error');
+                        renderProcessedFiles(data.processed_files);
+                        resetSubmitButton();
                     } else {
+                        // Still processing
                         statusMessage.textContent = data.message || 'Processing...';
                         const serverPct = typeof data.progress === 'number' ? data.progress : 0;
                         const overall = Math.max(30, Math.min(100, 30 + Math.floor((serverPct / 100) * 70)));
@@ -1419,7 +1968,6 @@
                             progressPercent.textContent = overall + '%';
                         }
 
-                        // Update live file list if processed_files info is available
                         if (data.processed_files && Array.isArray(data.processed_files)) {
                             renderProcessedFiles(data.processed_files);
                         }
@@ -1428,6 +1976,52 @@
                     console.error('Polling error:', e);
                 }
             }, 1000);
+        }
+
+        // Discard / Cancel upload from the inline duplicate report card
+        async function discardUpload(jobId) {
+            if (!confirm('Are you sure you want to discard this upload?')) return;
+            try {
+                const res = await fetch(`/upload/cancel/${jobId}`, { method: 'POST' });
+                if (!res.ok) throw new Error(await res.text());
+                showToast('Upload discarded successfully.', 'success');
+                setTimeout(() => { window.location.href = '/admin/dashboard'; }, 1200);
+            } catch (e) {
+                showToast('Failed to discard: ' + e.message, 'error');
+            }
+        }
+
+        // Force import from the inline duplicate report card
+        async function forceUploadImport(jobId) {
+            if (!confirm('Are you sure you want to force import this dataset? This will bypass duplicate validation.')) return;
+            try {
+                const res = await fetch(`/upload/force/${jobId}`, { method: 'POST' });
+                if (!res.ok) throw new Error(await res.text());
+                showToast('Force import started...', 'info');
+
+                // Hide report card, re-show progress UI
+                document.getElementById('dupReportPanel').style.display = 'none';
+                const mainContainer = document.querySelector('.main-container');
+                if (mainContainer) {
+                    mainContainer.classList.remove('wide');
+                }
+                const progressStats = document.querySelector('.progress-stats');
+                const progressBar = document.getElementById('progressBar');
+                if (progressStats) progressStats.style.display = '';
+                if (progressBar) progressBar.style.display = '';
+                document.getElementById('statusMessage').textContent = 'Force importing...';
+                document.getElementById('statusMessage').style.color = '';
+                document.getElementById('statusMessage').style.fontWeight = '';
+
+                // Restart polling
+                _activeJobId = jobId;
+                uploadUiTimer = setInterval(() => {
+                    /* keep time ticking for force import */
+                }, 200);
+                startPolling(jobId);
+            } catch (e) {
+                showToast('Failed to force import: ' + e.message, 'error');
+            }
         }
 
         async function loadSchemasForUpload() {
@@ -1464,6 +2058,10 @@
             document.getElementById('uploadForm').style.display = 'none';
             document.getElementById('successMessage').classList.add('show');
             document.getElementById('progressBar').classList.remove('show');
+            const mainContainer = document.querySelector('.main-container');
+            if (mainContainer) {
+                mainContainer.classList.remove('wide');
+            }
         }
 
         // Reset Form Function
@@ -1483,6 +2081,11 @@
 
             // Reset button
             resetUploadButton();
+
+            const mainContainer = document.querySelector('.main-container');
+            if (mainContainer) {
+                mainContainer.classList.remove('wide');
+            }
         }
 
         // Reset Upload Button

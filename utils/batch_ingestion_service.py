@@ -208,6 +208,11 @@ async def run_batch_import_job(job_id: str, temp_dir: str, mappings: Dict[str, A
                     dataset_display_name=dataset_display,
                     dataset_db_name=dataset_db
                 )
+                
+                sub_job = get_job(sub_job_id)
+                if sub_job:
+                    sub_job["force_import"] = folder_mapping.get("force_import", False)
+                    sub_job["job_type"] = "batch_import"
 
                 batch_info["surveys"][folder]["progress"] = 30
                 update_job(job_id, log=f"[{datetime.now().strftime('%H:%M:%S')}] Starting ingestion")

@@ -377,6 +377,225 @@
         ::-webkit-scrollbar-thumb:hover {
             background: var(--text-muted);
         }
+
+        /* Glassmorphism Report Card Styling */
+        .report-card {
+            background: var(--bg-light);
+            border: 2px solid var(--glass-border);
+            border-radius: 20px;
+            padding: 1.5rem;
+            margin-top: 1.5rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+
+        .report-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--glass-border);
+            padding-bottom: 1rem;
+            margin-bottom: 1.25rem;
+        }
+
+        .report-title {
+            font-family: var(--font-head);
+            font-size: 1.35rem;
+            font-weight: 800;
+            color: var(--primary-color);
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-pill {
+            padding: 0.4rem 0.8rem;
+            border-radius: 50px;
+            font-weight: 700;
+            font-size: 0.85rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.03);
+        }
+
+        .status-new {
+            background-color: #DEF7EC;
+            color: #03543F;
+            border: 1px solid #BCF0DA;
+        }
+
+        .status-possible {
+            background-color: #FEF08A;
+            color: #713F12;
+            border: 1px solid #FDE047;
+        }
+
+        .status-duplicate {
+            background-color: #FDE8E8;
+            color: #9B1C1C;
+            border: 1px solid #FBD5D5;
+        }
+
+        .report-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 1.25rem;
+            margin-bottom: 1.25rem;
+        }
+
+        .report-grid-horizontal {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1.25rem;
+            margin-bottom: 1.25rem;
+        }
+
+        @media (max-width: 1200px) {
+            .report-grid-horizontal {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .report-grid-horizontal {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .report-section {
+            background: rgba(var(--primary-color), 0.02);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            padding: 1rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.01);
+        }
+
+        .report-section-title {
+            font-family: var(--font-head);
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            margin-top: 0;
+            margin-bottom: 0.75rem;
+            border-bottom: 1px dashed var(--glass-border);
+            padding-bottom: 0.4rem;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .report-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            font-size: 0.85rem;
+            line-height: 1.6;
+        }
+
+        .report-list li {
+            display: flex;
+            justify-content: space-between;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.02);
+            padding: 3px 0;
+        }
+
+        .report-list li:last-child {
+            border-bottom: none;
+        }
+
+        .report-label {
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .report-value {
+            color: var(--text-main);
+            font-weight: 600;
+            text-align: right;
+            word-break: break-all;
+        }
+
+        .reason-section {
+            background: rgba(0, 0, 0, 0.02);
+            border-radius: 10px;
+            padding: 0.75rem 1rem;
+            margin-bottom: 1.25rem;
+            border: 1px solid var(--glass-border);
+        }
+
+        .reason-title {
+            font-weight: 700;
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+            color: var(--primary-color);
+        }
+
+        .reason-items {
+            display: flex;
+            gap: 1.25rem;
+            flex-wrap: wrap;
+        }
+
+        .reason-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .reason-matched {
+            color: var(--danger-color);
+        }
+
+        .reason-not-matched {
+            color: var(--text-muted);
+            opacity: 0.6;
+        }
+
+        .report-actions {
+            display: flex;
+            gap: 0.75rem;
+            justify-content: flex-end;
+        }
+
+        .btn-discard {
+            background: #E5E7EB;
+            color: #374151;
+            border: 1px solid #D1D5DB;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 0.9rem;
+        }
+
+        .btn-discard:hover {
+            background: #F3F4F6;
+            border-color: #9CA3AF;
+        }
+
+        .btn-force {
+            background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(217, 119, 6, 0.2);
+            transition: all 0.2s ease;
+            font-size: 0.9rem;
+        }
+
+        .btn-force:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 12px rgba(217, 119, 6, 0.3);
+        }
     </style>
 </head>
 <body data-theme="light">
@@ -448,15 +667,20 @@
                 </div>
 
                 <div id="nadaJobStatus" class="status-box" style="display: none; margin-top: 1rem; padding: 1rem; border-radius: 12px; background: var(--bg-light); border: 1px solid var(--glass-border);">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                        <span id="jobStatusLabel" style="font-weight: 700; font-size: 0.95rem;">Ingestion Status</span>
-                        <span id="jobStatusPercent" style="font-weight: 800; color: var(--primary-color);">0%</span>
+                    <div id="nada-running-progress-state">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                            <span id="jobStatusLabel" style="font-weight: 700; font-size: 0.95rem;">Ingestion Status</span>
+                            <div>
+                                <span id="nada-time-elapsed" style="font-weight: 600; font-size: 0.9rem; color: var(--text-muted); margin-right: 10px;">Time: 0.0s</span>
+                                <span id="jobStatusPercent" style="font-weight: 800; color: var(--primary-color);">0%</span>
+                            </div>
+                        </div>
+                        <div style="width: 100%; height: 8px; background: rgba(0,0,0,0.05); border-radius: 4px; overflow: hidden; margin-bottom: 1rem;">
+                            <div id="jobProgressBar" style="width: 0%; height: 100%; background: var(--primary-color); transition: width 0.3s ease;"></div>
+                        </div>
                     </div>
-                    <div style="width: 100%; height: 8px; background: rgba(0,0,0,0.05); border-radius: 4px; overflow: hidden; margin-bottom: 1rem;">
-                        <div id="jobProgressBar" style="width: 0%; height: 100%; background: var(--primary-color); transition: width 0.3s ease;"></div>
-                    </div>
-                    <div id="jobStatusDetails" style="font-size: 0.85rem; color: var(--text-muted); max-height: 150px; overflow-y: auto; margin-bottom: 0.5rem;"></div>
-                    <details>
+                    <div id="jobStatusDetails" style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem;"></div>
+                    <details id="nada-debug-logs-details">
                         <summary style="font-size: 0.8rem; cursor: pointer; color: var(--primary-color); font-weight: 600;">Show raw debug log</summary>
                         <pre id="nadaJobStatusText" class="status-message" style="margin-top: 0.5rem; max-height: 150px; overflow-y: auto; font-size: 0.75rem; background: rgba(0,0,0,0.02); padding: 0.5rem; border-radius: 6px;"></pre>
                     </details>
@@ -647,9 +871,19 @@
 
             container.appendChild(toast);
             setTimeout(() => {
-                toast.style.animation = 'slideIn 0.3s ease-out reverse';
+                toast.style.animation = 'slideOut 0.3s ease forwards';
                 setTimeout(() => toast.remove(), 300);
             }, 4000);
+        }
+
+        const _notifiedJobs = {};
+        function showJobToast(jobId, eventType, message, toastType) {
+            const key = `${jobId}_${eventType}`;
+            if (_notifiedJobs[key]) {
+                return;
+            }
+            _notifiedJobs[key] = true;
+            showToast(message, toastType);
         }
 
         // Core Functionality
@@ -864,6 +1098,7 @@
                     // Go back to browse panel
                     showBrowsePanel();
 
+                    startNadaTimer();
                     refreshNadaJob();
                     if (nadaJobPoller) clearInterval(nadaJobPoller);
                     nadaJobPoller = setInterval(refreshNadaJob, 2000);
@@ -871,6 +1106,23 @@
             } catch (e) {
                 showToast(e.message, 'error');
             }
+        }
+
+        let nadaStartTime = null;
+        let nadaElapsedTimer = null;
+        let nadaIsDone = false;
+
+        function startNadaTimer() {
+            nadaStartTime = Date.now();
+            nadaIsDone = false;
+            if (nadaElapsedTimer) clearInterval(nadaElapsedTimer);
+            nadaElapsedTimer = setInterval(() => {
+                const elSpan = document.getElementById('nada-time-elapsed');
+                if (!nadaIsDone && nadaStartTime && elSpan) {
+                    const elapsed = ((Date.now() - nadaStartTime) / 1000).toFixed(1);
+                    elSpan.textContent = `Time: ${elapsed}s`;
+                }
+            }, 100);
         }
 
         async function startNadaImport() {
@@ -896,6 +1148,9 @@
                 statusText.textContent = JSON.stringify(data, null, 2);
 
                 const status = (data.status || '').toLowerCase();
+                const valStatus = String(data.validation_status || '').toLowerCase();
+                const hasReachedTerminalDuplicateState = (valStatus === 'duplicate_found' || valStatus === 'duplicate_not_found' || status === 'duplicate' || status === 'completed');
+
                 let percent = 0;
                 let msg = 'Initializing...';
                 let detailsHtml = '';
@@ -908,19 +1163,6 @@
                     percent = 50;
                     msg = 'Direct Ingesting (Downloading & parsing files)...';
                     progressBar.style.background = 'var(--primary-color)';
-                } else if (status === 'completed') {
-                    percent = 100;
-                    msg = '✅ Ingestion Completed Successfully!';
-                    progressBar.style.background = '#22c55e'; // Green
-                    
-                    const tables = data.result?.ingest || [];
-                    if (tables.length > 0) {
-                        detailsHtml = `<strong>Created Tables:</strong><ul style="margin: 0.5rem 0; padding-left: 1.25rem;">` + 
-                            tables.map(t => `<li><code style="background: rgba(0,0,0,0.05); padding: 2px 4px; border-radius: 4px;">${t}</code></li>`).join('') + 
-                            `</ul>`;
-                    } else {
-                        detailsHtml = `Ingested successfully, but no tables were created (or they already existed).`;
-                    }
                 } else if (status === 'failed') {
                     percent = 100;
                     msg = '❌ Ingestion Failed';
@@ -928,20 +1170,279 @@
                     detailsHtml = `<span style="color: #ef4444;"><strong>Error:</strong> ${data.error || 'Unknown error'}</span>`;
                 }
 
-                percentText.textContent = `${percent}%`;
-                progressBar.style.width = `${percent}%`;
-                statusLabel.textContent = msg;
+                if (hasReachedTerminalDuplicateState && status !== 'failed') {
+                    nadaIsDone = true;
+                    if (nadaElapsedTimer) {
+                        clearInterval(nadaElapsedTimer);
+                        nadaElapsedTimer = null;
+                    }
+                    // Hide progress and logs immediately
+                    document.getElementById('nada-running-progress-state').style.display = 'none';
+                    document.getElementById('nada-debug-logs-details').style.display = 'none';
+
+                    const info = data.duplicate_info || {};
+                    let uploadDateStr = 'Unknown';
+                    if (info.existing && info.existing.upload_date) {
+                        try {
+                            uploadDateStr = new Date(info.existing.upload_date).toLocaleString();
+                        } catch(e) {
+                            uploadDateStr = info.existing.upload_date;
+                        }
+                    }
+
+                    const statusVal = info.status || 'duplicate';
+                    
+                    let badgeHtml = '';
+                    let showDiscardForce = true;
+
+                    if (valStatus === 'duplicate_not_found' || (status === 'completed' && statusVal === 'new')) {
+                        badgeHtml = '<span class="status-pill status-new">🟢 New Dataset</span>';
+                        showDiscardForce = false;
+                        showJobToast(jobId, 'validation_notification', 'New dataset — no duplicates found!', 'success');
+                    } else if (statusVal === 'possible_duplicate') {
+                        badgeHtml = '<span class="status-pill status-possible">🟡 Possible Duplicate Dataset</span>';
+                        showJobToast(jobId, 'validation_notification', 'Possible duplicate dataset detected. Review the report.', 'info');
+                    } else {
+                        badgeHtml = '<span class="status-pill status-duplicate">🔴 Duplicate Dataset Detected</span>';
+                        showJobToast(jobId, 'validation_notification', 'Duplicate dataset detected. Review the report.', 'error');
+                    }
+
+                    let actionButtons = '';
+                    if (showDiscardForce) {
+                        actionButtons = `
+                            <button onclick="cancelNadaImport('${jobId}')" class="btn-discard"><i class="fas fa-trash-alt"></i> Discard Upload</button>
+                            <button onclick="forceNadaImport('${jobId}')" class="btn-force"><i class="fas fa-exclamation-triangle"></i> Force Import</button>
+                        `;
+                    } else {
+                        actionButtons = `
+                            <button onclick="continueNadaImport()" class="btn-force" style="background: var(--primary-gradient);"><i class="fas fa-play"></i> Continue Import</button>
+                        `;
+                    }
+
+                    const elapsedStr = nadaStartTime ? ((Date.now() - nadaStartTime) / 1000).toFixed(1) : "0.0";
+
+                    const allTables = info.all_tables || {};
+                    const tableKeys = Object.keys(allTables);
+                    let dropdownHtml = '';
+                    if (tableKeys.length > 0) {
+                        dropdownHtml = `
+                            <div class="dup-selector-wrap" style="margin-bottom: 1.25rem; display: flex; align-items: center; gap: 10px;">
+                                <label for="dupTableSelector" style="font-weight: 700; font-size: 0.95rem; color: var(--primary-color);">Select Table/Block: ▼</label>
+                                <select id="dupTableSelector" style="padding: 0.5rem 1.5rem; border-radius: 10px; border: 2px solid var(--border, #ccc); font-family: var(--font-body); font-weight: 600; cursor: pointer; outline: none; background: #fff;">
+                                    ${tableKeys.map(k => `<option value="${k}">${k}</option>`).join('')}
+                                </select>
+                            </div>
+                        `;
+                    }
+
+                    detailsHtml = `
+                        <div class="report-card" style="margin-top: 0px;">
+                            <div class="report-header" style="flex-direction: column; align-items: flex-start; gap: 8px; border-bottom: 1px solid var(--glass-border); padding-bottom: 1rem; margin-bottom: 1.25rem;">
+                                <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
+                                    <h3 class="report-title">
+                                        <i class="fas fa-search-minus"></i> Duplicate Detection Report Card
+                                    </h3>
+                                    <div>${badgeHtml}</div>
+                                </div>
+                                <div id="nada-dup-frozen-status-row" style="display: ${showDiscardForce ? 'flex' : 'none'}; gap: 15px; font-size: 0.95rem; font-weight: 600; color: #D4183D; margin-top: 5px;">
+                                    <span>Progress: ${percent}% (Frozen)</span>
+                                    <span>Time: ${elapsedStr}s (Frozen)</span>
+                                </div>
+                            </div>
+
+                            ${dropdownHtml}
+
+                            <div class="report-grid-horizontal">
+                                <!-- Dataset Information -->
+                                <div class="report-section">
+                                    <h4 class="report-section-title"><i class="fas fa-info-circle"></i> Dataset Information</h4>
+                                    <ul class="report-list">
+                                        <li><span class="report-label">Dataset Name:</span> <span class="report-value">${info.dataset_name || 'N/A'}</span></li>
+                                        <li><span class="report-label">Survey Name:</span> <span class="report-value">${info.survey_name || 'N/A'}</span></li>
+                                        <li><span class="report-label">Year:</span> <span class="report-value">${info.year || 'N/A'}</span></li>
+                                        <li><span class="report-label">File Type:</span> <span class="report-value">${info.file_type || 'N/A'}</span></li>
+                                        <li><span class="report-label">Rows:</span> <span class="report-value">${info.row_count !== undefined ? info.row_count.toLocaleString() : 'N/A'}</span></li>
+                                        <li><span class="report-label">Columns:</span> <span class="report-value">${info.col_count !== undefined ? info.col_count.toLocaleString() : 'N/A'}</span></li>
+                                    </ul>
+                                </div>
+
+                                <!-- Candidate Key Section -->
+                                <div class="report-section">
+                                    <h4 class="report-section-title"><i class="fas fa-key"></i> Candidate Key</h4>
+                                    <ul class="report-list">
+                                        <li><span class="report-label">Detected Key:</span> <span id="dup-ck-val" class="report-value" style="font-size:0.85rem; font-weight:700; color:var(--primary-color);">N/A</span></li>
+                                        <li><span class="report-label">Composite Key:</span> <span id="dup-comp-val" class="report-value">N/A</span></li>
+                                        <li><span class="report-label">Uniqueness %:</span> <span id="dup-uniq-val" class="report-value">N/A</span></li>
+                                    </ul>
+                                </div>
+
+                                <!-- Fingerprint Section -->
+                                <div class="report-section">
+                                    <h4 class="report-section-title"><i class="fas fa-fingerprint"></i> Fingerprint</h4>
+                                    <ul class="report-list">
+                                        <li><span class="report-label">Fingerprint ID:</span> <span id="dup-fp-val" class="report-value" style="font-size:0.8rem; max-width:140px; display:inline-block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">N/A</span></li>
+                                        <li><span class="report-label">Matched Existing:</span> <span id="dup-match-name" class="report-value">N/A</span></li>
+                                        <li><span class="report-label">Match %:</span> <span id="dup-fp-pct" class="report-value" style="font-weight:700; color:#D4183D;">N/A</span></li>
+                                    </ul>
+                                </div>
+
+                                <!-- Duplicate Result Section -->
+                                <div class="report-section">
+                                    <h4 class="report-section-title"><i class="fas fa-exclamation-triangle"></i> Duplicate Result</h4>
+                                    <div style="font-size: 0.88rem; margin-bottom: 0.5rem; font-weight:700; color:#1F3A5F;">Conflict Analysis:</div>
+                                    <div id="dup-conflict-container" style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 0.8rem;">
+                                        <!-- Ticks/crosses will be populated here -->
+                                    </div>
+                                    <div style="font-size: 0.88rem; margin-bottom: 0.4rem; font-weight:700; color:#1F3A5F;">Matched Tables:</div>
+                                    <ul id="dup-matched-tables-section" style="padding-left: 0; list-style-type: none; margin: 0; font-size: 0.82rem; line-height:1.4;">
+                                        <!-- Matched tables populated here -->
+                                    </ul>
+                                </div>
+                            </div>
+
+                            <div class="report-actions" style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--glass-border); display: flex; justify-content: flex-end; gap: 1rem;">
+                                ${actionButtons}
+                            </div>
+                        </div>
+                    `;
+
+                    setTimeout(() => {
+                        window.updateSelectedDuplicateTable = function(tableName) {
+                            const tableInfo = allTables[tableName] || info;
+                            
+                            // Candidate key details
+                            const ck = tableInfo.candidate_key;
+                            const ckVal = (Array.isArray(ck) ? ck.join(', ') : ck) || 'None';
+                            const compVal = (tableInfo.composite_key) ? 'Yes' : 'No';
+                            const uniqVal = (tableInfo.uniqueness_pct !== undefined ? tableInfo.uniqueness_pct : 100.0) + '%';
+                            
+                            const ckValEl = document.getElementById('dup-ck-val');
+                            const compValEl = document.getElementById('dup-comp-val');
+                            const uniqValEl = document.getElementById('dup-uniq-val');
+                            if (ckValEl) ckValEl.textContent = ckVal;
+                            if (compValEl) compValEl.textContent = compVal;
+                            if (uniqValEl) uniqValEl.textContent = uniqVal;
+                            
+                            // Fingerprint details
+                            const fpVal = tableInfo.fingerprint || 'N/A';
+                            const matchName = (tableInfo.existing && tableInfo.existing.dataset_name) || 'N/A';
+                            const fpMatchPct = (tableInfo.fingerprint_match_pct !== undefined ? tableInfo.fingerprint_match_pct : (tableInfo.reason === 'Fingerprint Match' ? 100.0 : 0.0)) + '%';
+                            
+                            const fpValEl = document.getElementById('dup-fp-val');
+                            const matchNameEl = document.getElementById('dup-match-name');
+                            const fpPctEl = document.getElementById('dup-fp-pct');
+                            if (fpValEl) fpValEl.textContent = fpVal;
+                            if (matchNameEl) matchNameEl.textContent = matchName;
+                            if (fpPctEl) fpPctEl.textContent = fpMatchPct;
+                            
+                            // Conflict analysis details
+                            const reason = tableInfo.reason || '';
+                            let fpCheck = '✗', pkCheck = '✗', structCheck = '✗', identityCheck = '✗';
+                            let fpClass = 'reason-not-matched', pkClass = 'reason-not-matched', structClass = 'reason-not-matched', identityClass = 'reason-not-matched';
+                            
+                            const tStatus = String(tableInfo.status || '').toLowerCase();
+                            const isTableNew = tStatus === 'new' || tStatus === 'success';
+                            
+                            if (!isTableNew) {
+                                if (reason === 'Fingerprint Match') {
+                                    fpCheck = '✓'; pkCheck = '✓'; structCheck = '✓'; identityCheck = '✓';
+                                    fpClass = 'reason-matched'; pkClass = 'reason-matched'; structClass = 'reason-matched'; identityClass = 'reason-matched';
+                                } else if (reason === 'Primary Key Match') {
+                                    pkCheck = '✓'; structCheck = '✓'; identityCheck = '✓';
+                                    pkClass = 'reason-matched'; structClass = 'reason-matched'; identityClass = 'reason-matched';
+                                } else if (reason === 'Survey/Year/Block Match' || reason === 'Dataset Metadata Match') {
+                                    identityCheck = '✓';
+                                    identityClass = 'reason-matched';
+                                }
+                            }
+                            
+                            const conflictContainer = document.getElementById('dup-conflict-container');
+                            if (conflictContainer) {
+                                conflictContainer.innerHTML = `
+                                    <div class="reason-item ${fpClass}"><span style="margin-right: 6px;">${fpCheck}</span> Fingerprint Match</div>
+                                    <div class="reason-item ${pkClass}"><span style="margin-right: 6px;">${pkCheck}</span> Candidate Key Match</div>
+                                    <div class="reason-item ${structClass}"><span style="margin-right: 6px;">${structCheck}</span> Same Structure</div>
+                                    <div class="reason-item ${identityClass}"><span style="margin-right: 6px;">${identityCheck}</span> Same Survey+Year+Block</div>
+                                `;
+                            }
+
+                            // Table match analysis details
+                            const matchedTablesSection = document.getElementById('dup-matched-tables-section');
+                            if (matchedTablesSection) {
+                                let matchedHtml = '';
+                                if (tableInfo.existing && tableInfo.existing.block_name) {
+                                    matchedHtml = `<li><span style="color: #D4183D; font-weight: 600; margin-right: 8px;">✓</span> Matched: ${tableInfo.existing.block_name}</li>`;
+                                } else {
+                                    matchedHtml = `<li><span style="color: var(--text-muted);">No match in DB</span></li>`;
+                                }
+                                matchedTablesSection.innerHTML = matchedHtml;
+                            }
+                        };
+
+                        const selector = document.getElementById('dupTableSelector');
+                        if (selector) {
+                            selector.addEventListener('change', (e) => {
+                                window.updateSelectedDuplicateTable(e.target.value);
+                            });
+                            window.updateSelectedDuplicateTable(selector.value);
+                        } else {
+                            window.updateSelectedDuplicateTable('');
+                        }
+                    }, 50);
+
+                } else {
+                    if (status !== 'failed') {
+                        document.getElementById('nada-running-progress-state').style.display = 'block';
+                        document.getElementById('nada-debug-logs-details').style.display = 'block';
+                    }
+                }
+
+                if (!hasReachedTerminalDuplicateState || status === 'failed') {
+                    percentText.textContent = `${percent}%`;
+                    progressBar.style.width = `${percent}%`;
+                    statusLabel.textContent = msg;
+                }
                 statusDetails.innerHTML = detailsHtml;
 
-                if (status === 'completed' || status === 'failed') {
+                if (status === 'completed' || status === 'failed' || status === 'duplicate' || hasReachedTerminalDuplicateState) {
                     if (nadaJobPoller) {
                         clearInterval(nadaJobPoller);
                         nadaJobPoller = null;
-                        showToast(`Job ${status.toUpperCase()}`, status === 'completed' ? 'success' : 'error');
+                        showJobToast(jobId, 'terminal_notification', `Job ${status.toUpperCase()}`, status === 'completed' ? 'success' : (status === 'duplicate' ? 'info' : 'error'));
                     }
                 }
             } catch (e) {
                 console.error(e);
+            }
+        }
+
+        function continueNadaImport() {
+            window.location.href = '/admin/dashboard';
+        }
+
+        async function forceNadaImport(jobId) {
+            if (!confirm("Are you sure you want to force import this dataset?")) return;
+            try {
+                const res = await fetch(`/admin/nada/jobs/${encodeURIComponent(jobId)}/force`, { method: 'POST' });
+                if (!res.ok) throw new Error(await res.text());
+                showToast("Forcing NADA import...", "info");
+                startNadaTimer();
+                if (nadaJobPoller) clearInterval(nadaJobPoller);
+                nadaJobPoller = setInterval(refreshNadaJob, 2000);
+            } catch (e) {
+                alert("Failed to force NADA import: " + e.message);
+            }
+        }
+
+        async function cancelNadaImport(jobId) {
+            if (!confirm("Are you sure you want to cancel this import?")) return;
+            try {
+                const res = await fetch(`/admin/nada/jobs/${encodeURIComponent(jobId)}/cancel`, { method: 'POST' });
+                if (!res.ok) throw new Error(await res.text());
+                showToast("NADA import cancelled", "info");
+                refreshNadaJob();
+            } catch (e) {
+                alert("Failed to cancel NADA import: " + e.message);
             }
         }
 

@@ -683,6 +683,16 @@
             }, 4000);
         }
 
+        const _notifiedJobs = {};
+        function showJobToast(jobId, eventType, message, toastType) {
+            const key = `${jobId}_${eventType}`;
+            if (_notifiedJobs[key]) {
+                return;
+            }
+            _notifiedJobs[key] = true;
+            showToast(message, toastType);
+        }
+
         // Fetch DB schemas from target config registry
         async function loadSchemas() {
             try {
@@ -797,7 +807,20 @@
                                 <i class="fas fa-database"></i> Dataset Files:
                             </div>
                             <ul style="padding-left: 20px; font-size: 0.9rem; margin-bottom: 15px; list-style-type: disc;">
-                                ${s.dataset_files.map(f => `<li>${f}</li>`).join('')}
+                                ${s.dataset_files.map(f => {
+                                    const dup = s.duplicate_statuses ? s.duplicate_statuses[f] : null;
+                                    let dupBadge = '';
+                                    if (dup) {
+                                        if (dup.status === 'duplicate') {
+                                            dupBadge = ` <span class="survey-badge badge-danger" style="margin-left: 10px; font-size: 0.75rem;"><i class="fas fa-exclamation-triangle"></i> Duplicate Dataset (${dup.reason})</span>`;
+                                        } else if (dup.status === 'possible_duplicate') {
+                                            dupBadge = ` <span class="survey-badge badge-warning" style="margin-left: 10px; font-size: 0.75rem;"><i class="fas fa-exclamation-circle"></i> Possible Duplicate (${dup.reason})</span>`;
+                                        } else {
+                                            dupBadge = ` <span class="survey-badge badge-success" style="margin-left: 10px; font-size: 0.75rem;"><i class="fas fa-check"></i> New Dataset</span>`;
+                                        }
+                                    }
+                                    return `<li>${f}${dupBadge}</li>`;
+                                }).join('')}
                             </ul>
                         ` : ''}
                         ${s.ddi_files && s.ddi_files.length > 0 ? `
@@ -933,6 +956,12 @@
                                 </select>
                             </div>
                         </div>
+                        <div style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 10px;">
+                            <label style="font-weight: 600; font-size: 0.95rem; display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none;">
+                                <input type="checkbox" id="force-${sIdx}" style="width: 18px; height: 18px; accent-color: var(--warning-color); cursor: pointer;">
+                                <span>Force Import (Bypass duplicate warnings)</span>
+                            </label>
+                        </div>
 
                         <h4 style="font-weight: 700; margin-bottom: 12px; font-size: 1rem;"><i class="fas fa-table" style="color: var(--secondary-color);"></i> Target Tables & Renames:</h4>
                         <table class="mapping-table">
@@ -1045,10 +1074,13 @@
                     });
                 }
 
+                const forceImport = document.getElementById(`force-${sIdx}`) ? document.getElementById(`force-${sIdx}`).checked : false;
+
                 mappings[s.folder_name] = {
                     "skip": folderSkip,
                     "schema": targetSchema,
                     "display_name": customDisplayName,
+                    "force_import": forceImport,
                     "files": filesConfig,
                     "documentation_files": docFilesConfig,
                     "reference_mapping_files": refFilesConfig
@@ -1202,7 +1234,7 @@
 
                 // Check terminal states
                 const status = (job.status || '').toUpperCase();
-                if (status === 'COMPLETED' || status === 'FAILED') {
+                if (status === 'COMPLETED' || status === 'FAILED' || status === 'DUPLICATE') {
                     if (pollingInterval) {
                         clearInterval(pollingInterval);
                         pollingInterval = null;
@@ -1218,9 +1250,9 @@
                             const failed = batchInfo.failure_count || 0;
                             const tables = batchInfo.tables_created || 0;
                             
-                            showToast(`Batch Import Completed Successfully\n\nSurveys Imported: ${succeeded}\nTables Created: ${tables}\nFailed Groups: ${failed}`, succeeded > 0 ? 'success' : 'error');
+                            showJobToast(job.job_id, 'batch_completion', `Batch Import Completed Successfully\n\nSurveys Imported: ${succeeded}\nTables Created: ${tables}\nFailed Groups: ${failed}`, succeeded > 0 ? 'success' : 'error');
                         } else {
-                            showToast(job.message || 'Job finished', status === 'COMPLETED' ? 'success' : 'error');
+                            showJobToast(job.job_id, 'batch_completion', job.message || 'Job finished', status === 'COMPLETED' ? 'success' : 'error');
                         }
                         
                         renderSummaryStep(job);

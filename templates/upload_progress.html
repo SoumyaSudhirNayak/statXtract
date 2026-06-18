@@ -176,6 +176,203 @@
         .step.active { background: #DBEAFE; border-color: #93C5FD; color: #1D4ED8; font-weight: 600; }
         .step.done { background: #DCFCE7; border-color: #86EFAC; color: #166534; }
 
+        /* Glassmorphism Report Card Styling */
+        .report-card {
+            background: rgba(255, 255, 255, 0.75);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            border-radius: 20px;
+            padding: 2rem;
+            margin-top: 2rem;
+            box-shadow: 0 20px 40px rgba(31, 58, 95, 0.15);
+        }
+
+        .report-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+            padding-bottom: 1.25rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .report-title {
+            font-family: var(--font-head);
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: var(--primary-color);
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-pill {
+            padding: 0.5rem 1rem;
+            border-radius: 50px;
+            font-weight: 700;
+            font-size: 0.9rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+
+        .status-new {
+            background-color: #DEF7EC;
+            color: #03543F;
+            border: 1px solid #BCF0DA;
+        }
+
+        .status-possible {
+            background-color: #FEF08A;
+            color: #713F12;
+            border: 1px solid #FDE047;
+        }
+
+        .status-duplicate {
+            background-color: #FDE8E8;
+            color: #9B1C1C;
+            border: 1px solid #FBD5D5;
+        }
+
+        .report-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .report-section {
+            background: rgba(255, 255, 255, 0.5);
+            border: 1px solid rgba(0,0,0,0.05);
+            border-radius: 14px;
+            padding: 1.25rem;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.02);
+        }
+
+        .report-section-title {
+            font-family: var(--font-head);
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: #1F3A5F;
+            margin-top: 0;
+            margin-bottom: 1rem;
+            border-bottom: 1px dashed rgba(0,0,0,0.1);
+            padding-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .report-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            font-size: 0.9rem;
+            line-height: 1.7;
+        }
+
+        .report-list li {
+            display: flex;
+            justify-content: space-between;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.03);
+            padding: 4px 0;
+        }
+
+        .report-list li:last-child {
+            border-bottom: none;
+        }
+
+        .report-label {
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .report-value {
+            color: var(--text-dark);
+            font-weight: 600;
+            text-align: right;
+            word-break: break-all;
+        }
+
+        .reason-section {
+            background: rgba(243, 244, 246, 0.6);
+            border-radius: 12px;
+            padding: 1rem 1.25rem;
+            margin-bottom: 1.5rem;
+            border: 1px solid rgba(0,0,0,0.04);
+        }
+
+        .reason-title {
+            font-weight: 700;
+            font-size: 0.95rem;
+            margin-bottom: 0.75rem;
+            color: #1F3A5F;
+        }
+
+        .reason-items {
+            display: flex;
+            gap: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .reason-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+
+        .reason-matched {
+            color: var(--danger-color);
+        }
+
+        .reason-not-matched {
+            color: var(--text-muted);
+            opacity: 0.6;
+        }
+
+        .report-actions {
+            display: flex;
+            gap: 1rem;
+            justify-content: flex-end;
+        }
+
+        .btn-discard {
+            background: #E5E7EB;
+            color: #374151;
+            border: 1px solid #D1D5DB;
+            padding: 0.75rem 1.5rem;
+            border-radius: 10px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-discard:hover {
+            background: #F3F4F6;
+            border-color: #9CA3AF;
+        }
+
+        .btn-force {
+            background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 10px;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(217, 119, 6, 0.25);
+            transition: all 0.2s ease;
+        }
+
+        .btn-force:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(217, 119, 6, 0.35);
+        }
     </style>
 </head>
 <body>
@@ -187,49 +384,135 @@
 <div class="container">
     <h2><i class="fas fa-cloud-upload-alt"></i> Uploading: {{ filename }}</h2>
     
-    <div class="progress-container">
-        <div class="progress-bar-bg">
-            <div id="progress-bar" class="progress-bar">0%</div>
+    <div id="running-progress-state">
+        <div class="progress-container">
+            <div class="progress-bar-bg">
+                <div id="progress-bar" class="progress-bar">0%</div>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem;">
+                <div id="status-message" class="status-message">Initializing...</div>
+                <div>
+                    <span id="time-elapsed" class="status-message" style="font-weight: 600; margin-right: 15px;">Time: 0.0s</span>
+                    <span id="time-remaining" class="status-message" style="font-weight: 500;"></span>
+                </div>
+            </div>
+            <div id="stage-row" class="status-message" style="margin-top: 0.25rem; display: none;">
+                Stage: <span id="current-stage" style="font-weight: 600;"></span>
+            </div>
+            <div id="steps" style="margin-top: 0.75rem; display: grid; gap: 6px;">
+                <div class="step" data-stage="QUEUED">Queued for conversion</div>
+                <div class="step" data-stage="PROCESSING">Processing upload…</div>
+                <div class="step" data-stage="CONVERTING">Converting Nesstar to SPSS…</div>
+                <div class="step" data-stage="PARSING_DDI">Parsing DDI metadata…</div>
+                <div class="step" data-stage="CONVERTING_WITH_NESSTAR">Opening Nesstar study…</div>
+                <div class="step" data-stage="EXPORTING_ALL_DATASETS">Exporting ALL datasets (Shift+Ctrl+E)…</div>
+                <div class="step" data-stage="EXPORT_DIALOG_OPENED">Export dialog opened — waiting for Save confirmation…</div>
+                <div class="step" data-stage="SAVING_DATASETS">Saving exported dataset to workspace…</div>
+                <div class="step" data-stage="VALIDATING_EXPORTED_FILES">Export confirmed — validating file…</div>
+                <div class="step" data-stage="INGESTING">Loading into PostgreSQL…</div>
+                <div class="step" data-stage="COMPLETED">Dataset ready for querying</div>
+            </div>
         </div>
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem;">
-            <div id="status-message" class="status-message">Initializing...</div>
-            <div id="time-remaining" class="status-message" style="font-weight: 500;"></div>
+
+        <div class="file-list">
+            <h3>Files Status</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>File Name</th>
+                        <th>Status</th>
+                        <th>Rows</th>
+                        <th>Details</th>
+                    </tr>
+                </thead>
+                <tbody id="file-table-body">
+                    <!-- Rows will be populated by JS -->
+                </tbody>
+            </table>
         </div>
-        <div id="stage-row" class="status-message" style="margin-top: 0.25rem; display: none;">
-            Stage: <span id="current-stage" style="font-weight: 600;"></span>
+    </div>
+    
+    <div id="duplicate-panel" class="report-card" style="display: none; margin-top: 1.5rem;">
+        <div class="report-header" style="flex-direction: column; align-items: flex-start; gap: 8px;">
+            <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
+                <h3 class="report-title">
+                    <i class="fas fa-search-minus"></i> Duplicate Detection Report Card
+                </h3>
+                <div id="dup-status-badge" class="status-pill"></div>
+            </div>
+            <div id="dup-frozen-status-row" style="display: flex; gap: 15px; font-size: 0.95rem; font-weight: 600; color: #D4183D; margin-top: 5px;">
+                <span id="dup-frozen-progress">Progress: 0% (Frozen)</span>
+                <span id="dup-frozen-time">Time: 0s (Frozen)</span>
+            </div>
         </div>
-        <div id="steps" style="margin-top: 0.75rem; display: grid; gap: 6px;">
-            <div class="step" data-stage="QUEUED">Queued for conversion</div>
-            <div class="step" data-stage="PROCESSING">Processing upload…</div>
-            <div class="step" data-stage="CONVERTING">Converting Nesstar to SPSS…</div>
-            <div class="step" data-stage="PARSING_DDI">Parsing DDI metadata…</div>
-            <div class="step" data-stage="CONVERTING_WITH_NESSTAR">Opening Nesstar study…</div>
-            <div class="step" data-stage="EXPORTING_ALL_DATASETS">Exporting ALL datasets (Shift+Ctrl+E)…</div>
-            <div class="step" data-stage="EXPORT_DIALOG_OPENED">Export dialog opened — waiting for Save confirmation…</div>
-            <div class="step" data-stage="SAVING_DATASETS">Saving exported dataset to workspace…</div>
-            <div class="step" data-stage="VALIDATING_EXPORTED_FILES">Export confirmed — validating file…</div>
-            <div class="step" data-stage="INGESTING">Loading into PostgreSQL…</div>
-            <div class="step" data-stage="COMPLETED">Dataset ready for querying</div>
+
+        <div class="report-grid">
+            <!-- Dataset Information -->
+            <div class="report-section">
+                <h4 class="report-section-title"><i class="fas fa-info-circle"></i> Dataset Information</h4>
+                <ul class="report-list">
+                    <li><span class="report-label">Dataset Name:</span> <span id="dup-dataset-name" class="report-value"></span></li>
+                    <li><span class="report-label">Survey Name:</span> <span id="dup-survey-name" class="report-value"></span></li>
+                    <li><span class="report-label">Year:</span> <span id="dup-year" class="report-value"></span></li>
+                    <li><span class="report-label">File Type:</span> <span id="dup-file-type" class="report-value"></span></li>
+                    <li><span class="report-label">Rows:</span> <span id="dup-row-count" class="report-value"></span></li>
+                    <li><span class="report-label">Columns:</span> <span id="dup-col-count" class="report-value"></span></li>
+                </ul>
+            </div>
+
+            <!-- Candidate Key Section -->
+            <div class="report-section">
+                <h4 class="report-section-title"><i class="fas fa-key"></i> Candidate Key Section</h4>
+                <ul class="report-list">
+                    <li><span class="report-label">Detected Candidate Key:</span> <span id="dup-candidate-key" class="report-value"></span></li>
+                    <li><span class="report-label">Composite Key:</span> <span id="dup-composite-key" class="report-value"></span></li>
+                </ul>
+            </div>
+
+            <!-- Fingerprint Section -->
+            <div class="report-section">
+                <h4 class="report-section-title"><i class="fas fa-fingerprint"></i> Fingerprint Section</h4>
+                <ul class="report-list">
+                    <li><span class="report-label">Fingerprint ID:</span> <span id="dup-fingerprint" class="report-value"></span></li>
+                    <li><span class="report-label">Matched Existing Dataset:</span> <span id="dup-matching-name" class="report-value"></span></li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Table Match Section -->
+        <div class="reason-section" id="table-match-section" style="margin-top: 1rem;">
+            <div class="reason-title"><i class="fas fa-table"></i> Table Match Analysis (Matched Tables)</div>
+            <ul id="dup-matched-tables-list" style="padding-left: 20px; list-style-type: none; margin: 0; display: flex; flex-direction: column; gap: 6px;">
+                <!-- Matched tables will be populated here -->
+            </ul>
+        </div>
+
+        <!-- Conflict Analysis Section -->
+        <div class="reason-section" id="conflict-analysis-section" style="margin-top: 1rem;">
+            <div class="reason-title"><i class="fas fa-exclamation-triangle"></i> Conflict Analysis (Why duplicate was detected)</div>
+            <div class="reason-items" style="display: flex; flex-direction: column; gap: 8px;">
+                <div class="reason-item" id="conflict-fp-container">
+                    <span id="conflict-fp-check">✗</span> Fingerprint Match
+                </div>
+                <div class="reason-item" id="conflict-pk-container">
+                    <span id="conflict-pk-check">✗</span> Candidate Key Match
+                </div>
+                <div class="reason-item" id="conflict-struct-container">
+                    <span id="conflict-struct-check">✗</span> Same Dataset Structure
+                </div>
+                <div class="reason-item" id="conflict-identity-container">
+                    <span id="conflict-identity-check">✗</span> Same Survey + Year + Block
+                </div>
+            </div>
+        </div>
+
+        <div class="report-actions">
+            <button id="btn-discard-id" onclick="cancelImport()" class="btn-discard"><i class="fas fa-trash-alt"></i> Discard Upload</button>
+            <button id="btn-force-id" onclick="forceImport()" class="btn-force"><i class="fas fa-exclamation-triangle"></i> Force Import</button>
+            <button id="btn-continue-id" onclick="continueImport()" class="btn-force" style="background: var(--primary-gradient); display: none;"><i class="fas fa-play"></i> Continue Import</button>
         </div>
     </div>
 
-    <div class="file-list">
-        <h3>Files Status</h3>
-        <table>
-            <thead>
-                <tr>
-                    <th>File Name</th>
-                    <th>Status</th>
-                    <th>Rows</th>
-                    <th>Details</th>
-                </tr>
-            </thead>
-            <tbody id="file-table-body">
-                <!-- Rows will be populated by JS -->
-            </tbody>
-        </table>
-    </div>
-    
     <div id="error-container" style="color: var(--danger-color); margin-top: 1rem; display: none;"></div>
     <pre id="log-container" style="margin-top: 1rem; white-space: pre-wrap; display: none;"></pre>
 
@@ -323,9 +606,186 @@
                 else if (i === idx) el.classList.add('active');
             }
         });
+        const valStatus = String(job.validation_status || '').toLowerCase();
+        const hasReachedTerminalDuplicateState = (valStatus === 'duplicate_found' || valStatus === 'duplicate_not_found' || jobStatus === 'duplicate' || isCompleted);
+
+        if (hasReachedTerminalDuplicateState) {
+            isDone = true;
+            if (eventSource) {
+                try { eventSource.close(); } catch(e) {}
+                eventSource = null;
+            }
+            if (elapsedTimer) {
+                clearInterval(elapsedTimer);
+                elapsedTimer = null;
+            }
+            
+            // Hide progress container and file list, replace with final report card
+            document.getElementById('running-progress-state').style.display = 'none';
+            document.getElementById('duplicate-panel').style.display = 'block';
+            
+            const info = job.duplicate_info || {};
+            
+            // Populate Dataset Info
+            document.getElementById('dup-dataset-name').textContent = info.dataset_name || 'N/A';
+            document.getElementById('dup-survey-name').textContent = info.survey_name || 'N/A';
+            document.getElementById('dup-year').textContent = info.year || 'N/A';
+            document.getElementById('dup-file-type').textContent = info.file_type || 'N/A';
+            document.getElementById('dup-row-count').textContent = info.row_count !== undefined ? info.row_count.toLocaleString() : 'N/A';
+            document.getElementById('dup-col-count').textContent = info.col_count !== undefined ? info.col_count.toLocaleString() : 'N/A';
+            
+            // Populate Candidate Key Section
+            const ck = info.candidate_key;
+            document.getElementById('dup-candidate-key').textContent = (Array.isArray(ck) ? ck.join(', ') : ck) || 'None';
+            document.getElementById('dup-composite-key').textContent = info.composite_key ? 'Yes (' + ck.length + ' columns)' : 'No';
+            
+            // Populate Fingerprint Section
+            const fp = info.fingerprint || '';
+            document.getElementById('dup-fingerprint').textContent = fp || 'N/A';
+            
+            const existing = job.duplicate_info?.existing || {};
+            document.getElementById('dup-matching-name').textContent = existing.dataset_name || 'N/A';
+
+            // Populate Frozen status details
+            const frozenProgress = progress;
+            const frozenTime = startTime ? ((Date.now() - startTime) / 1000).toFixed(1) : "0.0";
+            document.getElementById('dup-frozen-progress').textContent = `Progress: ${frozenProgress}% (Frozen)`;
+            document.getElementById('dup-frozen-time').textContent = `Time: ${frozenTime}s (Frozen)`;
+
+            // Populate Status Badge & Action buttons
+            const statusBadge = document.getElementById('dup-status-badge');
+            statusBadge.className = 'status-pill';
+            
+            const discardBtn = document.getElementById('btn-discard-id');
+            const forceBtn = document.getElementById('btn-force-id');
+            const continueBtn = document.getElementById('btn-continue-id');
+            
+            if (valStatus === 'duplicate_not_found' || (isCompleted && jobStatus !== 'duplicate')) {
+                progressBar.style.background = 'var(--success-color)';
+                
+                statusBadge.className = 'status-pill status-new';
+                statusBadge.innerHTML = '🟢 New Dataset';
+                
+                discardBtn.style.display = 'none';
+                forceBtn.style.display = 'none';
+                continueBtn.style.display = 'inline-block';
+                
+                // Hide frozen progress row for new dataset
+                document.getElementById('dup-frozen-status-row').style.display = 'none';
+            } else {
+                progressBar.style.background = 'var(--secondary-color)';
+                
+                const statusVal = info.status || 'duplicate';
+                if (statusVal === 'possible_duplicate') {
+                    statusBadge.className = 'status-pill status-possible';
+                    statusBadge.innerHTML = '🟡 Possible Duplicate Dataset';
+                } else {
+                    statusBadge.className = 'status-pill status-duplicate';
+                    statusBadge.innerHTML = '🔴 Duplicate Dataset Detected';
+                }
+                
+                discardBtn.style.display = 'inline-block';
+                forceBtn.style.display = 'inline-block';
+                continueBtn.style.display = 'none';
+                
+                // Show frozen progress row
+                document.getElementById('dup-frozen-status-row').style.display = 'flex';
+            }
+
+            // Populate Matched Tables
+            const matchedList = document.getElementById('dup-matched-tables-list');
+            matchedList.innerHTML = '';
+            const mt = info.matched_tables || [];
+            if (mt.length > 0) {
+                mt.forEach(table => {
+                    const li = document.createElement('li');
+                    li.innerHTML = `<span style="color: #D4183D; font-weight: 600; margin-right: 8px;">✓</span> ${table}`;
+                    matchedList.appendChild(li);
+                });
+            } else if (info.block_name) {
+                const li = document.createElement('li');
+                li.innerHTML = `<span style="color: #D4183D; font-weight: 600; margin-right: 8px;">✓</span> ${info.block_name}`;
+                matchedList.appendChild(li);
+            } else {
+                const li = document.createElement('li');
+                li.innerHTML = `<span style="color: var(--text-muted);">None</span>`;
+                matchedList.appendChild(li);
+            }
+
+            // Populate Conflict Analysis
+            const conflictFpCheck = document.getElementById('conflict-fp-check');
+            const conflictPkCheck = document.getElementById('conflict-pk-check');
+            const conflictStructCheck = document.getElementById('conflict-struct-check');
+            const conflictIdentityCheck = document.getElementById('conflict-identity-check');
+            
+            const conflictFpCont = document.getElementById('conflict-fp-container');
+            const conflictPkCont = document.getElementById('conflict-pk-container');
+            const conflictStructCont = document.getElementById('conflict-struct-container');
+            const conflictIdentityCont = document.getElementById('conflict-identity-container');
+
+            // Reset
+            conflictFpCheck.textContent = '✗';
+            conflictPkCheck.textContent = '✗';
+            conflictStructCheck.textContent = '✗';
+            conflictIdentityCheck.textContent = '✗';
+            
+            conflictFpCont.className = 'reason-item reason-not-matched';
+            conflictPkCont.className = 'reason-item reason-not-matched';
+            conflictStructCont.className = 'reason-item reason-not-matched';
+            conflictIdentityCont.className = 'reason-item reason-not-matched';
+
+            const reason = info.reason || '';
+
+            if (valStatus === 'duplicate_not_found' || (isCompleted && jobStatus !== 'duplicate')) {
+                // Keep all unchecked
+            } else {
+                if (reason === 'Fingerprint Match') {
+                    conflictFpCheck.textContent = '✓';
+                    conflictPkCheck.textContent = '✓';
+                    conflictStructCheck.textContent = '✓';
+                    conflictIdentityCheck.textContent = '✓';
+                    
+                    conflictFpCont.className = 'reason-item reason-matched';
+                    conflictPkCont.className = 'reason-item reason-matched';
+                    conflictStructCont.className = 'reason-item reason-matched';
+                    conflictIdentityCont.className = 'reason-item reason-matched';
+                } else if (reason === 'Primary Key Match') {
+                    conflictFpCheck.textContent = '✗';
+                    conflictPkCheck.textContent = '✓';
+                    conflictStructCheck.textContent = '✓';
+                    conflictIdentityCheck.textContent = '✓';
+                    
+                    conflictFpCont.className = 'reason-item reason-not-matched';
+                    conflictPkCont.className = 'reason-item reason-matched';
+                    conflictStructCont.className = 'reason-item reason-matched';
+                    conflictIdentityCont.className = 'reason-item reason-matched';
+                } else if (reason === 'Survey/Year/Block Match' || reason === 'Dataset Metadata Match') {
+                    conflictFpCheck.textContent = '✗';
+                    conflictPkCheck.textContent = '✗';
+                    conflictStructCheck.textContent = '✗';
+                    conflictIdentityCheck.textContent = '✓';
+                    
+                    conflictFpCont.className = 'reason-item reason-not-matched';
+                    conflictPkCont.className = 'reason-item reason-not-matched';
+                    conflictStructCont.className = 'reason-item reason-not-matched';
+                    conflictIdentityCont.className = 'reason-item reason-matched';
+                }
+            }
+        } else {
+            document.getElementById('running-progress-state').style.display = 'block';
+            document.getElementById('duplicate-panel').style.display = 'none';
+        }
 
         if (jobStatus === 'processing' || jobStatus === 'loading_db' || jobStatus === 'converting' || jobStatus === 'ingesting') {
-            if (!startTime) startTime = Date.now();
+            if (!startTime) {
+                startTime = Date.now();
+                elapsedTimer = setInterval(() => {
+                    if (!isDone) {
+                        const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+                        document.getElementById('time-elapsed').textContent = `Time: ${elapsed}s`;
+                    }
+                }, 100);
+            }
 
             if (progress > 0 && progress < 100) {
                 const elapsed = (Date.now() - startTime) / 1000;
@@ -340,6 +800,10 @@
             }
         } else if (isCompleted) {
             timeRemainingMsg.textContent = "Completed";
+            if (elapsedTimer) {
+                clearInterval(elapsedTimer);
+                elapsedTimer = null;
+            }
         } else if (jobStatus === 'pending' || jobStatus === 'initialized' || jobStatus === 'queued') {
             timeRemainingMsg.textContent = "Starting...";
         }
@@ -429,6 +893,38 @@
 
     startSse();
     pollStatus();
+
+    async function forceImport() {
+        if (!confirm("Are you sure you want to force import this dataset? This will bypass duplicate validation.")) return;
+        try {
+            const res = await fetch(`/upload/force/${jobId}`, { method: 'POST' });
+            if (!res.ok) throw new Error(await res.text());
+            document.getElementById('duplicate-panel').style.display = 'none';
+            // Resume polling & SSE
+            isDone = false;
+            startTime = null;
+            startSse();
+            pollStatus();
+        } catch (e) {
+            alert("Failed to force import: " + e.message);
+        }
+    }
+
+    async function cancelImport() {
+        if (!confirm("Are you sure you want to cancel the import?")) return;
+        try {
+            const res = await fetch(`/upload/cancel/${jobId}`, { method: 'POST' });
+            if (!res.ok) throw new Error(await res.text());
+            alert("Import cancelled successfully.");
+            window.location.href = '/admin/dashboard';
+        } catch (e) {
+            alert("Failed to cancel import: " + e.message);
+        }
+    }
+
+    function continueImport() {
+        window.location.href = '/admin/dashboard';
+    }
 </script>
 
 </body>

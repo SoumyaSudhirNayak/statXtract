@@ -13,6 +13,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, 
 from auth.local.dependencies import get_current_active_user_with_role
 from utils.ingestion_pipeline import ingest_directory, ingest_upload_file
 from utils.db_utils import to_snake_case_identifier
+from utils.redundancy_detector import DuplicateDatasetException
 from utils.nada_client import (
     extract_files_list,
     guess_file_name,
@@ -199,6 +200,14 @@ async def download_dataset_files(
         "schema": schema,
         "status": "queued",
         "created_at": datetime.utcnow().isoformat(),
+        "runner_name": "ingest_dir",
+        "runner_args": {
+            "dataset_id": dataset_id,
+            "schema": schema,
+            "ingest_dir": str(ingest_dir),
+            "downloaded": downloaded,
+            "download_errors": errors,
+        }
     }
     background_tasks.add_task(
         _run_ingest_dir_job,
@@ -254,6 +263,13 @@ async def _run_ingest_dir_job(
 
         _jobs[job_id]["status"] = "completed"
         _jobs[job_id]["ended_at"] = datetime.utcnow().isoformat()
+        
+        from utils.job_manager import get_job
+        g_job = get_job(job_id)
+        if g_job:
+            _jobs[job_id]["duplicate_info"] = g_job.get("duplicate_info")
+            _jobs[job_id]["validation_status"] = g_job.get("validation_status", "duplicate_not_found")
+
         _jobs[job_id]["result"] = {
             "dataset_id": dataset_id,
             "schema": schema,
@@ -262,14 +278,22 @@ async def _run_ingest_dir_job(
             "download_errors": download_errors,
             "ingest": ingest_report,
         }
+    except DuplicateDatasetException as de:
+        _jobs[job_id]["status"] = "duplicate"
+        _jobs[job_id]["ended_at"] = datetime.utcnow().isoformat()
+        _jobs[job_id]["error"] = de.message
+        _jobs[job_id]["duplicate_info"] = de.duplicate_info
     except Exception as e:
         _jobs[job_id]["status"] = "failed"
         _jobs[job_id]["ended_at"] = datetime.utcnow().isoformat()
         _jobs[job_id]["error"] = str(e)
     finally:
         import shutil
-        if 'ingest_dir' in locals() and ingest_dir and ingest_dir.exists():
-            shutil.rmtree(ingest_dir, ignore_errors=True)
+        if _jobs[job_id].get("status") == "duplicate":
+            print(f"Bypassing cleanup for NADA duplicate job: {job_id}")
+        else:
+            if 'ingest_dir' in locals() and ingest_dir and ingest_dir.exists():
+                shutil.rmtree(ingest_dir, ignore_errors=True)
 
 
 async def _run_ingest_job(
@@ -356,6 +380,13 @@ async def _run_ingest_job(
 
         _jobs[job_id]["status"] = "completed"
         _jobs[job_id]["ended_at"] = datetime.utcnow().isoformat()
+        
+        from utils.job_manager import get_job
+        g_job = get_job(job_id)
+        if g_job:
+            _jobs[job_id]["duplicate_info"] = g_job.get("duplicate_info")
+            _jobs[job_id]["validation_status"] = g_job.get("validation_status", "duplicate_not_found")
+
         _jobs[job_id]["result"] = {
             "dataset_id": dataset_id,
             "schema": schema,
@@ -364,14 +395,22 @@ async def _run_ingest_job(
             "download_errors": download_errors,
             "ingest": ingest_report,
         }
+    except DuplicateDatasetException as de:
+        _jobs[job_id]["status"] = "duplicate"
+        _jobs[job_id]["ended_at"] = datetime.utcnow().isoformat()
+        _jobs[job_id]["error"] = de.message
+        _jobs[job_id]["duplicate_info"] = de.duplicate_info
     except Exception as e:
         _jobs[job_id]["status"] = "failed"
         _jobs[job_id]["ended_at"] = datetime.utcnow().isoformat()
         _jobs[job_id]["error"] = str(e)
     finally:
         import shutil
-        if 'ingest_dir' in locals() and ingest_dir and ingest_dir.exists():
-            shutil.rmtree(ingest_dir, ignore_errors=True)
+        if _jobs[job_id].get("status") == "duplicate":
+            print(f"Bypassing cleanup for NADA duplicate job: {job_id}")
+        else:
+            if 'ingest_dir' in locals() and ingest_dir and ingest_dir.exists():
+                shutil.rmtree(ingest_dir, ignore_errors=True)
 
 
 @router.post("/datasets/{dataset_id}/ingest")
@@ -392,6 +431,13 @@ async def ingest_dataset(
         "schema": schema,
         "status": "queued",
         "created_at": datetime.utcnow().isoformat(),
+        "runner_name": "ingest_job",
+        "runner_args": {
+            "dataset_id": dataset_id,
+            "schema": schema,
+            "api_key": api_key,
+            "file_nos": file_nos,
+        }
     }
     background_tasks.add_task(
         _run_ingest_job,
@@ -413,6 +459,7 @@ async def get_job_status(
     job = _jobs.get(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
+    # Return duplicate_info if present
     return job
 
 
@@ -553,6 +600,14 @@ async def ingest_prepared_dataset(
         "schema": payload.target_schema,
         "status": "queued",
         "created_at": datetime.utcnow().isoformat(),
+        "runner_name": "prepared",
+        "runner_args": {
+            "prepare_id": prepare_id,
+            "schema": payload.target_schema,
+            "year": payload.year,
+            "dataset_display_name": payload.dataset_display_name,
+            "selected_files": payload.selected_files,
+        }
     }
     background_tasks.add_task(
         _run_prepared_ingest_job,
@@ -636,6 +691,13 @@ async def _run_prepared_ingest_job(
 
         _jobs[job_id]["status"] = "completed"
         _jobs[job_id]["ended_at"] = datetime.utcnow().isoformat()
+        
+        from utils.job_manager import get_job
+        g_job = get_job(job_id)
+        if g_job:
+            _jobs[job_id]["duplicate_info"] = g_job.get("duplicate_info")
+            _jobs[job_id]["validation_status"] = g_job.get("validation_status", "duplicate_not_found")
+
         _jobs[job_id]["result"] = {
             "dataset_id": dataset_display_name,
             "schema": schema,
@@ -650,20 +712,118 @@ async def _run_prepared_ingest_job(
         raw_zip_dest = raw_dir / temp_zip_path.name
         dataset_raw_extracted_dir = raw_dir / "extracted"
 
+    except DuplicateDatasetException as de:
+        _jobs[job_id]["status"] = "duplicate"
+        _jobs[job_id]["ended_at"] = datetime.utcnow().isoformat()
+        _jobs[job_id]["error"] = de.message
+        _jobs[job_id]["duplicate_info"] = de.duplicate_info
     except Exception as e:
         _jobs[job_id]["status"] = "failed"
         _jobs[job_id]["ended_at"] = datetime.utcnow().isoformat()
         _jobs[job_id]["error"] = str(e)
     finally:
-        # Clean up temporary folders
-        shutil.rmtree(prepare_dir, ignore_errors=True)
+        # Clean up temporary folders unless duplicate state pauses it
+        if _jobs[job_id].get("status") == "duplicate":
+            shutil.rmtree(prepare_dir, ignore_errors=True)
+            # Keep ingest_temp_dir and temp_zip_path!
+        else:
+            shutil.rmtree(prepare_dir, ignore_errors=True)
+            shutil.rmtree(ingest_temp_dir, ignore_errors=True)
+            
+            # Clean up copied zip in raw_dir and extracted files inside raw_dir
+            if raw_zip_dest and raw_zip_dest.exists():
+                try:
+                    os.remove(raw_zip_dest)
+                except Exception:
+                    pass
+            if dataset_raw_extracted_dir and dataset_raw_extracted_dir.exists():
+                shutil.rmtree(dataset_raw_extracted_dir, ignore_errors=True)
+
+
+@router.post("/jobs/{job_id}/force")
+async def force_nada_job(
+    job_id: str,
+    background_tasks: BackgroundTasks,
+    request: Request,
+    current_user=Depends(get_current_active_user_with_role(["1"])),
+):
+    job = _jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    if job.get("status") != "duplicate":
+        raise HTTPException(status_code=400, detail="Job is not in duplicate status")
+        
+    # Set force_import in the global job store for ingest_upload_file to read
+    from utils.job_manager import get_job, jobs as global_jobs
+    job_mgr_job = get_job(job_id)
+    if not job_mgr_job:
+        global_jobs[job_id] = {
+            "status": "QUEUED",
+            "force_import": True
+        }
+    else:
+        job_mgr_job["force_import"] = True
+        
+    job["status"] = "queued"
+    job["error"] = None
+    
+    runner_name = job.get("runner_name")
+    runner_args = job.get("runner_args", {})
+    kwargs = dict(runner_args)
+    if "ingest_dir" in kwargs:
+        kwargs["ingest_dir"] = Path(kwargs["ingest_dir"])
+        
+    if runner_name == "prepared":
+        background_tasks.add_task(
+            _run_prepared_ingest_job,
+            job_id=job_id,
+            **kwargs
+        )
+    elif runner_name == "ingest_job":
+        background_tasks.add_task(
+            _run_ingest_job,
+            job_id=job_id,
+            request=request,
+            **kwargs
+        )
+    elif runner_name == "ingest_dir":
+        background_tasks.add_task(
+            _run_ingest_dir_job,
+            job_id=job_id,
+            request=request,
+            **kwargs
+        )
+        
+    return {"status": "queued", "message": "Force import started."}
+
+
+@router.post("/jobs/{job_id}/cancel")
+async def cancel_nada_job(
+    job_id: str,
+    current_user=Depends(get_current_active_user_with_role(["1"])),
+):
+    job = _jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+        
+    job["status"] = "failed"
+    job["error"] = "Import cancelled by admin"
+    
+    # Clean up files if they exist
+    ingest_temp_dir = _get_ingest_root() / "ingest" / job_id
+    if ingest_temp_dir.exists():
         shutil.rmtree(ingest_temp_dir, ignore_errors=True)
         
-        # Clean up copied zip in raw_dir and extracted files inside raw_dir
-        if raw_zip_dest and raw_zip_dest.exists():
-            try:
-                os.remove(raw_zip_dest)
-            except Exception:
-                pass
-        if dataset_raw_extracted_dir and dataset_raw_extracted_dir.exists():
-            shutil.rmtree(dataset_raw_extracted_dir, ignore_errors=True)
+    runner_args = job.get("runner_args", {})
+    prepare_id = runner_args.get("prepare_id")
+    if prepare_id:
+        prepare_dir = _get_ingest_root() / "prepare" / prepare_id
+        if prepare_dir.exists():
+            shutil.rmtree(prepare_dir, ignore_errors=True)
+            
+    ingest_dir = runner_args.get("ingest_dir")
+    if ingest_dir and os.path.exists(str(ingest_dir)):
+        shutil.rmtree(str(ingest_dir), ignore_errors=True)
+        
+    return {"status": "cancelled", "message": "NADA Import cancelled."}
