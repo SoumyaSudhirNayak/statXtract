@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, Request, Form, Depends
+from fastapi import FastAPI, UploadFile, File, Request, Form, Depends, Query
 from fastapi.responses import HTMLResponse, RedirectResponse, Response, JSONResponse, StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -332,7 +332,7 @@ async def lifespan(app: FastAPI):
 
 
 # FastAPI app initialization
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 os.makedirs("uploads/user_uploads", exist_ok=True)
 app.mount("/uploads", StaticFiles(directory="uploads/user_uploads"), name="user_uploads")
@@ -578,23 +578,35 @@ async def login_get(request: Request):
     )
 
 
-@app.post("/login", response_class=HTMLResponse, include_in_schema=False)
+@app.post("/login", include_in_schema=True)
 async def login_post(
-    request: Request, form_data: OAuth2PasswordRequestForm = Depends()
+    request: Request,
+    username: str = Form(...),
+    password: str = Form(...),
 ):
     conn = request.app.state.db
     async with conn.acquire() as db:
-        user = await get_user_by_email(db, form_data.username)
-        if not user or not verify_password(form_data.password, user["hashed_password"]):
+        user = await get_user_by_email(db, username)
+        
+        accept = request.headers.get("accept", "")
+        wants_json = "application/json" in accept or "json" in request.headers.get("content-type", "").lower()
+        
+        if not user or not verify_password(password, user["hashed_password"]):
+            if wants_json:
+                return JSONResponse(status_code=400, content={"detail": "Invalid credentials"})
             return templates.TemplateResponse(
-        request=request,
-        name="login.html",
-        context={"request": request, "error": "Invalid credentials"}
-    )
+                request=request,
+                name="login.html",
+                context={"request": request, "error": "Invalid credentials"}
+            )
 
         access_token = create_access_token(
             data={"sub": user["email"], "role": user["role_id"]}
         )
+        
+        if wants_json:
+            return JSONResponse({"access_token": access_token, "token_type": "bearer"})
+            
         response = RedirectResponse(
             url="/admin/dashboard" if str(user["role_id"]) == "1" else "/user/dashboard",
             status_code=302,
@@ -612,7 +624,7 @@ async def register_page(request: Request):
     )
 
 
-@app.post("/register", include_in_schema=False)
+@app.post("/register", include_in_schema=True)
 async def register_user(
     request: Request,
     username: str = Form(...),
@@ -631,20 +643,16 @@ async def register_user(
     accept = request.headers.get("accept", "")
     wants_json = "application/json" in accept
 
-    # Math CAPTCHA validation (unconditional)
+    # Math CAPTCHA validation
     session_captcha = request.session.get("captcha")
-    request.session.pop("captcha", None)
-    if not captcha_answer or captcha_answer != session_captcha:
-        if wants_json:
-            return JSONResponse(
-                status_code=400,
-                content={"detail": "CAPTCHA verification failed. Please try again."},
+    if not wants_json:
+        request.session.pop("captcha", None)
+        if not captcha_answer or captcha_answer != session_captcha:
+            return templates.TemplateResponse(
+                request=request,
+                name="register.html",
+                context={"request": request, "error": "CAPTCHA verification failed. Please try again."}
             )
-        return templates.TemplateResponse(
-            request=request,
-            name="register.html",
-            context={"request": request, "error": "CAPTCHA verification failed. Please try again."}
-        )
 
     async with pool.acquire() as conn:
         # Check if user already exists
@@ -3026,6 +3034,107 @@ async def list_survey_datasets(request: Request, survey: str, current_user=Depen
         return allowed
 
 
+def _extract_table_from_sql(sql: str) -> str:
+    import re
+    match = re.search(r'\bFROM\s+([a-zA-Z0-9_\-\.]+)', sql, re.IGNORECASE)
+    if match:
+        t = match.group(1).strip()
+        if "." in t:
+            t = t.split(".")[-1]
+        return t.replace('"', '').replace('`', '').replace("'", "")
+    return ""
+
+@app.get("/surveys/{survey}/datasets/{dataset}/tables", include_in_schema=True)
+async def list_survey_dataset_tables_public(
+    request: Request,
+    survey: str,
+    dataset: str,
+    current_user=Depends(get_current_user),
+):
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        await apply_admin_rules(conn, current_user, {"action": "dataset_access"})
+        
+        grouped = await _group_schemas_by_survey(conn)
+        g = grouped.get(survey)
+        if not g:
+            raise HTTPException(status_code=404, detail="Survey not found")
+        ds = [d for d in g["datasets"] if d["schema"] == dataset]
+        if not ds:
+            raise HTTPException(status_code=404, detail="Dataset not found")
+            
+        rows = await conn.fetch(
+            """
+            SELECT table_name
+            FROM information_schema.tables
+            WHERE table_type = 'BASE TABLE'
+              AND table_schema = $1
+            ORDER BY table_name
+            """,
+            dataset,
+        )
+        
+        tokens = _set_apply_context(conn=conn)
+        try:
+            out = []
+            for r in rows:
+                name = r["table_name"]
+                if _is_internal_table(name):
+                    continue
+                try:
+                    await apply_config(dataset, name, current_user, [], None)
+                    out.append(name)
+                except TableHidden:
+                    continue
+            return {
+                "survey": survey,
+                "dataset": dataset,
+                "tables": out
+            }
+        finally:
+            _reset_apply_context(tokens)
+
+@app.get("/surveys/{survey}/datasets/{dataset}/query", include_in_schema=True)
+async def query_survey_dataset_public(
+    request: Request,
+    survey: str,
+    dataset: str,
+    table: str = "",
+    sql: str = Query("", description="execute sql query"),
+    columns: str = "",
+    filters: str = "",
+    limit: int = 100,
+    offset: int = 0,
+    current_user=Depends(get_current_user),
+):
+    if sql.strip():
+        t_name = table.strip()
+        if not t_name:
+            t_name = _extract_table_from_sql(sql)
+            if not t_name:
+                raise HTTPException(status_code=400, detail="Could not detect table name from SQL. Please provide 'table' parameter.")
+        
+        payload = SQLExecuteRequest(
+            survey=survey,
+            dataset=dataset,
+            table=t_name,
+            sql=sql
+        )
+        return await execute_sql_query(request, payload, current_user)
+        
+    if not table:
+        raise HTTPException(status_code=400, detail="Parameter 'table' is required for query.")
+    return await query_table(
+        request=request,
+        schema=dataset,
+        table=table,
+        columns=columns,
+        filters=filters,
+        limit=limit,
+        offset=offset,
+        current_user=current_user,
+    )
+
 @app.get("/surveys/{survey}/{dataset}/tables")
 async def list_survey_tables(request: Request, survey: str, dataset: str, current_user=Depends(get_current_user)):
     pool = request.app.state.db
@@ -4264,7 +4373,7 @@ async def get_dataset_metadata(
     }
 
 
-@app.get("/datasets", include_in_schema=False)
+@app.get("/datasets", include_in_schema=True)
 async def list_schemas_and_tables(request: Request, current_user=Depends(get_current_user)):
     try:
         pool = request.app.state.db
@@ -7639,9 +7748,9 @@ def custom_openapi():
         return app.openapi_schema
 
     openapi_schema = get_openapi(
-        title="Statathon API Gateway",
+        title="StatXtract API Gateway",
         version="1.0.0",
-        description="Upload and query datasets securely",
+        description="Clean, governed API Gateway for dataset exploration.",
         routes=app.routes,
     )
 
@@ -7649,16 +7758,194 @@ def custom_openapi():
         "BearerAuth": {"type": "http", "scheme": "bearer", "bearerFormat": "JWT"}
     }
 
-    # Apply to all routes
-    for path in openapi_schema["paths"].values():
-        for method in path.values():
-            method.setdefault("security", []).append({"BearerAuth": []})
+    visible_routes = {
+        "/login": {"methods": ["post"], "tag": "Authentication", "desc": "Login to receive a JWT Bearer token."},
+        "/register": {"methods": ["post"], "tag": "Authentication", "desc": "Register a new user account."},
+        "/surveys": {"methods": ["get"], "tag": "Survey APIs", "desc": "List all surveys."},
+        "/surveys/{survey}/datasets": {"methods": ["get"], "tag": "Survey APIs", "desc": "List all datasets under the selected survey."},
+        "/surveys/{survey}/datasets/{dataset}/tables": {"methods": ["get"], "tag": "Survey APIs", "desc": "Return all tables inside the selected dataset."},
+        "/surveys/{survey}/datasets/{dataset}/query": {"methods": ["get"], "tag": "Survey APIs", "desc": "Query dataset table data securely using SQL or parameters."},
+        "/metadata/{dataset}": {"methods": ["get"], "tag": "Survey APIs", "desc": "Return dataset metadata information."}
+    }
+
+    filtered_paths = {}
+    for path, path_item in openapi_schema.get("paths", {}).items():
+        if path in visible_routes:
+            allowed_methods = visible_routes[path]["methods"]
+            filtered_methods = {}
+            for method, method_item in path_item.items():
+                if method.lower() in allowed_methods:
+                    method_item["tags"] = [visible_routes[path]["tag"]]
+                    if not method_item.get("summary"):
+                        method_item["summary"] = visible_routes[path]["desc"]
+                    method_item.setdefault("security", []).append({"BearerAuth": []})
+                    filtered_methods[method] = method_item
+            if filtered_methods:
+                filtered_paths[path] = filtered_methods
+
+    openapi_schema["paths"] = filtered_paths
 
     app.openapi_schema = openapi_schema
     return app.openapi_schema
 
 
 app.openapi = custom_openapi
+
+from fastapi.openapi.docs import get_swagger_ui_html
+def _extract_table_from_sql(sql: str) -> str:
+    import re
+    match = re.search(r'\bFROM\s+([a-zA-Z0-9_\-\.]+)', sql, re.IGNORECASE)
+    if match:
+        t = match.group(1).strip()
+        if "." in t:
+            t = t.split(".")[-1]
+        return t.replace('"', '').replace('`', '').replace("'", "")
+    return ""
+
+@app.get("/docs", include_in_schema=False)
+async def custom_swagger_ui_html(req: Request):
+    response = get_swagger_ui_html(
+        openapi_url=app.openapi_url,
+        title=app.title + " - API Gateway",
+        oauth2_redirect_url=app.swagger_ui_oauth2_redirect_url,
+        swagger_js_url="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js",
+        swagger_css_url="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css",
+        swagger_ui_parameters={"persistAuthorization": True},
+    )
+    custom_js = """
+    <script>
+    document.addEventListener("DOMContentLoaded", function() {
+        const timerContainer = document.createElement("div");
+        timerContainer.id = "jwt-timer-container";
+        timerContainer.style.position = "fixed";
+        timerContainer.style.top = "80px";
+        timerContainer.style.right = "20px";
+        timerContainer.style.padding = "16px 24px";
+        timerContainer.style.color = "#ffffff";
+        timerContainer.style.borderRadius = "16px";
+        timerContainer.style.fontWeight = "600";
+        timerContainer.style.fontFamily = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
+        timerContainer.style.zIndex = "99999";
+        timerContainer.style.boxShadow = "0 10px 30px rgba(0, 0, 0, 0.15)";
+        timerContainer.style.border = "1px solid rgba(255, 255, 255, 0.2)";
+        timerContainer.style.backdropFilter = "blur(12px)";
+        timerContainer.style.background = "linear-gradient(135deg, #1e3c72, #2a5298)";
+        timerContainer.style.display = "none";
+        timerContainer.style.transition = "all 0.3s ease";
+        timerContainer.style.minWidth = "180px";
+        timerContainer.style.textAlign = "center";
+        
+        timerContainer.innerHTML = `
+            <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; opacity: 0.8; margin-bottom: 6px;">Token Status</div>
+            <div id="jwt-countdown" style="font-size: 24px; font-weight: 700; letter-spacing: 0.5px; font-variant-numeric: tabular-nums;">--:--</div>
+        `;
+        document.body.appendChild(timerContainer);
+
+        function checkToken() {
+            let token = null;
+            try {
+                if (window.ui && typeof window.ui.getState === 'function') {
+                    const state = window.ui.getState();
+                    if (state) {
+                        const auth = state.get("auth");
+                        if (auth) {
+                            const authorized = auth.get("authorized");
+                            if (authorized) {
+                                const bearer = authorized.get("BearerAuth");
+                                if (bearer) {
+                                    token = bearer.get("value");
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error("Error fetching token from Swagger state", e);
+            }
+
+            if (!token) {
+                timerContainer.style.display = "none";
+                return;
+            }
+
+            try {
+                const actualToken = token.startsWith("Bearer ") ? token.substring(7) : token;
+                const base64Url = actualToken.split('.')[1];
+                const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+                const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+                    return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+                }).join(''));
+                const payload = JSON.parse(jsonPayload);
+                const exp = payload.exp;
+
+                const now = Math.floor(Date.now() / 1000);
+                const diff = exp - now;
+
+                timerContainer.style.display = "block";
+
+                const countdownEl = document.getElementById("jwt-countdown");
+                if (diff > 0) {
+                    const mins = Math.floor(diff / 60);
+                    const secs = diff % 60;
+                    countdownEl.innerText = mins.toString().padStart(2, '0') + ":" + secs.toString().padStart(2, '0');
+                    timerContainer.style.background = "linear-gradient(135deg, #1e3c72, #2a5298)";
+                    timerContainer.style.borderColor = "rgba(255, 255, 255, 0.2)";
+                } else {
+                    countdownEl.innerHTML = `<span style="font-size: 16px;">Token Expired</span><div style="font-size: 10px; opacity: 0.8; margin-top: 4px; font-weight: 500;">Please Login Again</div>`;
+                    timerContainer.style.background = "linear-gradient(135deg, #cb2d3e, #ef473a)";
+                    timerContainer.style.borderColor = "rgba(255, 255, 255, 0.3)";
+                }
+            } catch (e) {
+                timerContainer.style.display = "none";
+            }
+        }
+        
+        setInterval(checkToken, 1000);
+    });
+    </script>
+    """
+    new_html = response.body.replace(b"const ui = SwaggerUIBundle({", b"window.ui = SwaggerUIBundle({")
+    new_html = new_html.replace(b"</body>", custom_js.encode() + b"</body>")
+    return HTMLResponse(content=new_html, status_code=response.status_code)
+
+
+@app.get("/metadata/{dataset}", include_in_schema=True)
+async def get_metadata_public(
+    request: Request,
+    dataset: str,
+    current_user=Depends(get_current_user),
+):
+    pool = request.app.state.db
+    async with pool.acquire() as conn:
+        await apply_admin_rules(conn, current_user, {"action": "dataset_access"})
+        
+        schema_exists = await conn.fetchval(
+            "SELECT EXISTS(SELECT 1 FROM information_schema.schemata WHERE schema_name = $1)",
+            dataset
+        )
+        if not schema_exists:
+            raise HTTPException(status_code=404, detail="Dataset not found")
+        
+        try:
+            meta = await conn.fetchrow(f'SELECT * FROM "{dataset}".dataset_metadata ORDER BY id DESC LIMIT 1')
+            variables = await conn.fetch(f'SELECT * FROM "{dataset}".variables ORDER BY table_name, variable_name')
+            categories = await conn.fetch(f'SELECT * FROM "{dataset}".variable_categories')
+            stats = await conn.fetch(f'SELECT * FROM "{dataset}".variable_statistics')
+        except Exception:
+            meta = None
+            variables = []
+            categories = []
+            stats = []
+            
+    return {
+        "dataset": dataset,
+        "study_description": dict(meta) if meta else None,
+        "columns": [dict(v) for v in variables],
+        "categories": [dict(c) for c in categories],
+        "statistics": [dict(s) for s in stats]
+    }
+
+
 
 
 
