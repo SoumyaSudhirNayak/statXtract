@@ -3560,13 +3560,20 @@ async def execute_sql_query(
                 rows_requested=1000,
             )
             
+            # Detect aggregation/distinct queries early for governance decisions
+            is_agg = bool(re.search(r'\b(COUNT|SUM|AVG|MIN|MAX|GROUP\s+BY|HAVING)\b', sql_clean, re.IGNORECASE))
+            is_distinct = bool(re.search(r'\bSELECT\s+DISTINCT\b', sql_clean, re.IGNORECASE))
+            
             # Apply column level configs
             try:
                 allowed_columns, _ = await apply_config(dataset, table, current_user, raw_cols, None)
             except TableHidden:
                 raise HTTPException(status_code=404, detail=f"Table {dataset}.{table} not found")
                 
-            if not allowed_columns:
+            # For aggregation/distinct queries, result columns are computed metrics
+            # (e.g. total_count, avg_cost) that don't correspond to raw table columns.
+            # Don't block these queries just because source columns are restricted.
+            if not allowed_columns and not is_agg and not is_distinct:
                 raise HTTPException(status_code=403, detail="No columns available")
                 
             # Execute query in a read-only transaction block
@@ -3583,6 +3590,9 @@ async def execute_sql_query(
             rows_returned = len(result)
             
             # 5. Variable Configuration Enforcement (Step 1)
+            # Only restrict actual source dataset columns.
+            # Computed/alias columns from aggregation queries (e.g. total_count,
+            # avg_cost, sum_value) are derived metrics and must NOT be governed.
             if role_name != "admin":
                 var_configs = await get_variable_configs(dataset, table)
                 sensitive_enabled = (await _get_system_setting(conn, "enable_sensitive_columns", "false")).strip().lower() == "true"
@@ -3594,17 +3604,22 @@ async def execute_sql_query(
                         disallowed_cols.add(col)
                     elif cfg and cfg.get("is_sensitive") and not sensitive_enabled:
                         disallowed_cols.add(col)
-                    elif cfg and cfg.get("is_sensitive"):
-                        disallowed_cols.add(col)
-                        
+                
+                # Build the set of actual raw column names (lowercase for safe comparison)
+                raw_col_set = set(raw_cols)
+                
                 for r in result:
                     for dc in disallowed_cols:
                         if dc in r:
                             del r[dc]
+                    
+                    # For aggregation/distinct queries: if stripping disallowed raw
+                    # columns left the row empty but there were originally computed
+                    # columns, that means ALL columns happened to be raw+restricted.
+                    # This is fine — the row is legitimately empty.
 
             # 6. Cell Suppression (Step 2)
-            is_agg = bool(re.search(r'\b(COUNT|SUM|AVG|MIN|MAX|GROUP\s+BY|HAVING)\b', sql_clean, re.IGNORECASE))
-            is_distinct = bool(re.search(r'\bSELECT\s+DISTINCT\b', sql_clean, re.IGNORECASE))
+            # is_agg and is_distinct were already detected earlier (before access gate)
             if role_name != "admin" and not is_agg and not is_distinct:
                 if rows_returned < 5:
                     suppressed = True

@@ -2355,8 +2355,8 @@
             let isNumeric = colMeta ? (colMeta.filter_type === 'numeric') : false;
             
             // Fallback for custom SQL results
-            if (!colMeta && window.latestResults && window.latestResults.length > 0) {
-                isNumeric = window.latestResults.some(row => isNumericValue(row[colName]));
+            if (!colMeta && latestResults && latestResults.length > 0) {
+                isNumeric = latestResults.some(row => isNumericValue(row[colName]));
             }
 
             if (!isNumeric) return false;
@@ -2582,6 +2582,22 @@
                 tableResultsContainer.classList.remove('empty-state');
             }
             const columns = Object.keys(data[0]);
+            if (columns.length === 0) {
+                if (tableResultsContainer) {
+                    tableResultsContainer.classList.add('empty-state');
+                }
+                tableBody.innerHTML = `<tr><td colspan='100%'>
+                    <div class="empty-result-banner">
+                        <i class="fas fa-lock"></i>
+                        <p>No accessible columns</p>
+                        <small>All columns in the result are restricted by governance policies.</small>
+                    </div>
+                </td></tr>`;
+                document.getElementById('tablePagination').style.display = 'none';
+                const btnExpandResults = document.getElementById('btnExpandResults');
+                if (btnExpandResults) btnExpandResults.style.display = 'none';
+                return;
+            }
             tableHead.innerHTML = "<tr>" + columns.map(col => `<th>${col}</th>`).join("") + "</tr>";
 
             // Limit initial animation for performance
