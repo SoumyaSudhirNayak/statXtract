@@ -58,15 +58,10 @@ async def login_form(
     request: Request,
     form_data: OAuth2PasswordRequestForm = Depends()
 ):
-    async with request.app.state.db.acquire() as conn:
-        user = await get_user_by_email(conn, form_data.username)
-    
     referer = request.headers.get("referer", "") or ""
-    is_admin_login = "/login" in referer and "/user/login" not in referer
-    if user and str(user.get("role_id")) == "1":
-        is_admin_login = True
-        
-    if not is_admin_login:
+    is_admin_portal = "/login" in referer and "/user/login" not in referer
+
+    if not is_admin_portal:
         form = await request.form()
         captcha_answer = form.get("captcha_answer")
         session_captcha = request.session.get("captcha")
@@ -80,35 +75,45 @@ async def login_form(
 
     async with request.app.state.db.acquire() as conn:
         user = await get_user_by_email(conn, form_data.username)
-        
-        referer = request.headers.get("referer", "") or ""
-        is_admin_login = "/login" in referer and "/user/login" not in referer
-        if user and str(user.get("role_id")) == "1":
-            is_admin_login = True
-        error_redirect_base = "/login" if is_admin_login else "/user/login"
 
+    error_redirect_base = "/login" if is_admin_portal else "/user/login"
 
-        if not user or not verify_password(form_data.password, user["hashed_password"]):
-            return RedirectResponse(f"{error_redirect_base}?error=invalid", status_code=HTTP_302_FOUND)
+    if not user or not verify_password(form_data.password, user["hashed_password"]):
+        return RedirectResponse(f"{error_redirect_base}?error=invalid", status_code=HTTP_302_FOUND)
 
-        # Check if blocked
-        if user.get("is_blocked"):
-            return RedirectResponse(f"{error_redirect_base}?error=blocked", status_code=HTTP_302_FOUND)
+    # Portal Role Verification (Check BOTH credentials and role before JWT generation)
+    role_id = str(user["role_id"])
+    if is_admin_portal:
+        if role_id != "1":
+            return RedirectResponse(
+                "/login?error=Access+Denied.+This+portal+is+reserved+for+Administrator+accounts.",
+                status_code=HTTP_302_FOUND
+            )
+    else:
+        if role_id == "1":
+            return RedirectResponse(
+                "/user/login?error=Access+Denied.+Please+log+in+through+the+User+Portal.",
+                status_code=HTTP_302_FOUND
+            )
 
-        # Check if verified (only for non-admin users)
-        role_id = str(user["role_id"])
-        if role_id != "1" and not user.get("is_verified"):
-            return RedirectResponse(f"{error_redirect_base}?error=unverified", status_code=HTTP_302_FOUND)
+    # Check if blocked
+    if user.get("is_blocked"):
+        return RedirectResponse(f"{error_redirect_base}?error=blocked", status_code=HTTP_302_FOUND)
 
-        token = create_access_token({
-            "sub": user["email"],
-            "role": str(user["role_id"])
-        })
+    # Check if verified (only for non-admin users)
+    if role_id != "1" and not user.get("is_verified"):
+        return RedirectResponse(f"{error_redirect_base}?error=unverified", status_code=HTTP_302_FOUND)
 
-        # 👇 Redirect based on role
-        target = "/admin/dashboard" if role_id == "1" else "/user/dashboard"
+    token = create_access_token({
+        "sub": user["email"],
+        "role": str(user["role_id"])
+    })
 
-        response = RedirectResponse(url=target, status_code=HTTP_302_FOUND)
-        response.set_cookie("access_token", token, httponly=True)
-        return response
+    # 👇 Redirect based on role
+    target = "/admin/dashboard" if role_id == "1" else "/user/dashboard"
+
+    response = RedirectResponse(url=target, status_code=HTTP_302_FOUND)
+    response.set_cookie("access_token", token, httponly=True)
+    return response
+
 

@@ -591,14 +591,32 @@ async def login_post(
         accept = request.headers.get("accept", "")
         wants_json = "application/json" in accept or "json" in request.headers.get("content-type", "").lower()
         
+        referer = request.headers.get("referer", "") or ""
+        is_admin_portal = "/login" in referer and "/user/login" not in referer
+
         if not user or not verify_password(password, user["hashed_password"]):
             if wants_json:
                 return JSONResponse(status_code=400, content={"detail": "Invalid credentials"})
-            return templates.TemplateResponse(
-                request=request,
-                name="login.html",
-                context={"request": request, "error": "Invalid credentials"}
-            )
+            error_redirect_base = "/login" if is_admin_portal else "/user/login"
+            return RedirectResponse(f"{error_redirect_base}?error=invalid", status_code=302)
+
+        role_id = str(user["role_id"])
+        if is_admin_portal:
+            if role_id != "1":
+                if wants_json:
+                    return JSONResponse(status_code=403, content={"detail": "Access Denied. This portal is reserved for Administrator accounts."})
+                return RedirectResponse(
+                    "/login?error=Access+Denied.+This+portal+is+reserved+for+Administrator+accounts.",
+                    status_code=302
+                )
+        else:
+            if role_id == "1":
+                if wants_json:
+                    return JSONResponse(status_code=403, content={"detail": "Access Denied. Please log in through the User Portal."})
+                return RedirectResponse(
+                    "/user/login?error=Access+Denied.+Please+log+in+through+the+User+Portal.",
+                    status_code=302
+                )
 
         access_token = create_access_token(
             data={"sub": user["email"], "role": user["role_id"]}
@@ -7929,6 +7947,8 @@ async def custom_swagger_ui_html(req: Request):
 async def get_metadata_public(
     request: Request,
     dataset: str,
+    page: int = Query(1, ge=1, description="Page number (1-indexed)"),
+    page_size: int = Query(50, ge=1, le=100, description="Items per page (max 100)"),
     current_user=Depends(get_current_user),
 ):
     pool = request.app.state.db
@@ -7942,23 +7962,112 @@ async def get_metadata_public(
         if not schema_exists:
             raise HTTPException(status_code=404, detail="Dataset not found")
         
+        # ── Study description (always small, include in every page) ──
         try:
             meta = await conn.fetchrow(f'SELECT * FROM "{dataset}".dataset_metadata ORDER BY id DESC LIMIT 1')
-            variables = await conn.fetch(f'SELECT * FROM "{dataset}".variables ORDER BY table_name, variable_name')
-            categories = await conn.fetch(f'SELECT * FROM "{dataset}".variable_categories')
-            stats = await conn.fetch(f'SELECT * FROM "{dataset}".variable_statistics')
         except Exception:
             meta = None
+        
+        # Build a compact study summary (exclude huge blobs if any)
+        study_desc = None
+        if meta:
+            meta_dict = dict(meta)
+            # Keep only scalar/small fields for the summary
+            study_desc = {}
+            for k, v in meta_dict.items():
+                if v is None:
+                    continue
+                sv = str(v)
+                # Skip extremely large values (e.g. embedded JSON blobs > 2KB)
+                if len(sv) <= 2048:
+                    study_desc[k] = v
+        
+        # ── Count total variables (the primary paginated collection) ──
+        try:
+            total_items = await conn.fetchval(
+                f'SELECT COUNT(*) FROM "{dataset}".variables'
+            )
+        except Exception:
+            total_items = 0
+        
+        total_pages = max(1, (total_items + page_size - 1) // page_size)
+        
+        # Clamp page to valid range
+        if page > total_pages:
+            page = total_pages
+        
+        offset = (page - 1) * page_size
+        
+        # ── Fetch ONLY the variables for the requested page ──
+        try:
+            variables = await conn.fetch(
+                f'SELECT * FROM "{dataset}".variables ORDER BY table_name, variable_name LIMIT $1 OFFSET $2',
+                page_size,
+                offset,
+            )
+        except Exception:
             variables = []
-            categories = []
-            stats = []
-            
+        
+        # ── Collect the variable names on this page to scope sub-queries ──
+        var_names_on_page = list({v["variable_name"] for v in variables if v.get("variable_name")})
+        table_names_on_page = list({v["table_name"] for v in variables if v.get("table_name")})
+        
+        # ── Fetch categories ONLY for variables on this page ──
+        page_categories = []
+        if var_names_on_page:
+            try:
+                placeholders = ", ".join(f"${i+1}" for i in range(len(var_names_on_page)))
+                page_categories = await conn.fetch(
+                    f'SELECT * FROM "{dataset}".variable_categories WHERE variable_name IN ({placeholders})',
+                    *var_names_on_page,
+                )
+            except Exception:
+                page_categories = []
+        
+        # ── Fetch statistics ONLY for variables on this page ──
+        page_stats = []
+        if var_names_on_page:
+            try:
+                placeholders = ", ".join(f"${i+1}" for i in range(len(var_names_on_page)))
+                page_stats = await conn.fetch(
+                    f'SELECT * FROM "{dataset}".variable_statistics WHERE variable_name IN ({placeholders})',
+                    *var_names_on_page,
+                )
+            except Exception:
+                page_stats = []
+        
+        # ── Build items: each variable with its categories and stats ──
+        # Index categories and stats by variable_name for fast lookup
+        cat_by_var = {}
+        for c in page_categories:
+            cd = dict(c)
+            vn = cd.get("variable_name", "")
+            cat_by_var.setdefault(vn, []).append(cd)
+        
+        stat_by_var = {}
+        for s in page_stats:
+            sd = dict(s)
+            vn = sd.get("variable_name", "")
+            stat_by_var.setdefault(vn, []).append(sd)
+        
+        items = []
+        for v in variables:
+            vd = dict(v)
+            vn = vd.get("variable_name", "")
+            vd["categories"] = cat_by_var.get(vn, [])
+            vd["statistics"] = stat_by_var.get(vn, [])
+            items.append(vd)
+    
     return {
         "dataset": dataset,
-        "study_description": dict(meta) if meta else None,
-        "columns": [dict(v) for v in variables],
-        "categories": [dict(c) for c in categories],
-        "statistics": [dict(s) for s in stats]
+        "page": page,
+        "page_size": page_size,
+        "total_items": total_items,
+        "total_pages": total_pages,
+        "has_next": page < total_pages,
+        "has_previous": page > 1,
+        "study_description": study_desc,
+        "items": items,
     }
 
 
